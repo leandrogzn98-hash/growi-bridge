@@ -10,7 +10,7 @@ Un solo programa para Windows que conecta tu PC con tu asistente Muse: puente de
 
 - **Puente**: tu Muse manda archivos a tu PC (y recibe los que tu PC produce) por una carpeta compartida, sin nubes de por medio. El indicador de sincronización muestra qué se descarga o envía en cada momento.
 - **Runner**: tu Muse le manda tareas a Claude Code en tu PC (sin ventana) y recibe el resultado. Una tarea a la vez, con modelo, herramientas y tiempo límite elegibles. Con sesiones continuas.
-- **Modelos**: instala modelos open-source en local con Ollama (Hermes, Qwen, Llama, Mistral…) y conecta APIs (Anthropic, OpenAI, Gemini, Groq, OpenRouter). Tu Muse también puede instalar y gestionar modelos desde el chat.
+- **Modelos**: instala modelos open-source en local con Ollama (Hermes, Qwen, Llama, Mistral…) y conecta APIs (Anthropic, OpenAI, Gemini, Groq, OpenRouter). El botón «Comprobar mi PC» detecta tu GPU, VRAM, RAM y disco, y cada modelo lleva un semáforo: verde si cabe holgado, naranja si va justo y la PC queda al límite, rojo si no cabe (y no se puede instalar). Tu Muse también puede instalar y gestionar modelos desde el chat.
 - **Proxy**: un interruptor para que Claude Code salga por tu proxy (o por uno alquilado) sin tocar la VPN.
 - **Pantalla**: comparte fotogramas de tu pantalla con tu Muse solo cuando tú lo activas.
 - **Mascota**: Growi vive en tu escritorio. Arrastra un archivo sobre él y llega a tu Muse; haz clic y escríbele.
