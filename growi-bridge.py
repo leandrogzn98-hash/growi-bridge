@@ -50,6 +50,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import random
 import time
 import traceback
 import urllib.request
@@ -75,6 +76,10 @@ LOG_FILE = APP_DIR / "growi-bridge.log"
 PHOTO = APP_DIR / "growi.png"
 MASCOT_DIR = APP_DIR / "mascot"
 MASCOT_SIZE = 128  # la mascota en pantalla es de 128x128 (antes 96)
+# Color magico de la ventana de la mascota: el magenta puro NUNCA aparece
+# en el personaje, asi que la ventana lo hace transparente sin agujeros.
+# Los fotogramas de mascot/*.png van compuestos sobre este color.
+MASCOT_MAGIC = "#ff00ff"
 # Modelo local (Ollama, ya instalado en el PC con Hermes 3 8B Q4).
 OLLAMA_MODEL = "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M"
 _keep_awake_applied = [False]
@@ -1630,13 +1635,13 @@ def open_folder(path):
 
 # ---------------------------------------------------------------- mascota
 _mascot = {"win": None, "label": None, "sets": {}, "animating": False,
-           "drag": None, "frame_idx": 0, "last_tasks": 0}
+           "drag": None, "frame_idx": 0, "last_tasks": 0, "idle_next": 0}
 
 
 def _mascot_sets():
     """Carga los tres juegos de animacion (idle / working / wave) de
     mascot/*.png. Cada juego son 16 fotogramas de 256x256, con fondo
-    blanco puro (la ventana lo hace transparente)."""
+    magenta puro (la ventana lo hace transparente)."""
     if _mascot["sets"]:
         return _mascot["sets"]
     sets = {}
@@ -1679,10 +1684,41 @@ def _mascot_play(name):
     _step()
 
 
+def _mascot_micro():
+    """Un respiro corto: 6 fotogramas del juego idle, una sola vez. Es lo
+    unico que se mueve cuando nadie toca a la mascota."""
+    frames = _mascot_sets().get("idle") or []
+    label = _mascot["label"]
+    if not frames or label is None or _mascot["animating"]:
+        return
+    _mascot["animating"] = True
+    idx = [0]
+
+    def _step():
+        if idx[0] >= 6:
+            _mascot["animating"] = False
+            try:
+                label.config(image=frames[0])
+            except Exception:
+                pass
+            return
+        try:
+            label.config(image=frames[idx[0] % len(frames)])
+        except Exception:
+            pass
+        idx[0] += 1
+        try:
+            _root.after(120, _step)
+        except Exception:
+            _mascot["animating"] = False
+
+    _step()
+
+
 def _mascot_loop():
-    """Animacion continua segun el estado: trabajando mientras Claude corre
-    una tarea, descansando el resto del tiempo. Cuando Claude termina una
-    tarea, Growi celebra con el saludo."""
+    """La mascota descansa QUIETA casi todo el tiempo: solo se mueve un
+    poco cada cierto rato (un respiro corto), y anima de verdad cuando algo
+    pasa (clic, arrastre, tarea terminada) o mientras Claude trabaja."""
     win = _mascot["win"]
     if win is None:
         return
@@ -1690,14 +1726,26 @@ def _mascot_loop():
         if state["tasks_done"] > _mascot["last_tasks"]:
             _mascot["last_tasks"] = state["tasks_done"]
             _mascot_play("wave")
-        else:
-            sets = _mascot_sets()
-            name = "working" if state.get("current") else "idle"
-            frames = sets.get(name) or []
+        elif state.get("current"):
+            # Trabajando: el loop de tecleo, continuo (tiene sentido).
+            frames = _mascot_sets().get("working") or []
             if frames:
                 _mascot["frame_idx"] = (_mascot["frame_idx"] + 1) % len(frames)
                 try:
                     _mascot["label"].config(image=frames[_mascot["frame_idx"]])
+                except Exception:
+                    pass
+        else:
+            # Descansando: quieto, con un respiro corto cada 8-15 s.
+            now = time.time()
+            if now >= _mascot.get("idle_next", 0):
+                _mascot["idle_next"] = now + random.uniform(8, 15)
+                _mascot_micro()
+            else:
+                try:
+                    frames = _mascot_sets().get("idle") or []
+                    if frames:
+                        _mascot["label"].config(image=frames[0])
                 except Exception:
                     pass
     try:
@@ -1711,10 +1759,6 @@ def _mascot_pos():
     sh = _root.winfo_screenheight()
     return sw - (MASCOT_SIZE + 20), sh - (MASCOT_SIZE + 20)
 
-def _mascot_pos():
-    sw = _root.winfo_screenwidth()
-    sh = _root.winfo_screenheight()
-    return sw - 116, sh - 136
 
 
 def show_mascot():
@@ -1727,23 +1771,26 @@ def show_mascot():
     win.overrideredirect(True)
     win.attributes("-topmost", True)
     try:
-        win.attributes("-transparentcolor", "white")
+        win.attributes("-transparentcolor", MASCOT_MAGIC)
     except Exception:
         pass
     x, y = _mascot_pos()
     win.geometry(f"{MASCOT_SIZE}x{MASCOT_SIZE}+{x}+{y}")
     try:
-        img = Image.open(PHOTO).resize((MASCOT_SIZE, MASCOT_SIZE), Image.LANCZOS)
+        first = MASCOT_DIR / "idle-01.png"
+        img_path = first if first.is_file() else PHOTO
+        img = Image.open(img_path).resize((MASCOT_SIZE, MASCOT_SIZE), Image.LANCZOS)
         photo = ImageTk.PhotoImage(img)
     except Exception:
         win.destroy()
         return
-    label = tk.Label(win, image=photo, bg="white", bd=0)
+    label = tk.Label(win, image=photo, bg=MASCOT_MAGIC, bd=0)
     label.image = photo
     label.pack()
     win._photo = photo
     _mascot["win"] = win
     _mascot["label"] = label
+    _mascot["idle_next"] = time.time() + 5
     # Arrastrar archivos sobre la mascota: los copia al Inbox (tkinterdnd2).
     if DND_OK:
         try:
