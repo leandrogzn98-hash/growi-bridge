@@ -74,6 +74,11 @@ MESSAGES = OUTBOX / "mensajes"
 LOG_FILE = APP_DIR / "growi-bridge.log"
 PHOTO = APP_DIR / "growi.png"
 MASCOT_DIR = APP_DIR / "mascot"
+MASCOT_SIZE = 128  # la mascota en pantalla es de 128x128 (antes 96)
+# Modelo local (Ollama, ya instalado en el PC con Hermes 3 8B Q4).
+OLLAMA_MODEL = "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M"
+_keep_awake_applied = [False]
+_seen_results = set()
 PROXY_FILE = APP_DIR / "proxy.json"
 FOLDERS_FILE = APP_DIR / "folders.json"
 SETTINGS_FILE = APP_DIR / "settings.json"
@@ -694,7 +699,9 @@ def validate_task(data):
     model = data.get("model")
     if model is not None:
         if not isinstance(model, str) or (
-            model not in ALLOWED_MODELS and not model.startswith("claude-")
+            model not in ALLOWED_MODELS
+            and not model.startswith("claude-")
+            and not model.startswith("ollama:")
         ):
             return None, f"model no permitido: {model}"
     allowed_tools = data.get("allowed_tools")
@@ -722,7 +729,51 @@ def validate_task(data):
     }, None
 
 
+def _run_ollama(task):
+    """Motor local: corre el prompt con Ollama (Hermes 3 8B en la RTX 3060).
+    Un solo turno, sin herramientas de Claude Code: sirve para preguntas,
+    resumenes, borradores y codigo en una pasada. Costo $0."""
+    started = _now_iso()
+    t0 = time.time()
+    model = (task.get("model") or "").split("ollama:", 1)[1]
+    result = {
+        "runner": f"growi-bridge/{VERSION}", "id": task["id"], "status": "error",
+        "started_at": started, "finished_at": None, "duration_s": None,
+        "exit_code": None, "result": "", "cost_usd": 0.0, "num_turns": 1,
+        "session_id": None, "stderr": "", "error": None,
+    }
+    if not shutil.which("ollama"):
+        result["error"] = "ollama no esta en el PATH de este usuario"
+        result["finished_at"] = _now_iso()
+        result["duration_s"] = round(time.time() - t0, 1)
+        return result
+    log(f"runner [{task['id']}]: corriendo ollama run {model} (local, $0)")
+    try:
+        proc = subprocess.run(
+            ["ollama", "run", model, task["prompt"]],
+            cwd=task["cwd"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=task["timeout_min"] * 60,
+        )
+        result["exit_code"] = proc.returncode
+        result["stderr"] = (proc.stderr or "")[-MAX_STDERR_CHARS:]
+        result["result"] = (proc.stdout or "")[:MAX_RESULT_CHARS]
+        result["status"] = "ok" if proc.returncode == 0 else "error"
+        if proc.returncode != 0:
+            result["error"] = f"ollama salio con codigo {proc.returncode}"
+    except subprocess.TimeoutExpired:
+        result["status"] = "timeout"
+        result["error"] = f"timeout de {task['timeout_min']} min"
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {e}"
+    result["finished_at"] = _now_iso()
+    result["duration_s"] = round(time.time() - t0, 1)
+    return result
+
+
 def run_task(task):
+    if (task.get("model") or "").startswith("ollama:"):
+        return _run_ollama(task)
     started = _now_iso()
     t0 = time.time()
     cmd = ["claude", "-p", task["prompt"], "--output-format", "json"]
@@ -1133,11 +1184,13 @@ def make_switch(parent, initial, command, bg=None):
     c = tk.Canvas(parent, width=52, height=30, bg=bg, highlightthickness=0, bd=0)
     c._on = bool(initial)
     c._command = command
+    c._t = 1.0 if c._on else 0.0  # 0 = apagado, 1 = encendido (animado)
+    c._anim = None
 
     def _draw():
-        on = c._on
-        track = THEME["green"] if on else "#E9E9EA"
-        outline = THEME["green"] if on else "#D2D2D7"
+        t = c._t
+        track = _lerp_color("#E9E9EA", THEME["green"], t)
+        outline = _lerp_color("#D2D2D7", THEME["green"], t)
         c.delete("all")
         # borde (pildora 1 px mas grande detras)
         c.create_rectangle(15, 0, 37, 30, fill=outline, outline=outline)
@@ -1147,26 +1200,53 @@ def make_switch(parent, initial, command, bg=None):
         c.create_rectangle(16, 1, 36, 29, fill=track, outline=track)
         c.create_oval(1, 1, 29, 29, fill=track, outline=track)
         c.create_oval(23, 1, 51, 29, fill=track, outline=track)
-        kx = 24 if on else 2
+        kx = 2 + 22 * t
         c.create_oval(kx, 2, kx + 26, 28, fill="white", outline="#D2D2D7")
+
+    def _animate_to(target):
+        # Desliza la perilla en ~150 ms (6 pasos de 25 ms).
+        if c._anim is not None:
+            try:
+                c.after_cancel(c._anim)
+            except Exception:
+                pass
+            c._anim = None
+        step = (target - c._t) / 6
+        if abs(step) < 0.01:
+            c._t = target
+            _draw()
+            return
+
+        def _step(n=0):
+            c._t += step
+            if n >= 5:
+                c._t = target
+                c._anim = None
+                _draw()
+                return
+            _draw()
+            c._anim = c.after(25, lambda: _step(n + 1))
+
+        _step()
 
     def _toggle(ev=None):
         c._on = not c._on
-        _draw()
+        _animate_to(1.0 if c._on else 0.0)
         if c._command:
             c._command(c._on)
 
     c.bind("<Button-1>", _toggle)
     c._draw = _draw
+    c._animate_to = _animate_to
     _draw()
     return c
 
 def set_switch(c, on):
     """Pone el interruptor en el estado dado (lo usa refresh_ui para que
-    el dibujo siga al servicio real, no al ultimo clic)."""
+    el dibujo siga al servicio real, no al ultimo clic). Anima el cambio."""
     if c is not None and c._on != bool(on):
         c._on = bool(on)
-        c._draw()
+        c._animate_to(1.0 if c._on else 0.0)
 
 
 def _dot(status):
@@ -1384,13 +1464,20 @@ def refresh_ui():
     # Ajustes (interruptores): la app los sincroniza con el estado real.
     set_switch(w.get("autoupd_sw"), state.get("auto_update", False))
     set_switch(w.get("autostart_sw"), state.get("autostart", False))
+    set_switch(w.get("keepawake_sw"), state.get("keep_awake", True))
     set_switch(w.get("mascot_sw"), state["mascot"])
-    # Contadores de la barra lateral (Plain), cada 10 s.
+    # No suspender mientras Claude trabaja.
+    _apply_keep_awake()
+    # Contadores de la barra lateral (Plain) y pagina Tareas, cada 10 s.
     if _tick_n[0] % 10 == 0:
         try:
             w["nav_count_carpetas"].config(text=str(len(load_folders())))
             w["nav_count_skills"].config(text=str(len(list_skills())))
             w["nav_count_apis"].config(text=str(len(load_apis())))
+        except Exception:
+            pass
+        try:
+            _refresh_tasks_ui()
         except Exception:
             pass
     # Distintivo de sincronizacion en el icono de la bandeja (como OneDrive).
@@ -1435,10 +1522,15 @@ def _tick():
         refresh_ui()
     except Exception:
         pass
-    # Cada 5 s: recoger APIs que Growi empujo por el puente (desde WhatsApp).
+    # Cada 5 s: recoger APIs que Growi empujo por el puente (desde WhatsApp)
+    # y avisar si Claude termino una tarea.
     if _tick_n[0] % 5 == 0:
         try:
             import_api_files()
+        except Exception:
+            pass
+        try:
+            _watch_results()
         except Exception:
             pass
     # Auto-update listo: instalarlo solo (sin preguntar) desde el hilo
@@ -1543,7 +1635,8 @@ _mascot = {"win": None, "label": None, "sets": {}, "animating": False,
 
 def _mascot_sets():
     """Carga los tres juegos de animacion (idle / working / wave) de
-    mascot/*.png. Cada juego son 8 fotogramas de 160x160."""
+    mascot/*.png. Cada juego son 16 fotogramas de 256x256, con fondo
+    blanco puro (la ventana lo hace transparente)."""
     if _mascot["sets"]:
         return _mascot["sets"]
     sets = {}
@@ -1552,7 +1645,7 @@ def _mascot_sets():
         try:
             for p in sorted(MASCOT_DIR.glob(f"{name}-*.png")):
                 frames.append(ImageTk.PhotoImage(
-                    Image.open(p).resize((96, 96), Image.LANCZOS)))
+                    Image.open(p).resize((MASCOT_SIZE, MASCOT_SIZE), Image.LANCZOS)))
         except Exception:
             frames = []
         sets[name] = frames
@@ -1579,7 +1672,7 @@ def _mascot_play(name):
             pass
         idx[0] += 1
         try:
-            _root.after(120, _step)
+            _root.after(90, _step)
         except Exception:
             _mascot["animating"] = False
 
@@ -1608,7 +1701,7 @@ def _mascot_loop():
                 except Exception:
                     pass
     try:
-        _root.after(400, _mascot_loop)
+        _root.after(120, _mascot_loop)
     except Exception:
         pass
 
@@ -1616,7 +1709,7 @@ def _mascot_loop():
 def _mascot_pos():
     sw = _root.winfo_screenwidth()
     sh = _root.winfo_screenheight()
-    return sw - 116, sh - 136
+    return sw - (MASCOT_SIZE + 20), sh - (MASCOT_SIZE + 20)
 
 def _mascot_pos():
     sw = _root.winfo_screenwidth()
@@ -1638,9 +1731,9 @@ def show_mascot():
     except Exception:
         pass
     x, y = _mascot_pos()
-    win.geometry(f"96x96+{x}+{y}")
+    win.geometry(f"{MASCOT_SIZE}x{MASCOT_SIZE}+{x}+{y}")
     try:
-        img = Image.open(PHOTO).resize((96, 96), Image.LANCZOS)
+        img = Image.open(PHOTO).resize((MASCOT_SIZE, MASCOT_SIZE), Image.LANCZOS)
         photo = ImageTk.PhotoImage(img)
     except Exception:
         win.destroy()
@@ -1673,7 +1766,7 @@ def show_mascot():
         dy = e.y_root - d[1]
         if abs(dx) + abs(dy) > 5:
             _mascot["drag"] = (d[0], d[1], d[2], d[3], True)
-            win.geometry(f"160x160+{d[2] + dx}+{d[3] + dy}")
+            win.geometry(f"192x192+{d[2] + dx}+{d[3] + dy}")
 
     def _release(e):
         d = _mascot["drag"]
@@ -1686,7 +1779,7 @@ def show_mascot():
     label.bind("<ButtonRelease-1>", _release)
     log("mascota: Growi está en la esquina inferior derecha")
     _mascot["last_tasks"] = state["tasks_done"]
-    _root.after(400, _mascot_loop)
+    _root.after(120, _mascot_loop)
     _root.after(700, lambda: _mascot_play("wave"))  # saludo al arrancar
 
 
@@ -1829,7 +1922,7 @@ def _mascot_drag_position(event):
         dx = max(-8, min(8, (event.x_root - cx) // 12))
         dy = max(-8, min(8, (event.y_root - cy) // 12))
         base_x, base_y = _mascot_pos()
-        win.geometry(f"96x96+{base_x + dx}+{base_y + dy}")
+        win.geometry(f"{MASCOT_SIZE}x{MASCOT_SIZE}+{base_x + dx}+{base_y + dy}")
     except Exception:
         pass
 
@@ -1841,13 +1934,15 @@ def _mascot_drag_leave(event):
         return
     try:
         x, y = _mascot_pos()
-        win.geometry(f"96x96+{x}+{y}")
+        win.geometry(f"{MASCOT_SIZE}x{MASCOT_SIZE}+{x}+{y}")
     except Exception:
         pass
 
 
 
 def open_prompt_box():
+    """Cajita para escribirle a Growi (estilo Mac: avatar, campo con borde,
+    boton de acento). El mensaje llega a Growi por el puente."""
     win = _mascot["win"]
     if win is None:
         return
@@ -1855,16 +1950,32 @@ def open_prompt_box():
     box.title("Escríbeme")
     box.attributes("-topmost", True)
     box.configure(bg=THEME["bg"])
-    x = max(0, win.winfo_x() - 140)
-    y = max(0, win.winfo_y() - 130)
-    box.geometry(f"300x130+{x}+{y}")
-    tk.Label(box, text="¡Hola! ¿Qué necesitas?",
-             font=(FONT, 11, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(pady=(10, 2))
-    entry = tk.Entry(box, width=36, font=(FONT, 10), bg=THEME["field"],
-                     fg=THEME["text"], insertbackground=THEME["text"], borderwidth=0)
-    entry.pack(padx=10, pady=4)
+    box.resizable(False, False)
+    x = max(0, win.winfo_x() - 220)
+    y = max(0, win.winfo_y() - 190)
+    box.geometry(f"380x230+{x}+{y}")
+    # Cabecera: avatar + saludo.
+    head = tk.Frame(box, bg=THEME["bg"])
+    head.pack(fill="x", padx=18, pady=(16, 4))
+    try:
+        img = Image.open(PHOTO).resize((40, 40), Image.LANCZOS)
+        photo = ImageTk.PhotoImage(img)
+        tk.Label(head, image=photo, bg=THEME["bg"]).pack(side="left")
+        head.image = photo
+    except Exception:
+        pass
+    tk.Label(head, text="¡Hola! ¿Qué necesitas?", font=(FONT, 13, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(side="left", padx=(10, 0))
+    # Campo con borde (como los campos de la app).
+    field = tk.Frame(box, bg=THEME["line"], padx=1, pady=1)
+    field.pack(fill="x", padx=18, pady=10)
+    entry = tk.Entry(field, font=(FONT, 11), bg="#FFFFFF", fg=THEME["text"],
+                     insertbackground=THEME["text"], borderwidth=0,
+                     highlightthickness=0)
+    entry.pack(fill="x", ipady=8, padx=8)
     entry.focus_set()
-    status = tk.Label(box, text="", font=(FONT, 9), fg=THEME["green"], bg=THEME["bg"])
+    status = tk.Label(box, text="", font=(FONT, 9), fg=THEME["green_text"],
+                      bg=THEME["bg"])
     status.pack()
 
     def _send(_e=None):
@@ -1880,13 +1991,12 @@ def open_prompt_box():
 
     entry.bind("<Return>", _send)
     row = tk.Frame(box, bg=THEME["bg"])
-    row.pack(pady=4)
-    tk.Button(row, text="Enviar a Growi", command=_send,
-              bg=THEME["green"], fg=THEME["bg"], borderwidth=0,
-              font=(FONT, 10)).pack(side="left", padx=4)
-    tk.Button(row, text="Cerrar", command=box.destroy,
-              bg=THEME["card"], fg=THEME["text"], borderwidth=0,
-              font=(FONT, 10)).pack(side="left", padx=4)
+    row.pack(pady=(6, 4))
+    ttk.Button(row, text="Enviar a Growi", style="Accent.TButton",
+               command=_send).pack(side="left", padx=4)
+    ttk.Button(row, text="Cerrar", command=box.destroy).pack(side="left", padx=4)
+    tk.Label(box, text="Llega a Growi por el puente y te responde en el chat.",
+             font=(FONT, 9), fg=THEME["muted"], bg=THEME["bg"]).pack(pady=(2, 10))
 
 
 def hide_mascot():
@@ -2149,6 +2259,272 @@ def _scrollable(parent):
     return inner
 
 
+def _lerp_color(c1, c2, t):
+    """Mezcla dos colores hex (#RRGGBB) segun t (0..1)."""
+    def _ch(c, i):
+        return int(c[i:i + 2], 16)
+    r = round(_ch(c1, 1) + (_ch(c2, 1) - _ch(c1, 1)) * t)
+    g = round(_ch(c1, 3) + (_ch(c2, 3) - _ch(c1, 3)) * t)
+    b = round(_ch(c1, 5) + (_ch(c2, 5) - _ch(c1, 5)) * t)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _apply_keep_awake():
+    """No suspender: mientras Claude corre una tarea, le dice a Windows
+    que no duerma el equipo (ES_SYSTEM_REQUIRED). Al quedar libre, lo
+    suelta. Solo si el ajuste esta activado."""
+    try:
+        import ctypes
+        want = bool(state.get("current")) and bool(state.get("keep_awake", True))
+        if want == _keep_awake_applied[0]:
+            return
+        _keep_awake_applied[0] = want
+        ES_CONTINUOUS = 0x80000000
+        ES_SYSTEM_REQUIRED = 0x00000001
+        if want:
+            ctypes.windll.kernel32.SetThreadExecutionState(
+                ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+            log("PC: no se suspendera mientras Claude trabaja")
+        else:
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+    except Exception:
+        pass
+
+
+def _notify_task(title, msg):
+    """Aviso de Windows cuando Claude termina una tarea (via pystray)."""
+    try:
+        if _tray_icon is not None:
+            _tray_icon.notify(msg, title)
+    except Exception:
+        pass
+
+
+def _watch_results():
+    """Cada 5 s revisa si llego un resultado nuevo del runner: avisa con
+    un toast y hace celebrar a la mascota. Al arrancar marca los que ya
+    existen como vistos (no avisa de lo viejo)."""
+    try:
+        RESULTS.mkdir(parents=True, exist_ok=True)
+        current = {f.name for f in RESULTS.glob("*.result.json")}
+        if not _seen_results:
+            _seen_results.update(current)
+            return
+        new = current - _seen_results
+        _seen_results.update(current)
+        for name in sorted(new):
+            try:
+                d = json.loads((RESULTS / name).read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            status = d.get("status", "?")
+            cost = d.get("cost_usd")
+            dur = d.get("duration_s")
+            cost_txt = f" · ${cost:.2f}" if isinstance(cost, (int, float)) else ""
+            dur_txt = f" · {dur}s" if dur is not None else ""
+            _notify_task("Growi Bridge",
+                         f"Claude terminó: {d.get('id', name)} · {status}{dur_txt}{cost_txt}")
+            log(f"aviso: tarea {d.get('id')} terminada ({status}{dur_txt}{cost_txt})")
+            try:
+                _mascot_play("wave")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _dpi_awareness():
+    """Nítido en Windows con escalado de pantalla >100%: sin esto, Windows
+    reescala la ventana entera como un mapa de bits y todo se ve borroso
+    (iconos pixelados, texto suave). Se declara antes de crear la ventana."""
+    try:
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # por monitor v2
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _dpi_scaling(root):
+    """Ajusta el escalado de tkinter al DPI real, para que con DPI activo
+    la ventana mantenga su tamaño físico (si no, se vería más pequeña)."""
+    try:
+        import ctypes
+        dpi = ctypes.windll.user32.GetDpiForSystem()
+        if dpi and dpi != 96:
+            root.tk.call("tk", "scaling", dpi / 72)
+            log(f"DPI del sistema: {dpi} ({round(dpi / 96 * 100)}% de escalado)")
+    except Exception:
+        pass
+
+
+_PALETTE_CMDS = []
+_tasks_fp = [None]
+_ASK_ENGINES = {
+    "Claude Sonnet": "sonnet", "Claude Opus": "opus", "Claude Haiku": "haiku",
+    "Local Hermes 3 (Ollama · $0)": "ollama:" + OLLAMA_MODEL,
+}
+
+
+def toggle_window():
+    """Muestra u oculta la ventana (la usa el atajo global Ctrl+Alt+G)."""
+    if _root is None:
+        return
+    try:
+        if _root.state() == "iconic" or not _root.winfo_viewable():
+            show_window()
+        else:
+            hide_to_tray()
+    except Exception:
+        show_window()
+
+
+def _open_palette():
+    """Paleta de comandos estilo Raycast (Ctrl+K): escribe la accion y
+    se ejecuta al instante, sin recorrer menus. Filtra mientras escribes."""
+    if _root is None or not _PALETTE_CMDS:
+        return
+    pal = tk.Toplevel(_root)
+    pal.title("Buscar acciones")
+    pal.attributes("-topmost", True)
+    pal.configure(bg=THEME["bg"])
+    pal.resizable(False, False)
+    try:
+        x = _root.winfo_x() + max(0, (_root.winfo_width() - 520) // 2)
+        y = _root.winfo_y() + 80
+        pal.geometry(f"520x320+{x}+{y}")
+    except Exception:
+        pal.geometry("520x320")
+    entry = tk.Entry(pal, font=(FONT, 12), bg="#FFFFFF", fg=THEME["text"],
+                     insertbackground=THEME["text"], borderwidth=0,
+                     highlightthickness=0)
+    entry.pack(fill="x", padx=12, pady=(12, 6), ipady=8)
+    entry.focus_set()
+    lb = tk.Listbox(pal, font=(FONT, 11), bg="#FFFFFF", fg=THEME["text"],
+                    selectbackground=THEME["blue"], selectforeground="white",
+                    borderwidth=0, highlightthickness=0)
+    lb.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+    cur = [list(_PALETTE_CMDS)]
+
+    def _fill(items):
+        cur[0] = items
+        lb.delete(0, "end")
+        for label, _kw, _fn in items:
+            lb.insert("end", label)
+        if items:
+            lb.selection_set(0)
+
+    def _on_type(_e=None):
+        q = entry.get().strip().lower()
+        if not q:
+            _fill(list(_PALETTE_CMDS))
+        else:
+            _fill([c for c in _PALETTE_CMDS
+                   if q in c[0].lower() or q in c[1].lower()])
+
+    def _run(_e=None):
+        sel = lb.curselection()
+        if not sel or not cur[0]:
+            return
+        _lab, _kw, fn = cur[0][sel[0]]
+        pal.destroy()
+        try:
+            fn()
+        except Exception as e:
+            log(f"paleta: no se pudo ejecutar ({e})")
+
+    entry.bind("<KeyRelease>", _on_type)
+    entry.bind("<Return>", _run)
+    lb.bind("<Double-Button-1>", _run)
+    pal.bind("<Escape>", lambda _e: pal.destroy())
+    _fill(list(_PALETTE_CMDS))
+
+
+def _send_ask():
+    """Manda la tarea escrita en la pagina Tareas al runner (Claude u
+    Ollama local, segun el motor elegido)."""
+    w = _widgets
+    text = w.get("ask_text")
+    if text is None:
+        return
+    prompt = text.get("1.0", "end").strip()
+    if not prompt:
+        return
+    engine = "Claude Sonnet"
+    try:
+        engine = w["ask_engine"].get() or engine
+    except Exception:
+        pass
+    model = _ASK_ENGINES.get(engine, "sonnet")
+    TASKS.mkdir(parents=True, exist_ok=True)
+    base = "t-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    task_id = base
+    i = 1
+    while (TASKS / f"{task_id}.task.json").exists():
+        task_id = f"{base}-{i}"
+        i += 1
+    data = {"id": task_id, "prompt": prompt, "cwd": str(INBOX), "model": model,
+            "timeout_min": 30, "allowed_tools": "Read,Write,Edit,Bash",
+            "permission_mode": "acceptEdits"}
+    (TASKS / f"{task_id}.task.json").write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"tareas: '{task_id}' enviado al runner ({engine})")
+    text.delete("1.0", "end")
+    if w.get("ask_status") is not None:
+        w["ask_status"].config(text=f"✓ Enviado al runner ({engine})")
+
+
+def _refresh_tasks_ui():
+    """Actualiza la pagina Tareas: historial desde los result.json del
+    runner, con costo del dia y total. Solo re-dibuja si algo cambio."""
+    w = _widgets
+    tree = w.get("tasks_tree")
+    if tree is None:
+        return
+    try:
+        RESULTS.mkdir(parents=True, exist_ok=True)
+        files = sorted(RESULTS.glob("*.result.json"),
+                       key=lambda f: f.stat().st_mtime, reverse=True)
+        fp = (len(files), max((f.stat().st_mtime for f in files), default=0))
+        if fp == _tasks_fp[0]:
+            return
+        _tasks_fp[0] = fp
+        rows = []
+        total = 0.0
+        today_total = 0.0
+        today = datetime.now().astimezone().date().isoformat()
+        for f in files:
+            try:
+                d = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            cost = d.get("cost_usd") or 0
+            if isinstance(cost, (int, float)):
+                total += cost
+                if (d.get("finished_at") or "")[:10] == today:
+                    today_total += cost
+            dur = d.get("duration_s")
+            rows.append((d.get("id", f.stem), d.get("status", "?"),
+                         f"{dur}s" if dur is not None else "—",
+                         f"${cost:.2f}" if isinstance(cost, (int, float)) else "—"))
+        for item in tree.get_children():
+            tree.delete(item)
+        for r in rows[:30]:
+            tree.insert("", "end", values=r)
+        if w.get("tasks_summary") is not None:
+            w["tasks_summary"].config(
+                text=f"Hoy: ${today_total:.2f}  ·  Total: ${total:.2f}  ·  {len(rows)} tareas")
+        if w.get("nav_count_tareas") is not None:
+            w["nav_count_tareas"].config(text=str(len(rows)))
+    except Exception:
+        pass
+
+
 def build_gui():
     global _root
     try:
@@ -2159,6 +2535,7 @@ def build_gui():
         root = tk.Tk()
         state["dnd"] = False
     _root = root
+    _dpi_scaling(root)
     root.title("Growi Bridge")
     root.geometry("940x680")
     root.minsize(820, 560)
@@ -2224,7 +2601,8 @@ def build_gui():
     content = tk.Frame(root, bg=THEME["bg"])
     content.pack(side="right", fill="both", expand=True)
     pages = {}
-    for name in ("estado", "carpetas", "skills", "pantalla", "apis"):
+    for name in ("estado", "carpetas", "skills", "pantalla", "apis",
+                 "tareas", "ajustes", "registro"):
         holder = tk.Frame(content, bg=THEME["bg"])
         pages[name] = _scrollable(holder)
         holder._inner = pages[name]
@@ -2247,7 +2625,8 @@ def build_gui():
     nav.pack(fill="x", padx=8, pady=8)
     for name, label in (("estado", "Estado"), ("carpetas", "Carpetas"),
                         ("skills", "Skills"), ("pantalla", "Pantalla"),
-                        ("apis", "APIs")):
+                        ("apis", "APIs"), ("tareas", "Tareas"),
+                        ("ajustes", "Ajustes"), ("registro", "Registro")):
         row = tk.Frame(nav, bg=THEME["sidebar"])
         row.pack(fill="x", pady=1)
         bar = tk.Frame(row, bg=THEME["sidebar"], width=3)
@@ -2259,11 +2638,14 @@ def build_gui():
         btn.pack(side="left", fill="x", expand=True, ipady=6)
         btn._bar = bar
         _nav_btns[name] = btn
-        if name in ("carpetas", "skills", "apis"):
+        if name in ("carpetas", "skills", "apis", "tareas"):
             cnt = tk.Label(row, text="", font=(FONT, 10),
                            bg=THEME["sidebar"], fg=THEME["muted"])
             cnt.pack(side="right", padx=(0, 10))
             _widgets[f"nav_count_{name}"] = cnt
+
+    tk.Label(sidebar, text="Ctrl+K  ·  buscar acciones", font=(FONT, 9),
+             bg=THEME["sidebar"], fg=THEME["muted"]).pack(anchor="w", padx=18, pady=(0, 4))
 
     # Pie de la barra lateral: la mascota siempre a la vista (Superlist /
     # Plain ponen el avatar abajo). El interruptor enciende o apaga a Growi.
@@ -2397,95 +2779,6 @@ def build_gui():
     ttk.Button(prow, text="Guardar", style="Accent.TButton",
                command=save_proxy_from_ui).pack(side="left", padx=(0, 8))
 
-    aj = tk.Frame(tab, bg=THEME["card"])
-    aj.pack(fill="x", padx=20, pady=8)
-    tk.Label(aj, text="AJUSTES", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
-
-    def _setting_row(label, expl, initial, on_change):
-        row = tk.Frame(aj, bg=THEME["card"])
-        row.pack(fill="x", padx=16, pady=5)
-        left = tk.Frame(row, bg=THEME["card"])
-        left.pack(side="left", fill="x", expand=True)
-        tk.Label(left, text=label, font=(FONT, 10, "bold"),
-                 bg=THEME["card"], fg=THEME["text"]).pack(anchor="w")
-        tk.Label(left, text=expl, font=(FONT, 9),
-                 bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w")
-        sw = make_switch(row, initial, on_change, bg=THEME["card"])
-        sw.pack(side="right")
-        sep = tk.Frame(aj, bg=THEME["line"], height=1)
-        sep.pack(fill="x", padx=16)
-        return sw
-
-    def _sw_autoupd(on):
-        state["auto_update"] = on
-        s = load_settings()
-        s["auto_update"] = on
-        save_settings(s)
-        log(f"ajustes: actualizacion automatica {'activada' if on else 'desactivada'}")
-
-    def _sw_autostart(on):
-        if set_autostart(on):
-            state["autostart"] = on
-        else:
-            state["autostart"] = autostart_enabled()
-            messagebox.showwarning(
-                "Inicio automático",
-                "No se pudo cambiar el inicio automático. "
-                "La app necesita correr como administrador.")
-
-    _widgets["autoupd_sw"] = _setting_row(
-        "Actualización automática",
-        "Se actualiza sola desde GitHub cuando hay una versión nueva.",
-        state.get("auto_update", False), _sw_autoupd)
-    _widgets["autostart_sw"] = _setting_row(
-        "Iniciar al encender la PC",
-        "Arranca sola con Windows al iniciar sesión.",
-        state.get("autostart", False), _sw_autostart)
-
-    pc = tk.Frame(tab, bg=THEME["card"])
-    pc.pack(fill="x", padx=20, pady=8)
-    tk.Label(pc, text="PC", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
-    tk.Label(pc, text="Apagar o reiniciar este PC. Te pide confirmación y "
-             "tienes 60 segundos para cancelarlo.",
-             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
-        anchor="w", padx=16, pady=(0, 8))
-    prow2 = tk.Frame(pc, bg=THEME["card"])
-    prow2.pack(fill="x", padx=16, pady=(0, 14))
-    ttk.Button(prow2, text="Apagar PC",
-               command=lambda: _pc_confirm("shutdown")).pack(side="left", padx=(0, 8))
-    ttk.Button(prow2, text="Reiniciar PC",
-               command=lambda: _pc_confirm("restart")).pack(side="left", padx=(0, 8))
-    ttk.Button(prow2, text="Cancelar apagado",
-               command=pc_abort).pack(side="left")
-
-    btns = tk.Frame(tab, bg=THEME["bg"])
-    btns.pack(fill="x", padx=20, pady=8)
-    ttk.Button(btns, text="Abrir Inbox",
-               command=lambda: open_folder(INBOX)).grid(row=0, column=0, padx=2, pady=2)
-    ttk.Button(btns, text="Abrir Outbox",
-               command=lambda: open_folder(OUTBOX)).grid(row=0, column=1, padx=2, pady=2)
-    ttk.Button(btns, text="Buscar actualizaciones",
-               command=check_updates_ui).grid(row=0, column=2, padx=2, pady=2)
-    ttk.Button(btns, text="Salir", command=quit_app).grid(row=0, column=3, padx=2, pady=2)
-    _widgets["update_label"] = tk.Label(tab, text="", font=(FONT, 9),
-                                        bg=THEME["bg"], fg=THEME["green_text"])
-    _widgets["update_label"].pack(anchor="w", padx=22)
-    _widgets["update_btn"] = ttk.Button(tab, text="Actualizar ahora", state="disabled",
-                                        command=do_update_ui)
-    _widgets["update_btn"].pack(anchor="w", padx=20, pady=2)
-
-    log_box = tk.Frame(tab, bg=THEME["card"])
-    log_box.pack(fill="both", expand=True, padx=20, pady=(4, 16))
-    tk.Label(log_box, text="REGISTRO", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
-    text = scrolledtext.ScrolledText(log_box, height=6, font=("Consolas", 9),
-                                     bg="#FFFFFF", fg=THEME["text"],
-                                     insertbackground=THEME["text"],
-                                     state="disabled", borderwidth=0)
-    text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-    _widgets["log"] = text
 
     # ================= pagina Carpetas
     tab2 = pages["carpetas"]
@@ -2610,6 +2903,204 @@ def build_gui():
         side="left", padx=2)
     refresh_apis_ui()
 
+    # ================= pagina Tareas
+    tabt = pages["tareas"]
+    tk.Label(tabt, text="Tareas", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    tk.Label(tabt, text="Lo que Claude (y Hermes, en local) ha hecho por ti, con su costo. "
+             "La lista se actualiza sola cuando termina una tarea.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+    _widgets["tasks_summary"] = tk.Label(tabt, text="", font=(FONT, 11, "bold"),
+                                         bg=THEME["bg"], fg=THEME["green_text"])
+    _widgets["tasks_summary"].pack(anchor="w", padx=20, pady=(0, 6))
+    tree = ttk.Treeview(tabt, columns=("tarea", "estado", "duracion", "costo"),
+                        show="headings", height=8)
+    for _col, _txt, _w in (("tarea", "Tarea", 260), ("estado", "Estado", 80),
+                          ("duracion", "Duración", 90), ("costo", "Costo", 90)):
+        tree.heading(_col, text=_txt)
+        tree.column(_col, width=_w)
+    tree.pack(fill="x", padx=20, pady=4)
+    _widgets["tasks_tree"] = tree
+    ask = tk.Frame(tabt, bg=THEME["card"])
+    ask.pack(fill="x", padx=20, pady=8)
+    tk.Label(ask, text="PEDIRLE ALGO", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
+    tk.Label(ask, text="Escribe la tarea y elige el motor. Claude hace el trabajo pesado; "
+             "Hermes 3 corre en local, gratis, para lo rápido.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
+             wraplength=560, justify="left").pack(anchor="w", padx=16, pady=(0, 6))
+    _widgets["ask_text"] = tk.Text(ask, height=3, font=(FONT, 10), bg="#FFFFFF",
+                                   fg=THEME["text"], insertbackground=THEME["text"],
+                                   borderwidth=0, highlightthickness=0)
+    _widgets["ask_text"].pack(fill="x", padx=16, pady=4)
+    arow = tk.Frame(ask, bg=THEME["card"])
+    arow.pack(fill="x", padx=16, pady=(0, 12))
+    _widgets["ask_engine"] = ttk.Combobox(arow, width=30, font=(FONT, 10),
+        values=["Claude Sonnet", "Claude Opus", "Claude Haiku",
+                "Local Hermes 3 (Ollama · $0)"])
+    _widgets["ask_engine"].set("Claude Sonnet")
+    _widgets["ask_engine"].pack(side="left", padx=(0, 8))
+    ttk.Button(arow, text="Enviar", style="Accent.TButton",
+               command=_send_ask).pack(side="left")
+    _widgets["ask_status"] = tk.Label(ask, text="", font=(FONT, 9),
+                                      bg=THEME["card"], fg=THEME["green_text"])
+    _widgets["ask_status"].pack(anchor="w", padx=16, pady=(0, 12))
+
+    # ================= pagina Ajustes
+    tab_aj = pages["ajustes"]
+    tk.Label(tab_aj, text="Ajustes", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    tk.Label(tab_aj, text="Todo lo de la app en un solo sitio.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+    aj = tk.Frame(tab_aj, bg=THEME["card"])
+    aj.pack(fill="x", padx=20, pady=8)
+    tk.Label(aj, text="AJUSTES", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
+
+    def _setting_row(label, expl, initial, on_change):
+        row = tk.Frame(aj, bg=THEME["card"])
+        row.pack(fill="x", padx=16, pady=5)
+        left = tk.Frame(row, bg=THEME["card"])
+        left.pack(side="left", fill="x", expand=True)
+        tk.Label(left, text=label, font=(FONT, 10, "bold"),
+                 bg=THEME["card"], fg=THEME["text"]).pack(anchor="w")
+        tk.Label(left, text=expl, font=(FONT, 9),
+                 bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w")
+        sw = make_switch(row, initial, on_change, bg=THEME["card"])
+        sw.pack(side="right")
+        sep = tk.Frame(aj, bg=THEME["line"], height=1)
+        sep.pack(fill="x", padx=16)
+        return sw
+
+    def _sw_autoupd(on):
+        state["auto_update"] = on
+        s = load_settings()
+        s["auto_update"] = on
+        save_settings(s)
+        log(f"ajustes: actualizacion automatica {'activada' if on else 'desactivada'}")
+
+    def _sw_autostart(on):
+        if set_autostart(on):
+            state["autostart"] = on
+        else:
+            state["autostart"] = autostart_enabled()
+            messagebox.showwarning(
+                "Inicio automático",
+                "No se pudo cambiar el inicio automático. "
+                "La app necesita correr como administrador.")
+
+    _widgets["autoupd_sw"] = _setting_row(
+        "Actualización automática",
+        "Se actualiza sola desde GitHub cuando hay una versión nueva.",
+        state.get("auto_update", False), _sw_autoupd)
+    _widgets["autostart_sw"] = _setting_row(
+        "Iniciar al encender la PC",
+        "Arranca sola con Windows al iniciar sesión.",
+        state.get("autostart", False), _sw_autostart)
+
+    def _sw_keepawake(on):
+        state["keep_awake"] = on
+        s = load_settings()
+        s["keep_awake"] = on
+        save_settings(s)
+        log(f"ajustes: no suspender mientras trabaja {'activado' if on else 'desactivado'}")
+
+    _widgets["keepawake_sw"] = _setting_row(
+        "No suspender mientras trabaja",
+        "La PC no se duerme mientras Claude corre una tarea.",
+        state.get("keep_awake", True), _sw_keepawake)
+
+    pc = tk.Frame(tab_aj, bg=THEME["card"])
+    pc.pack(fill="x", padx=20, pady=8)
+    tk.Label(pc, text="PC", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
+    tk.Label(pc, text="Apagar o reiniciar este PC. Te pide confirmación y "
+             "tienes 60 segundos para cancelarlo.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
+        anchor="w", padx=16, pady=(0, 8))
+    prow2 = tk.Frame(pc, bg=THEME["card"])
+    prow2.pack(fill="x", padx=16, pady=(0, 14))
+    ttk.Button(prow2, text="Apagar PC",
+               command=lambda: _pc_confirm("shutdown")).pack(side="left", padx=(0, 8))
+    ttk.Button(prow2, text="Reiniciar PC",
+               command=lambda: _pc_confirm("restart")).pack(side="left", padx=(0, 8))
+    ttk.Button(prow2, text="Cancelar apagado",
+               command=pc_abort).pack(side="left")
+
+    btns = tk.Frame(tab_aj, bg=THEME["bg"])
+    btns.pack(fill="x", padx=20, pady=8)
+    ttk.Button(btns, text="Abrir Inbox",
+               command=lambda: open_folder(INBOX)).grid(row=0, column=0, padx=2, pady=2)
+    ttk.Button(btns, text="Abrir Outbox",
+               command=lambda: open_folder(OUTBOX)).grid(row=0, column=1, padx=2, pady=2)
+    ttk.Button(btns, text="Buscar actualizaciones",
+               command=check_updates_ui).grid(row=0, column=2, padx=2, pady=2)
+    ttk.Button(btns, text="Salir", command=quit_app).grid(row=0, column=3, padx=2, pady=2)
+    _widgets["update_label"] = tk.Label(tab_aj, text="", font=(FONT, 9),
+                                        bg=THEME["bg"], fg=THEME["green_text"])
+    _widgets["update_label"].pack(anchor="w", padx=22)
+    _widgets["update_btn"] = ttk.Button(tab_aj, text="Actualizar ahora", state="disabled",
+                                        command=do_update_ui)
+    _widgets["update_btn"].pack(anchor="w", padx=20, pady=2)
+
+
+    # ================= pagina Registro
+    tab_reg = pages["registro"]
+    tk.Label(tab_reg, text="Registro", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    tk.Label(tab_reg, text="Todo lo que la app ha hecho, en orden.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+    log_box = tk.Frame(tab_reg, bg=THEME["card"])
+    log_box.pack(fill="both", expand=True, padx=20, pady=(4, 16))
+    tk.Label(log_box, text="REGISTRO", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
+    text = scrolledtext.ScrolledText(log_box, height=18, font=("Consolas", 9),
+                                     bg="#FFFFFF", fg=THEME["text"],
+                                     insertbackground=THEME["text"],
+                                     state="disabled", borderwidth=0)
+    text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+    _widgets["log"] = text
+
+    # ---------------- paleta de comandos (Ctrl+K) y atajo
+    def _sw_click(key):
+        sw = _widgets.get(key)
+        if sw is not None:
+            try:
+                sw.event_generate("<Button-1>")
+            except Exception:
+                pass
+
+    _PALETTE_CMDS.clear()
+    for _n, _l in (("estado", "Estado"), ("carpetas", "Carpetas"),
+                   ("skills", "Skills"), ("pantalla", "Pantalla"),
+                   ("apis", "APIs"), ("tareas", "Tareas"),
+                   ("ajustes", "Ajustes"), ("registro", "Registro")):
+        _PALETTE_CMDS.append((f"Ir a {_l}", f"ir pagina {_l}",
+                              lambda n=_n: _show_page(n)))
+    _PALETTE_CMDS += [
+        ("Encender / apagar todo", "power todo encender apagar", on_power_click),
+        ("Puente: encender / apagar", "puente bridge",
+         lambda: _sw_click("bridge_sw")),
+        ("Runner: encender / apagar", "runner",
+         lambda: _sw_click("runner_sw")),
+        ("Proxy: encender / apagar", "proxy",
+         lambda: _sw_click("proxy_sw")),
+        ("Mascota: mostrar / ocultar", "mascota growi", toggle_mascot),
+        ("Pedirle algo a Claude", "pedir claude tarea preguntar",
+         lambda: (_show_page("tareas"), _widgets["ask_text"].focus_set())),
+        ("Abrir Inbox", "abrir inbox carpeta", lambda: open_folder(INBOX)),
+        ("Abrir Outbox", "abrir outbox carpeta", lambda: open_folder(OUTBOX)),
+        ("Buscar actualizaciones", "actualizar update", check_updates_ui),
+        ("Apagar PC", "apagar pc shutdown", lambda: _pc_confirm("shutdown")),
+        ("Reiniciar PC", "reiniciar pc restart", lambda: _pc_confirm("restart")),
+        ("Mostrar / ocultar ventana", "ventana mostrar ocultar", toggle_window),
+        ("Salir de Growi Bridge", "salir cerrar", quit_app),
+    ]
+    root.bind_all("<Control-k>", lambda _e: _open_palette())
+
     _show_page("estado")
     return root
 
@@ -2618,11 +3109,13 @@ def main():
         print("ERROR: tkinter no esta disponible en este Python.")
         print("Reinstala Python marcando la opcion Tcl/Tk, o corre los programas por separado.")
         return 2
+    _dpi_awareness()
     state["admin"] = is_admin()
     state["proxy_configured"] = bool(proxy_config().get("password"))
     state["proxy_on"] = "HTTPS_PROXY" in os.environ
     settings = load_settings()
     state["mascot"] = bool(settings.get("mascot", False))
+    state["keep_awake"] = bool(settings.get("keep_awake", True))
     state["auto_update"] = bool(settings.get("auto_update", False))
     state["autostart"] = autostart_enabled()
     try:
@@ -2640,6 +3133,13 @@ def main():
             show_mascot()
         except Exception as e:
             log(f"mascota: no se pudo mostrar ({e})")
+    # Atajo global Ctrl+Alt+G para mostrar/ocultar la ventana (estilo Raycast).
+    try:
+        import keyboard
+        keyboard.add_hotkey("ctrl+alt+g", lambda: _root.after(0, toggle_window))
+        log("atajo global Ctrl+Alt+G activo")
+    except Exception as e:
+        log(f"atajo global no disponible ({type(e).__name__})")
     threading.Thread(target=_auto_update_check, daemon=True).start()
     threading.Thread(target=_auto_update_loop, daemon=True).start()
     root.after(1000, _tick)

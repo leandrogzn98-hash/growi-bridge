@@ -1,4 +1,4 @@
-# Growi Bridge 0.1.0 Alpha — puente + runner + proxy + pantalla + mascota + APIs en uno
+# Growi Bridge 0.1.0 Alpha (build 2: orquestador + paleta + tareas) — puente + runner + proxy + pantalla + mascota + APIs en uno
 
 Un solo proceso, una ventana con pestañas y un icono en la bandeja (la foto
 de Growi). Reemplaza al servidor viejo (`pc-server.py`), al runner y a la

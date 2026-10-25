@@ -141,3 +141,56 @@ Ver `THEME` en `growi-bridge.py` (una sola fuente de verdad):
   cualquier 2.x (una sola vez; después la comparación es normal dentro de
   la línea 0.x). `_version_tuple` ya entiende pre-release (alpha < beta <
   rc < final).
+
+## Ronda 0.1.0-alpha build 2 — "Orquestador" (25 oct 2026, 00:20)
+
+- **Tendencias 2026 (artículo Medium de Design Studio UI/UX, 13 mar 2026):**
+  - Command Palette (Cmd+K, estilo Raycast): paleta flotante que filtra
+    acciones mientras escribes y las ejecuta al instante. Implementada
+    (Ctrl+K) con 21 acciones: ir a cada pestaña, encender/apagar servicios,
+    pedirle algo a Claude, abrir Inbox/Outbox, apagar/reiniciar PC, salir.
+  - Micro-interactions: los interruptores ahora animan (la perilla se
+    desliza ~150 ms y el color funde de gris a verde); el botón grande ya
+    animaba; la mascota celebra cuando Claude termina una tarea.
+  - Cross-App Drag and Drop: ya estaba (arrastrar archivos a la mascota).
+  - AI Conversational Interface: la cajita "Escríbeme" + la nueva cajita
+    "Pedirle algo" en la pestaña Tareas.
+  - Smart Autocomplete: el filtrado de la paleta mientras escribes.
+  - Liquid Glass: NO se hizo (tkinter no tiene desenfoque de fondo real;
+    forzarlo quedaría embarrado, no cristal).
+  - Spatial UI, Infinite Canvas, Gesture Navigation, Live Data Maps: no
+    aplican a una utilidad de escritorio.
+- **Las 6 funciones pedidas por Leandro (25 oct 00:17):**
+  1. Aviso al terminar tarea: toast de Windows (pystray notify) + la
+     mascota celebra; vigila `outbox/runner-results/` cada 5 s.
+  2. Historial con costo: pestaña Tareas (tabla + total del día y total
+     general, desde los result.json del runner).
+  3. Cajita "Pedirle algo": en Tareas, con selector de motor (Claude
+     Sonnet/Opus/Haiku o Local Hermes 3 por Ollama, $0).
+  4. No suspender mientras trabaja: `SetThreadExecutionState` + ajuste.
+  5. Atajo global Ctrl+Alt+G (paquete `keyboard`, con fallback si falta).
+  6. Resumen diario: cron de la VM a las 21:00 (lo hace Growi, no la app).
+- **Orquestador local (diagnóstico del PC, 25 oct 00:22, $0.01):** Ollama
+  0.40.10 instalado con Hermes 3 8B Q4 (4.9 GB, `hf.co/NousResearch/
+  Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M`); OpenClaw 2026.10.5 instalado; RTX
+  3060 Laptop 6 GB; LM Studio no instalado; 100 GB libres; Node v24.20.
+  El runner ahora acepta `model: "ollama:<modelo>"` (rama `_run_ollama`,
+  un turno, $0). Regla honesta: Hermes 3 8B sirve para lo rápido y
+  gratis; Claude sigue siendo el motor para el trabajo pesado (código,
+  Blender, video). OpenClaw queda como opción futura, no se migró nada.
+- **Pestañas nuevas (pedido de Leandro 25 oct 00:25):** Ajustes y Registro
+  salen de la página Estado y son pestañas propias en la barra lateral.
+  Estado queda solo con encendido, servicios, sync y proxy.
+- **Mascota (pedido 25 oct 00:19):** 128×128 (antes 96), 16 fotogramas
+  por juego (antes 8), fondo blanco puro con rembg + erosión de 1 px
+  (sin cuadro blanco), loop a 120 ms. Animación de trabajo nueva:
+  sentado con la laptop en las piernas tecleando (clip generado por
+  video, verificado visualmente). Los marcos se regeneraron con rembg
+  (venv `~/.venv-rembg`, el pip del sistema rechaza numpy por PEP 668).
+- **Cajita "Escríbeme" rediseñada (pedido 25 oct 00:20):** 380×230, con
+  avatar, campo con borde, botón de acento y pie explicativo.
+- **Nitidez (pedido 25 oct 00:15):** la app se declara consciente del DPI
+  antes de crear la ventana (`SetProcessDpiAwareness` + `tk scaling`) y
+  los iconos se regeneraron desde la foto 1600×1600 con afilado.
+- **Versión:** se mantiene 0.1.0-alpha (pedido de Leandro); este es el
+  build 2 de esa versión.

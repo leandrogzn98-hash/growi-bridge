@@ -30,7 +30,7 @@ echo Origen: %ORIGEN%
 echo Destino: %PUENTE%
 echo.
 echo [1/5] Instalando dependencias (pystray, pillow)...
-python -m pip install --quiet pystray pillow tkinterdnd2
+python -m pip install --quiet pystray pillow tkinterdnd2 keyboard
 if errorlevel 1 (
   echo.
   echo No se pudieron instalar las dependencias. Revisa tu conexion e intentalo de nuevo.
