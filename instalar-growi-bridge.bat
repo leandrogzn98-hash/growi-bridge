@@ -41,6 +41,9 @@ echo [2/5] Copiando archivos a %PUENTE%...
 if not exist "%PUENTE%" mkdir "%PUENTE%"
 copy /y "%ORIGEN%growi-bridge.py" "%PUENTE%\"
 copy /y "%ORIGEN%growi.png" "%PUENTE%\"
+copy /y "%ORIGEN%growi.ico" "%PUENTE%\"
+copy /y "%ORIGEN%growi-tray.png" "%PUENTE%\"
+copy /y "%ORIGEN%growi-header.png" "%PUENTE%\"
 copy /y "%ORIGEN%iniciar-growi-bridge.bat" "%PUENTE%\"
 copy /y "%ORIGEN%probar-growi-bridge.bat" "%PUENTE%\"
 if exist "%ORIGEN%mascot" (

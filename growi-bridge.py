@@ -48,7 +48,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.0"
+VERSION = "2.1"
 GITHUB_REPO = "leandrogzn98-hash/growi-bridge"
 APP_DIR = Path(__file__).resolve().parent
 SHARE = APP_DIR / "share"
@@ -68,6 +68,17 @@ FOLDERS_FILE = APP_DIR / "folders.json"
 SETTINGS_FILE = APP_DIR / "settings.json"
 BRIDGE_PORT = 8787
 HOME_DIR = Path.home()
+
+# Tema v2.1 (ver DESIGN.md): consola nocturna, texto crema, un solo acento.
+FONT = "Segoe UI"
+THEME = {
+    "bg": "#0B1B2B", "card": "#12283C", "field": "#0A1622",
+    "text": "#F5F1E8", "muted": "#9AB0C2", "line": "#1E3A52",
+    "green": "#2FD9A6", "orange": "#FA5102", "red": "#E5484D",
+}
+ICO = APP_DIR / "growi.ico"
+TRAY_ICON = APP_DIR / "growi-tray.png"
+HEADER_PHOTO = APP_DIR / "growi-header.png"
 
 # ---------------------------------------------------------------- estado/log
 state = {
@@ -126,13 +137,19 @@ def proxy_config():
         cfg.update(json.loads(PROXY_FILE.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         pass
-    # Si no hay nada guardado pero las variables ya existen, heredarlas.
-    if not cfg["host"] and os.environ.get("HTTPS_PROXY"):
+    # Si no hay nada guardado pero las variables ya existen, heredarlas
+    # (también la clave, si viene en la URL: sin ella el proxy no se puede
+    # volver a encender tras apagarlo).
+    env = os.environ.get("HTTPS_PROXY") or ""
+    if env:
         try:
-            u = urlparse(os.environ["HTTPS_PROXY"])
-            cfg["host"] = u.hostname or ""
-            cfg["port"] = u.port or 18080
-            cfg["user"] = u.username or ""
+            u = urlparse(env)
+            if not cfg["host"]:
+                cfg["host"] = u.hostname or ""
+                cfg["port"] = u.port or 18080
+                cfg["user"] = u.username or ""
+            if not cfg["password"] and u.password:
+                cfg["password"] = u.password
         except Exception:
             pass
     return cfg
@@ -831,8 +848,8 @@ _tick_n = [0]
 
 
 def _dot(status):
-    return {"corriendo": ("●", "#1d9d4b"), "parado": ("●", "#9a9a9a"),
-            "error": ("●", "#d0342c")}.get(status, ("●", "#9a9a9a"))
+    return {"corriendo": ("●", THEME["green"]), "parado": ("●", "#5A7086"),
+            "error": ("●", THEME["red"])}.get(status, ("●", "#5A7086"))
 
 
 def load_settings():
@@ -849,21 +866,27 @@ def save_settings(s):
         pass
 
 
+# === draw_power ===
 def draw_power():
     c = _widgets.get("power_canvas")
     if c is None:
         return
     c.delete("all")
     on = state["power"]
+    cx, cy, r = 85, 85, 62
     if on:
-        ring = "#7ed491" if _pulse[0] else "#4cc06a"
-        c.create_oval(6, 6, 144, 144, outline=ring, width=3)
-        c.create_oval(18, 18, 132, 132, fill="#1d9d4b", outline="#0f7a33", width=2)
+        ring = THEME["green"] if _pulse[0] else "#7DE8C3"
+        c.create_oval(8, 8, 162, 162, outline=ring, width=3)
+        c.create_oval(cx - r, cy - r, cx + r, cy + r,
+                      fill=THEME["green"], outline="#25B98C", width=2)
+        sym = THEME["bg"]
     else:
-        c.create_oval(18, 18, 132, 132, fill="#b9b9b9", outline="#8a8a8a", width=2)
-    c.create_arc(50, 50, 100, 100, start=300, extent=300, style="arc",
-                 outline="white", width=6)
-    c.create_line(75, 42, 75, 64, fill="white", width=6, capstyle="round")
+        c.create_oval(cx - r, cy - r, cx + r, cy + r,
+                      fill="#22384E", outline="#33475C", width=2)
+        sym = "#5A7086"
+    c.create_arc(cx - 26, cy - 26, cx + 26, cy + 26, start=300, extent=300,
+                 style="arc", outline=sym, width=7)
+    c.create_line(cx, cy - 34, cx, cy - 12, fill=sym, width=7, capstyle="round")
 
 
 def _pulse_loop():
@@ -899,6 +922,7 @@ def _sync_text():
     return f"○ Sin actividad · último: {arrow} {name} hace {secs}s"
 
 
+# === refresh_ui ===
 def refresh_ui():
     w = _widgets
     if not w:
@@ -917,7 +941,7 @@ def refresh_ui():
         extra += f" · último: {state['last_result']}"
     w["runner_text"].config(text=f"Runner — {state['runner']}{extra}")
     cfg = proxy_config()
-    dot, color = ("●", "#1d9d4b") if state["proxy_on"] else ("●", "#9a9a9a")
+    dot, color = ("●", THEME["green"]) if state["proxy_on"] else ("●", "#5A7086")
     w["proxy_dot"].config(text=dot, fg=color)
     w["proxy_text"].config(
         text=f"Proxy — {'ENCENDIDO' if state['proxy_on'] else 'apagado'}"
@@ -925,7 +949,8 @@ def refresh_ui():
         + ("" if state["proxy_configured"] else " — falta configurar"))
     w["proxy_btn"].config(text="Apagar proxy" if state["proxy_on"] else "Encender proxy")
     w["power_label"].config(
-        text="Todo encendido" if state["power"] else "Todo apagado")
+        text="Todo encendido" if state["power"] else "Todo apagado",
+        fg=THEME["green"] if state["power"] else THEME["muted"])
     w["sync_text"].config(text=_sync_text())
     w["admin_text"].config(
         text=f"Administrador: {'sí' if state['admin'] else 'no'}"
@@ -1095,7 +1120,7 @@ def show_mascot():
     except Exception:
         win.destroy()
         return
-    label = tk.Label(win, image=photo, bg="#F7F8FA", bd=0)
+    label = tk.Label(win, image=photo, bg=THEME["bg"], bd=0)
     label.image = photo
     label.pack()
     win._photo = photo
@@ -1174,15 +1199,17 @@ def open_prompt_box():
     box = tk.Toplevel(_root)
     box.title("Escríbeme")
     box.attributes("-topmost", True)
+    box.configure(bg=THEME["bg"])
     x = max(0, win.winfo_x() - 140)
     y = max(0, win.winfo_y() - 130)
     box.geometry(f"300x130+{x}+{y}")
     tk.Label(box, text="¡Hola! ¿Qué necesitas?",
-             font=("Segoe UI", 11, "bold")).pack(pady=(10, 2))
-    entry = tk.Entry(box, width=36, font=("Segoe UI", 10))
+             font=(FONT, 11, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(pady=(10, 2))
+    entry = tk.Entry(box, width=36, font=(FONT, 10), bg=THEME["field"],
+                     fg=THEME["text"], insertbackground=THEME["text"], borderwidth=0)
     entry.pack(padx=10, pady=4)
     entry.focus_set()
-    status = tk.Label(box, text="", font=("Segoe UI", 9), fg="#1d9d4b")
+    status = tk.Label(box, text="", font=(FONT, 9), fg=THEME["green"], bg=THEME["bg"])
     status.pack()
 
     def _send(_e=None):
@@ -1197,10 +1224,14 @@ def open_prompt_box():
         status.config(text="✓ Enviado, te respondo en el chat")
 
     entry.bind("<Return>", _send)
-    row = tk.Frame(box)
+    row = tk.Frame(box, bg=THEME["bg"])
     row.pack(pady=4)
-    tk.Button(row, text="Enviar a Growi", command=_send).pack(side="left", padx=4)
-    tk.Button(row, text="Cerrar", command=box.destroy).pack(side="left", padx=4)
+    tk.Button(row, text="Enviar a Growi", command=_send,
+              bg=THEME["green"], fg=THEME["bg"], borderwidth=0,
+              font=(FONT, 10)).pack(side="left", padx=4)
+    tk.Button(row, text="Cerrar", command=box.destroy,
+              bg=THEME["card"], fg=THEME["text"], borderwidth=0,
+              font=(FONT, 10)).pack(side="left", padx=4)
 
 
 def hide_mascot():
@@ -1346,7 +1377,8 @@ def build_tray():
         log("bandeja: pystray no instalado (pip install pystray pillow); sin icono en la bandeja")
         return None
     try:
-        image = Image.open(PHOTO) if PHOTO.is_file() else Image.new("RGBA", (64, 64), (5, 32, 72, 255))
+        tray_img = TRAY_ICON if TRAY_ICON.is_file() else PHOTO
+        image = Image.open(tray_img) if tray_img.is_file() else Image.new("RGBA", (64, 64), (5, 32, 72, 255))
     except Exception:
         image = Image.new("RGBA", (64, 64), (5, 32, 72, 255))
     menu = pystray.Menu(
@@ -1376,154 +1408,214 @@ def build_tray():
     return icon
 
 
+# === build_gui ===
 def build_gui():
     global _root
     root = tk.Tk()
     _root = root
     root.title("Growi Bridge")
-    root.geometry("560x820")
-    root.configure(bg="#F7F8FA")
+    root.geometry("560x860")
+    root.minsize(520, 720)
+    root.configure(bg=THEME["bg"])
     root.protocol("WM_DELETE_WINDOW", hide_to_tray)
     cfg = proxy_config()
+    try:
+        if ICO.is_file():
+            root.iconbitmap(str(ICO))
+    except Exception:
+        pass
+
+    style = ttk.Style()
+    try:
+        style.theme_use("clam")
+    except Exception:
+        pass
+    style.configure("TNotebook", background=THEME["bg"], borderwidth=0)
+    style.configure("TNotebook.Tab", background=THEME["card"], foreground=THEME["muted"],
+                    padding=(14, 8), font=(FONT, 10))
+    style.map("TNotebook.Tab", background=[("selected", "#1B3A55")],
+              foreground=[("selected", THEME["text"])])
+    style.configure("TButton", background=THEME["card"], foreground=THEME["text"],
+                    borderwidth=0, padding=(10, 6), font=(FONT, 10))
+    style.map("TButton", background=[("active", "#1B3A55")])
+    style.configure("Accent.TButton", background=THEME["green"], foreground=THEME["bg"])
+    style.map("Accent.TButton", background=[("active", "#25B98C")])
+    style.configure("TEntry", fieldbackground=THEME["field"], foreground=THEME["text"],
+                    borderwidth=0, insertcolor=THEME["text"])
+    style.configure("TCombobox", fieldbackground=THEME["field"], foreground=THEME["text"])
+    style.configure("Treeview", background=THEME["card"], foreground=THEME["text"],
+                    fieldbackground=THEME["card"], borderwidth=0, font=(FONT, 10))
+    style.configure("Treeview.Heading", background=THEME["field"], foreground=THEME["muted"],
+                    font=(FONT, 10, "bold"))
+    style.configure("TCheckbutton", background=THEME["bg"], foreground=THEME["text"],
+                    font=(FONT, 10))
 
     nb = ttk.Notebook(root)
-    nb.pack(fill="both", expand=True, padx=8, pady=8)
+    nb.pack(fill="both", expand=True, padx=10, pady=10)
 
     # ---------------- pestana Estado
-    tab = tk.Frame(nb, bg="#F7F8FA")
+    tab = tk.Frame(nb, bg=THEME["bg"])
     nb.add(tab, text="  Estado  ")
-    header = tk.Frame(tab, bg="#F7F8FA")
-    header.pack(fill="x", padx=12, pady=(10, 2))
+    header = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
+                      highlightthickness=1)
+    header.pack(fill="x", padx=12, pady=(12, 8))
     photo = None
-    if TRAY_OK and PHOTO.is_file():
+    if TRAY_OK and HEADER_PHOTO.is_file():
         try:
-            img = Image.open(PHOTO).resize((96, 96), Image.LANCZOS)
+            img = Image.open(HEADER_PHOTO).resize((96, 96), Image.LANCZOS)
             photo = ImageTk.PhotoImage(img)
-            tk.Label(header, image=photo, bg="#F7F8FA").pack(side="left", padx=(0, 12))
+            tk.Label(header, image=photo, bg=THEME["card"]).pack(
+                side="left", padx=14, pady=12)
             header.image = photo
             root.iconphoto(True, photo)
         except Exception:
             pass
-    tk.Label(header, text="Growi Bridge", font=("Segoe UI", 20, "bold"),
-             bg="#F7F8FA", fg="#052048").pack(anchor="w")
+    tk.Label(header, text="Growi Bridge", font=(FONT, 20, "bold"),
+             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", pady=(12, 0))
     tk.Label(header, text="Puente · Runner · Proxy · Pantalla · Mascota",
-             font=("Segoe UI", 11), bg="#F7F8FA", fg="#555555").pack(anchor="w")
-    _widgets["admin_text"] = tk.Label(header, text="", font=("Segoe UI", 9),
-                                      bg="#F7F8FA", fg="#888888")
-    _widgets["admin_text"].pack(anchor="w")
+             font=(FONT, 11), bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w")
+    _widgets["admin_text"] = tk.Label(header, text="", font=(FONT, 9),
+                                      bg=THEME["card"], fg=THEME["muted"])
+    _widgets["admin_text"].pack(anchor="w", pady=(0, 12))
 
-    power = tk.Frame(tab, bg="#F7F8FA")
-    power.pack(pady=4)
-    canvas = tk.Canvas(power, width=150, height=150, bg="#F7F8FA",
+    power = tk.Frame(tab, bg=THEME["bg"])
+    power.pack(pady=6)
+    canvas = tk.Canvas(power, width=170, height=170, bg=THEME["bg"],
                        highlightthickness=0)
     canvas.pack()
     canvas.bind("<Button-1>", lambda e: on_power_click())
     _widgets["power_canvas"] = canvas
     _widgets["power_label"] = tk.Label(power, text="Todo apagado",
-                                       font=("Segoe UI", 12, "bold"),
-                                       bg="#F7F8FA", fg="#052048")
+                                       font=(FONT, 13, "bold"),
+                                       bg=THEME["bg"], fg=THEME["muted"])
     _widgets["power_label"].pack()
 
-    status = tk.LabelFrame(tab, text="Estado", bg="white", font=("Segoe UI", 10, "bold"))
-    status.pack(fill="x", padx=12, pady=6)
-    for key, row in (("bridge", 0), ("runner", 1), ("proxy", 2)):
-        dot = tk.Label(status, text="●", font=("Segoe UI", 14), bg="white")
-        dot.grid(row=row, column=0, padx=(10, 2), pady=4, sticky="w")
-        txt = tk.Label(status, text="", font=("Segoe UI", 10), bg="white",
-                       anchor="w", wraplength=440, justify="left")
-        txt.grid(row=row, column=1, padx=(0, 10), pady=4, sticky="w")
+    status = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
+                      highlightthickness=1)
+    status.pack(fill="x", padx=12, pady=8)
+    tk.Label(status, text="Estado", font=(FONT, 11, "bold"),
+             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=14, pady=(10, 2))
+    for key, label in (("bridge", "Puente"), ("runner", "Runner"), ("proxy", "Proxy")):
+        row = tk.Frame(status, bg=THEME["card"])
+        row.pack(fill="x", padx=14, pady=5)
+        dot = tk.Label(row, text="●", font=(FONT, 13), bg=THEME["card"])
+        dot.pack(side="left", padx=(0, 8))
+        tk.Label(row, text=label, font=(FONT, 10, "bold"),
+                 bg=THEME["card"], fg=THEME["text"]).pack(side="left")
+        txt = tk.Label(row, text="", font=(FONT, 10), bg=THEME["card"],
+                       fg=THEME["muted"], anchor="w")
+        txt.pack(side="left", padx=(6, 0))
         _widgets[f"{key}_dot"] = dot
         _widgets[f"{key}_text"] = txt
-    sync = tk.Label(status, text="", font=("Segoe UI", 10, "bold"), bg="white",
-                    fg="#052048", anchor="w")
-    sync.grid(row=3, column=0, columnspan=2, padx=10, pady=(2, 6), sticky="w")
+        sep = tk.Frame(status, bg=THEME["line"], height=1)
+        sep.pack(fill="x", padx=14)
+    sync = tk.Label(status, text="", font=(FONT, 10, "bold"), bg=THEME["card"],
+                    fg=THEME["green"], anchor="w")
+    sync.pack(fill="x", padx=14, pady=(8, 12))
     _widgets["sync_text"] = sync
 
-    px = tk.LabelFrame(tab, text="Proxy (cada quien usa el suyo)",
-                       bg="white", font=("Segoe UI", 10, "bold"))
-    px.pack(fill="x", padx=12, pady=6)
-    for i, (label, key, width, show) in enumerate(
-            (("Host", "px_host", 24, None), ("Puerto", "px_port", 8, None),
-             ("Usuario", "px_user", 12, None), ("Clave", "px_pass", 18, "•"))):
-        tk.Label(px, text=label, font=("Segoe UI", 9), bg="white").grid(
-            row=0, column=i * 2, padx=(8, 2), pady=4, sticky="e")
-        ent = tk.Entry(px, width=width, font=("Segoe UI", 9), show=show or "")
-        ent.grid(row=0, column=i * 2 + 1, padx=(0, 4), pady=4, sticky="w")
+    px = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
+                  highlightthickness=1)
+    px.pack(fill="x", padx=12, pady=8)
+    tk.Label(px, text="Proxy", font=(FONT, 11, "bold"),
+             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=14, pady=(10, 2))
+    tk.Label(px, text="Cada quien usa el suyo. Encendido, Claude sale por el proxy.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
+        anchor="w", padx=14, pady=(0, 8))
+    grid = tk.Frame(px, bg=THEME["card"])
+    grid.pack(fill="x", padx=14)
+    fields = (("Host", "px_host", 22, None), ("Puerto", "px_port", 8, None),
+              ("Usuario", "px_user", 14, None), ("Clave", "px_pass", 16, "•"))
+    for i, (label, key, width, show) in enumerate(fields):
+        cell = tk.Frame(grid, bg=THEME["card"])
+        cell.grid(row=i // 2, column=i % 2, padx=(0, 12), pady=4, sticky="w")
+        tk.Label(cell, text=label, font=(FONT, 9), bg=THEME["card"],
+                 fg=THEME["muted"]).pack(anchor="w")
+        ent = ttk.Entry(cell, width=width, font=(FONT, 10), show=show or "")
+        ent.pack(anchor="w")
         _widgets[key] = ent
     _widgets["px_host"].insert(0, cfg.get("host", ""))
     _widgets["px_port"].insert(0, str(cfg.get("port", 18080)))
     _widgets["px_user"].insert(0, cfg.get("user", ""))
     if cfg.get("password"):
         _widgets["px_pass"].insert(0, cfg["password"])
-    prow = tk.Frame(px, bg="white")
-    prow.grid(row=1, column=0, columnspan=8, padx=8, pady=(0, 6))
-    tk.Button(prow, text="Guardar", command=save_proxy_from_ui).pack(side="left", padx=2)
-    _widgets["proxy_btn"] = tk.Button(prow, text="Encender proxy", command=toggle_proxy)
-    _widgets["proxy_btn"].pack(side="left", padx=2)
+    prow = tk.Frame(px, bg=THEME["card"])
+    prow.pack(fill="x", padx=14, pady=(8, 12))
+    ttk.Button(prow, text="Guardar", style="Accent.TButton",
+               command=save_proxy_from_ui).pack(side="left", padx=(0, 8))
+    _widgets["proxy_btn"] = ttk.Button(prow, text="Encender proxy", command=toggle_proxy)
+    _widgets["proxy_btn"].pack(side="left")
 
-    opts = tk.Frame(tab, bg="#F7F8FA")
+    opts = tk.Frame(tab, bg=THEME["bg"])
     opts.pack(fill="x", padx=12, pady=2)
     mascot_var = tk.BooleanVar(value=state["mascot"])
     _widgets["mascot_var"] = mascot_var
-    tk.Checkbutton(opts, text="Mascota en la esquina inferior derecha",
-                   variable=mascot_var, command=toggle_mascot,
-                   bg="#F7F8FA", font=("Segoe UI", 10)).pack(anchor="w")
+    ttk.Checkbutton(opts, text="Mascota en la esquina inferior derecha",
+                    variable=mascot_var, command=toggle_mascot,
+                    style="TCheckbutton").pack(anchor="w")
 
-    btns = tk.Frame(tab, bg="#F7F8FA")
-    btns.pack(fill="x", padx=12, pady=4)
-    tk.Button(btns, text="Abrir Inbox", width=13,
-              command=lambda: open_folder(INBOX)).grid(row=0, column=0, padx=2, pady=2)
-    tk.Button(btns, text="Abrir Outbox", width=13,
-              command=lambda: open_folder(OUTBOX)).grid(row=0, column=1, padx=2, pady=2)
-    tk.Button(btns, text="Buscar actualizaciones", width=18,
-              command=check_updates_ui).grid(row=0, column=2, padx=2, pady=2)
-    tk.Button(btns, text="Salir", width=10, command=quit_app).grid(row=0, column=3, padx=2, pady=2)
-    _widgets["update_label"] = tk.Label(tab, text="", font=("Segoe UI", 9),
-                                        bg="#F7F8FA", fg="#052048")
+    btns = tk.Frame(tab, bg=THEME["bg"])
+    btns.pack(fill="x", padx=12, pady=8)
+    ttk.Button(btns, text="Abrir Inbox",
+               command=lambda: open_folder(INBOX)).grid(row=0, column=0, padx=2, pady=2)
+    ttk.Button(btns, text="Abrir Outbox",
+               command=lambda: open_folder(OUTBOX)).grid(row=0, column=1, padx=2, pady=2)
+    ttk.Button(btns, text="Buscar actualizaciones",
+               command=check_updates_ui).grid(row=0, column=2, padx=2, pady=2)
+    ttk.Button(btns, text="Salir", command=quit_app).grid(row=0, column=3, padx=2, pady=2)
+    _widgets["update_label"] = tk.Label(tab, text="", font=(FONT, 9),
+                                        bg=THEME["bg"], fg=THEME["green"])
     _widgets["update_label"].pack(anchor="w", padx=14)
-    _widgets["update_btn"] = tk.Button(tab, text="Actualizar ahora", state="disabled",
-                                       command=do_update_ui)
+    _widgets["update_btn"] = ttk.Button(tab, text="Actualizar ahora", state="disabled",
+                                        command=do_update_ui)
     _widgets["update_btn"].pack(anchor="w", padx=12, pady=2)
 
-    log_box = tk.LabelFrame(tab, text="Registro", bg="white",
-                            font=("Segoe UI", 10, "bold"))
-    log_box.pack(fill="both", expand=True, padx=12, pady=(4, 10))
+    log_box = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
+                       highlightthickness=1)
+    log_box.pack(fill="both", expand=True, padx=12, pady=(4, 12))
+    tk.Label(log_box, text="Registro", font=(FONT, 11, "bold"),
+             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=14, pady=(10, 2))
     text = scrolledtext.ScrolledText(log_box, height=8, font=("Consolas", 9),
-                                     state="disabled")
-    text.pack(fill="both", expand=True, padx=6, pady=6)
+                                     bg=THEME["field"], fg="#9FD8B4",
+                                     insertbackground=THEME["text"],
+                                     state="disabled", borderwidth=0)
+    text.pack(fill="both", expand=True, padx=10, pady=(0, 10))
     _widgets["log"] = text
 
     # ---------------- pestana Carpetas
-    tab2 = tk.Frame(nb, bg="#F7F8FA")
+    tab2 = tk.Frame(nb, bg=THEME["bg"])
     nb.add(tab2, text="  Carpetas  ")
     tk.Label(tab2, text="Carpetas que Claude Code puede ver",
-             font=("Segoe UI", 13, "bold"), bg="#F7F8FA", fg="#052048").pack(
+             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
         anchor="w", padx=14, pady=(12, 2))
     tk.Label(tab2, text="Claude Code solo trabaja dentro de estas carpetas. "
              "Growi también puede modificar esta lista pidiéndole a Claude "
              "que edite folders.json.",
-             font=("Segoe UI", 10), bg="#F7F8FA", fg="#555555",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
              wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 8))
-    lb = tk.Listbox(tab2, height=10, font=("Segoe UI", 10))
+    lb = tk.Listbox(tab2, height=10, font=(FONT, 10), bg=THEME["card"],
+                    fg=THEME["text"], selectbackground=THEME["green"],
+                    selectforeground=THEME["bg"], borderwidth=0,
+                    highlightthickness=0)
     lb.pack(fill="both", expand=True, padx=14, pady=4)
     _widgets["folders_list"] = lb
-    brow = tk.Frame(tab2, bg="#F7F8FA")
+    brow = tk.Frame(tab2, bg=THEME["bg"])
     brow.pack(fill="x", padx=14, pady=(4, 12))
-    tk.Button(brow, text="Añadir carpeta", command=add_folder_ui).pack(side="left", padx=2)
-    tk.Button(brow, text="Quitar seleccionada", command=remove_folder_ui).pack(side="left", padx=2)
-    tk.Button(brow, text="Restablecer", command=reset_folders_ui).pack(side="left", padx=2)
+    ttk.Button(brow, text="Añadir carpeta", command=add_folder_ui).pack(side="left", padx=2)
+    ttk.Button(brow, text="Quitar seleccionada", command=remove_folder_ui).pack(side="left", padx=2)
+    ttk.Button(brow, text="Restablecer", command=reset_folders_ui).pack(side="left", padx=2)
     refresh_folders_ui()
 
     # ---------------- pestana Skills
-    tab3 = tk.Frame(nb, bg="#F7F8FA")
+    tab3 = tk.Frame(nb, bg=THEME["bg"])
     nb.add(tab3, text="  Skills  ")
     tk.Label(tab3, text="Skills instaladas de Claude Code",
-             font=("Segoe UI", 13, "bold"), bg="#F7F8FA", fg="#052048").pack(
+             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
         anchor="w", padx=14, pady=(12, 2))
     tk.Label(tab3, text=f"Carpeta: {HOME_DIR / '.claude' / 'skills'}",
-             font=("Segoe UI", 9), bg="#F7F8FA", fg="#888888").pack(anchor="w", padx=14)
-    _widgets["skills_count"] = tk.Label(tab3, text="", font=("Segoe UI", 10),
-                                        bg="#F7F8FA", fg="#555555")
+             font=(FONT, 9), bg=THEME["bg"], fg=THEME["muted"]).pack(anchor="w", padx=14)
+    _widgets["skills_count"] = tk.Label(tab3, text="", font=(FONT, 10),
+                                        bg=THEME["bg"], fg=THEME["muted"])
     _widgets["skills_count"].pack(anchor="w", padx=14, pady=(4, 0))
     tree = ttk.Treeview(tab3, columns=("skill", "descripcion"), show="headings", height=14)
     tree.heading("skill", text="Skill")
@@ -1532,38 +1624,39 @@ def build_gui():
     tree.column("descripcion", width=360)
     tree.pack(fill="both", expand=True, padx=14, pady=6)
     _widgets["skills_tree"] = tree
-    tk.Button(tab3, text="Actualizar lista", command=refresh_skills_ui).pack(
+    ttk.Button(tab3, text="Actualizar lista", command=refresh_skills_ui).pack(
         anchor="w", padx=14, pady=(0, 12))
     refresh_skills_ui()
 
     # ---------------- pestana Pantalla
-    tab4 = tk.Frame(nb, bg="#F7F8FA")
+    tab4 = tk.Frame(nb, bg=THEME["bg"])
     nb.add(tab4, text="  Pantalla  ")
     tk.Label(tab4, text="Compartir pantalla con Growi",
-             font=("Segoe UI", 13, "bold"), bg="#F7F8FA", fg="#052048").pack(
+             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
         anchor="w", padx=14, pady=(12, 2))
     tk.Label(tab4, text="Cuando lo activas, la app manda un fotograma comprimido "
              "(JPEG, max 1280px) cada pocos segundos al outbox, y Growi lo puede "
              "ver por el puente. Growi solo mira un fotograma cuando se lo pides "
              "o cuando hace falta para ayudarte: no es video en vivo y no gasta "
              "muchos tokens. Puedes pararlo cuando quieras.",
-             font=("Segoe UI", 10), bg="#F7F8FA", fg="#555555",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
              wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 10))
-    _widgets["share_btn"] = tk.Button(tab4, text="Compartir pantalla",
-                                      font=("Segoe UI", 12, "bold"),
-                                      command=lambda: stop_sharing() if state["sharing"]
-                                      else start_sharing(int(_widgets["share_interval"].get().split()[0])))
+    _widgets["share_btn"] = ttk.Button(tab4, text="Compartir pantalla",
+                                       style="Accent.TButton",
+                                       command=lambda: stop_sharing() if state["sharing"]
+                                       else start_sharing(int(_widgets["share_interval"].get().split()[0])))
     _widgets["share_btn"].pack(anchor="w", padx=14, pady=4)
-    irow = tk.Frame(tab4, bg="#F7F8FA")
+    irow = tk.Frame(tab4, bg=THEME["bg"])
     irow.pack(anchor="w", padx=14, pady=4)
-    tk.Label(irow, text="Fotograma cada:", font=("Segoe UI", 10), bg="#F7F8FA").pack(side="left")
+    tk.Label(irow, text="Fotograma cada:", font=(FONT, 10), bg=THEME["bg"],
+             fg=THEME["text"]).pack(side="left")
     _widgets["share_interval"] = ttk.Combobox(irow, values=["5 s", "10 s", "30 s"],
                                               width=6, state="readonly")
     _widgets["share_interval"].set("10 s")
     _widgets["share_interval"].pack(side="left", padx=6)
     _widgets["share_status"] = tk.Label(tab4, text="Pantalla no compartida",
-                                        font=("Segoe UI", 10, "bold"),
-                                        bg="#F7F8FA", fg="#052048")
+                                        font=(FONT, 10, "bold"),
+                                        bg=THEME["bg"], fg=THEME["green"])
     _widgets["share_status"].pack(anchor="w", padx=14, pady=8)
     return root
 
