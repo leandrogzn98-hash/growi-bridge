@@ -132,3 +132,12 @@ Ver `THEME` en `growi-bridge.py` (una sola fuente de verdad):
 - **Mascota con arrastre (drag & drop):** soltar un archivo sobre Growi lo copia al Inbox del puente (llega a Growi por la sincronización). Más de 200 MB: aviso con "No mostrar durante 30 min". Requiere `tkinterdnd2` (el instalador lo pone).
 - **Arreglo del combobox "Fotograma cada":** ancho 8 (antes 6) para que el valor se vea completo; la queja era que en v2.1 se veía cortado y la interfaz parecía de Windows XP.
 - **Lección del instalador v2.2:** el runner solo recoge archivos `*.task.json` en `runner-tasks/`; un task llamado `*.json` se ignora en silencio. La v2.2 nunca se instaló por eso; todo su contenido se plegó en la v2.3.
+
+## Renumeración (25 oct 2026, 00:06)
+
+- La app pasa de la línea 2.x a **0.1.0-alpha** (pedido de Leandro: es una
+  Alpha, no una 2.x). El número baja, así que la comparación de versiones
+  lleva una regla de migración: cualquier 0.x se considera más nueva que
+  cualquier 2.x (una sola vez; después la comparación es normal dentro de
+  la línea 0.x). `_version_tuple` ya entiende pre-release (alpha < beta <
+  rc < final).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Growi Bridge v2.3 — puente + runner + proxy + pantalla + mascota + APIs en uno (Windows).
+"""Growi Bridge 0.1.0-alpha — puente + runner + proxy + pantalla + mascota + APIs en uno (Windows).
 
 Un solo proceso, una sola ventana con pestanas, un solo icono en la bandeja
 (la foto de Growi). Reemplaza al servidor viejo (pc-server.py) y al runner.
@@ -59,7 +59,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.3"
+VERSION = "0.1.0-alpha"
 GITHUB_REPO = "leandrogzn98-hash/growi-bridge"
 APP_DIR = Path(__file__).resolve().parent
 SHARE = APP_DIR / "share"
@@ -433,23 +433,39 @@ UPDATE_FILES = ["growi-bridge.py", "growi.ico", "growi-tray.png", "growi-header.
 
 
 def _version_tuple(v):
+    """Tupla comparable de una version. Soporta pre-release: 0.1.0-alpha
+    -> (0, 1, 0, 0); 0.1.0 -> (0, 1, 0, 3); 2.3 -> (2, 3, 0, 3)."""
+    s = str(v).strip().lstrip("v")
+    pre = 3
+    if "-" in s:
+        s, tag = s.split("-", 1)
+        pre = {"alpha": 0, "beta": 1, "rc": 2}.get(tag.strip().lower(), 0)
     parts = []
-    for p in str(v).strip().lstrip("v").split("."):
+    for p in s.split("."):
         try:
             parts.append(int(p))
         except ValueError:
             parts.append(0)
+    while len(parts) < 3:
+        parts.append(0)
+    parts.append(pre)
     return tuple(parts)
 
 
 def check_update_available():
-    """Compara con VERSION en GitHub (raw). Devuelve la version nueva o ''."""
+    """Compara con VERSION en GitHub (raw). Devuelve la version nueva o ''.
+    Migracion de numeracion: la app paso de la linea 2.x a la 0.x (Alpha);
+    cualquier 0.x se considera mas nueva que cualquier 2.x."""
     url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/VERSION"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "GrowiBridge"})
         with urllib.request.urlopen(req, timeout=15) as r:
             remote = r.read().decode("utf-8", errors="replace").strip()
-        if remote and _version_tuple(remote) > _version_tuple(VERSION):
+        if not remote:
+            return ""
+        if VERSION.startswith("2.") and remote.startswith("0."):
+            return remote
+        if _version_tuple(remote) > _version_tuple(VERSION):
             return remote
     except Exception as e:
         log(f"actualizaciones: no se pudo comprobar ({type(e).__name__})")

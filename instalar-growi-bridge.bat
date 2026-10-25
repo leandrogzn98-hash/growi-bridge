@@ -1,5 +1,5 @@
 @echo off
-REM Instala Growi Bridge v2.3 (puente + runner + proxy + pantalla + mascota).
+REM Instala Growi Bridge 0.1.0-alpha (puente + runner + proxy + pantalla + mascota).
 REM Reemplaza el servidor viejo (pc-server.py), el runner y la v1.0 de la app.
 REM Para quitarlo: schtasks /delete /tn GrowiBridgeApp /f
 
