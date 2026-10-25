@@ -112,3 +112,23 @@ Ver `THEME` en `growi-bridge.py` (una sola fuente de verdad):
   - Pantalla: intervalos 0.5 s y 1 s; cada grabación crea su propia carpeta `outbox/screens/AAAAMMDD-HHMMSS/` con `frame-NNNN.jpg`; sesiones de más de 7 días se borran solas.
   - Mascota: tres animaciones (idle, working, wave) según el estado; celebra cuando Claude termina una tarea; saludo al hacer clic.
 - **Regla de Leandro (24 oct 2026):** para borrar algo fuera de las carpetas permitidas, Growi debe pedirle autorización explícita cada vez. La app no borra nada fuera de sus carpetas salvo la limpieza de sesiones viejas de pantalla (que el propio usuario puede desactivar borrando el botón).
+
+---
+
+## Ronda v2.3 — "Mac" + magia (25 oct 2026, 00:00)
+
+- **ADN extraído de Mobbin** (ver `notas-mobbin.md`):
+  - [Superlist](https://mobbin.com/screens/f056c26d-f67f-49e2-b682-e290d350e56c) — barra lateral gris clara con icono + etiqueta, ítem activo con píldora + barra de acento, título enorme, píldoras de metadatos, mucho aire.
+  - [Plain](https://mobbin.com/screens/150cc4a9-6311-444b-9902-01e491c25a5f) — riel + barra lateral, contadores a la derecha de cada ítem, control segmentado en píldoras, avatar abajo en la barra lateral, título enorme.
+- **Dirección:** que parezca de Mac. Tema claro (contenido blanco, barra lateral #F5F5F7, texto #1D1D1F, acento #007AFF, interruptores verdes #34C759). Nada de pestañas arriba: navegación por barra lateral.
+- **3 cambios exactos:**
+  1. Barra lateral con las 5 secciones (Estado, Carpetas, Skills, Pantalla, APIs), ítem activo con píldora + barra azul, contadores a la derecha (carpetas, skills, APIs).
+  2. Título grande (22 pt) en cada página y contenido con scroll vertical (nada queda fuera de la ventana, aunque sea pequeña; el botón de la mascota ya no se pierde abajo).
+  3. La mascota vive en el pie de la barra lateral (avatar + interruptor, siempre a la vista) y en la pantalla es una ventana pequeña de 96×96, siempre encima, con las esquinas transparentes.
+- **Magia (micro-interacciones):**
+  - El botón grande anima al encender/apagar (~360 ms): el relleno cambia de color, el símbolo se dibuja poco a poco, el círculo rebota y sale una onda que se expande y se desvanece; con sombra suave debajo.
+  - La mascota saluda al arrancar, trabaja mientras Claude corre una tarea, celebra cuando Claude termina una, levanta la mano cuando le acercas un archivo y se inclina hacia el cursor como buscándolo.
+  - El icono de la bandeja lleva un distintivo como OneDrive: punto verde que pulsa mientras sincroniza, rojo si el puente se cae; el menú de la bandeja muestra qué se está sincronizando.
+- **Mascota con arrastre (drag & drop):** soltar un archivo sobre Growi lo copia al Inbox del puente (llega a Growi por la sincronización). Más de 200 MB: aviso con "No mostrar durante 30 min". Requiere `tkinterdnd2` (el instalador lo pone).
+- **Arreglo del combobox "Fotograma cada":** ancho 8 (antes 6) para que el valor se vea completo; la queja era que en v2.1 se veía cortado y la interfaz parecía de Windows XP.
+- **Lección del instalador v2.2:** el runner solo recoge archivos `*.task.json` en `runner-tasks/`; un task llamado `*.json` se ignora en silencio. La v2.2 nunca se instaló por eso; todo su contenido se plegó en la v2.3.

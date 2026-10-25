@@ -1,5 +1,5 @@
 @echo off
-REM Instala Growi Bridge v2.0 (puente + runner + proxy + pantalla + mascota).
+REM Instala Growi Bridge v2.3 (puente + runner + proxy + pantalla + mascota).
 REM Reemplaza el servidor viejo (pc-server.py), el runner y la v1.0 de la app.
 REM Para quitarlo: schtasks /delete /tn GrowiBridgeApp /f
 
@@ -30,7 +30,7 @@ echo Origen: %ORIGEN%
 echo Destino: %PUENTE%
 echo.
 echo [1/5] Instalando dependencias (pystray, pillow)...
-python -m pip install --quiet pystray pillow
+python -m pip install --quiet pystray pillow tkinterdnd2
 if errorlevel 1 (
   echo.
   echo No se pudieron instalar las dependencias. Revisa tu conexion e intentalo de nuevo.

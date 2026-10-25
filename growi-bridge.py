@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Growi Bridge v2.2 — puente + runner + proxy + pantalla + mascota + APIs en uno (Windows).
+"""Growi Bridge v2.3 — puente + runner + proxy + pantalla + mascota + APIs en uno (Windows).
 
 Un solo proceso, una sola ventana con pestanas, un solo icono en la bandeja
 (la foto de Growi). Reemplaza al servidor viejo (pc-server.py) y al runner.
@@ -59,7 +59,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.2"
+VERSION = "2.3"
 GITHUB_REPO = "leandrogzn98-hash/growi-bridge"
 APP_DIR = Path(__file__).resolve().parent
 SHARE = APP_DIR / "share"
@@ -80,13 +80,17 @@ SETTINGS_FILE = APP_DIR / "settings.json"
 BRIDGE_PORT = 8787
 HOME_DIR = Path.home()
 
-# Tema v2.1 (ver DESIGN.md): consola nocturna, texto crema, un solo acento.
+# Tema v2.3 "Mac" (ver DESIGN.md + notas-mobbin.md Superlist/Plain):
+# contenido blanco, barra lateral gris muy clara, texto casi negro,
+# acento azul de macOS, interruptores verdes de macOS.
 FONT = "Segoe UI"
 THEME = {
-    "bg": "#0B1B2B", "card": "#12283C", "field": "#0A1622",
-    "text": "#F5F1E8", "muted": "#9AB0C2", "line": "#1E3A52",
-    "green": "#2FD9A6", "orange": "#FA5102", "red": "#E5484D",
+    "bg": "#FFFFFF", "sidebar": "#F5F5F7", "card": "#F5F5F7", "field": "#FFFFFF",
+    "text": "#1D1D1F", "muted": "#6E6E73", "line": "#E5E5EA",
+    "green": "#34C759", "green_text": "#248A3D", "blue": "#007AFF",
+    "orange": "#FF9500", "red": "#FF3B30",
 }
+
 ICO = APP_DIR / "growi.ico"
 TRAY_ICON = APP_DIR / "growi-tray.png"
 HEADER_PHOTO = APP_DIR / "growi-header.png"
@@ -1061,6 +1065,13 @@ except ImportError:
     tk = None
 
 try:
+    from tkinterdnd2 import DND_FILES
+    DND_OK = True
+except ImportError:
+    DND_FILES = None
+    DND_OK = False
+
+try:
     import pystray
     from PIL import Image, ImageTk
     TRAY_OK = True
@@ -1075,10 +1086,33 @@ _pulse = [0]
 _tick_n = [0]
 
 
+_tray_state = ["idle"]
+
+
+def _tray_image(kind):
+    """Genera el icono de la bandeja con un distintivo (como OneDrive):
+    'idle' = solo la foto; 'sync'/'sync2' = punto verde que pulsa mientras
+    hay sincronizacion (transferencia en los ultimos 10 s); 'error' = punto
+    rojo (el puente esta caido)."""
+    try:
+        from PIL import ImageDraw
+        base = Image.open(TRAY_ICON if TRAY_ICON.is_file() else PHOTO).convert("RGBA")
+    except Exception:
+        return None
+    if kind == "idle":
+        return base
+    img = base.copy()
+    d = ImageDraw.Draw(img)
+    color = {"sync": "#34C759", "sync2": "#8BE0A4", "error": "#FF3B30"}[kind]
+    d.ellipse([42, 42, 62, 62], fill=color, outline="white", width=2)
+    return img
+
+
 def make_switch(parent, initial, command, bg=None):
-    """Interruptor estilo iOS dibujado en un Canvas (BFF / Philips Hue).
-    command(recibe True/False) se llama al cambiar. El estado visual se
-    sincroniza desde refresh_ui con set_switch()."""
+    """Interruptor estilo macOS (verde #34C759 encendido, gris claro
+    apagado, perilla blanca). command(recibe True/False) se llama al
+    cambiar. El estado visual se sincroniza desde refresh_ui con
+    set_switch()."""
     bg = bg or THEME["bg"]
     c = tk.Canvas(parent, width=52, height=30, bg=bg, highlightthickness=0, bd=0)
     c._on = bool(initial)
@@ -1086,13 +1120,19 @@ def make_switch(parent, initial, command, bg=None):
 
     def _draw():
         on = c._on
-        track = THEME["green"] if on else "#3A4A5C"
+        track = THEME["green"] if on else "#E9E9EA"
+        outline = THEME["green"] if on else "#D2D2D7"
         c.delete("all")
-        c.create_rectangle(15, 0, 37, 30, fill=track, outline=track)
-        c.create_oval(0, 0, 30, 30, fill=track, outline=track)
-        c.create_oval(22, 0, 52, 30, fill=track, outline=track)
+        # borde (pildora 1 px mas grande detras)
+        c.create_rectangle(15, 0, 37, 30, fill=outline, outline=outline)
+        c.create_oval(0, 0, 30, 30, fill=outline, outline=outline)
+        c.create_oval(22, 0, 52, 30, fill=outline, outline=outline)
+        # interior
+        c.create_rectangle(16, 1, 36, 29, fill=track, outline=track)
+        c.create_oval(1, 1, 29, 29, fill=track, outline=track)
+        c.create_oval(23, 1, 51, 29, fill=track, outline=track)
         kx = 24 if on else 2
-        c.create_oval(kx, 2, kx + 26, 28, fill="white", outline="white")
+        c.create_oval(kx, 2, kx + 26, 28, fill="white", outline="#D2D2D7")
 
     def _toggle(ev=None):
         c._on = not c._on
@@ -1104,7 +1144,6 @@ def make_switch(parent, initial, command, bg=None):
     c._draw = _draw
     _draw()
     return c
-
 
 def set_switch(c, on):
     """Pone el interruptor en el estado dado (lo usa refresh_ui para que
@@ -1134,6 +1173,9 @@ def save_settings(s):
 
 # === draw_power ===
 def draw_power():
+    # Mientras dura la animacion de encendido/apagado, dibuja la animacion.
+    if _power_anim.get("active"):
+        return
     c = _widgets.get("power_canvas")
     if c is None:
         return
@@ -1141,19 +1183,101 @@ def draw_power():
     on = state["power"]
     cx, cy, r = 85, 85, 62
     if on:
-        ring = THEME["green"] if _pulse[0] else "#7DE8C3"
+        ring = THEME["green"] if _pulse[0] else "#8BE0A4"
         c.create_oval(8, 8, 162, 162, outline=ring, width=3)
+        c.create_oval(cx - r - 2, cy - r + 4, cx + r + 2, cy + r + 8,
+                      fill="#E5E5EA", outline="#E5E5EA")
         c.create_oval(cx - r, cy - r, cx + r, cy + r,
-                      fill=THEME["green"], outline="#25B98C", width=2)
-        sym = THEME["bg"]
+                      fill=THEME["green"], outline="#2DB84C", width=2)
+        sym = "white"
     else:
+        c.create_oval(cx - r - 2, cy - r + 4, cx + r + 2, cy + r + 8,
+                      fill="#E5E5EA", outline="#E5E5EA")
         c.create_oval(cx - r, cy - r, cx + r, cy + r,
-                      fill="#22384E", outline="#33475C", width=2)
-        sym = "#5A7086"
+                      fill="#E9E9EA", outline="#D2D2D7", width=2)
+        sym = "#8E8E93"
     c.create_arc(cx - 26, cy - 26, cx + 26, cy + 26, start=300, extent=300,
                  style="arc", outline=sym, width=7)
     c.create_line(cx, cy - 34, cx, cy - 12, fill=sym, width=7, capstyle="round")
 
+
+_power_anim = {"job": None, "active": False}
+
+
+def _lerp_color(c1, c2, t):
+    """Mezcla dos colores hex segun t (0..1)."""
+    a = tuple(int(c1[i:i + 2], 16) for i in (1, 3, 5))
+    b = tuple(int(c2[i:i + 2], 16) for i in (1, 3, 5))
+    return "#%02x%02x%02x" % tuple(round(a[i] + (b[i] - a[i]) * t)
+                                  for i in range(3))
+
+
+def _draw_power_frame(t, on):
+    """Un fotograma de la animacion de encendido/apagado: el relleno cambia
+    de color, el simbolo se dibuja poco a poco, el circulo rebota un poco
+    y (al encender) sale una onda que se expande y se desvanece."""
+    c = _widgets.get("power_canvas")
+    if c is None:
+        return
+    c.delete("all")
+    cx, cy = 85, 85
+    # rebote: 62 -> 66 -> 62
+    r = 62 + 4 * 4 * t * (1 - t)
+    if on:
+        fill = _lerp_color("#E9E9EA", THEME["green"], t)
+        outline = _lerp_color("#D2D2D7", "#2DB84C", t)
+        sym = _lerp_color("#8E8E93", "#FFFFFF", t)
+        # onda expansiva que se desvanece (el color se acerca al fondo)
+        wave_r = r + 8 + 12 * t
+        wave_c = _lerp_color(THEME["green"], THEME["bg"], t)
+        c.create_oval(cx - wave_r, cy - wave_r, cx + wave_r, cy + wave_r,
+                      outline=wave_c, width=3)
+    else:
+        fill = _lerp_color(THEME["green"], "#E9E9EA", t)
+        outline = _lerp_color("#2DB84C", "#D2D2D7", t)
+        sym = _lerp_color("#FFFFFF", "#8E8E93", t)
+    # sombra suave debajo del circulo
+    c.create_oval(cx - r - 2, cy - r + 4, cx + r + 2, cy + r + 8,
+                  fill="#E5E5EA", outline="#E5E5EA")
+    c.create_oval(cx - r, cy - r, cx + r, cy + r,
+                  fill=fill, outline=outline, width=2)
+    # el simbolo se dibuja poco a poco (al apagar, se desdibuja)
+    extent = 300 * t if on else 300 * (1 - t)
+    if extent > 0:
+        c.create_arc(cx - 26, cy - 26, cx + 26, cy + 26, start=300,
+                     extent=extent, style="arc", outline=sym, width=7)
+    line_len = 22 * t if on else 22 * (1 - t)
+    if line_len > 0:
+        c.create_line(cx, cy - 34, cx, cy - 34 + line_len, fill=sym, width=7,
+                      capstyle="round")
+
+
+def _animate_power(on):
+    """Anima el boton grande al encender o apagar (~360 ms). Mientras dura,
+    draw_power() no redibuja (lo hace la animacion)."""
+    if _root is None:
+        return
+    job = _power_anim.get("job")
+    if job is not None:
+        try:
+            _root.after_cancel(job)
+        except Exception:
+            pass
+    _power_anim["active"] = True
+    steps = [0]
+
+    def _step():
+        steps[0] += 1
+        t = min(1.0, steps[0] / 12.0)
+        _draw_power_frame(t, on)
+        if t < 1.0:
+            _power_anim["job"] = _root.after(30, _step)
+        else:
+            _power_anim["active"] = False
+            _power_anim["job"] = None
+            draw_power()
+
+    _step()
 
 def _pulse_loop():
     if _root is None:
@@ -1220,7 +1344,7 @@ def refresh_ui():
     set_switch(w.get("proxy_sw"), state["proxy_on"])
     w["power_label"].config(
         text="Todo encendido" if state["power"] else "Todo apagado",
-        fg=THEME["green"] if state["power"] else THEME["muted"])
+        fg=THEME["green_text"] if state["power"] else THEME["muted"])
     w["sync_text"].config(text=_sync_text())
     w["admin_text"].config(
         text=f"Administrador: {'sí' if state['admin'] else 'no'}"
@@ -1245,6 +1369,35 @@ def refresh_ui():
     set_switch(w.get("autoupd_sw"), state.get("auto_update", False))
     set_switch(w.get("autostart_sw"), state.get("autostart", False))
     set_switch(w.get("mascot_sw"), state["mascot"])
+    # Contadores de la barra lateral (Plain), cada 10 s.
+    if _tick_n[0] % 10 == 0:
+        try:
+            w["nav_count_carpetas"].config(text=str(len(load_folders())))
+            w["nav_count_skills"].config(text=str(len(list_skills())))
+            w["nav_count_apis"].config(text=str(len(load_apis())))
+        except Exception:
+            pass
+    # Distintivo de sincronizacion en el icono de la bandeja (como OneDrive).
+    if _tray_icon is not None:
+        try:
+            if state["bridge"] != "corriendo":
+                kind = "error"
+            elif TRANSFERS:
+                try:
+                    secs = int((datetime.now().astimezone()
+                                - datetime.fromisoformat(TRANSFERS[-1][3])).total_seconds())
+                except Exception:
+                    secs = 999
+                kind = ("sync" if _tick_n[0] % 2 == 0 else "sync2") if secs < 10 else "idle"
+            else:
+                kind = "idle"
+            if kind != _tray_state[0]:
+                _tray_state[0] = kind
+                img = _tray_image(kind)
+                if img is not None:
+                    _tray_icon.icon = img
+        except Exception:
+            pass
     draw_power()
     log_box = w["log"]
     lines = []
@@ -1288,6 +1441,10 @@ def _tick():
 def on_power_click():
     on = set_power(not state["power"])
     log(f"boton grande: {'todo ENCENDIDO' if on else 'todo APAGADO'}")
+    try:
+        _animate_power(on)
+    except Exception:
+        pass
 
 
 def toggle_proxy():
@@ -1378,7 +1535,8 @@ def _mascot_sets():
         frames = []
         try:
             for p in sorted(MASCOT_DIR.glob(f"{name}-*.png")):
-                frames.append(ImageTk.PhotoImage(Image.open(p)))
+                frames.append(ImageTk.PhotoImage(
+                    Image.open(p).resize((96, 96), Image.LANCZOS)))
         except Exception:
             frames = []
         sets[name] = frames
@@ -1442,12 +1600,12 @@ def _mascot_loop():
 def _mascot_pos():
     sw = _root.winfo_screenwidth()
     sh = _root.winfo_screenheight()
-    return sw - 180, sh - 200
+    return sw - 116, sh - 136
 
 def _mascot_pos():
     sw = _root.winfo_screenwidth()
     sh = _root.winfo_screenheight()
-    return sw - 180, sh - 200
+    return sw - 116, sh - 136
 
 
 def show_mascot():
@@ -1459,20 +1617,34 @@ def show_mascot():
     win = tk.Toplevel(_root)
     win.overrideredirect(True)
     win.attributes("-topmost", True)
-    x, y = _mascot_pos()
-    win.geometry(f"160x160+{x}+{y}")
     try:
-        img = Image.open(PHOTO).resize((160, 160), Image.LANCZOS)
+        win.attributes("-transparentcolor", "white")
+    except Exception:
+        pass
+    x, y = _mascot_pos()
+    win.geometry(f"96x96+{x}+{y}")
+    try:
+        img = Image.open(PHOTO).resize((96, 96), Image.LANCZOS)
         photo = ImageTk.PhotoImage(img)
     except Exception:
         win.destroy()
         return
-    label = tk.Label(win, image=photo, bg=THEME["bg"], bd=0)
+    label = tk.Label(win, image=photo, bg="white", bd=0)
     label.image = photo
     label.pack()
     win._photo = photo
     _mascot["win"] = win
     _mascot["label"] = label
+    # Arrastrar archivos sobre la mascota: los copia al Inbox (tkinterdnd2).
+    if DND_OK:
+        try:
+            label.drop_target_register(DND_FILES)
+            label.dnd_bind("<<DropEnter>>", _mascot_drag_enter)
+            label.dnd_bind("<<DropPosition>>", _mascot_drag_position)
+            label.dnd_bind("<<DropLeave>>", _mascot_drag_leave)
+            label.dnd_bind("<<Drop>>", _mascot_drop)
+        except Exception as e:
+            log(f"mascota: no se pudo activar el arrastre ({e})")
 
     def _press(e):
         _mascot["drag"] = (e.x_root, e.y_root, win.winfo_x(), win.winfo_y(), False)
@@ -1499,6 +1671,7 @@ def show_mascot():
     log("mascota: Growi está en la esquina inferior derecha")
     _mascot["last_tasks"] = state["tasks_done"]
     _root.after(400, _mascot_loop)
+    _root.after(700, lambda: _mascot_play("wave"))  # saludo al arrancar
 
 
 def on_mascot_click():
@@ -1508,6 +1681,155 @@ def on_mascot_click():
         return
     _mascot_play("wave")
     open_prompt_box()
+
+def _big_file_dialog(name, size_mb):
+    """Pregunta si de verdad se quiere copiar un archivo grande (>200 MB).
+    Devuelve True si se copia, False si se cancela. El boton "No mostrar
+    durante 30 min" silencia el aviso media hora (se guarda en settings)."""
+    result = {"ok": False}
+    box = tk.Toplevel(_root)
+    box.title("Archivo grande")
+    box.attributes("-topmost", True)
+    box.configure(bg=THEME["bg"])
+    x = max(0, _root.winfo_x() + 100)
+    y = max(0, _root.winfo_y() + 100)
+    box.geometry(f"360x190+{x}+{y}")
+    tk.Label(box, text=f"'{name}' pesa {size_mb:.0f} MB.",
+             font=(FONT, 11, "bold"), bg=THEME["bg"], fg=THEME["text"],
+             wraplength=320, justify="left").pack(padx=16, pady=(14, 2))
+    tk.Label(box, text="Copiarlo a Growi Bridge puede tardar un rato en "
+             "sincronizarse. ¿Seguro que quieres copiarlo?",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=320, justify="left").pack(padx=16, pady=(0, 10))
+    row = tk.Frame(box, bg=THEME["bg"])
+    row.pack(pady=4)
+    tk.Button(row, text="Sí, copiar", bg=THEME["blue"], fg="white",
+              borderwidth=0, font=(FONT, 10, "bold"),
+              command=lambda: (result.__setitem__("ok", True), box.destroy())
+              ).pack(side="left", padx=4)
+    tk.Button(row, text="Cancelar", bg="#E8E8ED", fg=THEME["text"],
+              borderwidth=0, font=(FONT, 10),
+              command=box.destroy).pack(side="left", padx=4)
+    tk.Button(box, text="No mostrar durante 30 min", bg=THEME["bg"],
+              fg=THEME["muted"], borderwidth=0, font=(FONT, 9),
+              command=lambda: (_snooze_big_file_warn(), box.destroy())
+              ).pack(pady=4)
+    box.grab_set()
+    _root.wait_window(box)
+    return result["ok"]
+
+
+def _snooze_big_file_warn():
+    s = load_settings()
+    s["big_file_warn_snooze_until"] = time.time() + 30 * 60
+    save_settings(s)
+    log("mascota: aviso de archivo grande silenciado 30 min")
+
+
+def _big_file_warn_snoozed():
+    try:
+        return time.time() < float(load_settings().get(
+            "big_file_warn_snooze_until", 0))
+    except (TypeError, ValueError):
+        return False
+
+
+def _copy_dropped_file(path):
+    """Copia un archivo soltado sobre la mascota al Inbox del puente
+    (llega a Growi por la sincronizacion). En un hilo para no congelar
+    la ventana."""
+    def _run():
+        try:
+            size = os.path.getsize(path)
+            name = os.path.basename(path)
+            dest = INBOX / name
+            i = 1
+            while dest.exists():
+                stem, ext = os.path.splitext(name)
+                dest = INBOX / f"{stem} ({i}){ext}"
+                i += 1
+            shutil.copy2(path, dest)
+            log(f"mascota: '{dest.name}' copiado al Inbox "
+                f"({size // (1024 * 1024)} MB) — llega a Growi por el puente")
+            try:
+                _root.after(0, lambda: _mascot_play("wave"))
+            except Exception:
+                pass
+        except Exception as e:
+            log(f"mascota: no se pudo copiar '{path}' ({e})")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _mascot_drop(event):
+    """Archivo(s) soltados sobre la mascota: Growi levanta la mano para
+    recibirlos y se copian al Inbox. Mas de 200 MB: aviso con opcion de
+    silenciarlo 30 min."""
+    try:
+        _mascot_play("wave")
+    except Exception:
+        pass
+    data = (event.data or "").strip()
+    if not data:
+        return
+    # tkinterdnd2 entrega las rutas entre llaves cuando tienen espacios.
+    paths = []
+    for part in re.findall(r"\{([^}]+)\}|(\S+)", data):
+        p = part[0] or part[1]
+        if p:
+            paths.append(p)
+    for p in paths:
+        try:
+            if not os.path.isfile(p):
+                continue
+            size = os.path.getsize(p)
+            name = os.path.basename(p)
+            if size > 200 * 1024 * 1024 and not _big_file_warn_snoozed():
+                if not _big_file_dialog(name, size / (1024 * 1024)):
+                    log(f"mascota: copia de '{name}' cancelada por el usuario")
+                    continue
+            _copy_dropped_file(p)
+        except Exception as e:
+            log(f"mascota: no se pudo procesar '{p}' ({e})")
+
+
+def _mascot_drag_enter(event):
+    """Un archivo entra sobre la mascota: Growi levanta la mano."""
+    try:
+        _mascot_play("wave")
+    except Exception:
+        pass
+
+
+def _mascot_drag_position(event):
+    """Mientras el archivo se mueve sobre la mascota, Growi se inclina un
+    poco hacia el cursor, como buscandolo."""
+    win = _mascot["win"]
+    if win is None:
+        return
+    try:
+        cx = win.winfo_x() + win.winfo_width() // 2
+        cy = win.winfo_y() + win.winfo_height() // 2
+        dx = max(-8, min(8, (event.x_root - cx) // 12))
+        dy = max(-8, min(8, (event.y_root - cy) // 12))
+        base_x, base_y = _mascot_pos()
+        win.geometry(f"96x96+{base_x + dx}+{base_y + dy}")
+    except Exception:
+        pass
+
+
+def _mascot_drag_leave(event):
+    """El archivo se aleja: Growi vuelve a su sitio."""
+    win = _mascot["win"]
+    if win is None:
+        return
+    try:
+        x, y = _mascot_pos()
+        win.geometry(f"96x96+{x}+{y}")
+    except Exception:
+        pass
+
+
 
 def open_prompt_box():
     win = _mascot["win"]
@@ -1751,6 +2073,9 @@ def build_tray():
     except Exception:
         image = Image.new("RGBA", (64, 64), (5, 32, 72, 255))
     menu = pystray.Menu(
+        pystray.MenuItem(lambda item: _sync_text(), lambda: show_window(),
+                         enabled=False),
+        pystray.Menu.SEPARATOR,
         pystray.MenuItem("Mostrar ventana", lambda: show_window(), default=True),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(
@@ -1778,13 +2103,49 @@ def build_tray():
 
 
 # === build_gui ===
+# === build_gui (v2.3 "Mac": barra lateral + titulo grande + contenido con scroll) ===
+def _scrollable(parent):
+    """Un area con scroll vertical (nada queda fuera de la ventana, aunque
+    la ventana sea pequeña). Devuelve el Frame interior donde se pone el
+    contenido."""
+    canvas = tk.Canvas(parent, bg=THEME["bg"], highlightthickness=0)
+    scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+    inner = tk.Frame(canvas, bg=THEME["bg"])
+    win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    def _on_inner(_e=None):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    def _on_canvas(e):
+        canvas.itemconfig(win_id, width=e.width)
+
+    inner.bind("<Configure>", _on_inner)
+    canvas.bind("<Configure>", _on_canvas)
+    canvas.configure(yscrollcommand=scrollbar.set)
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    def _on_wheel(e):
+        if canvas.winfo_ismapped():
+            canvas.yview_scroll(-1 if e.delta > 0 else 1, "units")
+
+    canvas.bind_all("<MouseWheel>", _on_wheel)
+    return inner
+
+
 def build_gui():
     global _root
-    root = tk.Tk()
+    try:
+        from tkinterdnd2 import TkinterDnD
+        root = TkinterDnD.Tk()
+        state["dnd"] = True
+    except ImportError:
+        root = tk.Tk()
+        state["dnd"] = False
     _root = root
     root.title("Growi Bridge")
-    root.geometry("560x860")
-    root.minsize(520, 720)
+    root.geometry("940x680")
+    root.minsize(820, 560)
     root.configure(bg=THEME["bg"])
     root.protocol("WM_DELETE_WINDOW", hide_to_tray)
     cfg = proxy_config()
@@ -1799,56 +2160,139 @@ def build_gui():
         style.theme_use("clam")
     except Exception:
         pass
-    style.configure("TNotebook", background=THEME["bg"], borderwidth=0)
-    style.configure("TNotebook.Tab", background=THEME["card"], foreground=THEME["muted"],
-                    padding=(14, 8), font=(FONT, 10))
-    style.map("TNotebook.Tab", background=[("selected", "#1B3A55")],
-              foreground=[("selected", THEME["text"])])
-    style.configure("TButton", background=THEME["card"], foreground=THEME["text"],
-                    borderwidth=0, padding=(10, 6), font=(FONT, 10))
-    style.map("TButton", background=[("active", "#1B3A55")])
-    style.configure("Accent.TButton", background=THEME["green"], foreground=THEME["bg"])
-    style.map("Accent.TButton", background=[("active", "#25B98C")])
-    style.configure("TEntry", fieldbackground=THEME["field"], foreground=THEME["text"],
-                    borderwidth=0, insertcolor=THEME["text"])
-    style.configure("TCombobox", fieldbackground=THEME["field"], foreground=THEME["text"])
-    style.configure("Treeview", background=THEME["card"], foreground=THEME["text"],
-                    fieldbackground=THEME["card"], borderwidth=0, font=(FONT, 10))
-    style.configure("Treeview.Heading", background=THEME["field"], foreground=THEME["muted"],
-                    font=(FONT, 10, "bold"))
+    style.configure("TButton", background="#FFFFFF", foreground=THEME["text"],
+                    borderwidth=1, relief="solid",
+                    padding=(12, 6), font=(FONT, 10))
+    style.map("TButton", background=[("active", "#F5F5F7")])
+    style.configure("Accent.TButton", background=THEME["blue"], foreground="white",
+                    borderwidth=0, padding=(12, 6), font=(FONT, 10, "bold"))
+    style.map("Accent.TButton", background=[("active", "#0A6CFF")])
+    style.configure("TEntry", fieldbackground="#FFFFFF", foreground=THEME["text"],
+                    borderwidth=1, relief="solid", insertcolor=THEME["text"])
+    try:  # bordercolor no existe en todos los Tk; si falla, se sigue sin el
+        style.configure("TButton", bordercolor="#D2D2D7")
+        style.configure("TEntry", bordercolor="#D2D2D7")
+    except Exception:
+        pass
+    style.configure("TCombobox", fieldbackground="#FFFFFF", foreground=THEME["text"])
+    style.configure("Treeview", background="#FFFFFF", foreground=THEME["text"],
+                    fieldbackground="#FFFFFF", borderwidth=0, font=(FONT, 10))
+    style.configure("Treeview.Heading", background="#F5F5F7",
+                    foreground=THEME["muted"], font=(FONT, 10, "bold"))
     style.configure("TCheckbutton", background=THEME["bg"], foreground=THEME["text"],
                     font=(FONT, 10))
 
-    nb = ttk.Notebook(root)
-    nb.pack(fill="both", expand=True, padx=10, pady=10)
-
-    # ---------------- pestana Estado
-    tab = tk.Frame(nb, bg=THEME["bg"])
-    nb.add(tab, text="  Estado  ")
-    header = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
-                      highlightthickness=1)
-    header.pack(fill="x", padx=12, pady=(12, 8))
+    # ---------------- barra lateral (Superlist / Plain)
+    sidebar = tk.Frame(root, bg=THEME["sidebar"], width=220)
+    sidebar.pack(side="left", fill="y")
+    sidebar.pack_propagate(False)
+    head = tk.Frame(sidebar, bg=THEME["sidebar"])
+    head.pack(fill="x", padx=16, pady=(16, 8))
     photo = None
     if TRAY_OK and HEADER_PHOTO.is_file():
         try:
-            img = Image.open(HEADER_PHOTO).resize((96, 96), Image.LANCZOS)
+            img = Image.open(HEADER_PHOTO).resize((64, 64), Image.LANCZOS)
             photo = ImageTk.PhotoImage(img)
-            tk.Label(header, image=photo, bg=THEME["card"]).pack(
-                side="left", padx=14, pady=12)
-            header.image = photo
+            tk.Label(head, image=photo, bg=THEME["sidebar"]).pack(anchor="w")
+            head.image = photo
             root.iconphoto(True, photo)
         except Exception:
             pass
-    tk.Label(header, text="Growi Bridge", font=(FONT, 20, "bold"),
-             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", pady=(12, 0))
-    tk.Label(header, text="Puente · Runner · Proxy · Pantalla · Mascota",
-             font=(FONT, 11), bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w")
-    _widgets["admin_text"] = tk.Label(header, text="", font=(FONT, 9),
-                                      bg=THEME["card"], fg=THEME["muted"])
-    _widgets["admin_text"].pack(anchor="w", pady=(0, 12))
+    tk.Label(head, text="Growi Bridge", font=(FONT, 15, "bold"),
+             bg=THEME["sidebar"], fg=THEME["text"]).pack(anchor="w", pady=(8, 0))
+    _widgets["admin_text"] = tk.Label(head, text="", font=(FONT, 9),
+                                      bg=THEME["sidebar"], fg=THEME["muted"])
+    _widgets["admin_text"].pack(anchor="w")
+
+    # ---------------- contenido (una pagina por seccion, con scroll)
+    content = tk.Frame(root, bg=THEME["bg"])
+    content.pack(side="right", fill="both", expand=True)
+    pages = {}
+    for name in ("estado", "carpetas", "skills", "pantalla", "apis"):
+        holder = tk.Frame(content, bg=THEME["bg"])
+        pages[name] = _scrollable(holder)
+        holder._inner = pages[name]
+        pages[name + "_holder"] = holder
+
+    def _show_page(name):
+        for n, holder in ((k, v) for k, v in pages.items() if k.endswith("_holder")):
+            holder.pack_forget()
+        pages[name + "_holder"].pack(fill="both", expand=True)
+        for n, btn in _nav_btns.items():
+            if n == name:
+                btn.config(bg="#E8E8ED", fg=THEME["text"])
+                btn._bar.config(bg=THEME["blue"])
+            else:
+                btn.config(bg=THEME["sidebar"], fg=THEME["text"])
+                btn._bar.config(bg=THEME["sidebar"])
+
+    _nav_btns = {}
+    nav = tk.Frame(sidebar, bg=THEME["sidebar"])
+    nav.pack(fill="x", padx=8, pady=8)
+    for name, label in (("estado", "Estado"), ("carpetas", "Carpetas"),
+                        ("skills", "Skills"), ("pantalla", "Pantalla"),
+                        ("apis", "APIs")):
+        row = tk.Frame(nav, bg=THEME["sidebar"])
+        row.pack(fill="x", pady=1)
+        bar = tk.Frame(row, bg=THEME["sidebar"], width=3)
+        bar.pack(side="left", fill="y")
+        btn = tk.Button(row, text="  " + label, font=(FONT, 11),
+                        bg=THEME["sidebar"], fg=THEME["text"], bd=0,
+                        activebackground="#E8E8ED", anchor="w",
+                        command=lambda n=name: _show_page(n))
+        btn.pack(side="left", fill="x", expand=True, ipady=6)
+        btn._bar = bar
+        _nav_btns[name] = btn
+        if name in ("carpetas", "skills", "apis"):
+            cnt = tk.Label(row, text="", font=(FONT, 10),
+                           bg=THEME["sidebar"], fg=THEME["muted"])
+            cnt.pack(side="right", padx=(0, 10))
+            _widgets[f"nav_count_{name}"] = cnt
+
+    # Pie de la barra lateral: la mascota siempre a la vista (Superlist /
+    # Plain ponen el avatar abajo). El interruptor enciende o apaga a Growi.
+    foot = tk.Frame(sidebar, bg=THEME["sidebar"])
+    foot.pack(side="bottom", fill="x", padx=16, pady=14)
+    tk.Frame(foot, bg=THEME["line"], height=1).pack(fill="x", pady=(0, 10))
+    frow = tk.Frame(foot, bg=THEME["sidebar"])
+    frow.pack(fill="x")
+    mini = None
+    if TRAY_OK and PHOTO.is_file():
+        try:
+            img = Image.open(PHOTO).resize((40, 40), Image.LANCZOS)
+            mini = ImageTk.PhotoImage(img)
+            tk.Label(frow, image=mini, bg=THEME["sidebar"]).pack(side="left")
+            frow.image = mini
+        except Exception:
+            pass
+    tk.Label(frow, text="Mascota", font=(FONT, 11, "bold"),
+             bg=THEME["sidebar"], fg=THEME["text"]).pack(side="left", padx=(8, 0))
+
+    def _sw_mascot_sidebar(on):
+        if on and _mascot["win"] is None:
+            show_mascot()
+            state["mascot"] = True
+        elif not on and _mascot["win"] is not None:
+            hide_mascot()
+            state["mascot"] = False
+        s = load_settings()
+        s["mascot"] = state["mascot"]
+        save_settings(s)
+
+    _widgets["mascot_sw"] = make_switch(frow, state["mascot"],
+                                        _sw_mascot_sidebar, bg=THEME["sidebar"])
+    _widgets["mascot_sw"].pack(side="right")
+
+    # ================= pagina Estado
+    tab = pages["estado"]
+    tk.Label(tab, text="Estado", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 4))
+    tk.Label(tab, text="Puente · Runner · Proxy · Pantalla · Mascota",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"]).pack(
+        anchor="w", padx=20, pady=(0, 10))
 
     power = tk.Frame(tab, bg=THEME["bg"])
-    power.pack(pady=6)
+    power.pack(pady=4)
     canvas = tk.Canvas(power, width=170, height=170, bg=THEME["bg"],
                        highlightthickness=0)
     canvas.pack()
@@ -1859,24 +2303,20 @@ def build_gui():
                                        bg=THEME["bg"], fg=THEME["muted"])
     _widgets["power_label"].pack()
 
-    # Tarjeta de estado: cada servicio con su punto, su pildora de valor y
-    # su propio interruptor (Philips Hue / BFF). El boton grande sigue
-    # siendo el maestro que enciende o apaga puente + runner juntos.
-    status = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
-                      highlightthickness=1)
-    status.pack(fill="x", padx=12, pady=8)
+    status = tk.Frame(tab, bg=THEME["card"])
+    status.pack(fill="x", padx=20, pady=8)
     tk.Label(status, text="ESTADO", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
 
     def _service_row(key, label, on_switch):
         row = tk.Frame(status, bg=THEME["card"])
-        row.pack(fill="x", padx=14, pady=5)
+        row.pack(fill="x", padx=16, pady=5)
         dot = tk.Label(row, text="●", font=(FONT, 13), bg=THEME["card"])
         dot.pack(side="left", padx=(0, 8))
         tk.Label(row, text=label, font=(FONT, 10, "bold"),
                  bg=THEME["card"], fg=THEME["text"]).pack(side="left")
-        pill = tk.Label(row, text="", font=(FONT, 9), bg="#1B3A55",
-                        fg=THEME["muted"], padx=8, pady=2)
+        pill = tk.Label(row, text="", font=(FONT, 9), bg="#E8E8ED",
+                        fg=THEME["text"], padx=8, pady=2)
         pill.pack(side="left", padx=(10, 0))
         sw = make_switch(row, False, on_switch, bg=THEME["card"])
         sw.pack(side="right")
@@ -1884,7 +2324,7 @@ def build_gui():
         _widgets[f"{key}_pill"] = pill
         _widgets[f"{key}_sw"] = sw
         sep = tk.Frame(status, bg=THEME["line"], height=1)
-        sep.pack(fill="x", padx=14)
+        sep.pack(fill="x", padx=16)
 
     def _sw_bridge(on):
         if on:
@@ -1908,20 +2348,19 @@ def build_gui():
     _service_row("runner", "Runner", _sw_runner)
     _service_row("proxy", "Proxy", _sw_proxy)
     sync = tk.Label(status, text="", font=(FONT, 10, "bold"), bg=THEME["card"],
-                    fg=THEME["green"], anchor="w")
-    sync.pack(fill="x", padx=14, pady=(8, 12))
+                    fg=THEME["green_text"], anchor="w")
+    sync.pack(fill="x", padx=16, pady=(8, 14))
     _widgets["sync_text"] = sync
 
-    px = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
-                  highlightthickness=1)
-    px.pack(fill="x", padx=12, pady=8)
+    px = tk.Frame(tab, bg=THEME["card"])
+    px.pack(fill="x", padx=20, pady=8)
     tk.Label(px, text="PROXY", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
     tk.Label(px, text="Cada quien usa el suyo. Encendido, Claude sale por el proxy.",
              font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
-        anchor="w", padx=14, pady=(0, 8))
+        anchor="w", padx=16, pady=(0, 8))
     grid = tk.Frame(px, bg=THEME["card"])
-    grid.pack(fill="x", padx=14)
+    grid.pack(fill="x", padx=16)
     fields = (("Host", "px_host", 22, None), ("Puerto", "px_port", 8, None),
               ("Usuario", "px_user", 14, None), ("Clave", "px_pass", 16, "•"))
     for i, (label, key, width, show) in enumerate(fields):
@@ -1938,21 +2377,18 @@ def build_gui():
     if cfg.get("password"):
         _widgets["px_pass"].insert(0, cfg["password"])
     prow = tk.Frame(px, bg=THEME["card"])
-    prow.pack(fill="x", padx=14, pady=(8, 12))
+    prow.pack(fill="x", padx=16, pady=(8, 14))
     ttk.Button(prow, text="Guardar", style="Accent.TButton",
                command=save_proxy_from_ui).pack(side="left", padx=(0, 8))
 
-    # Ajustes: filas con interruptor (BFF). Cada una lleva su explicacion
-    # apagada debajo de la etiqueta.
-    aj = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
-                  highlightthickness=1)
-    aj.pack(fill="x", padx=12, pady=8)
+    aj = tk.Frame(tab, bg=THEME["card"])
+    aj.pack(fill="x", padx=20, pady=8)
     tk.Label(aj, text="AJUSTES", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
 
     def _setting_row(label, expl, initial, on_change):
         row = tk.Frame(aj, bg=THEME["card"])
-        row.pack(fill="x", padx=14, pady=5)
+        row.pack(fill="x", padx=16, pady=5)
         left = tk.Frame(row, bg=THEME["card"])
         left.pack(side="left", fill="x", expand=True)
         tk.Label(left, text=label, font=(FONT, 10, "bold"),
@@ -1962,7 +2398,7 @@ def build_gui():
         sw = make_switch(row, initial, on_change, bg=THEME["card"])
         sw.pack(side="right")
         sep = tk.Frame(aj, bg=THEME["line"], height=1)
-        sep.pack(fill="x", padx=14)
+        sep.pack(fill="x", padx=16)
         return sw
 
     def _sw_autoupd(on):
@@ -1982,17 +2418,6 @@ def build_gui():
                 "No se pudo cambiar el inicio automático. "
                 "La app necesita correr como administrador.")
 
-    def _sw_mascot(on):
-        if on and _mascot["win"] is None:
-            show_mascot()
-            state["mascot"] = True
-        elif not on and _mascot["win"] is not None:
-            hide_mascot()
-            state["mascot"] = False
-        s = load_settings()
-        s["mascot"] = state["mascot"]
-        save_settings(s)
-
     _widgets["autoupd_sw"] = _setting_row(
         "Actualización automática",
         "Se actualiza sola desde GitHub cuando hay una versión nueva.",
@@ -2001,23 +2426,17 @@ def build_gui():
         "Iniciar al encender la PC",
         "Arranca sola con Windows al iniciar sesión.",
         state.get("autostart", False), _sw_autostart)
-    _widgets["mascot_sw"] = _setting_row(
-        "Mascota en la esquina",
-        "Growi flota en la esquina inferior derecha.",
-        state["mascot"], _sw_mascot)
 
-    # PC: apagar y reiniciar con confirmacion (60 s de margen, cancelable).
-    pc = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
-                  highlightthickness=1)
-    pc.pack(fill="x", padx=12, pady=8)
+    pc = tk.Frame(tab, bg=THEME["card"])
+    pc.pack(fill="x", padx=20, pady=8)
     tk.Label(pc, text="PC", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
     tk.Label(pc, text="Apagar o reiniciar este PC. Te pide confirmación y "
              "tienes 60 segundos para cancelarlo.",
              font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
-        anchor="w", padx=14, pady=(0, 8))
+        anchor="w", padx=16, pady=(0, 8))
     prow2 = tk.Frame(pc, bg=THEME["card"])
-    prow2.pack(fill="x", padx=14, pady=(0, 12))
+    prow2.pack(fill="x", padx=16, pady=(0, 14))
     ttk.Button(prow2, text="Apagar PC",
                command=lambda: _pc_confirm("shutdown")).pack(side="left", padx=(0, 8))
     ttk.Button(prow2, text="Reiniciar PC",
@@ -2026,7 +2445,7 @@ def build_gui():
                command=pc_abort).pack(side="left")
 
     btns = tk.Frame(tab, bg=THEME["bg"])
-    btns.pack(fill="x", padx=12, pady=8)
+    btns.pack(fill="x", padx=20, pady=8)
     ttk.Button(btns, text="Abrir Inbox",
                command=lambda: open_folder(INBOX)).grid(row=0, column=0, padx=2, pady=2)
     ttk.Button(btns, text="Abrir Outbox",
@@ -2035,76 +2454,69 @@ def build_gui():
                command=check_updates_ui).grid(row=0, column=2, padx=2, pady=2)
     ttk.Button(btns, text="Salir", command=quit_app).grid(row=0, column=3, padx=2, pady=2)
     _widgets["update_label"] = tk.Label(tab, text="", font=(FONT, 9),
-                                        bg=THEME["bg"], fg=THEME["green"])
-    _widgets["update_label"].pack(anchor="w", padx=14)
+                                        bg=THEME["bg"], fg=THEME["green_text"])
+    _widgets["update_label"].pack(anchor="w", padx=22)
     _widgets["update_btn"] = ttk.Button(tab, text="Actualizar ahora", state="disabled",
                                         command=do_update_ui)
-    _widgets["update_btn"].pack(anchor="w", padx=12, pady=2)
+    _widgets["update_btn"].pack(anchor="w", padx=20, pady=2)
 
-    log_box = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
-                       highlightthickness=1)
-    log_box.pack(fill="both", expand=True, padx=12, pady=(4, 12))
+    log_box = tk.Frame(tab, bg=THEME["card"])
+    log_box.pack(fill="both", expand=True, padx=20, pady=(4, 16))
     tk.Label(log_box, text="REGISTRO", font=(FONT, 9, "bold"),
-             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=16, pady=(12, 2))
     text = scrolledtext.ScrolledText(log_box, height=6, font=("Consolas", 9),
-                                     bg=THEME["field"], fg="#9FD8B4",
+                                     bg="#FFFFFF", fg=THEME["text"],
                                      insertbackground=THEME["text"],
                                      state="disabled", borderwidth=0)
-    text.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+    text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
     _widgets["log"] = text
 
-    # ---------------- pestana Carpetas
-    tab2 = tk.Frame(nb, bg=THEME["bg"])
-    nb.add(tab2, text="  Carpetas  ")
-    tk.Label(tab2, text="Carpetas que Claude Code puede ver",
-             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
-        anchor="w", padx=14, pady=(12, 2))
+    # ================= pagina Carpetas
+    tab2 = pages["carpetas"]
+    tk.Label(tab2, text="Carpetas", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
     tk.Label(tab2, text="Claude Code solo trabaja dentro de estas carpetas. "
              "Growi también puede modificar esta lista pidiéndole a Claude "
              "que edite folders.json.",
-             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
-             wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 8))
-    lb = tk.Listbox(tab2, height=10, font=(FONT, 10), bg=THEME["card"],
-                    fg=THEME["text"], selectbackground=THEME["green"],
-                    selectforeground=THEME["bg"], borderwidth=0,
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+    lb = tk.Listbox(tab2, height=12, font=(FONT, 10), bg="#FFFFFF",
+                    fg=THEME["text"], selectbackground=THEME["blue"],
+                    selectforeground="white", borderwidth=0,
                     highlightthickness=0)
-    lb.pack(fill="both", expand=True, padx=14, pady=4)
+    lb.pack(fill="both", expand=True, padx=20, pady=4)
     _widgets["folders_list"] = lb
     brow = tk.Frame(tab2, bg=THEME["bg"])
-    brow.pack(fill="x", padx=14, pady=(4, 12))
+    brow.pack(fill="x", padx=20, pady=(4, 16))
     ttk.Button(brow, text="Añadir carpeta", command=add_folder_ui).pack(side="left", padx=2)
     ttk.Button(brow, text="Quitar seleccionada", command=remove_folder_ui).pack(side="left", padx=2)
     ttk.Button(brow, text="Restablecer", command=reset_folders_ui).pack(side="left", padx=2)
     refresh_folders_ui()
 
-    # ---------------- pestana Skills
-    tab3 = tk.Frame(nb, bg=THEME["bg"])
-    nb.add(tab3, text="  Skills  ")
-    tk.Label(tab3, text="Skills instaladas de Claude Code",
-             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
-        anchor="w", padx=14, pady=(12, 2))
+    # ================= pagina Skills
+    tab3 = pages["skills"]
+    tk.Label(tab3, text="Skills", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
     tk.Label(tab3, text=f"Carpeta: {HOME_DIR / '.claude' / 'skills'}",
-             font=(FONT, 9), bg=THEME["bg"], fg=THEME["muted"]).pack(anchor="w", padx=14)
+             font=(FONT, 9), bg=THEME["bg"], fg=THEME["muted"]).pack(anchor="w", padx=20)
     _widgets["skills_count"] = tk.Label(tab3, text="", font=(FONT, 10),
                                         bg=THEME["bg"], fg=THEME["muted"])
-    _widgets["skills_count"].pack(anchor="w", padx=14, pady=(4, 0))
+    _widgets["skills_count"].pack(anchor="w", padx=20, pady=(4, 0))
     tree = ttk.Treeview(tab3, columns=("skill", "descripcion"), show="headings", height=14)
     tree.heading("skill", text="Skill")
     tree.heading("descripcion", text="Descripción")
     tree.column("skill", width=150)
-    tree.column("descripcion", width=360)
-    tree.pack(fill="both", expand=True, padx=14, pady=6)
+    tree.column("descripcion", width=420)
+    tree.pack(fill="both", expand=True, padx=20, pady=6)
     _widgets["skills_tree"] = tree
     ttk.Button(tab3, text="Actualizar lista", command=refresh_skills_ui).pack(
-        anchor="w", padx=14, pady=(0, 12))
+        anchor="w", padx=20, pady=(0, 16))
     refresh_skills_ui()
 
-    # ---------------- pestana Pantalla
-    tab4 = tk.Frame(nb, bg=THEME["bg"])
-    nb.add(tab4, text="  Pantalla  ")
-    tk.Label(tab4, text="Compartir pantalla con Growi",
-             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
-        anchor="w", padx=14, pady=(12, 2))
+    # ================= pagina Pantalla
+    tab4 = pages["pantalla"]
+    tk.Label(tab4, text="Pantalla", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
     tk.Label(tab4, text="Cuando lo activas, la app manda un fotograma comprimido "
              "(JPEG, max 1280px) cada pocos segundos al outbox, y Growi lo puede "
              "ver por el puente. Cada vez que empiezas a compartir se crea una "
@@ -2112,60 +2524,58 @@ def build_gui():
              "y todos los fotogramas de esa grabación quedan allí guardados. "
              "Growi solo mira un fotograma cuando se lo pides o cuando hace falta "
              "para ayudarte: no es video en vivo. Puedes pararlo cuando quieras.",
-             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
-             wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 10))
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(0, 10))
     _widgets["share_btn"] = ttk.Button(tab4, text="Compartir pantalla",
                                        style="Accent.TButton",
                                        command=lambda: stop_sharing() if state["sharing"]
                                        else start_sharing(float(_widgets["share_interval"].get().split()[0])))
-    _widgets["share_btn"].pack(anchor="w", padx=14, pady=4)
+    _widgets["share_btn"].pack(anchor="w", padx=20, pady=4)
     irow = tk.Frame(tab4, bg=THEME["bg"])
-    irow.pack(anchor="w", padx=14, pady=4)
+    irow.pack(anchor="w", padx=20, pady=4)
     tk.Label(irow, text="Fotograma cada:", font=(FONT, 10), bg=THEME["bg"],
              fg=THEME["text"]).pack(side="left")
     _widgets["share_interval"] = ttk.Combobox(irow, values=["0.5 s", "1 s", "5 s", "10 s", "30 s"],
-                                              width=6, state="readonly")
+                                              width=8, state="readonly")
     _widgets["share_interval"].set("10 s")
     _widgets["share_interval"].pack(side="left", padx=6)
     tk.Label(tab4, text="A 0.5 s y 1 s se guardan muchos fotogramas: cada sesión "
              "puede pesar decenas de MB. Las sesiones de más de 7 días se borran "
              "solas al empezar una nueva grabación.",
              font=(FONT, 9), bg=THEME["bg"], fg=THEME["muted"],
-             wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(4, 2))
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(4, 2))
     _widgets["share_status"] = tk.Label(tab4, text="Pantalla no compartida",
                                         font=(FONT, 10, "bold"),
-                                        bg=THEME["bg"], fg=THEME["green"])
-    _widgets["share_status"].pack(anchor="w", padx=14, pady=8)
+                                        bg=THEME["bg"], fg=THEME["green_text"])
+    _widgets["share_status"].pack(anchor="w", padx=20, pady=8)
     ttk.Button(tab4, text="Limpiar sesiones viejas",
                command=lambda: (_cleanup_old_sessions(),
                                 log("pantalla: limpieza de sesiones viejas hecha"))).pack(
-        anchor="w", padx=14, pady=2)
+        anchor="w", padx=20, pady=2)
     ttk.Button(tab4, text="Abrir carpeta de sesiones",
-               command=lambda: open_folder(SCREENS)).pack(anchor="w", padx=14, pady=2)
+               command=lambda: open_folder(SCREENS)).pack(anchor="w", padx=20, pady=2)
 
-    # ---------------- pestana APIs
-    tab5 = tk.Frame(nb, bg=THEME["bg"])
-    nb.add(tab5, text="  APIs  ")
-    tk.Label(tab5, text="APIs privadas",
-             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
-        anchor="w", padx=14, pady=(12, 2))
+    # ================= pagina APIs
+    tab5 = pages["apis"]
+    tk.Label(tab5, text="APIs", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
     tk.Label(tab5, text="Las claves se guardan solo en este PC (apis.json) y "
              "nunca se sincronizan ni se suben a ningún sitio. Growi nunca "
              "muestra una clave completa: aquí solo se ven los últimos 4 "
              "caracteres. Puedes añadir una desde aquí o desde WhatsApp: le "
              "dices a Growi la API y la clave, y llega al PC en segundos por "
              "el puente.",
-             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
-             wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 8))
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=600, justify="left").pack(anchor="w", padx=20, pady=(0, 10))
     tree = ttk.Treeview(tab5, columns=("api", "clave"), show="headings", height=10)
     tree.heading("api", text="API")
     tree.heading("clave", text="Clave")
     tree.column("api", width=170)
-    tree.column("clave", width=330)
-    tree.pack(fill="both", expand=True, padx=14, pady=6)
+    tree.column("clave", width=420)
+    tree.pack(fill="both", expand=True, padx=20, pady=6)
     _widgets["apis_tree"] = tree
     form = tk.Frame(tab5, bg=THEME["bg"])
-    form.pack(fill="x", padx=14, pady=4)
+    form.pack(fill="x", padx=20, pady=4)
     tk.Label(form, text="Nombre", font=(FONT, 9), bg=THEME["bg"],
              fg=THEME["muted"]).grid(row=0, column=0, sticky="w")
     _widgets["api_name"] = ttk.Entry(form, width=22, font=(FONT, 10))
@@ -2177,16 +2587,15 @@ def build_gui():
     ttk.Button(form, text="Guardar", style="Accent.TButton",
                command=add_api_ui).grid(row=1, column=2, sticky="w")
     brow5 = tk.Frame(tab5, bg=THEME["bg"])
-    brow5.pack(fill="x", padx=14, pady=(4, 12))
+    brow5.pack(fill="x", padx=20, pady=(4, 16))
     ttk.Button(brow5, text="Quitar seleccionada", command=remove_api_ui).pack(
         side="left", padx=2)
     ttk.Button(brow5, text="Añadir por WhatsApp", command=add_api_whatsapp).pack(
         side="left", padx=2)
     refresh_apis_ui()
-    return root
 
+    _show_page("estado")
     return root
-
 
 def main():
     if not TK_OK:
