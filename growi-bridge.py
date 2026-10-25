@@ -1163,20 +1163,29 @@ _tray_state = ["idle"]
 
 def _tray_image(kind):
     """Genera el icono de la bandeja con un distintivo (como OneDrive):
-    'idle' = solo la foto; 'sync'/'sync2' = punto verde que pulsa mientras
-    hay sincronizacion (transferencia en los ultimos 10 s); 'error' = punto
-    rojo (el puente esta caido)."""
+    'idle' = solo el personaje, con fondo transparente (sin cuadro
+    blanco ni oscuro alrededor); 'sync'/'sync2' = distintivo verde
+    GRANDE que pulsa mientras hay sincronizacion (transferencia en los
+    ultimos 10 s) y sobresale de la esquina inferior derecha;
+    'error' = distintivo rojo (el puente esta caido)."""
     try:
         from PIL import ImageDraw
         base = Image.open(TRAY_ICON if TRAY_ICON.is_file() else PHOTO).convert("RGBA")
     except Exception:
         return None
+    # El personaje va a 56x56 centrado (margen de 4 px) para que el
+    # distintivo tenga donde sobresalir sin taparlo entero. El tamano
+    # es el mismo con y sin distintivo, asi el icono no "salta".
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    small = base.resize((56, 56), Image.LANCZOS)
+    img.paste(small, (4, 4), small)
     if kind == "idle":
-        return base
-    img = base.copy()
+        return img
     d = ImageDraw.Draw(img)
     color = {"sync": "#34C759", "sync2": "#8BE0A4", "error": "#FF3B30"}[kind]
-    d.ellipse([42, 42, 62, 62], fill=color, outline="white", width=2)
+    # Distintivo grande (28 px) en la esquina inferior derecha,
+    # centrado en (49, 49): se sale del personaje y llega al borde.
+    d.ellipse([36, 36, 63, 63], fill=color, outline="white", width=3)
     return img
 
 
