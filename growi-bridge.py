@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
-"""Growi Bridge v2.0 — puente + runner + proxy + pantalla + mascota en uno (Windows).
+"""Growi Bridge v2.2 — puente + runner + proxy + pantalla + mascota + APIs en uno (Windows).
 
 Un solo proceso, una sola ventana con pestanas, un solo icono en la bandeja
 (la foto de Growi). Reemplaza al servidor viejo (pc-server.py) y al runner.
 
 Pestanas:
-  Estado    — boton grande de encendido, estado de puente/runner/proxy,
-              indicador de sincronizacion (que se descarga/carga), registro.
+  Estado    — boton grande de encendido, estado de puente/runner/proxy con
+              interruptor propio por servicio y pildora de valor, indicador
+              de sincronizacion (que se descarga/carga), ajustes (auto-update,
+              inicio automatico, mascota), botones de PC (apagar/reiniciar),
+              registro.
   Carpetas  — que carpetas puede ver Claude Code (Growi tambien las puede
               modificar). Por defecto: el Inbox del puente + tu carpeta
               principal (C:\\Users\\forte).
   Skills    — las skills instaladas de Claude Code (~/.claude/skills/).
   Pantalla  — compartir pantalla con Growi (fotogramas comprimidos, solo
-              cuando tu lo activas; Growi mira un fotograma cuando hace falta).
+              cuando tu lo activas; cada grabacion guarda sus fotogramas en
+              una carpeta con fecha y hora; Growi mira un fotograma cuando
+              hace falta).
+  APIs      — claves de APIs privadas guardadas solo en este PC. Se pueden
+              añadir desde aqui o desde WhatsApp: le dices a Growi y llegan
+              al PC en segundos por el puente.
 
 Extras:
-  - Mascota: Growi en la esquina inferior derecha; clic para saludar y
-    escribirle un mensaje rapido (llega a Growi por el puente).
+  - Mascota: Growi en la esquina inferior derecha, con animaciones segun
+    el estado (descansando, trabajando, saludo al hacer clic, celebracion
+    cuando Claude termina una tarea); clic para escribirle un mensaje
+    rapido (llega a Growi por el puente).
   - Proxy: boton para encender/apagar el proxy (host/puerto/usuario/clave
     configurables; cada quien usa los suyos).
-  - Actualizaciones: busca nuevas versiones en GitHub y se actualiza solo.
+  - Actualizaciones: busca nuevas versiones en GitHub; con la
+    actualizacion automatica activada se actualiza sola y se reinicia.
   - Administrador: detecta si corre elevado; el instalador lo deja en
     arranque automatico con privilegios maximos.
 
@@ -48,7 +59,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.1"
+VERSION = "2.2"
 GITHUB_REPO = "leandrogzn98-hash/growi-bridge"
 APP_DIR = Path(__file__).resolve().parent
 SHARE = APP_DIR / "share"
@@ -87,9 +98,10 @@ state = {
     "proxy_on": "HTTPS_PROXY" in os.environ,
     "proxy_configured": False,
     "admin": False,
-    "sharing": False, "last_frame": "",
+    "sharing": False, "last_frame": "", "share_folder": None, "share_frame": 0,
     "mascot": False,
-    "update_available": "", "update_checked": False,
+    "update_available": "", "update_checked": False, "auto_update_ready": "",
+    "auto_update": False, "autostart": False,
     "power": False,
 }
 LOG_Q = queue.Queue()
@@ -218,7 +230,141 @@ def set_proxy(on):
     return True, "proxy APAGADO (Claude ya no sale por el VPS)"
 
 
+# ---------------------------------------------------------------- inicio automatico y PC
+def autostart_enabled():
+    """True si existe la tarea programada GrowiBridgeApp (inicio con Windows)."""
+    try:
+        r = subprocess.run(["schtasks", "/query", "/tn", "GrowiBridgeApp"],
+                           capture_output=True)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def set_autostart(on):
+    """Crea o borra la tarea programada de inicio automatico. Necesita
+    permisos de administrador (la app corre elevada cuando la instalo el
+    instalador)."""
+    try:
+        if on:
+            exe = str(APP_DIR / "iniciar-growi-bridge.bat")
+            r = subprocess.run(["schtasks", "/create", "/tn", "GrowiBridgeApp",
+                                "/tr", f'"{exe}"', "/sc", "onlogon",
+                                "/rl", "highest", "/f"], capture_output=True)
+        else:
+            r = subprocess.run(["schtasks", "/delete", "/tn", "GrowiBridgeApp",
+                                "/f"], capture_output=True)
+        if r.returncode != 0:
+            log("inicio automatico: no se pudo cambiar (¿sin permisos de administrador?)")
+            return False
+        log(f"inicio automatico: {'activado' if on else 'desactivado'}")
+        return True
+    except Exception as e:
+        log(f"inicio automatico: error ({e})")
+        return False
+
+
+def pc_power(action):
+    """Apaga o reinicia el PC en 60 segundos. action: 'shutdown' o 'restart'.
+    Windows muestra su propio aviso y se puede cancelar con pc_abort()."""
+    cmd = (["shutdown", "/s", "/t", "60"] if action == "shutdown"
+           else ["shutdown", "/r", "/t", "60"])
+    try:
+        subprocess.run(cmd, capture_output=True)
+        what = "apagado" if action == "shutdown" else "reinicio"
+        log(f"PC: {what} programado en 60 s (boton Cancelar o 'shutdown /a')")
+        return True
+    except Exception as e:
+        log(f"PC: no se pudo programar ({e})")
+        return False
+
+
+def pc_abort():
+    """Cancela un apagado o reinicio programado."""
+    try:
+        subprocess.run(["shutdown", "/a"], capture_output=True)
+        log("PC: apagado/reinicio cancelado")
+        return True
+    except Exception as e:
+        log(f"PC: no se pudo cancelar ({e})")
+        return False
+
+
+# ---------------------------------------------------------------- APIs privadas
+APIS_FILE = APP_DIR / "apis.json"
+
+
+def load_apis():
+    try:
+        data = json.loads(APIS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def save_apis(apis):
+    try:
+        APIS_FILE.write_text(json.dumps(apis, ensure_ascii=False, indent=2),
+                             encoding="utf-8")
+    except OSError:
+        pass
+
+
+def mask_key(key):
+    """Muestra solo los ultimos 4 caracteres de una clave."""
+    k = str(key)
+    return ("•" * max(0, len(k) - 4)) + k[-4:] if len(k) > 4 else "•" * len(k)
+
+
+def import_api_files():
+    """Toma los archivos que Growi empuja por el puente (inbox/apis/*.json)
+    y los guarda en apis.json. Borra el archivo tras importarlo para que la
+    clave no quede dando vueltas en el Inbox. Devuelve cuantas se añadieron."""
+    api_inbox = INBOX / "apis"
+    if not api_inbox.is_dir():
+        return 0
+    added = 0
+    for p in sorted(api_inbox.glob("*.json")):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            name = str(data.get("name", "")).strip()
+            key = str(data.get("key", "")).strip()
+            if not name or not key or len(name) > 80:
+                raise ValueError("nombre o clave invalidos")
+            apis = load_apis()
+            apis = [a for a in apis if a.get("name") != name]
+            apis.append({"name": name, "key": key})
+            save_apis(apis)
+            added += 1
+            log(f"APIs: '{name}' añadida desde WhatsApp (clave guardada solo en este PC)")
+        except Exception as e:
+            log(f"APIs: no se pudo importar {p.name} ({e})")
+        finally:
+            try:
+                p.unlink()
+            except OSError:
+                pass
+    if added and _widgets.get("apis_tree") is not None and _root is not None:
+        try:
+            _root.after(0, refresh_apis_ui)
+        except Exception:
+            pass
+    return added
+
+
 # ---------------------------------------------------------------- carpetas
+
+
+def _pc_confirm(action):
+    """Confirmacion antes de apagar o reiniciar el PC (60 s de margen)."""
+    what = "apagar" if action == "shutdown" else "reiniciar"
+    if messagebox.askyesno(
+            "Apagar / reiniciar el PC",
+            f"¿Seguro que quieres {what} este PC?\n\n"
+            "Tienes 60 segundos para cancelarlo con el botón "
+            "\"Cancelar apagado\" o con 'shutdown /a'."):
+        pc_power(action)
+
 def default_roots():
     return [str(INBOX), str(HOME_DIR)]
 
@@ -276,6 +422,12 @@ def list_skills():
 
 
 # ---------------------------------------------------------------- updates
+UPDATE_FILES = ["growi-bridge.py", "growi.ico", "growi-tray.png", "growi-header.png",
+                "growi.png", "instalar-growi-bridge.bat", "iniciar-growi-bridge.bat",
+                "probar-growi-bridge.bat", "LEEME-growi-bridge.md", "VERSION",
+                "DESIGN.md", "notas-mobbin.md"]
+
+
 def _version_tuple(v):
     parts = []
     for p in str(v).strip().lstrip("v").split("."):
@@ -301,26 +453,66 @@ def check_update_available():
 
 
 def download_update(version):
-    """Baja growi-bridge.py nuevo y deja el actualizador listo. True/False."""
-    url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/growi-bridge.py"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "GrowiBridge"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            data = r.read()
-        if b"Growi Bridge" not in data[:2000] or len(data) < 10000:
+    """Baja TODOS los archivos de la nueva version y deja el actualizador
+    listo (actualizar.bat mueve cada .new a su sitio y relanza la app).
+    True si quedo todo, False si algo fallo."""
+    for name in UPDATE_FILES:
+        url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{name}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "GrowiBridge"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+            if name == "growi-bridge.py" and (b"Growi Bridge" not in data[:2000]
+                                             or len(data) < 10000):
+                log("actualizaciones: growi-bridge.py descargado invalido")
+                return False
+            (APP_DIR / (name + ".new")).write_bytes(data)
+        except Exception as e:
+            log(f"actualizaciones: fallo al bajar {name} ({e})")
             return False
-        (APP_DIR / "growi-bridge.py.new").write_bytes(data)
-        updater = APP_DIR / "actualizar.bat"
-        updater.write_text(
-            "@echo off\r\n"
-            "timeout /t 2 /nobreak >nul\r\n"
-            "move /y \"growi-bridge.py.new\" \"growi-bridge.py\"\r\n"
-            "start /b pythonw growi-bridge.py\r\n"
-            "del \"%~f0\"\r\n", encoding="utf-8")
-        return True
-    except Exception as e:
-        log(f"actualizaciones: fallo la descarga ({e})")
-        return False
+    lines = ["@echo off", "timeout /t 2 /nobreak >nul"]
+    for name in UPDATE_FILES:
+        lines.append(f'move /y "{name}.new" "{name}"')
+    lines += ["start /b pythonw growi-bridge.py", 'del "%~f0"']
+    (APP_DIR / "actualizar.bat").write_text("\r\n".join(lines) + "\r\n",
+                                            encoding="utf-8")
+    return True
+
+
+def _do_auto_update():
+    """Auto-update (sin preguntar): lo dispara _tick cuando el hilo de
+    fondo dejo una version lista en state['auto_update_ready']."""
+    version = state.get("auto_update_ready", "")
+    state["auto_update_ready"] = ""
+    if not version or not load_settings().get("auto_update"):
+        return
+    if not download_update(version):
+        return
+    log(f"actualizaciones: auto-update a v{version}, reiniciando...")
+    try:
+        subprocess.Popen(["cmd", "/c", "actualizar.bat"], cwd=str(APP_DIR))
+    except Exception:
+        return
+    quit_app()
+
+
+def _auto_update_loop():
+    """Hilo de fondo: cada 6 h comprueba si hay version nueva. Si la
+    actualizacion automatica esta activada, deja la version lista para que
+    _tick la instale sola; si no, solo avisa en la ventana."""
+    time.sleep(60)
+    while True:
+        try:
+            if load_settings().get("auto_update"):
+                remote = check_update_available()
+                if remote:
+                    state["update_available"] = remote
+                    state["update_checked"] = True
+                    state["auto_update_ready"] = remote
+                    log(f"actualizaciones: v{remote} lista, auto-update en curso")
+        except Exception:
+            pass
+        time.sleep(6 * 3600)
 
 # ---------------------------------------------------------------- puente (HTTP)
 def box_dir(box):
@@ -765,11 +957,29 @@ def set_power(on):
 
 
 # ---------------------------------------------------------------- pantalla
+def _cleanup_old_sessions(days=7):
+    """Borra las carpetas de sesiones de pantalla de mas de `days` dias."""
+    try:
+        now = time.time()
+        for d in SCREENS.iterdir():
+            if d.is_dir() and len(d.name) >= 15 and d.name[:8].isdigit() \
+                    and "-" in d.name:
+                if now - d.stat().st_mtime > days * 86400:
+                    shutil.rmtree(d, ignore_errors=True)
+                    log(f"pantalla: sesion vieja borrada ({d.name})")
+    except Exception:
+        pass
+
+
 def _capture_frame():
-    """Un fotograma comprimido a share/outbox/screens/latest.jpg."""
+    """Un fotograma comprimido: se guarda en la carpeta de la sesion actual
+    (outbox/screens/AAAAMMDD-HHMMSS/frame-NNNN.jpg) y como latest.jpg."""
     try:
         from PIL import ImageGrab
     except ImportError:
+        return None
+    folder = state.get("share_folder")
+    if not folder:
         return None
     SCREENS.mkdir(parents=True, exist_ok=True)
     try:
@@ -779,23 +989,28 @@ def _capture_frame():
         return None
     if img.width > 1280:
         img = img.resize((1280, int(img.height * 1280 / img.width)))
-    path = SCREENS / "latest.jpg"
-    img.convert("RGB").save(path, "JPEG", quality=45)
-    info = {"at": _now_iso(), "size": path.stat().st_size,
-            "w": img.width, "h": img.height}
+    img = img.convert("RGB")
+    frame = state.get("share_frame", 0) + 1
+    state["share_frame"] = frame
+    path = Path(folder) / ("frame-%04d.jpg" % frame)
+    img.save(path, "JPEG", quality=45)
+    img.save(SCREENS / "latest.jpg", "JPEG", quality=45)
+    info = {"at": _now_iso(), "session": Path(folder).name, "frame": frame,
+            "size": path.stat().st_size, "w": img.width, "h": img.height}
     (SCREENS / "status.json").write_text(json.dumps(info), encoding="utf-8")
     state["last_frame"] = info["at"]
     return info
 
 
 def screen_loop(stop_event, interval_s):
-    log(f"pantalla: compartiendo (fotograma cada {interval_s}s, JPEG 45, max 1280px)")
+    log(f"pantalla: compartiendo en {state.get('share_folder')} "
+        f"(fotograma cada {interval_s}s, JPEG 45, max 1280px)")
     count = 0
     while not stop_event.is_set():
         info = _capture_frame()
         if info:
             count += 1
-            if count % 6 == 1:
+            if count % 10 == 1:
                 log(f"pantalla: fotograma {count} ({info['size'] // 1024} KB)")
         stop_event.wait(interval_s)
     log("pantalla: compartiendo detenido")
@@ -805,10 +1020,18 @@ def start_sharing(interval_s=10):
     global _share_stop, _share_thread
     if _share_thread and _share_thread.is_alive():
         return False
+    _cleanup_old_sessions()
+    folder = SCREENS / datetime.now().strftime("%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True, exist_ok=True)
+    state["share_folder"] = str(folder)
+    state["share_frame"] = 0
     _share_stop = threading.Event()
-    _share_thread = threading.Thread(target=screen_loop, args=(_share_stop, interval_s), daemon=True)
+    _share_thread = threading.Thread(target=screen_loop,
+                                     args=(_share_stop, float(interval_s)),
+                                     daemon=True)
     _share_thread.start()
     state["sharing"] = True
+    log(f"pantalla: nueva sesion {folder.name} (fotogramas en {folder})")
     return True
 
 
@@ -821,6 +1044,11 @@ def stop_sharing():
         _share_thread = None
     _share_stop = None
     state["sharing"] = False
+    try:
+        (SCREENS / "status.json").write_text(
+            json.dumps({"on": False, "at": _now_iso()}), encoding="utf-8")
+    except OSError:
+        pass
     log("pantalla: compartiendo detenido")
 
 # ---------------------------------------------------------------- interfaz
@@ -847,10 +1075,48 @@ _pulse = [0]
 _tick_n = [0]
 
 
+def make_switch(parent, initial, command, bg=None):
+    """Interruptor estilo iOS dibujado en un Canvas (BFF / Philips Hue).
+    command(recibe True/False) se llama al cambiar. El estado visual se
+    sincroniza desde refresh_ui con set_switch()."""
+    bg = bg or THEME["bg"]
+    c = tk.Canvas(parent, width=52, height=30, bg=bg, highlightthickness=0, bd=0)
+    c._on = bool(initial)
+    c._command = command
+
+    def _draw():
+        on = c._on
+        track = THEME["green"] if on else "#3A4A5C"
+        c.delete("all")
+        c.create_rectangle(15, 0, 37, 30, fill=track, outline=track)
+        c.create_oval(0, 0, 30, 30, fill=track, outline=track)
+        c.create_oval(22, 0, 52, 30, fill=track, outline=track)
+        kx = 24 if on else 2
+        c.create_oval(kx, 2, kx + 26, 28, fill="white", outline="white")
+
+    def _toggle(ev=None):
+        c._on = not c._on
+        _draw()
+        if c._command:
+            c._command(c._on)
+
+    c.bind("<Button-1>", _toggle)
+    c._draw = _draw
+    _draw()
+    return c
+
+
+def set_switch(c, on):
+    """Pone el interruptor en el estado dado (lo usa refresh_ui para que
+    el dibujo siga al servicio real, no al ultimo clic)."""
+    if c is not None and c._on != bool(on):
+        c._on = bool(on)
+        c._draw()
+
+
 def _dot(status):
     return {"corriendo": ("●", THEME["green"]), "parado": ("●", "#5A7086"),
             "error": ("●", THEME["red"])}.get(status, ("●", "#5A7086"))
-
 
 def load_settings():
     try:
@@ -927,27 +1193,31 @@ def refresh_ui():
     w = _widgets
     if not w:
         return
+    # Puente / Runner / Proxy: punto + pildora de valor + interruptor propio.
     dot, color = _dot(state["bridge"])
     w["bridge_dot"].config(text=dot, fg=color)
-    w["bridge_text"].config(
-        text=f"Puente — {state['bridge']}" + (f" (puerto {BRIDGE_PORT})" if state["bridge"] == "corriendo" else "")
-        + (f" — {state['bridge_err']}" if state["bridge_err"] else ""))
+    w["bridge_pill"].config(
+        text=f"puerto {BRIDGE_PORT}" if state["bridge"] == "corriendo" else "parado")
+    set_switch(w.get("bridge_sw"), state["bridge"] == "corriendo")
     dot, color = _dot(state["runner"])
     w["runner_dot"].config(text=dot, fg=color)
-    extra = f" — tareas: {state['tasks_done']}"
+    pill = f"{state['tasks_done']} tareas"
     if state["current"]:
-        extra += f" · ahora: {state['current']}"
-    if state["last_result"]:
-        extra += f" · último: {state['last_result']}"
-    w["runner_text"].config(text=f"Runner — {state['runner']}{extra}")
+        pill += f" · {state['current']}"
+    elif state["last_result"]:
+        pill += f" · {state['last_result']}"
+    w["runner_pill"].config(text=pill)
+    set_switch(w.get("runner_sw"), state["runner"] == "corriendo")
     cfg = proxy_config()
     dot, color = ("●", THEME["green"]) if state["proxy_on"] else ("●", "#5A7086")
     w["proxy_dot"].config(text=dot, fg=color)
-    w["proxy_text"].config(
-        text=f"Proxy — {'ENCENDIDO' if state['proxy_on'] else 'apagado'}"
-        + (f" ({cfg['host']}:{cfg['port']})" if cfg["host"] else "")
-        + ("" if state["proxy_configured"] else " — falta configurar"))
-    w["proxy_btn"].config(text="Apagar proxy" if state["proxy_on"] else "Encender proxy")
+    if state["proxy_on"] and cfg["host"]:
+        w["proxy_pill"].config(text=f"{cfg['host']}:{cfg['port']}")
+    elif state["proxy_configured"]:
+        w["proxy_pill"].config(text="apagado")
+    else:
+        w["proxy_pill"].config(text="falta configurar")
+    set_switch(w.get("proxy_sw"), state["proxy_on"])
     w["power_label"].config(
         text="Todo encendido" if state["power"] else "Todo apagado",
         fg=THEME["green"] if state["power"] else THEME["muted"])
@@ -962,16 +1232,19 @@ def refresh_ui():
     elif state["update_checked"]:
         w["update_label"].config(text="Estás en la última versión.")
     if state["sharing"]:
+        folder = Path(state.get("share_folder") or "").name
         w["share_status"].config(
-            text=f"Compartiendo pantalla · último fotograma: {state['last_frame'] or '—'}")
+            text=f"Compartiendo · sesión {folder} · "
+                 f"fotograma {state.get('share_frame', 0)} · "
+                 f"último: {state['last_frame'] or '—'}")
         w["share_btn"].config(text="Dejar de compartir pantalla")
     else:
         w["share_status"].config(text="Pantalla no compartida")
         w["share_btn"].config(text="Compartir pantalla")
-    try:
-        w["mascot_var"].set(state["mascot"])
-    except Exception:
-        pass
+    # Ajustes (interruptores): la app los sincroniza con el estado real.
+    set_switch(w.get("autoupd_sw"), state.get("auto_update", False))
+    set_switch(w.get("autostart_sw"), state.get("autostart", False))
+    set_switch(w.get("mascot_sw"), state["mascot"])
     draw_power()
     log_box = w["log"]
     lines = []
@@ -993,12 +1266,24 @@ def _tick():
         refresh_ui()
     except Exception:
         pass
+    # Cada 5 s: recoger APIs que Growi empujo por el puente (desde WhatsApp).
+    if _tick_n[0] % 5 == 0:
+        try:
+            import_api_files()
+        except Exception:
+            pass
+    # Auto-update listo: instalarlo solo (sin preguntar) desde el hilo
+    # principal, que es el unico que puede reiniciar la app.
+    if state.get("auto_update_ready"):
+        try:
+            _do_auto_update()
+        except Exception:
+            pass
     if _root is not None:
         try:
             _root.after(1000, _tick)
         except Exception:
             pass
-
 
 def on_power_click():
     on = set_power(not state["power"])
@@ -1079,23 +1364,85 @@ def open_folder(path):
 
 
 # ---------------------------------------------------------------- mascota
-_mascot = {"win": None, "label": None, "frames": [], "animating": False,
-           "drag": None, "bob": 0}
+_mascot = {"win": None, "label": None, "sets": {}, "animating": False,
+           "drag": None, "frame_idx": 0, "last_tasks": 0}
 
 
-def _mascot_frames():
-    if _mascot["frames"]:
-        return _mascot["frames"]
-    frames = []
-    try:
-        for p in sorted(MASCOT_DIR.glob("wave-*.png")):
-            img = Image.open(p)
-            frames.append(ImageTk.PhotoImage(img))
-    except Exception:
+def _mascot_sets():
+    """Carga los tres juegos de animacion (idle / working / wave) de
+    mascot/*.png. Cada juego son 8 fotogramas de 160x160."""
+    if _mascot["sets"]:
+        return _mascot["sets"]
+    sets = {}
+    for name in ("idle", "working", "wave"):
         frames = []
-    _mascot["frames"] = frames
-    return frames
+        try:
+            for p in sorted(MASCOT_DIR.glob(f"{name}-*.png")):
+                frames.append(ImageTk.PhotoImage(Image.open(p)))
+        except Exception:
+            frames = []
+        sets[name] = frames
+    _mascot["sets"] = sets
+    return sets
 
+
+def _mascot_play(name):
+    """Reproduce un juego de animacion una vez (saludo, celebracion)."""
+    frames = _mascot_sets().get(name) or []
+    label = _mascot["label"]
+    if not frames or label is None:
+        return
+    _mascot["animating"] = True
+    idx = [0]
+
+    def _step():
+        if idx[0] >= len(frames) * 2:
+            _mascot["animating"] = False
+            return
+        try:
+            label.config(image=frames[idx[0] % len(frames)])
+        except Exception:
+            pass
+        idx[0] += 1
+        try:
+            _root.after(120, _step)
+        except Exception:
+            _mascot["animating"] = False
+
+    _step()
+
+
+def _mascot_loop():
+    """Animacion continua segun el estado: trabajando mientras Claude corre
+    una tarea, descansando el resto del tiempo. Cuando Claude termina una
+    tarea, Growi celebra con el saludo."""
+    win = _mascot["win"]
+    if win is None:
+        return
+    if not _mascot["animating"]:
+        if state["tasks_done"] > _mascot["last_tasks"]:
+            _mascot["last_tasks"] = state["tasks_done"]
+            _mascot_play("wave")
+        else:
+            sets = _mascot_sets()
+            name = "working" if state.get("current") else "idle"
+            frames = sets.get(name) or []
+            if frames:
+                _mascot["frame_idx"] = (_mascot["frame_idx"] + 1) % len(frames)
+                try:
+                    _mascot["label"].config(image=frames[_mascot["frame_idx"]])
+                except Exception:
+                    pass
+    try:
+        _root.after(400, _mascot_loop)
+    except Exception:
+        pass
+
+
+def _mascot_pos():
+    sw = _root.winfo_screenwidth()
+    sh = _root.winfo_screenheight()
+    return sw - 180, sh - 200
 
 def _mascot_pos():
     sw = _root.winfo_screenwidth()
@@ -1150,23 +1497,8 @@ def show_mascot():
     label.bind("<B1-Motion>", _move)
     label.bind("<ButtonRelease-1>", _release)
     log("mascota: Growi está en la esquina inferior derecha")
-    _mascot_bob()
-
-
-def _mascot_bob():
-    win = _mascot["win"]
-    if win is None or _mascot["animating"]:
-        return
-    try:
-        _mascot["bob"] = 1 - _mascot["bob"]
-        y = win.winfo_y() + (-3 if _mascot["bob"] else 3)
-        win.geometry(f"160x160+{win.winfo_x()}+{y}")
-    except Exception:
-        return
-    try:
-        _root.after(2500, _mascot_bob)
-    except Exception:
-        pass
+    _mascot["last_tasks"] = state["tasks_done"]
+    _root.after(400, _mascot_loop)
 
 
 def on_mascot_click():
@@ -1174,23 +1506,8 @@ def on_mascot_click():
     label = _mascot["label"]
     if win is None or label is None or _mascot["animating"]:
         return
-    frames = _mascot_frames()
-    if frames:
-        _mascot["animating"] = True
-        seq = frames * 2
-        idx = [0]
-
-        def _step():
-            if idx[0] >= len(seq):
-                label.config(image=win._photo)
-                _mascot["animating"] = False
-                return
-            label.config(image=seq[idx[0]])
-            idx[0] += 1
-            _root.after(120, _step)
-        _step()
+    _mascot_play("wave")
     open_prompt_box()
-
 
 def open_prompt_box():
     win = _mascot["win"]
@@ -1310,6 +1627,58 @@ def refresh_skills_ui():
     for name, desc, _path in skills:
         tree.insert("", "end", values=(name, desc))
     _widgets["skills_count"].config(text=f"{len(skills)} skills instaladas")
+
+def refresh_apis_ui():
+    tree = _widgets.get("apis_tree")
+    if tree is None:
+        return
+    for item in tree.get_children():
+        tree.delete(item)
+    for a in load_apis():
+        tree.insert("", "end", values=(a.get("name", ""), mask_key(a.get("key", ""))))
+
+
+def add_api_ui():
+    name = _widgets["api_name"].get().strip()
+    key = _widgets["api_key"].get().strip()
+    if not name or not key:
+        messagebox.showwarning("APIs", "Pon el nombre y la clave de la API.")
+        return
+    apis = load_apis()
+    apis = [a for a in apis if a.get("name") != name]
+    apis.append({"name": name, "key": key})
+    save_apis(apis)
+    _widgets["api_name"].delete(0, "end")
+    _widgets["api_key"].delete(0, "end")
+    log(f"APIs: '{name}' guardada (solo en este PC)")
+    refresh_apis_ui()
+
+
+def remove_api_ui():
+    tree = _widgets.get("apis_tree")
+    if tree is None:
+        return
+    sel = tree.selection()
+    if not sel:
+        return
+    name = tree.item(sel[0], "values")[0]
+    apis = [a for a in load_apis() if a.get("name") != name]
+    save_apis(apis)
+    log(f"APIs: '{name}' quitada")
+    refresh_apis_ui()
+
+
+def add_api_whatsapp():
+    """Abre WhatsApp Web en Chrome: le escribes a Growi la API y la clave,
+    y Growi la empuja al PC en segundos por el puente (inbox/apis/)."""
+    import webbrowser
+    try:
+        webbrowser.open("https://web.whatsapp.com")
+    except Exception as e:
+        log(f"APIs: no se pudo abrir el navegador ({e})")
+        return
+    log("APIs: abre WhatsApp Web y dile a Growi la API que quieres añadir; "
+        "llega al PC en segundos por el puente")
 
 def show_window():
     if _root is None:
@@ -1490,25 +1859,54 @@ def build_gui():
                                        bg=THEME["bg"], fg=THEME["muted"])
     _widgets["power_label"].pack()
 
+    # Tarjeta de estado: cada servicio con su punto, su pildora de valor y
+    # su propio interruptor (Philips Hue / BFF). El boton grande sigue
+    # siendo el maestro que enciende o apaga puente + runner juntos.
     status = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
                       highlightthickness=1)
     status.pack(fill="x", padx=12, pady=8)
-    tk.Label(status, text="Estado", font=(FONT, 11, "bold"),
-             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=14, pady=(10, 2))
-    for key, label in (("bridge", "Puente"), ("runner", "Runner"), ("proxy", "Proxy")):
+    tk.Label(status, text="ESTADO", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+
+    def _service_row(key, label, on_switch):
         row = tk.Frame(status, bg=THEME["card"])
         row.pack(fill="x", padx=14, pady=5)
         dot = tk.Label(row, text="●", font=(FONT, 13), bg=THEME["card"])
         dot.pack(side="left", padx=(0, 8))
         tk.Label(row, text=label, font=(FONT, 10, "bold"),
                  bg=THEME["card"], fg=THEME["text"]).pack(side="left")
-        txt = tk.Label(row, text="", font=(FONT, 10), bg=THEME["card"],
-                       fg=THEME["muted"], anchor="w")
-        txt.pack(side="left", padx=(6, 0))
+        pill = tk.Label(row, text="", font=(FONT, 9), bg="#1B3A55",
+                        fg=THEME["muted"], padx=8, pady=2)
+        pill.pack(side="left", padx=(10, 0))
+        sw = make_switch(row, False, on_switch, bg=THEME["card"])
+        sw.pack(side="right")
         _widgets[f"{key}_dot"] = dot
-        _widgets[f"{key}_text"] = txt
+        _widgets[f"{key}_pill"] = pill
+        _widgets[f"{key}_sw"] = sw
         sep = tk.Frame(status, bg=THEME["line"], height=1)
         sep.pack(fill="x", padx=14)
+
+    def _sw_bridge(on):
+        if on:
+            start_bridge()
+        else:
+            stop_bridge()
+
+    def _sw_runner(on):
+        if on:
+            start_runner()
+        else:
+            stop_runner()
+
+    def _sw_proxy(on):
+        if on:
+            toggle_proxy()
+        else:
+            set_proxy(False)
+
+    _service_row("bridge", "Puente", _sw_bridge)
+    _service_row("runner", "Runner", _sw_runner)
+    _service_row("proxy", "Proxy", _sw_proxy)
     sync = tk.Label(status, text="", font=(FONT, 10, "bold"), bg=THEME["card"],
                     fg=THEME["green"], anchor="w")
     sync.pack(fill="x", padx=14, pady=(8, 12))
@@ -1517,8 +1915,8 @@ def build_gui():
     px = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
                   highlightthickness=1)
     px.pack(fill="x", padx=12, pady=8)
-    tk.Label(px, text="Proxy", font=(FONT, 11, "bold"),
-             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=14, pady=(10, 2))
+    tk.Label(px, text="PROXY", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
     tk.Label(px, text="Cada quien usa el suyo. Encendido, Claude sale por el proxy.",
              font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
         anchor="w", padx=14, pady=(0, 8))
@@ -1543,16 +1941,89 @@ def build_gui():
     prow.pack(fill="x", padx=14, pady=(8, 12))
     ttk.Button(prow, text="Guardar", style="Accent.TButton",
                command=save_proxy_from_ui).pack(side="left", padx=(0, 8))
-    _widgets["proxy_btn"] = ttk.Button(prow, text="Encender proxy", command=toggle_proxy)
-    _widgets["proxy_btn"].pack(side="left")
 
-    opts = tk.Frame(tab, bg=THEME["bg"])
-    opts.pack(fill="x", padx=12, pady=2)
-    mascot_var = tk.BooleanVar(value=state["mascot"])
-    _widgets["mascot_var"] = mascot_var
-    ttk.Checkbutton(opts, text="Mascota en la esquina inferior derecha",
-                    variable=mascot_var, command=toggle_mascot,
-                    style="TCheckbutton").pack(anchor="w")
+    # Ajustes: filas con interruptor (BFF). Cada una lleva su explicacion
+    # apagada debajo de la etiqueta.
+    aj = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
+                  highlightthickness=1)
+    aj.pack(fill="x", padx=12, pady=8)
+    tk.Label(aj, text="AJUSTES", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+
+    def _setting_row(label, expl, initial, on_change):
+        row = tk.Frame(aj, bg=THEME["card"])
+        row.pack(fill="x", padx=14, pady=5)
+        left = tk.Frame(row, bg=THEME["card"])
+        left.pack(side="left", fill="x", expand=True)
+        tk.Label(left, text=label, font=(FONT, 10, "bold"),
+                 bg=THEME["card"], fg=THEME["text"]).pack(anchor="w")
+        tk.Label(left, text=expl, font=(FONT, 9),
+                 bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w")
+        sw = make_switch(row, initial, on_change, bg=THEME["card"])
+        sw.pack(side="right")
+        sep = tk.Frame(aj, bg=THEME["line"], height=1)
+        sep.pack(fill="x", padx=14)
+        return sw
+
+    def _sw_autoupd(on):
+        state["auto_update"] = on
+        s = load_settings()
+        s["auto_update"] = on
+        save_settings(s)
+        log(f"ajustes: actualizacion automatica {'activada' if on else 'desactivada'}")
+
+    def _sw_autostart(on):
+        if set_autostart(on):
+            state["autostart"] = on
+        else:
+            state["autostart"] = autostart_enabled()
+            messagebox.showwarning(
+                "Inicio automático",
+                "No se pudo cambiar el inicio automático. "
+                "La app necesita correr como administrador.")
+
+    def _sw_mascot(on):
+        if on and _mascot["win"] is None:
+            show_mascot()
+            state["mascot"] = True
+        elif not on and _mascot["win"] is not None:
+            hide_mascot()
+            state["mascot"] = False
+        s = load_settings()
+        s["mascot"] = state["mascot"]
+        save_settings(s)
+
+    _widgets["autoupd_sw"] = _setting_row(
+        "Actualización automática",
+        "Se actualiza sola desde GitHub cuando hay una versión nueva.",
+        state.get("auto_update", False), _sw_autoupd)
+    _widgets["autostart_sw"] = _setting_row(
+        "Iniciar al encender la PC",
+        "Arranca sola con Windows al iniciar sesión.",
+        state.get("autostart", False), _sw_autostart)
+    _widgets["mascot_sw"] = _setting_row(
+        "Mascota en la esquina",
+        "Growi flota en la esquina inferior derecha.",
+        state["mascot"], _sw_mascot)
+
+    # PC: apagar y reiniciar con confirmacion (60 s de margen, cancelable).
+    pc = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
+                  highlightthickness=1)
+    pc.pack(fill="x", padx=12, pady=8)
+    tk.Label(pc, text="PC", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+    tk.Label(pc, text="Apagar o reiniciar este PC. Te pide confirmación y "
+             "tienes 60 segundos para cancelarlo.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"]).pack(
+        anchor="w", padx=14, pady=(0, 8))
+    prow2 = tk.Frame(pc, bg=THEME["card"])
+    prow2.pack(fill="x", padx=14, pady=(0, 12))
+    ttk.Button(prow2, text="Apagar PC",
+               command=lambda: _pc_confirm("shutdown")).pack(side="left", padx=(0, 8))
+    ttk.Button(prow2, text="Reiniciar PC",
+               command=lambda: _pc_confirm("restart")).pack(side="left", padx=(0, 8))
+    ttk.Button(prow2, text="Cancelar apagado",
+               command=pc_abort).pack(side="left")
 
     btns = tk.Frame(tab, bg=THEME["bg"])
     btns.pack(fill="x", padx=12, pady=8)
@@ -1573,9 +2044,9 @@ def build_gui():
     log_box = tk.Frame(tab, bg=THEME["card"], highlightbackground=THEME["line"],
                        highlightthickness=1)
     log_box.pack(fill="both", expand=True, padx=12, pady=(4, 12))
-    tk.Label(log_box, text="Registro", font=(FONT, 11, "bold"),
-             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=14, pady=(10, 2))
-    text = scrolledtext.ScrolledText(log_box, height=8, font=("Consolas", 9),
+    tk.Label(log_box, text="REGISTRO", font=(FONT, 9, "bold"),
+             bg=THEME["card"], fg=THEME["muted"]).pack(anchor="w", padx=14, pady=(10, 2))
+    text = scrolledtext.ScrolledText(log_box, height=6, font=("Consolas", 9),
                                      bg=THEME["field"], fg="#9FD8B4",
                                      insertbackground=THEME["text"],
                                      state="disabled", borderwidth=0)
@@ -1636,28 +2107,84 @@ def build_gui():
         anchor="w", padx=14, pady=(12, 2))
     tk.Label(tab4, text="Cuando lo activas, la app manda un fotograma comprimido "
              "(JPEG, max 1280px) cada pocos segundos al outbox, y Growi lo puede "
-             "ver por el puente. Growi solo mira un fotograma cuando se lo pides "
-             "o cuando hace falta para ayudarte: no es video en vivo y no gasta "
-             "muchos tokens. Puedes pararlo cuando quieras.",
+             "ver por el puente. Cada vez que empiezas a compartir se crea una "
+             "carpeta nueva con la fecha y la hora (outbox/screens/AAAAMMDD-HHMMSS) "
+             "y todos los fotogramas de esa grabación quedan allí guardados. "
+             "Growi solo mira un fotograma cuando se lo pides o cuando hace falta "
+             "para ayudarte: no es video en vivo. Puedes pararlo cuando quieras.",
              font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
              wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 10))
     _widgets["share_btn"] = ttk.Button(tab4, text="Compartir pantalla",
                                        style="Accent.TButton",
                                        command=lambda: stop_sharing() if state["sharing"]
-                                       else start_sharing(int(_widgets["share_interval"].get().split()[0])))
+                                       else start_sharing(float(_widgets["share_interval"].get().split()[0])))
     _widgets["share_btn"].pack(anchor="w", padx=14, pady=4)
     irow = tk.Frame(tab4, bg=THEME["bg"])
     irow.pack(anchor="w", padx=14, pady=4)
     tk.Label(irow, text="Fotograma cada:", font=(FONT, 10), bg=THEME["bg"],
              fg=THEME["text"]).pack(side="left")
-    _widgets["share_interval"] = ttk.Combobox(irow, values=["5 s", "10 s", "30 s"],
+    _widgets["share_interval"] = ttk.Combobox(irow, values=["0.5 s", "1 s", "5 s", "10 s", "30 s"],
                                               width=6, state="readonly")
     _widgets["share_interval"].set("10 s")
     _widgets["share_interval"].pack(side="left", padx=6)
+    tk.Label(tab4, text="A 0.5 s y 1 s se guardan muchos fotogramas: cada sesión "
+             "puede pesar decenas de MB. Las sesiones de más de 7 días se borran "
+             "solas al empezar una nueva grabación.",
+             font=(FONT, 9), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(4, 2))
     _widgets["share_status"] = tk.Label(tab4, text="Pantalla no compartida",
                                         font=(FONT, 10, "bold"),
                                         bg=THEME["bg"], fg=THEME["green"])
     _widgets["share_status"].pack(anchor="w", padx=14, pady=8)
+    ttk.Button(tab4, text="Limpiar sesiones viejas",
+               command=lambda: (_cleanup_old_sessions(),
+                                log("pantalla: limpieza de sesiones viejas hecha"))).pack(
+        anchor="w", padx=14, pady=2)
+    ttk.Button(tab4, text="Abrir carpeta de sesiones",
+               command=lambda: open_folder(SCREENS)).pack(anchor="w", padx=14, pady=2)
+
+    # ---------------- pestana APIs
+    tab5 = tk.Frame(nb, bg=THEME["bg"])
+    nb.add(tab5, text="  APIs  ")
+    tk.Label(tab5, text="APIs privadas",
+             font=(FONT, 13, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
+        anchor="w", padx=14, pady=(12, 2))
+    tk.Label(tab5, text="Las claves se guardan solo en este PC (apis.json) y "
+             "nunca se sincronizan ni se suben a ningún sitio. Growi nunca "
+             "muestra una clave completa: aquí solo se ven los últimos 4 "
+             "caracteres. Puedes añadir una desde aquí o desde WhatsApp: le "
+             "dices a Growi la API y la clave, y llega al PC en segundos por "
+             "el puente.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=500, justify="left").pack(anchor="w", padx=14, pady=(0, 8))
+    tree = ttk.Treeview(tab5, columns=("api", "clave"), show="headings", height=10)
+    tree.heading("api", text="API")
+    tree.heading("clave", text="Clave")
+    tree.column("api", width=170)
+    tree.column("clave", width=330)
+    tree.pack(fill="both", expand=True, padx=14, pady=6)
+    _widgets["apis_tree"] = tree
+    form = tk.Frame(tab5, bg=THEME["bg"])
+    form.pack(fill="x", padx=14, pady=4)
+    tk.Label(form, text="Nombre", font=(FONT, 9), bg=THEME["bg"],
+             fg=THEME["muted"]).grid(row=0, column=0, sticky="w")
+    _widgets["api_name"] = ttk.Entry(form, width=22, font=(FONT, 10))
+    _widgets["api_name"].grid(row=1, column=0, padx=(0, 12), sticky="w")
+    tk.Label(form, text="Clave", font=(FONT, 9), bg=THEME["bg"],
+             fg=THEME["muted"]).grid(row=0, column=1, sticky="w")
+    _widgets["api_key"] = ttk.Entry(form, width=34, font=(FONT, 10), show="•")
+    _widgets["api_key"].grid(row=1, column=1, padx=(0, 12), sticky="w")
+    ttk.Button(form, text="Guardar", style="Accent.TButton",
+               command=add_api_ui).grid(row=1, column=2, sticky="w")
+    brow5 = tk.Frame(tab5, bg=THEME["bg"])
+    brow5.pack(fill="x", padx=14, pady=(4, 12))
+    ttk.Button(brow5, text="Quitar seleccionada", command=remove_api_ui).pack(
+        side="left", padx=2)
+    ttk.Button(brow5, text="Añadir por WhatsApp", command=add_api_whatsapp).pack(
+        side="left", padx=2)
+    refresh_apis_ui()
+    return root
+
     return root
 
 
@@ -1671,6 +2198,8 @@ def main():
     state["proxy_on"] = "HTTPS_PROXY" in os.environ
     settings = load_settings()
     state["mascot"] = bool(settings.get("mascot", False))
+    state["auto_update"] = bool(settings.get("auto_update", False))
+    state["autostart"] = autostart_enabled()
     try:
         root = build_gui()
     except Exception:
@@ -1687,6 +2216,7 @@ def main():
         except Exception as e:
             log(f"mascota: no se pudo mostrar ({e})")
     threading.Thread(target=_auto_update_check, daemon=True).start()
+    threading.Thread(target=_auto_update_loop, daemon=True).start()
     root.after(1000, _tick)
     root.after(500, _pulse_loop)
     try:

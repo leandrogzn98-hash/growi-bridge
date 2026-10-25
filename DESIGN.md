@@ -91,3 +91,24 @@ Ver `THEME` en `growi-bridge.py` (una sola fuente de verdad):
 - Tipo: Segoe UI — título 20 bold, sección 11 bold, cuerpo 10, pie 9
 - Radios: tarjetas 10, campos 6, botón grande círculo (Canvas)
 - Espaciado: 8 / 12 / 16 / 24
+
+---
+
+## Ronda v2.2 — Mobbin + funciones pedidas (24 oct 2026, noche)
+
+- **ADN extraído de Mobbin** (ver `notas-mobbin.md` con los links):
+  - [NordVPN](https://mobbin.com/screens/1177908c-4365-4109-bd1f-f9b65de8faf3) — un solo CTA dominante, tarjetas de radio grande, etiquetas de sección pequeñas y apagadas, estado con punto + píldora de valor.
+  - [Saily](https://mobbin.com/screens/910fda01-de82-4e0e-9677-3255d2ee9571) — punto verde de estado en la esquina de la tarjeta, valor en píldora, número grande como héroe.
+  - [Philips Hue](https://mobbin.com/screens/e47e76e7-97ec-45f6-824b-3e179596016a) — el control vive dentro de la tarjeta (interruptor a la derecha), etiquetas de sección en versales, una sola tarjeta de color + mucho aire.
+  - [BFF](https://mobbin.com/screens/0cd6db75-566c-4e31-95be-830c00018ca0) — ajustes como filas con interruptor iOS a la derecha y texto explicativo apagado debajo.
+- **Dirección:** consola nocturna (se mantiene) + controles dentro de las filas. El botón grande sigue siendo el único showstopper.
+- **3 cambios exactos:**
+  1. Cada servicio (Puente, Runner, Proxy) lleva su propio interruptor a la derecha de su fila + píldora de valor; el estado ya no es solo texto.
+  2. Etiquetas de sección en versales apagadas (ESTADO, PROXY, AJUSTES, PC, REGISTRO); el registro baja de 8 a 6 líneas para dar aire.
+  3. Los ajustes son interruptores, no casillas: actualización automática, inicio automático, mascota. La sección PC añade Apagar / Reiniciar (con confirmación y 60 s de margen) / Cancelar.
+- **Nuevas funciones (pedidas por Leandro):**
+  - Auto-update: con el interruptor activado, la app comprueba cada 6 h y se actualiza sola desde GitHub (descarga todos los archivos y se reinicia, sin preguntar).
+  - Pestaña APIs: claves guardadas solo en el PC (apis.json), clave enmascarada; se añade desde la app o desde WhatsApp (Growi empuja el archivo por el puente y la app lo importa en segundos y borra el archivo de entrega).
+  - Pantalla: intervalos 0.5 s y 1 s; cada grabación crea su propia carpeta `outbox/screens/AAAAMMDD-HHMMSS/` con `frame-NNNN.jpg`; sesiones de más de 7 días se borran solas.
+  - Mascota: tres animaciones (idle, working, wave) según el estado; celebra cuando Claude termina una tarea; saludo al hacer clic.
+- **Regla de Leandro (24 oct 2026):** para borrar algo fuera de las carpetas permitidas, Growi debe pedirle autorización explícita cada vez. La app no borra nada fuera de sus carpetas salvo la limpieza de sesiones viejas de pantalla (que el propio usuario puede desactivar borrando el botón).
