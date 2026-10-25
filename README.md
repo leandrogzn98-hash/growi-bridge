@@ -2,6 +2,8 @@
 
 Un solo programa para Windows que conecta tu PC con tu asistente Muse: puente de archivos, corredor de tareas de Claude Code, biblioteca de modelos locales, proxy, pantalla compartida, mascota y paleta de comandos. Todo en una ventana, todo en la bandeja del sistema.
 
+Es una fusión de Ollama y OpenClaw sin tecnicismos: Ollama pone los modelos que viven en tu PC y OpenClaw pone la forma de trabajar del agente (usa herramientas, tiene habilidades y te habla por varios canales). Tú solo ves interruptores, nombres normales y frases simples.
+
 > Versión: **0.1.0-alpha**. Es una alpha: funciona, pero cambia rápido y algunas cosas todavía se pulen a mano.
 
 ![Growi Bridge](growi.png)
@@ -11,6 +13,7 @@ Un solo programa para Windows que conecta tu PC con tu asistente Muse: puente de
 - **Puente**: tu Muse manda archivos a tu PC (y recibe los que tu PC produce) por una carpeta compartida, sin nubes de por medio. El indicador de sincronización muestra qué se descarga o envía en cada momento.
 - **Runner**: tu Muse le manda tareas a Claude Code en tu PC (sin ventana) y recibe el resultado. Una tarea a la vez, con modelo, herramientas y tiempo límite elegibles. Con sesiones continuas.
 - **Modelos**: instala modelos open-source en local con Ollama (Hermes, Qwen, Llama, Mistral…) y conecta APIs (Anthropic, OpenAI, Gemini, Groq, OpenRouter). El botón «Comprobar mi PC» detecta tu GPU, VRAM, RAM y disco, y cada modelo lleva un semáforo: verde si cabe holgado, naranja si va justo y la PC queda al límite, rojo si no cabe (y no se puede instalar). Tu Muse también puede instalar y gestionar modelos desde el chat.
+- **Cómo trabaja Growi**: quién responde (Claude, Hermes local o una API), qué puede hacer (habilidades con interruptor, en palabras normales), dónde te habla (canales) y tus reglas (frases simples que el agente cumple siempre, como «Pregúntame antes de gastar dinero»).
 - **Proxy**: un interruptor para que Claude Code salga por tu proxy (o por uno alquilado) sin tocar la VPN.
 - **Pantalla**: comparte fotogramas de tu pantalla con tu Muse solo cuando tú lo activas.
 - **Mascota**: Growi vive en tu escritorio. Arrastra un archivo sobre él y llega a tu Muse; haz clic y escríbele.
