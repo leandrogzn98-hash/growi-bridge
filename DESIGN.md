@@ -194,3 +194,190 @@ Ver `THEME` en `growi-bridge.py` (una sola fuente de verdad):
   los iconos se regeneraron desde la foto 1600×1600 con afilado.
 - **Versión:** se mantiene 0.1.0-alpha (pedido de Leandro); este es el
   build 2 de esa versión.
+
+## Ronda 0.1.0-alpha build 3 — pestaña Modelos: Ollama + OpenClaw sin tecnicismos (25 oct 2026)
+
+- **Qué es:** la app pasa a ser un orquestador de modelos estilo Ollama. La
+  pestaña **Modelos** (barra lateral, entre APIs y Tareas; el contador es el
+  número de modelos instalados) junta lo que aporta Ollama (modelos que viven
+  y corren en el PC) con la forma de trabajar de OpenClaw (un solo agente que
+  usa herramientas, tiene habilidades, te habla por varios canales y cumple
+  tus reglas). Es la arquitectura, no una integración con el binario de
+  OpenClaw: no se toca su programa ni su configuración.
+- **Frase de arriba:** "Growi Bridge junta lo mejor de Ollama (modelos en tu
+  PC) y OpenClaw (un agente que usa herramientas y te habla por varios
+  canales), sin que tengas que configurar nada de eso."
+- **Secciones, de arriba abajo** (todas son tarjetas #F5F5F7 con etiqueta en
+  versales apagada, como el resto de la app):
+  1. **TU PC** — resumen en una línea ("RTX 3060 Laptop · 6 GB VRAM · 15 GB
+     RAM · 96 GB libres") + botón de acento **Comprobar mi PC** (nvidia-smi,
+     RAM, CPU, disco, versión de Ollama; en un hilo; guarda `pc-specs.json`).
+     Corre solo la primera vez que se abre la pestaña.
+  2. **QUIÉN RESPONDE** — el selector de motor con nombres normales y una
+     frase simple ("Claude: el más listo, va por internet", "Hermes 3 8B:
+     corre en tu PC, gratis y privado", "OpenAI: otro modelo por internet,
+     con tu clave"). El nombre exacto solo se ve si se pulsa "Ver nombre
+     exacto". Se guarda en settings.json (`default_engine`; si es local,
+     también `ollama_model`).
+  3. **EN TU PC** — modelos instalados (`ollama list` pedido al runner), con
+     semáforo, tamaño, fecha, "Por defecto" / "Usar por defecto" y Borrar
+     (con confirmación). Progreso de la instalación en una línea.
+  4. **LIBRERÍA** — `models-catalog.json` (20 modelos, ampliable sin tocar
+     código) con semáforo, para qué sirve, tamaño y VRAM necesaria; botón
+     Instalar (acento azul; desactivado y gris en los rojos).
+  5. **QUÉ PUEDE HACER** — habilidades con interruptor (herramientas del
+     runner + skills de `~/.claude/skills/`) en palabras normales ("Leer tus
+     archivos", "Buscar en internet", "Hacer videos"). Apagar una la quita de
+     `--allowedTools` y la pasa a `--disallowedTools` (herramientas) o la
+     prohíbe al principio del prompt (skills). Guardado en settings.json
+     (`disabled_abilities`; nombres propios en `ability_names`).
+  6. **DÓNDE TE HABLA** — canales de solo lectura (WhatsApp, el chat de Muse,
+     la cajita de la mascota) con punto verde/gris y una frase.
+  7. **REGLAS** — frases del usuario con interruptor y Quitar; se guardan en
+     `rules.json` y el runner las pone al principio de cada prompt (Claude,
+     Ollama y APIs) como "Reglas de <nombre>:" (`user_name` en settings.json;
+     sin nombre dice "Reglas del usuario:"). Vienen dos: "Pregúntame antes de
+     gastar dinero" y "No borres nada sin pedirme permiso".
+- **Semáforo** (un círculo de 10 px, sin texto largo, motivo corto al lado):
+  verde ≤ 80 % de la VRAM total ("Cabe holgado"), naranja 80–100 % ("Va
+  justo: usa ~X% de tu VRAM"; Instalar pide confirmación), rojo si no cabe en
+  la VRAM o en el disco ("No cabe: necesita X GB de VRAM y tienes Y GB";
+  Instalar desactivado), gris sin comprobar ("Pulsa Comprobar mi PC para ver
+  si cabe"). Sin GPU usa la RAM (verde ≤ 50 %, naranja ≤ 90 %, "sin GPU, corre
+  en CPU"). VRAM necesaria = tamaño + ~15 %, ya calculada en el catálogo.
+  Colores: verde #34C759, naranja #FF9500, rojo #FF3B30, gris #C7C7CC.
+- **La ventana y el asistente mueven los mismos botones:** la pestaña escribe
+  tasks `{"ollama_action": "pull"|"rm"|"list", "model": ...}` en
+  `runner-tasks/`, igual que el asistente desde la VM. El runner las corre en
+  un **carril propio** (no esperan detrás de una tarea larga de Claude),
+  valida el nombre (solo letras, números, - _ . / :, sin URLs ni flags), solo
+  ejecuta `ollama pull|rm|list` sin shell, verifica el pull con `ollama list`
+  y devuelve el mismo esquema de resultado (`cost_usd: 0.0`). El progreso del
+  pull va a la pestaña, al registro (cada 10 %) y a
+  `outbox/runner-results/<id>.progress.json`.
+- **APIs ampliada (no duplicada):** tarjeta CONEXIONES con Anthropic, OpenAI,
+  Google Gemini, Groq y OpenRouter: clave (enmascarada, solo últimos 4),
+  Guardar, **Probar** (petición gratis: listar modelos o ver la clave) y
+  estado ("Conectada" / "Falló: motivo"). Motor nuevo `api:<proveedor>:<modelo>`
+  en el runner (urllib; /chat/completions con Bearer o /v1/messages con
+  x-api-key + anthropic-version 2023-06-01; `cost_usd: null`, `num_turns: 1`).
+- **Sin tecnicismos en la ventana:** nada de MCP, gateway, endpoint,
+  provider, quantization, context window, JSON ni config. Se dice modelo,
+  habilidad, canal, regla.
+- **Arreglos de paso:** la rueda del ratón ahora mueve la página que se ve
+  (antes solo la última creada); faltaba `import re` (soltar archivos sobre
+  la mascota fallaba); las llamadas a `ollama` ya no se cuelgan cuando Ollama
+  arranca su servidor de fondo; botones de acento desactivados en gris; los
+  `.bat` y el código ya no llevan rutas ni datos de un PC concreto.
+
+## Ronda 0.1.0-alpha — Orquestación: bucle cerrado con revisión (25 oct 2026)
+
+- **Qué cambia:** el runner deja de ser un lanzador de comandos. Cada tarea
+  corre con su motor, se revisa sola al terminar y, si falta algo, se corrige
+  (máximo 3 rondas) hasta quedar aprobada o en «necesita decisión».
+- **Visual (mismo sistema Mac, nada nuevo):** la pestaña Tareas añade
+  columnas Motor, Ronda y Revisión, una tarjeta DETALLE (encargo, criterios,
+  qué falta, evidencia, reporte) y una tarjeta ESPERANDO TU APROBACIÓN con el
+  plan y Aprobar (acento azul) / Rechazar. El color del texto de cada fila
+  dice el estado: verde #248A3D aprobada, azul en curso / revisando, naranja
+  oscuro #B25E00 necesita decisión o espera aprobación, rojo fallida.
+- **Banner de trabajo:** franja #F5F5F7 con barra azul de 3 px a la
+  izquierda, el paso actual en negrita, tarea y tiempo en gris, y un botón
+  **Parar** (pide confirmación; mata el proceso del motor). Visible en todas
+  las páginas mientras un motor trabaja; desaparece al terminar.
+- **Ajustes → PERMISOS:** tres opciones en palabras normales, una por línea
+  con su explicación debajo (estilo BFF). «Hazlo sin preguntar» exige doble
+  confirmación (aviso + escribir SIN PREGUNTAR) y nunca es el valor por
+  defecto.
+- **Avisos:** un solo toast por tarea, al final (aprobada, necesita
+  decisión, fallida o sin revisión), y uno cuando una tarea espera tu
+  aprobación. Nada de un aviso por ronda.
+- **Sin tecnicismos en la ventana:** «motor», «ronda», «revisión», «qué
+  falta», «permisos». Nada de JSON, endpoint ni session_id.
+
+## Ronda 0.1.0-alpha — pestaña Recursos (25 oct 2026)
+
+- **Qué es:** ver lo que Growi tiene andando y cuánto del PC se lleva; no es
+  un clon del Administrador de tareas. La vista principal es **Mis procesos**;
+  la lista completa del sistema es un interruptor secundario.
+- **Nota:** el encargo pedía aplicar la sección «Dirección Raycast» de este
+  archivo, pero esa sección no existía (Raycast solo salía como referencia de
+  la paleta Ctrl+K). Se aplicó lo que Raycast hace en listas y se deja
+  escrito aquí como dirección para las listas y tarjetas que vengan:
+- **Dirección Raycast (listas y tarjetas):**
+  1. Buscador arriba, ancho completo, con texto de ayuda dentro; filtra al
+     escribir (o pegar) sin botón de buscar.
+  2. Lista limpia: filas de 28 px, sin rejilla, selección suave #DCEBFF con
+     texto oscuro (no el azul sólido de sistema); lo propio (la app) en
+     negrita, lo bloqueado en gris apagado.
+  3. Barra de acciones abajo: el elemento elegido en negrita («nombre, PID
+     N»), una línea que explica (quién lo lanzó, o por qué está bloqueado) y
+     la acción principal a la derecha con su atajo en chip (Supr), como el
+     panel de acciones de Raycast. Teclado: ↓ desde el buscador baja a la
+     lista, Supr cierra, F5 actualiza.
+  4. Tarjetas de resumen: cuatro iguales en una fila (aquí sí, porque son
+     cuatro medidas del mismo tipo): etiqueta pequeña apagada, número grande
+     (17 bold), una línea de contexto y una barra fina de 4 px (azul; naranja
+     ≥ 80 %; rojo ≥ 95 %). El número siempre dice el valor: el color nunca va
+     solo.
+- **Destructivo:** «Cerrar proceso» en rojo #C81E1E (gris desactivado si la
+  fila está bloqueada); confirmación siempre con nombre y PID exactos; doble
+  confirmación si es Growi Bridge.
+- **Barra lateral:** Recursos entre Tareas y Ajustes, contador = % de CPU.
+  Atajo Ctrl+0 (Ctrl+1…9 no se movieron). El alto mínimo de la ventana se
+  calcula con lo que pide la barra lateral (antes 560 fijo: con 10 secciones
+  Registro quedaba tapado); en pantallas bajas las filas se compactan.
+
+## Ronda 0.1.0-alpha — Configuración inicial + Venezuela primero (25 oct 2026)
+
+- **Configuración inicial (4 pasos, pantalla completa sobre la ventana):** ¿Quién
+  te ayuda? / Conectar / Tus carpetas / Comprobación. Detección silenciosa antes
+  de preguntar (claude, codex, ollama, gemini, Ollama en 11434, sesión de Claude,
+  carpetas). «Saltar por ahora» en cada paso; «Lo haré más tarde» en Conectar.
+  Barra de progreso de 4 segmentos azules, «Paso N de 4» apagado, título 22.
+- **Proxy central:** estado en la barra lateral (bajo el nombre) y en la tarjeta
+  Proxy, siempre con punto + palabras. Frase honesta sobre el riesgo de
+  suspensión. Campos y modos (mi proxy / del sistema / sin proxy) plegados en
+  «Ajustes avanzados». Aviso naranja (barra de 3 px) en todas las páginas cuando
+  la nube cae y la app trabaja con el modelo local.
+- **Mapa de disponibilidad (Estado):** lista estilo Raycast, una fila por
+  servicio: ✓/!/✗ + nombre + chip de latencia y ruta + frase + «Cómo lo sé»
+  apagado + acción a la derecha (acento azul solo en «Usar» cuando anda). Todo
+  sale de `availability.json`: nada de disponibilidad escrita en el código.
+- **Gasto:** tres dineros que nunca se mezclan (real / equivalente Max / $0
+  local). Tarjetas de resumen 2×2 + control segmentado Por tarea / proyecto /
+  motor. La cuota de Max se marca «no disponible» (no hay forma pública de
+  leerla); nunca se inventa.
+- **Bandeja:** distintivo verde (conectado) / ámbar (solo local) / rojo (sin
+  conexión o puente caído); número de cuota arriba a la izquierda solo si se
+  puede leer. Menú corto: Abrir, Paleta, Estado del proxy, Pausar mascota,
+  Salir. Clic = desglose del gasto; doble clic = ventana.
+- **Reglas P0:** texto regular ≥ 12 px y negrita ≥ 14 px (filtro en la frontera
+  con Tk); toasts < 50 letras con su contexto al hacer clic; animaciones con
+  ease-out (interruptor ~150 ms, botón grande ~280 ms).
+- **Tema oscuro (Dirección Raycast), siguiendo a Windows:** fondo #1E1E20,
+  barra lateral #252528, tarjetas #2A2A2D, texto #F2F2F7, apagado #AEAEB2,
+  líneas #3A3A3D, azul de texto #4DA3FF, botón de acento #0A64C8 con texto
+  blanco (5,7:1), verde #4CD964, naranja #FFB340, rojo #FF6B6B. Todos ≥ 4,5:1.
+  En claro, el acento de texto sigue en #0066CC porque #007AFF sobre blanco da
+  4,0:1 (no pasa AA); #007AFF/#0A84FF es la familia de acento en los dos temas.
+
+## Ronda 0.1.0-alpha — Consumo en vivo (25 oct 2026)
+
+- **Qué es:** ver lo que una tarea lleva consumiendo mientras corre, por
+  tarea y por modelo, sin esperar a que termine. Todo sale de
+  `outbox/runner-live.json`; la ventana no calcula nada por su cuenta.
+- **Visual (mismo sistema Mac, nada nuevo):** la tabla de Tareas gana dos
+  columnas, **Tiempo** y **Tokens ent. / sal.**, y «Motor» pasa a «Motor /
+  modelo» («Claude Sonnet 5.5», sin repetir «Claude»). La fila en curso se
+  pinta en azul y sus números cambian cada ~5 s. Bajo la tabla, una línea
+  apagada (azul mientras corre) con la frase completa: «En vivo: tarea, en
+  curso, modelo, lleva 2:17. Tokens entrada / salida: 111.9 k / 470. Hasta
+  ahora: ~$0.20 eq. Max (estimado…)». Después, la tarjeta **Consumo de hoy
+  por modelo** (tabla estilo Raycast: fila de grupo en negrita por dinero,
+  modelos sangrados debajo) y una nota corta.
+- **Tres dineros, siempre con su etiqueta:** «$x real», «$x eq.»/«eq. Max»,
+  «$0 local». El «~» delante marca estimado; sin «~» es lo que reportó el
+  motor. Nada de «cuota restante»: Anthropic no la publica.
+- **Honestidad:** sin uso reportado se dice «sin vivo»; mientras Claude
+  arranca (a veces 30–60 s antes del primer mensaje), «esperando al motor».

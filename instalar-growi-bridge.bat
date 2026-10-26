@@ -1,5 +1,5 @@
 @echo off
-REM Instala Growi Bridge 0.1.0-alpha (puente + runner + proxy + pantalla + mascota).
+REM Instala Growi Bridge 0.2.0-alpha (puente + runner + proxy + pantalla + mascota).
 REM Reemplaza el servidor viejo (pc-server.py), el runner y la v1.0 de la app.
 REM Para quitarlo: schtasks /delete /tn GrowiBridgeApp /f
 
@@ -11,7 +11,8 @@ if %errorlevel% neq 0 (
   exit /b
 )
 
-set PUENTE=C:\Users\forte\growi-bridge
+REM Carpeta de la app: la de tu usuario de Windows (sirve en cualquier PC).
+set PUENTE=%USERPROFILE%\growi-bridge
 REM --- Encontrar la carpeta de origen: el .bat puede estar dentro de
 REM     growi-bridge-app\ o junto a ella (en el Inbox). Antes fallaba si
 REM     se corría desde dentro de la carpeta. ---
@@ -30,12 +31,18 @@ echo Origen: %ORIGEN%
 echo Destino: %PUENTE%
 echo.
 echo [1/5] Instalando dependencias (pystray, pillow)...
-python -m pip install --quiet pystray pillow tkinterdnd2 keyboard
+python -m pip install --quiet pystray pillow tkinterdnd2 keyboard psutil
 if errorlevel 1 (
   echo.
   echo No se pudieron instalar las dependencias. Revisa tu conexion e intentalo de nuevo.
   pause
   exit /b 1
+)
+REM Piloto CustomTkinter (solo la pagina Ajustes). Version fija. Si falla, la
+REM app no se rompe: usa la pagina Ajustes clasica de tkinter.
+python -m pip install --quiet customtkinter==6.0.0
+if errorlevel 1 (
+  echo AVISO: no se pudo instalar customtkinter. La app funciona igual, con la pagina Ajustes clasica.
 )
 echo [2/5] Copiando archivos a %PUENTE%...
 if not exist "%PUENTE%" mkdir "%PUENTE%"
@@ -43,9 +50,13 @@ copy /y "%ORIGEN%growi-bridge.py" "%PUENTE%\"
 copy /y "%ORIGEN%growi.png" "%PUENTE%\"
 copy /y "%ORIGEN%growi.ico" "%PUENTE%\"
 copy /y "%ORIGEN%growi-tray.png" "%PUENTE%\"
+if exist "%ORIGEN%growi-tray-b.png" copy /y "%ORIGEN%growi-tray-b.png" "%PUENTE%\"
 copy /y "%ORIGEN%growi-header.png" "%PUENTE%\"
 copy /y "%ORIGEN%iniciar-growi-bridge.bat" "%PUENTE%\"
 copy /y "%ORIGEN%probar-growi-bridge.bat" "%PUENTE%\"
+if exist "%ORIGEN%models-catalog.json" copy /y "%ORIGEN%models-catalog.json" "%PUENTE%\"
+if exist "%ORIGEN%availability.json" copy /y "%ORIGEN%availability.json" "%PUENTE%\"
+if exist "%ORIGEN%README.md" copy /y "%ORIGEN%README.md" "%PUENTE%\"
 if exist "%ORIGEN%mascot" (
   xcopy /y /e /i "%ORIGEN%mascot" "%PUENTE%\mascot"
 ) else (
@@ -74,5 +85,5 @@ if errorlevel 1 (
 schtasks /run /tn "GrowiBridgeApp"
 echo.
 echo Listo. Busca mi foto en la bandeja del sistema (abajo a la derecha).
-echo La primera vez, abre la ventana y configura el proxy (host, puerto, usuario, clave).
+echo Si usas proxy (opcional), abre la ventana y pon host, puerto, usuario y clave.
 pause

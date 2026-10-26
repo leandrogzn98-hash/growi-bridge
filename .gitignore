@@ -1,0 +1,18 @@
+# Configuracion y datos locales de cada PC: nunca al repositorio publico.
+secret.txt
+proxy.json
+folders.json
+settings.json
+apis.json
+rules.json
+pc-specs.json
+*.log
+restart.log
+startup.log
+actualizar.bat
+*.new
+*.bak
+__pycache__/
+share/
+sesiones/
+_prueba-orquestacion/

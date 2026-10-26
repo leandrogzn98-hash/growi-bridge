@@ -1,0 +1,165 @@
+{
+  "_nota": "Libreria de modelos de Growi Bridge. Se amplia añadiendo entradas (sin tocar codigo). id = nombre exacto de Ollama; size_gb = tamaño en disco; vram_gb = memoria de video para cargarlo con un contexto razonable (tamaño + ~15 %), ya calculada.",
+  "models": [
+    {
+      "id": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+      "name": "Hermes 3 8B",
+      "size_gb": 4.9,
+      "vram_gb": 5.6,
+      "kind": "chat",
+      "use": "Asistente todo terreno: conversa, sigue instrucciones y redacta bien."
+    },
+    {
+      "id": "qwen2.5:7b",
+      "name": "Qwen 2.5 7B",
+      "size_gb": 4.7,
+      "vram_gb": 5.4,
+      "kind": "chat",
+      "use": "Charla general en muchos idiomas; muy bueno en español y con datos."
+    },
+    {
+      "id": "qwen2.5-coder:7b",
+      "name": "Qwen 2.5 Coder 7B",
+      "size_gb": 4.7,
+      "vram_gb": 5.4,
+      "kind": "código",
+      "use": "Escribe y explica código; el mejor de su tamaño para programar."
+    },
+    {
+      "id": "llama3.1:8b",
+      "name": "Llama 3.1 8B",
+      "size_gb": 4.9,
+      "vram_gb": 5.6,
+      "kind": "chat",
+      "use": "El clásico de Meta: equilibrado para charlar, resumir y redactar."
+    },
+    {
+      "id": "mistral:7b",
+      "name": "Mistral 7B",
+      "size_gb": 4.1,
+      "vram_gb": 4.7,
+      "kind": "chat",
+      "use": "Rápido y ligero; bueno para respuestas cortas y borradores."
+    },
+    {
+      "id": "deepseek-r1:7b",
+      "name": "DeepSeek-R1 7B",
+      "size_gb": 4.7,
+      "vram_gb": 5.4,
+      "kind": "razonamiento",
+      "use": "Piensa paso a paso antes de responder: lógica y matemáticas."
+    },
+    {
+      "id": "gemma3:4b",
+      "name": "Gemma 3 4B",
+      "size_gb": 3.3,
+      "vram_gb": 3.8,
+      "kind": "pequeño",
+      "use": "Pequeño y rápido de Google; también entiende imágenes."
+    },
+    {
+      "id": "gemma3:12b",
+      "name": "Gemma 3 12B",
+      "size_gb": 8.1,
+      "vram_gb": 9.3,
+      "kind": "chat",
+      "use": "Hermano mayor de Gemma 3: más listo, también ve imágenes."
+    },
+    {
+      "id": "phi4:14b",
+      "name": "Phi-4 14B",
+      "size_gb": 9.1,
+      "vram_gb": 10.5,
+      "kind": "razonamiento",
+      "use": "De Microsoft: razona muy bien para su tamaño (matemáticas, lógica)."
+    },
+    {
+      "id": "qwen2.5:14b",
+      "name": "Qwen 2.5 14B",
+      "size_gb": 9.0,
+      "vram_gb": 10.3,
+      "kind": "chat",
+      "use": "Más listo que el 7B: textos largos, análisis y varios idiomas."
+    },
+    {
+      "id": "llama3.1:70b",
+      "name": "Llama 3.1 70B",
+      "size_gb": 43,
+      "vram_gb": 49.4,
+      "kind": "chat",
+      "use": "Muy potente, casi como los de internet; necesita una PC enorme."
+    },
+    {
+      "id": "mistral-small:24b",
+      "name": "Mistral Small 24B",
+      "size_gb": 14,
+      "vram_gb": 16.1,
+      "kind": "chat",
+      "use": "Muy buen asistente general; pide una tarjeta de video grande."
+    },
+    {
+      "id": "deepseek-r1:14b",
+      "name": "DeepSeek-R1 14B",
+      "size_gb": 9.0,
+      "vram_gb": 10.3,
+      "kind": "razonamiento",
+      "use": "Razonamiento paso a paso más fino que el 7B."
+    },
+    {
+      "id": "qwen2.5:32b",
+      "name": "Qwen 2.5 32B",
+      "size_gb": 20,
+      "vram_gb": 23.0,
+      "kind": "chat",
+      "use": "De los mejores abiertos para todo; necesita mucha memoria."
+    },
+    {
+      "id": "llama3.2:3b",
+      "name": "Llama 3.2 3B",
+      "size_gb": 2.0,
+      "vram_gb": 2.3,
+      "kind": "pequeño",
+      "use": "Pequeño y veloz: resúmenes, clasificar y respuestas rápidas."
+    },
+    {
+      "id": "llama3.2:1b",
+      "name": "Llama 3.2 1B",
+      "size_gb": 1.3,
+      "vram_gb": 1.5,
+      "kind": "pequeño",
+      "use": "Diminuto: corre en casi cualquier PC, para tareas sencillas."
+    },
+    {
+      "id": "gemma3:1b",
+      "name": "Gemma 3 1B",
+      "size_gb": 0.8,
+      "vram_gb": 0.9,
+      "kind": "pequeño",
+      "use": "El más ligero de la librería: para probar o PCs modestas."
+    },
+    {
+      "id": "phi4-mini:3.8b",
+      "name": "Phi-4 Mini 3.8B",
+      "size_gb": 2.5,
+      "vram_gb": 2.9,
+      "kind": "pequeño",
+      "use": "Pequeño pero razona bien; bueno para matemáticas sencillas."
+    },
+    {
+      "id": "qwen2.5-coder:14b",
+      "name": "Qwen 2.5 Coder 14B",
+      "size_gb": 9.0,
+      "vram_gb": 10.3,
+      "kind": "código",
+      "use": "Programador más capaz que el 7B, para proyectos grandes."
+    },
+    {
+      "id": "deepseek-r1:1.5b",
+      "name": "DeepSeek-R1 1.5B",
+      "size_gb": 1.1,
+      "vram_gb": 1.3,
+      "kind": "razonamiento",
+      "use": "Razonamiento paso a paso en miniatura; rápido en cualquier PC."
+    }
+  ]
+}

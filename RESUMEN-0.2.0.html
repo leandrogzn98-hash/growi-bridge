@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Growi Bridge — Alpha 0.2.0</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: #141414; background: #fff; }
+  .page { width: 210mm; min-height: 297mm; padding: 22mm 20mm 18mm 22mm; page-break-after: always; position: relative; }
+  .page:last-child { page-break-after: auto; }
+  .kicker { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: #007AFF; font-weight: 700; margin-bottom: 14px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 54px; line-height: 1.04; font-weight: 700; letter-spacing: -0.5px; }
+  h2 { font-family: Georgia, "Times New Roman", serif; font-size: 30px; line-height: 1.12; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 16px; }
+  h3 { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; margin: 22px 0 6px; }
+  p { font-size: 12.5px; line-height: 1.62; margin-bottom: 10px; }
+  .lede { font-size: 15px; line-height: 1.6; }
+  .num { font-family: Georgia, serif; font-size: 15px; color: #007AFF; font-weight: 700; }
+  .rule { width: 52px; height: 3px; background: #007AFF; margin: 18px 0; }
+  .foot { position: absolute; bottom: 14mm; left: 22mm; right: 20mm; font-size: 8.5px; color: #8a8a8a; border-top: 1px solid #e3e3e3; padding-top: 8px; display: flex; justify-content: space-between; }
+  .cover-img { width: 150mm; margin: 6mm 0 4mm -2mm; }
+  .cover-meta { font-size: 12px; color: #555; line-height: 1.7; }
+  .cover-meta b { color: #141414; }
+  .big-stat { display: flex; gap: 18mm; margin: 16px 0 6px; }
+  .stat b { font-family: Georgia, serif; font-size: 34px; display: block; line-height: 1; }
+  .stat span { font-size: 10px; color: #666; line-height: 1.4; display: block; margin-top: 6px; max-width: 34mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 12px 0; }
+  th { text-align: left; font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #666; border-bottom: 2px solid #141414; padding: 6px 8px 6px 0; }
+  td { border-bottom: 1px solid #e3e3e3; padding: 8px 8px 8px 0; vertical-align: top; line-height: 1.5; }
+  td:first-child { font-weight: 700; white-space: nowrap; }
+  .tag { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; border: 1.5px solid #141414; border-radius: 20px; }
+  .tag.blue { color: #007AFF; border-color: #007AFF; }
+  .tag.red { color: #c8102e; border-color: #c8102e; }
+  .air { display: flex; flex-direction: column; justify-content: center; min-height: 240mm; }
+  .air b { font-family: Georgia, serif; font-size: 110px; line-height: 0.9; color: #007AFF; }
+  .air p { font-family: Georgia, serif; font-size: 22px; line-height: 1.35; margin-top: 18px; max-width: 130mm; }
+  ul { margin: 6px 0 12px 18px; font-size: 12.5px; line-height: 1.62; }
+  li { margin-bottom: 5px; }
+  .quote { font-family: Georgia, serif; font-size: 17px; line-height: 1.5; border-left: 3px solid #007AFF; padding-left: 14px; margin: 16px 0; }
+  .small { font-size: 10px; color: #777; line-height: 1.55; }
+  .twocol { display: flex; gap: 12mm; }
+  .twocol > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="page">
+  <div class="kicker">Growi Bridge &nbsp;·&nbsp; Resumen de la noche</div>
+  <h1>Alpha 0.2.0.<br>Todo lo que tenemos<br>y lo que se logró.</h1>
+  <div class="rule"></div>
+  <img class="cover-img" src="growi-portada.png" alt="Growi, la mascota de Growi Bridge">
+  <p class="cover-meta"><b>25 de octubre de 2026, noche (00:55 – 01:30).</b><br>Leandro Gzn. &nbsp;·&nbsp; Barquisimeto, Venezuela.<br>Investigación, visión, extensión y cuatro tareas listas.<br>Un puente caído que se levanta en la mañana.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Leandro Gzn · 25 oct 2026</span></div>
+</div>
+
+<!-- RESUMEN EJECUTIVO -->
+<div class="page">
+  <div class="kicker">Resumen</div>
+  <h2>Esta noche dejó la 0.2.0 con la investigación hecha, la extensión lista y cuatro tareas en cola. Y un puente caído que se levanta en la mañana.</h2>
+  <div class="rule"></div>
+  <p class="lede">Leandro se fue a dormir a las 00:56 y dejó tres horas de trabajo con una orden clara: investigar a fondo, decidir, y dejar la versión Alpha 0.2.0 lista con un PDF al final. Esto es lo que quedó.</p>
+  <p>Lo que sí se logró: la investigación completa, la extensión de navegador construida y verificada por Opus, la visión escrita con cinco decisiones, y cuatro tareas de desarrollo listas para mandar. Lo que no se logró: instalar el build 2 en el PC. El install mató al puente a la 01:14 y la app no volvió a levantar. El PC quedó sin app hasta que Leandro la reinicie en la mañana.</p>
+  <p>Ese es el único atasco de la noche. Todo lo demás está hecho y guardado. Y el atasco tiene arreglo en dos minutos, con los pasos escritos al final de este documento.</p>
+  <div class="big-stat">
+    <div class="stat"><b>12</b><span>hilos de investigación en paralelo, 673 líneas</span></div>
+    <div class="stat"><b>672 s</b><span>para construir la extensión con Opus, $2,57</span></div>
+    <div class="stat"><b>4</b><span>tareas de Opus listas para mandar al PC</span></div>
+    <div class="stat"><b>1</b><span>atasco: el puente cayó a la 01:14</span></div>
+  </div>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Resumen</span></div>
+</div>
+
+<!-- LOGROS -->
+<div class="page">
+  <div class="kicker">Lo que se logró</div>
+  <h2>12 hilos, una extensión que funciona y la visión escrita.</h2>
+  <div class="rule"></div>
+  <h3>La investigación</h3>
+  <p>Un coordinador con 12 subagentes investigó en paralelo y dejó <b>INVESTIGACION-0.2.0.md</b>: 673 líneas, unas 77 KB, solo con búsqueda web y lectura de fuentes oficiales. Nada se probó en vivo en el PC salvo donde se indica. Los hilos: Raycast, Ollama, OpenClaw, TokenBar/OhNine, AirJelly, ClippyAI, MCP, multi-CLI y multi-asistente, onboarding, Venezuela primero, UI/UX de escritorio, y el inventario de conectores que ya tenemos.</p>
+  <p>Tres hallazgos cambiaron el plan. Primero: la app Muse.ai de consumo <b>no documenta ninguna forma de añadir un servidor MCP</b> (verificado contra las páginas de Meta; Muse Code sí lo soporta). La integración con Muse va por Custom Connector contra API REST, y va en 0.3.0, no en 0.2.0. Segundo: <b>Raycast ya está en beta pública para Windows</b> desde noviembre de 2025. Bridge compite contra el propio Raycast, no contra un hueco vacío. Tercero: <b>Gemini sí lista a Venezuela</b> en su API oficial. Es la segunda nube, no OpenAI, que no lista al país.</p>
+  <p>El inventario de conectores también corrigió un dato: <b>Tripo tiene 370 créditos, no 970</b> como decía la memoria del 19 de octubre. Se gastaron unos 600. Quedan unos $3,70. Las generaciones de la biblioteca de modelos hay que contarlas.</p>
+  <h3>La extensión de navegador</h3>
+  <p>Opus la construyó en 672 segundos (11 minutos), 35 turnos, $2,57. Chrome MV3 con servidor local en 127.0.0.1:8788, solo librería estándar, secreto del puente en cada petición. Ocho comandos: ver pestañas, leer una pestaña, navegar, hacer clic, escribir, abrir pestaña, cerrar pestaña y capturar pantalla.</p>
+  <p>Verificado en el PC: <span class="num">py_compile</span> sin errores, <span class="num">node --check</span> de los tres archivos JavaScript sin errores, <span class="num">/ping</span> con secreto devuelve 200 y sin secreto 403, el servidor solo escucha en 127.0.0.1, y un comando sin extensión conectada devuelve “extension no conectada” a los 60 segundos. El secreto no aparece en ninguno de los 13 archivos revisados.</p>
+  <p>Falta lo manual: cargar la extensión en Chrome (modo desarrollador, “Cargar descomprimida”) y pegar el secreto en su popup. Eso lo hace Leandro al despertar. La extensión queda lista para instalar en el Bridge, como pidió.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Lo que se logró</span></div>
+</div>
+
+<!-- LOGROS 2 -->
+<div class="page">
+  <div class="kicker">Lo que se logró · continúa</div>
+  <h2>La visión quedó escrita en cinco decisiones. Cuatro tareas quedaron listas para mandar.</h2>
+  <div class="rule"></div>
+  <p class="quote">“El compañero de escritorio que deja que un venezolano use IA de verdad.”</p>
+  <p><b>Las cinco decisiones.</b> (1) El proxy es el producto: Venezuela primero. (2) La paleta Ctrl+K es el centro. (3) Orquestación con revisión automática: un motor barato revisa contra criterios, máximo 3 rondas de corrección o avanzar de fase. (4) Un corredor con muchos motores descritos por JSON. (5) El gasto visible en la bandeja: un solo número, tres dineros siempre separados — $ real, $ equivalente de Max, $0 local.</p>
+  <p><b>Cuatro tareas de Opus listas.</b> Quedaron escritos y guardados cuatro specs, listos para enviar al PC en cuanto vuelva el puente, en este orden: Modelos (librería local Ollama + APIs + fusión con OpenClaw + “Comprobar mi PC” + semáforo por VRAM), Orquestación (motores por JSON + revisión automática + rondas + fases + aprobación humana), Extensión–subida (el comando <span class="num">tab.upload</span> para subir archivos desde el PC, caso Leonardo) y Onboarding–Venezuela (4 pasos + proxy central + mapa de disponibilidad + gasto en bandeja + DPI).</p>
+  <h3>La UI/UX también se revisó</h3>
+  <p>Un revisor experto pasó el build 2 por la skill anti-vibe, las reglas P0 de la investigación y las notas de Mobbin. Su informe (<b>REVISION-UIUX-0.2.0.md</b>) trae los hallazgos priorizados — P0, P1 y P2 — con el archivo, la línea y el arreglo concreto, más la auditoría anti-slop del build. La regla que resume el pase: mascota reactiva, no ambiental; paleta rápida y con teclado; bandeja corta con “Salir” siempre; toasts solo para lo que importa; DPI antes de crear la ventana.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Lo que se logró</span></div>
+</div>
+
+<!-- ATASCO -->
+<div class="page">
+  <div class="kicker">Lo que se atascó</div>
+  <h2>El install mató al puente a la 01:14 y el PC quedó sin app.</h2>
+  <div class="rule"></div>
+  <p>El build 2 (3.226 líneas, 48 fotogramas de mascota sobre magenta, icono de bandeja transparente, 5 marcadores) llevaba dos intentos fallidos. El primero hizo rollback silencioso al build 1. El segundo paró correctamente: el archivo del Inbox tenía 3.226 líneas y no las 3.170 que esperaba, por el arreglo de la bandeja que se sumó después.</p>
+  <p>El tercer intento (fix2, enviado a la 01:11) corrigió el control: verificar los 5 marcadores, no el número de líneas. Llegó al paso de reiniciar la app. Ahí murió el puente.</p>
+  <p>La app <b>es</b> el servidor del puerto 8787. Al matarla para reiniciarla, el puente cayó con ella. El build 2 no volvió a levantar: último heartbeat 01:10:42, pid 27568, sin resultado del task, sin archivo de verificación, y el puente sigue dando “conexión cerrada sin respuesta” a las 01:21, pasado el timeout de 10 minutos.</p>
+  <p>El archivo compila sin errores en la VM y los imports opcionales (tkinterdnd2, pystray, keyboard) tienen su try/except, así que no es un error de sintaxis ni un módulo faltante. Lo más probable: el reinicio mató también al proceso de Claude que ejecutaba el task (árbol de procesos) y la app nueva no arrancó, o el reinicio no se completó.</p>
+  <p><b>No hay forma de recuperar el PC desde la VM.</b> El puente es la única vía de archivos y el runner la única vía de comandos. No hay SSH ni WinRM al PC. El PC no se apagó: no había forma de apagarlo sin el runner, y apagarlo sin la app levantada no arreglaba nada.</p>
+  <p>La lección quedó anotada: instalar matando al runner es frágil. El próximo install lo hace la app misma (auto-restart) o no mata al proceso que ejecuta el task. Va en el roadmap de 0.3.0.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Lo que se atascó</span></div>
+</div>
+
+<!-- AIRE -->
+<div class="page">
+  <div class="air">
+    <div class="kicker">Venezuela primero</div>
+    <b>El proxy<br>es el<br>producto.</b>
+    <p>Claude y ChatGPT están bloqueados en Venezuela. Por eso existe esta app.</p>
+  </div>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Venezuela primero</span></div>
+</div>
+
+<!-- VISION -->
+<div class="page">
+  <div class="kicker">La visión</div>
+  <h2>Un venezolano puede usar IA porque el proxy es el producto.</h2>
+  <div class="rule"></div>
+  <p>Claude y ChatGPT están bloqueados en Venezuela. Anthropic lista 185 países y Venezuela no está. OpenAI tampoco la lista. Por eso la app existe: para que un venezolano pueda usar IA.</p>
+  <p>El proxy propio (tinyproxy en el VPS 2.25.244.222:18080, $0 porque el VPS ya está pago) pasa de ser un ajuste a ser función central: onboarding de un clic (“Conectar”), estado en la bandeja (verde conectado, ámbar local, rojo sin conexión), cambio automático a Ollama local si cae, y mapa de disponibilidad con chequeos reales (Claude, ChatGPT, Gemini, Ollama local, proxy, internet).</p>
+  <p>Y la app dice en voz alta el riesgo: usar Claude vía proxy puede suspender la cuenta; la vía sin ese riesgo es la API con clave propia o un modelo local. Por eso lleva botón de exportar conversaciones.</p>
+  <p>Offline-first no es un detalle: CANTV da 10/5 Mbps y los cortes de luz duran 4–6 horas. Cola de tareas en SQLite que sobrevive a apagones, reintentos con backoff, sync por diferencia (nunca re-subir un archivo entero), modelos locales como respaldo. Gasto $0 o mínimo: Max ya pagada + Ollama local + Tailscale personal + VPS existente.</p>
+  <table>
+    <tr><th>Referente</th><th>Qué toma Growi Bridge</th></tr>
+    <tr><td>Raycast</td><td>La paleta Ctrl+K y su gramática: Enter = principal, Ctrl+K = resto, favoritos, alias, fuzzy, fallback a la IA.</td></tr>
+    <tr><td>Ollama</td><td>Modelos locales con semáforo por VRAM. Gemma 3 4B verde, Hermes 3 8B naranja (~83%), Phi-4 14B rojo.</td></tr>
+    <tr><td>OpenClaw</td><td>Un asistente, muchos canales (WhatsApp primero), skills con frontmatter, memoria en Markdown.</td></tr>
+    <tr><td>TokenBar</td><td>El gasto en un solo número en la bandeja, con tres dineros separados.</td></tr>
+    <tr><td>AirJelly</td><td>Proactividad con freno: máximo 1 aviso al día, memoria con origen visible.</td></tr>
+    <tr><td>ClippyAI</td><td>Plan visible con aprobación antes de lo irreversible, reporte honesto, parada que mata lo en curso.</td></tr>
+  </table>
+  <p class="small">Lo que no se copia: ser lanzador general de Windows, Store de extensiones, mirar la pantalla siempre, cobrar por tokens, ni prometer que el proxy hace el uso “seguro”.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>La visión</span></div>
+</div>
+
+<!-- ALCANCE -->
+<div class="page">
+  <div class="kicker">Alcance</div>
+  <h2>Qué entra en la 0.2.0 y qué queda fuera.</h2>
+  <div class="rule"></div>
+  <table>
+    <tr><th>#</th><th>Entra (en orden)</th><th>Estado</th></tr>
+    <tr><td>1</td><td>Instalar el build 2 corregido y verificarlo</td><td><span class="tag red">Atascado</span></td></tr>
+    <tr><td>2</td><td>Pestaña Modelos (Ollama + APIs + fusión)</td><td><span class="tag">Listo para mandar</span></td></tr>
+    <tr><td>3</td><td>Extensión de navegador (+ tab.upload)</td><td><span class="tag blue">Construida</span></td></tr>
+    <tr><td>4</td><td>Paleta Ctrl+K pulida</td><td><span class="tag">En el build 2</span></td></tr>
+    <tr><td>5</td><td>Proxy central + mapa de disponibilidad</td><td><span class="tag">Listo para mandar</span></td></tr>
+    <tr><td>6</td><td>Gasto visible en la bandeja</td><td><span class="tag">Listo para mandar</span></td></tr>
+    <tr><td>7</td><td>Cola en SQLite + reintentos con backoff</td><td><span class="tag">Listo para mandar</span></td></tr>
+    <tr><td>8</td><td>Revisión automática del runner</td><td><span class="tag">Listo para mandar</span></td></tr>
+    <tr><td>9</td><td>DPI y reglas P0 de UI/UX</td><td><span class="tag">Revisado</span></td></tr>
+    <tr><td>10</td><td>GitHub: release + auto-update</td><td><span class="tag">Pendiente</span></td></tr>
+  </table>
+  <p><b>Queda fuera, y por qué.</b> MCP por HTTP (fase 2; stdio basta). Integración con Muse.ai (no hay MCP documentado; Custom Connector en 0.3.0). Store de extensiones (sin usuarios no tiene sentido). Alquiler del proxy ($2,50/mes: falta costear el VPS, resolver que BasicAuth viaja sin cifrar y resolver el cobro en Venezuela). Meshy como segundo generador 3D (Tripo basta; Meshy tiene $0 de saldo). Mascota con más estados. Lector de pantalla completo. Descarga de modelos en segundo plano.</p>
+  <p><b>Solo tres conectores van dentro de la app:</b> GitHub (distribución y releases), Tripo (generación 3D de la biblioteca) y Mobbin (referencia de diseño en desarrollo). Todo lo demás (Apify, Bright Data, Gemini, ElevenLabs, Resend, Hayai Space, Hostinger, Railway, Descript, Zenmux, Anthropic) lo usa solo el asistente desde la VM: llevan credenciales, gastan créditos o son sistemas internos. Meterlos en una app distribuida por GitHub expondría credenciales y costos.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Alcance</span></div>
+</div>
+
+<!-- UI/UX -->
+<div class="page">
+  <div class="kicker">La interfaz</div>
+  <h2>62 de 100. Y ya se sabe qué arreglar.</h2>
+  <div class="rule"></div>
+  <p>Un revisor experto pasó el build 2 por la skill anti-vibe, las reglas P0 de la investigación y las notas de Mobbin. Auditoría anti-slop: <span class="num">62/100</span>. El build tiene dirección real — brief, tokens con nombre, Mobbin con respaldo, mascota reactiva, sin gradientes ni datos inventados. Pero los dos tells de plantilla más reconocibles están en todas las páginas, el DPI no está resuelto y la paleta no tiene la gramática que promete.</p>
+  <table>
+    <tr><th>#</th><th>Problema</th><th>Arreglo</th></tr>
+    <tr><td>1</td><td><b>DPI.</b> <span class="num">tk scaling</span> solo agranda las fuentes; toda la geometría es fija (940×680, paleta 520×320, barra 220 px) y a 150% el pie de la barra desborda (necesita ~205 px, hay 188).</td><td>Factor SCALE = dpi/96 aplicado a cada medida.</td></tr>
+    <tr><td>2</td><td><b>Paleta Ctrl+K.</b> Filtro por subcadena, sin difusa, sin favoritos, sin atajos por fila, sin rojo para lo destructivo, sin fallback a la IA. Ctrl+K dos veces abre una segunda paleta.</td><td>Difusa + favoritos + guarda de doble apertura.</td></tr>
+    <tr><td>3</td><td><b>Cerrar por sorpresa.</b> La X minimiza y dispara el toast “sigue corriendo” cada vez; no hay ajuste “al cerrar: minimizar/salir”.</td><td>Ajuste explícito + toast solo la primera vez.</td></tr>
+    <tr><td>4</td><td><b>Olor a plantilla.</b> 14 “·” (meta-strings) y 6 etiquetas en MAYÚSCULAS de 9 px, en todas las páginas.</td><td>Quitar los “·”; sentence case, 11 px semibold.</td></tr>
+    <tr><td>5</td><td><b>Contraste.</b> Verde #248A3D 4,40:1 y azul #007AFF 4,02:1 no llegan a 4,5:1.</td><td>#1F7A33 (5,40:1) y #0066CC (5,57:1).</td></tr>
+  </table>
+  <p><b>Los cinco aciertos:</b> la identidad la carga la foto de Growi; la mascota es reactiva, no ambiental; sin gradientes, sin stock, sin datos inventados; navegación de verdad estilo Mac con respaldo Mobbin; las acciones destructivas piden confirmación y el inicio automático es opt-in.</p>
+  <p>Con los 4 P0 corregidos el build subiría a ~80. El informe completo (tabla P0/P1/P2 con archivo, línea y arreglo concreto) está en <b>REVISION-UIUX-0.2.0.md</b>. Orden de arreglo: DPI → paleta → cierre → texto → contraste.</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>La interfaz</span></div>
+</div>
+
+<!-- ROADMAP -->
+<div class="page">
+  <div class="kicker">El camino</div>
+  <h2>0.3.0 y el gadget.</h2>
+  <div class="rule"></div>
+  <div class="twocol">
+    <div>
+      <h3>En 0.3.0</h3>
+      <ul>
+        <li>Servidor MCP por HTTP en localhost + cliente MCP.</li>
+        <li>Integración con Muse.ai por Custom Connector (o Muse Code como cliente).</li>
+        <li>Codex como segundo motor del runner.</li>
+        <li>Descarga de modelos en segundo plano.</li>
+        <li>Túnel cifrado para el proxy (SSH/TLS).</li>
+        <li>Panel de alquiler del proxy (si se costea).</li>
+        <li>Mascota con más estados, atajos personalizables, comandos de IA guardados.</li>
+        <li>“¿Qué me falta por responder?” por persona.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Más allá (0.4.0+)</h3>
+      <ul>
+        <li><b>Gadget físico ESP32</b> con el Muse Gadget SDK (Apache 2.0): la app deja la puerta abierta por USB/serial; el hardware se construye después, con plaquitas baratas traídas de China.</li>
+        <li>Store de extensiones propio (solo con usuarios suficientes).</li>
+        <li>WhatsApp como canal del asistente.</li>
+        <li>Memoria con búsqueda vectorial.</li>
+        <li>Soporte completo de lector de pantalla.</li>
+      </ul>
+    </div>
+  </div>
+  <h3>Lo que no está verificado</h3>
+  <p>Doce dudas quedaron marcadas y ninguna se promete como hecho: Gemini en Venezuela desde IP venezolana; pago del Max con tarjeta venezolana; cuota restante de Max (no hay API pública); Hermes 3 8B en la RTX 3060 de 6 GB con contexto útil; reanudación de <span class="num">ollama pull</span> con un corte real; acceso a registry.ollama.ai y Hugging Face desde Venezuela sin proxy; costo mensual del VPS y cómo cobrar el alquiler; implicaciones legales de alquilar el proxy; Raycast (paridad Windows/Mac, plan Free, tool-calling con Ollama); OpenClaw (Windows nativo vs WSL2); multi-CLI (Gemini CLI, Grok Build en Windows, flags de Meshy, Copilot CLI); MCP (si el SDK Python v2 renombró FastMCP); Bright Data (sin zonas activas no sirve).</p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>El camino</span></div>
+</div>
+
+<!-- PROXIMOS PASOS -->
+<div class="page">
+  <div class="kicker">Próximos pasos</div>
+  <h2>Levantar el puente, verificar el install y mandar las cuatro tareas.</h2>
+  <div class="rule"></div>
+  <table>
+    <tr><th>Paso</th><th>Qué</th><th>Quién</th><th>Cuándo</th></tr>
+    <tr><td>1</td><td>Doble clic en <b>C:\Users\forte\growi-bridge\iniciar-growi-bridge.bat</b> (o reiniciar el PC: la tarea GrowiBridgeApp arranca la app al iniciar sesión). Esto levanta la app y el puente.</td><td>Leandro</td><td>Al despertar, 25 oct</td></tr>
+    <tr><td>2</td><td>Verificar el install del build 2 (5 marcadores + prueba Ollama) y confirmar qué build corre. Si el build 2 no quedó instalado, reinstalar con el fix2 ya preparado.</td><td>Growi</td><td>Al volver el puente</td></tr>
+    <tr><td>3</td><td>Mandar los cuatro tasks de Opus en orden (Modelos → Orquestación → Upload → Onboarding–Venezuela), verificar cada uno, y publicar la release Alpha 0.2.0 en GitHub.</td><td>Growi</td><td>Tras el paso 2</td></tr>
+    <tr><td>4</td><td>Cargar la extensión en Chrome (modo desarrollador → “Cargar descomprimida” → <b>C:\Users\forte\growi-bridge\browser\extension\</b>) y pegar el secreto en su popup. Luego Growi prueba <span class="num">tabs.list</span> y <span class="num">tab.upload</span> en Leonardo con una imagen real.</td><td>Leandro + Growi</td><td>Tras el paso 3</td></tr>
+  </table>
+  <p class="small">Fuentes: INVESTIGACION-0.2.0.md (12 hilos, tabla de fuentes al final), VISION.md, REVISION-UIUX-0.2.0.md, resultados del runner en ~/workspace/shared/inbox/runner-results/, repo leandrogzn98-hash/growi-bridge (último commit 6f1c9f6). Auditoría anti-IA del texto: 100/100.</p>
+  <p style="margin-top: 14px;"><b>Leandro Gzn</b><br><span class="small">Growi Bridge — Alpha 0.2.0 · 25 oct 2026</span></p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Próximos pasos</span></div>
+</div>
+
+<!-- ESTADO 26 OCT 00:13 -->
+<div class="page">
+  <div class="kicker">Estado a 26 oct 00:13</div>
+  <h2>La 0.2.0 está completa en el PC. Dos carriles, icono y mascota cerrados; el piloto decide el toolkit.</h2>
+  <div class="rule"></div>
+  <p class="lede">Coste acumulado de la noche: cola $45,32 + dos carriles $4,33 + icono $9,44 + mascota $0,98 + piloto $7,46 = <b>$67,53</b>.</p>
+  <h3>Dos carriles</h3>
+  <p>Carril B = copia completa de la app en <span class="num">growi-bridge-lane2\</span>, puerto 8788, su propia cola y su tarea programada; el vigilante cubre los dos puertos. Guardia: solo acepta tasks con <span class="num">"lane": "b"</span> + lista de archivos, rechaza lo que toque el carril A; sin fusión automática. 19/19 pruebas de guardia. El carril A se reinició una vez con el código nuevo y quedó verificado con las columnas nuevas en Tareas (Motor/modelo, Ronda, Tiempo, Tokens).</p>
+  <h3>Icono de la barra</h3>
+  <p>La pluma de Tk estaba pegada al AppUserModelID viejo. Arreglo: IDs nuevos por carril, icono lo primero al crear la ventana, sin <span class="num">iconphoto</span>, propiedades de ventana y <span class="num">growi.ico</span> nuevo sobre azul noche. El reinicio diferido dejó el botón del carril A en 0 px azul noche: causa raíz medida, la caché de iconos de Explorer guardaba el <span class="num">.ico</span> viejo de esa ruta; el reintento lo resolvió con <span class="num">SHCNE_ASSOCCHANGED</span> + rehacer el botón sin reiniciar. Verificado: carril A 288 px azul noche (calibración Growi = 288), ahora se llama «Growi Bridge» (antes «Python»); carril B 281 px. Bandeja: dos Growis, el del carril B con «B» violeta. Aviso: sin verificar tras reiniciar el PC o Explorer; si vuelve el fondo blanco, <span class="num">ie4uinit.exe -show</span> + cerrar y abrir Growi.</p>
+  <h3>Mascota working v5-final</h3>
+  <p>Leandro aprobó la cara final a las 22:50 tras 4 rondas (cara grande y plana, ojos redondos pequeños, sonrisa pequeña, rubor tenue, audífonos negros, laptop con «growi»). Producción en la VM ($0): recorte cuadrado, resize a 256, fondo forzado a (255,0,255) exacto con erosión de 1 px (sin halo). Instalados 16/16 con md5 verificado; reinicio diferido a las 00:00 y 3 capturas en vivo con diferencia 0.0 contra el fotograma v5-final. En reposo (idle) la mascota sigue siendo la anterior: solo cambió working.</p>
+  <h3>Piloto CustomTkinter: SEGUIR, superficie por superficie</h3>
+  <p>Rediseño de la pantalla Ajustes con CustomTkinter 6.0.0, reversible, con capturas antes/después a 100% y 150% DPI. <b>Veredicto: SEGUIR con CustomTkinter, superficie por superficie, siempre con la página clásica como respaldo; no convertir toda la app de una vez.</b> Medido: aspecto más cerca de Raycast (tarjetas redondeadas, secciones apagadas, filas con subtítulo, píldoras); DPI es lo que más mejora (al 150% todo escala junto; 0 desbordes); arranque +0,42 s. Pruebas: clics reales 22/22, persistencia 4/4 al 150%, respaldo en 4 casos sin errores. Convertir primero: Carpetas, APIs, tarjetas de Modelos, configuración inicial y pie de la barra lateral. No convertir: tablas, Registro, botón grande, mascota ni Ctrl+K. CTk no trae blur/liquid glass ni lector completo (eso sería PySide6). El piloto ya está en el código pero se activa al reiniciar la app. El instalador ahora instala <span class="num">customtkinter==6.0.0</span> (si falla, la app usa la Ajustes clásica).</p>
+  <p>Al publicar esta release: la cadena de la Fase A 0.3.0 (28 specs, ~$150–250, ~28 h de runner). Después: Fase B (0.4.0), 0.4.5 (rediseño UI) y 0.5.0 (Oficina).</p>
+  <p class="small">Fuentes: resultados del runner en share\outbox\runner-results\, ESTADO-ICONO-BARRA.md, ESTADO-ICONO-BARRA-REINTENTO.md, ESTADO-MASCOTA-V5-FINAL.md, BITACORA-NOCHE-25-26.md.</p>
+  <p style="margin-top: 14px;"><b>Leandro Gzn</b><br><span class="small">Growi Bridge — Alpha 0.2.0 · 26 oct 2026</span></p>
+  <div class="foot"><span>Growi Bridge — Alpha 0.2.0</span><span>Estado a 26 oct 00:13</span></div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,636 @@
+{
+  "_que_es": "Motores del runner de Growi Bridge. Un corredor, muchos motores: cada task elige su motor con el campo \"motor\" (por defecto \"claude\"). Los textos {prompt}, {modelo}, {session_id}, {cwd}, {allowed_tools}, {disallowed_tools}, {permission_mode} se rellenan con los datos de la tarea. Las rutas relativas son relativas a la carpeta de growi-bridge.py. Modo seguro: ningun motor lleva bypassPermissions ni --yolo; los permisos los pide cada tarea.",
+  "por_defecto": "claude",
+  "revision": {
+    "_que_es": "Motores baratos para revisar una tarea terminada, en este orden. Solo se usa uno si responde en ese momento (llama no se arranca solo para revisar).",
+    "orden": [
+      {
+        "motor": "llama"
+      },
+      {
+        "motor": "ollama"
+      },
+      {
+        "motor": "claude",
+        "modelo": "haiku",
+        "allowed_tools": "Read,Glob,Grep"
+      }
+    ],
+    "max_rondas": 3
+  },
+  "router": {
+    "_que_es": "Modo Automatico: cuando una tarea trae \"motor\": \"auto\" (o no trae motor ni model y en Ajustes esta elegido Automatico), el runner elige aqui el motor mas barato capaz. Sin llamar a ningun modelo: solo estas reglas, en orden; gana la primera que encaja. Una regla encaja si se cumplen TODAS sus condiciones de 'si' y, si tiene 'y_alguno_de', al menos una de esas. Condiciones: palabras (alguna aparece; da igual tildes y mayusculas; 'depur*' = cualquier palabra que empiece por depur), sin_palabras (no aparece ninguna), min_chars / max_chars (largo del encargo en letras), codigo (true: parece codigo; false: no lo parece; se mira con patrones_codigo), min_partes (lineas de lista o preguntas), min_criterios. Si ninguna encaja, se usa por_defecto.",
+    "por_defecto": "sonnet",
+    "objetivos": {
+      "_que_es": "A que motor real va cada eleccion. 'respaldo': si ese motor no esta disponible, se prueba el siguiente. Sin respaldo y sin motor disponible, la tarea falla con un error claro (p. ej. Meshy sin clave).",
+      "llama": {
+        "motor": "llama",
+        "etiqueta": "Hermes",
+        "respaldo": [
+          "ollama"
+        ]
+      },
+      "ollama": {
+        "motor": "ollama",
+        "etiqueta": "Ollama",
+        "respaldo": [
+          "sonnet"
+        ]
+      },
+      "haiku": {
+        "motor": "claude",
+        "modelo": "haiku",
+        "etiqueta": "Haiku"
+      },
+      "sonnet": {
+        "motor": "claude",
+        "modelo": "sonnet",
+        "etiqueta": "Sonnet"
+      },
+      "opus": {
+        "motor": "claude",
+        "modelo": "opus",
+        "etiqueta": "Opus",
+        "respaldo": [
+          "sonnet"
+        ]
+      },
+      "codex": {
+        "motor": "codex",
+        "etiqueta": "Codex",
+        "respaldo": [
+          "sonnet"
+        ]
+      },
+      "meshy": {
+        "motor": "meshy",
+        "etiqueta": "Meshy"
+      }
+    },
+    "subir_escalon": {
+      "_que_es": "Si la tarea es exigente, la eleccion sube un escalon en 'escalera' (llama -> sonnet -> opus). Basta con una de estas condiciones. Las reglas con \"no_subir\": true no suben.",
+      "escalera": [
+        "llama",
+        "sonnet",
+        "opus"
+      ],
+      "min_criterios": 3,
+      "palabras_en_criterios": [
+        "exactamente",
+        "sin errores",
+        "todos los",
+        "todas las",
+        "verifica*",
+        "comprueba*",
+        "pasan",
+        "tests",
+        "pruebas"
+      ],
+      "min_chars": 3000
+    },
+    "patrones_codigo": [
+      "```",
+      "\\bdef \\w+\\(",
+      "\\bfunction\\b",
+      "\\bclass \\w+[:(]",
+      "^\\s*(import|from) \\w+",
+      "=>",
+      "\\w+\\([^)]*\\)\\s*[{;:]\\s*$",
+      "\\w\\.(py|js|ts|tsx|jsx|ps1|bat|sh|cs|cpp|java|go|rs|php|sql|html|css)\\b",
+      "Traceback|Exception|Error:",
+      "[{};]\\s*$"
+    ],
+    "reglas": [
+      {
+        "nombre": "3d",
+        "objetivo": "meshy",
+        "motivo": "generación 3D",
+        "no_subir": true,
+        "si": {
+          "palabras": [
+            "modelo 3d",
+            "modelos 3d",
+            "objeto 3d",
+            "en 3d",
+            "3d model",
+            "mesh",
+            "malla 3d",
+            "glb",
+            "text-to-3d",
+            "texto a 3d",
+            "obelisco",
+            "escultura 3d",
+            "figura 3d"
+          ],
+          "sin_palabras": [
+            "blender",
+            "bpy",
+            "script",
+            "codigo"
+          ]
+        }
+      },
+      {
+        "nombre": "arquitectura",
+        "objetivo": "opus",
+        "motivo": "arquitectura / diseño grande con varias partes",
+        "si": {
+          "palabras": [
+            "arquitectura",
+            "decision de diseño",
+            "decide el diseño",
+            "diseña el sistema",
+            "investiga*",
+            "investigacion",
+            "multi-agente",
+            "multiagente",
+            "varios agentes",
+            "estrategia",
+            "compara opciones",
+            "pros y contras"
+          ]
+        },
+        "y_alguno_de": [
+          {
+            "min_chars": 700
+          },
+          {
+            "min_partes": 3
+          }
+        ]
+      },
+      {
+        "nombre": "codigo",
+        "objetivo": "sonnet",
+        "motivo": "código en el encargo",
+        "si": {
+          "codigo": true
+        }
+      },
+      {
+        "nombre": "codigo-palabras",
+        "objetivo": "sonnet",
+        "motivo": "código / depuración / tarea con pasos",
+        "si": {
+          "palabras": [
+            "codigo",
+            "programa*",
+            "script*",
+            "funcion",
+            "depur*",
+            "debug*",
+            "bug",
+            "error",
+            "arregla*",
+            "refactor*",
+            "python",
+            "javascript",
+            "typescript",
+            "powershell",
+            "blender",
+            "bpy",
+            "compila*",
+            "instala*",
+            "fase*",
+            "paso a paso",
+            "varios pasos",
+            "crea el archivo",
+            "crea un archivo",
+            "edita*",
+            "modifica*",
+            "arquitectura",
+            "diseño",
+            "investiga*",
+            "razona*",
+            "analiza*",
+            "calcula*",
+            "demuestra*"
+          ]
+        }
+      },
+      {
+        "nombre": "varias-partes",
+        "objetivo": "sonnet",
+        "motivo": "petición larga o con varias partes",
+        "si": {},
+        "y_alguno_de": [
+          {
+            "min_chars": 400
+          },
+          {
+            "min_partes": 3
+          }
+        ]
+      },
+      {
+        "nombre": "simple",
+        "objetivo": "llama",
+        "motivo": "pregunta corta / texto simple",
+        "si": {
+          "max_chars": 400,
+          "codigo": false
+        }
+      }
+    ]
+  },
+  "motores": {
+    "claude": {
+      "nombre": "Claude",
+      "tipo": "cli_sincrono",
+      "descripcion": "Motor principal. Usa la sesion Max de Claude Code.",
+      "binario": "claude",
+      "comando": [
+        "{binario}",
+        "-p",
+        "{prompt}",
+        "--output-format",
+        "json"
+      ],
+      "prompt_por": "argumento",
+      "modelo": {
+        "opcional": [
+          "--model",
+          "{modelo}"
+        ],
+        "por_defecto": null,
+        "permitidos": [
+          "sonnet",
+          "opus",
+          "haiku",
+          "claude-*"
+        ]
+      },
+      "sesion": {
+        "tipo": "nativa",
+        "opcional": [
+          "--resume",
+          "{session_id}"
+        ]
+      },
+      "permisos": {
+        "opcionales": [
+          [
+            "--allowedTools",
+            "{allowed_tools}"
+          ],
+          [
+            "--disallowedTools",
+            "{disallowed_tools}"
+          ],
+          [
+            "--permission-mode",
+            "{permission_mode}"
+          ]
+        ],
+        "modos": [
+          "default",
+          "acceptEdits",
+          "plan",
+          "bypassPermissions"
+        ]
+      },
+      "salida": {
+        "formato": "json",
+        "texto": "result",
+        "costo": [
+          "total_cost_usd",
+          "cost_usd"
+        ],
+        "turnos": "num_turns",
+        "sesion": "session_id",
+        "error_si": "is_error"
+      },
+      "timeout_min": 30,
+      "entorno": {},
+      "healthcheck": {
+        "tipo": "binario"
+      },
+      "vivo": {
+        "_que_es": "Consumo en vivo: se lanza con stream-json y un hilo lee cada mensaje segun llega. Si el motor no entiende stream-json (no sale ni un evento), se repite como siempre con --output-format json y el vivo queda 'sin vivo'.",
+        "formato": "stream-json",
+        "reemplaza": [
+          "--output-format",
+          "json"
+        ],
+        "argumentos": [
+          "--output-format",
+          "stream-json",
+          "--verbose",
+          "--include-partial-messages"
+        ]
+      }
+    },
+    "codex": {
+      "nombre": "Codex",
+      "tipo": "cli_sincrono",
+      "descripcion": "Segundo motor (OpenAI Codex CLI). Solo si el binario existe.",
+      "binario": "codex",
+      "script_npm": "node_modules/@openai/codex/bin/codex.js",
+      "comando": [
+        "{binario}",
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "-C",
+        "{cwd}",
+        "{permisos}",
+        "{opcionales}",
+        "-"
+      ],
+      "comando_reanudar": [
+        "{binario}",
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "-C",
+        "{cwd}",
+        "{permisos}",
+        "{opcionales}",
+        "resume",
+        "{session_id}",
+        "-"
+      ],
+      "prompt_por": "stdin",
+      "modelo": {
+        "opcional": [
+          "-m",
+          "{modelo}"
+        ],
+        "por_defecto": null
+      },
+      "sesion": {
+        "tipo": "nativa"
+      },
+      "permisos": {
+        "_que_es": "Se elige por tarea con permission_mode. Sin permiso pedido: solo lectura. bypassPermissions no existe aqui a proposito.",
+        "por_modo": {
+          "": [
+            "--sandbox",
+            "read-only"
+          ],
+          "default": [
+            "--sandbox",
+            "read-only"
+          ],
+          "plan": [
+            "--sandbox",
+            "read-only"
+          ],
+          "acceptEdits": [
+            "--sandbox",
+            "workspace-write"
+          ]
+        }
+      },
+      "salida": {
+        "formato": "jsonl",
+        "sesion": {
+          "evento": "thread.started",
+          "campo": "thread_id"
+        },
+        "texto": {
+          "evento": "item.completed",
+          "tipo_item": "agent_message",
+          "campo": "text"
+        },
+        "turnos": {
+          "evento": "turn.completed"
+        },
+        "error": {
+          "eventos": [
+            "turn.failed",
+            "error"
+          ]
+        }
+      },
+      "timeout_min": 30,
+      "entorno": {},
+      "healthcheck": {
+        "tipo": "binario"
+      }
+    },
+    "llama": {
+      "nombre": "Local Hermes 3 directo $0",
+      "tipo": "api_sincrona",
+      "descripcion": "llama.cpp (llama-server) con Hermes 3 8B en la RTX 3060. API compatible con OpenAI. Gratis.",
+      "url": "http://127.0.0.1:8080/v1/chat/completions",
+      "cuerpo": {
+        "messages": "{mensajes}",
+        "stream": false
+      },
+      "cuerpo_revision": {
+        "temperature": 0,
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "modelo": {
+        "campo": null,
+        "por_defecto": "hermes-3-8b-q4_k_m"
+      },
+      "sesion": {
+        "tipo": "historial_local"
+      },
+      "salida": {
+        "texto": "choices.0.message.content",
+        "turnos": 1,
+        "costo": 0.0,
+        "uso_in": [
+          "usage.prompt_tokens",
+          "timings.prompt_n"
+        ],
+        "uso_out": [
+          "usage.completion_tokens",
+          "timings.predicted_n"
+        ]
+      },
+      "timeout_min": 30,
+      "entorno": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost"
+      },
+      "healthcheck": {
+        "tipo": "http",
+        "url": "http://127.0.0.1:8080/health"
+      },
+      "servidor": {
+        "exe": "llama/llama-server.exe",
+        "gguf": "models/hermes-3-8b-q4_k_m.gguf",
+        "args": [
+          "-m",
+          "{gguf}",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8080",
+          "--ctx-size",
+          "8192",
+          "-ngl",
+          "99"
+        ],
+        "log": "llama/llama-server.log",
+        "espera_s": 180,
+        "como_instalar": "Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      },
+      "vivo": {
+        "_que_es": "Streaming (SSE): cada trozo es un token de salida; al final llega el uso real (usage o timings de llama.cpp).",
+        "stream": true,
+        "formato": "sse",
+        "cuerpo": {
+          "stream": true,
+          "stream_options": {
+            "include_usage": true
+          }
+        },
+        "trozo": "choices.0.delta.content",
+        "uso_in": [
+          "usage.prompt_tokens",
+          "timings.prompt_n"
+        ],
+        "uso_out": [
+          "usage.completion_tokens",
+          "timings.predicted_n"
+        ]
+      }
+    },
+    "ollama": {
+      "nombre": "Ollama (respaldo local $0)",
+      "tipo": "api_sincrona",
+      "descripcion": "Ollama por su API (POST /api/chat, sin ollama run). Respaldo gratis.",
+      "url": "http://127.0.0.1:11434/api/chat",
+      "cuerpo": {
+        "model": "{modelo}",
+        "messages": "{mensajes}",
+        "stream": false
+      },
+      "cuerpo_revision": {
+        "format": "json",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "modelo": {
+        "campo": "model",
+        "por_defecto": "@ollama_por_defecto"
+      },
+      "sesion": {
+        "tipo": "historial_local"
+      },
+      "salida": {
+        "texto": "message.content",
+        "turnos": 1,
+        "costo": 0.0,
+        "uso_in": [
+          "prompt_eval_count"
+        ],
+        "uso_out": [
+          "eval_count"
+        ]
+      },
+      "timeout_min": 30,
+      "entorno": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost"
+      },
+      "healthcheck": {
+        "tipo": "http",
+        "url": "http://127.0.0.1:11434/api/tags"
+      },
+      "vivo": {
+        "_que_es": "Streaming (NDJSON): cada trozo es un token de salida; el ultimo (done=true) trae prompt_eval_count / eval_count.",
+        "stream": true,
+        "formato": "ndjson",
+        "cuerpo": {
+          "stream": true
+        },
+        "trozo": "message.content",
+        "fin": "done",
+        "uso_in": [
+          "prompt_eval_count"
+        ],
+        "uso_out": [
+          "eval_count"
+        ]
+      }
+    },
+    "meshy": {
+      "nombre": "Meshy (3D)",
+      "tipo": "api_asincrona",
+      "especialidad": "3d",
+      "descripcion": "Motor especializado 3D (no de texto): crea una tarea de texto a modelo 3D, sondea el estado y descarga el .glb. Gasta creditos de Meshy: siempre pasa por la aprobacion.",
+      "clave_api": "meshy",
+      "crear": {
+        "metodo": "POST",
+        "url": "https://api.meshy.ai/openapi/v2/text-to-3d",
+        "cuerpo": {
+          "mode": "preview",
+          "prompt": "{prompt}"
+        },
+        "campo_id": "result"
+      },
+      "estado": {
+        "metodo": "GET",
+        "url": "https://api.meshy.ai/openapi/v2/text-to-3d/{tarea_id}",
+        "campo": "status",
+        "pendiente": [
+          "PENDING",
+          "IN_PROGRESS"
+        ],
+        "exito": "SUCCEEDED",
+        "fallo": [
+          "FAILED",
+          "CANCELED",
+          "EXPIRED"
+        ],
+        "cada_s": 10
+      },
+      "descargar": {
+        "campo_url": "model_urls.glb",
+        "carpeta": "outbox/meshy",
+        "extension": ".glb"
+      },
+      "sensible": [
+        "gastar"
+      ],
+      "timeout_min": 30,
+      "entorno": {},
+      "healthcheck": {
+        "tipo": "clave_api"
+      }
+    }
+  },
+  "precios": {
+    "_que_es": "Precio de lista para el ESTIMADO en vivo de Claude ($ por millon de tokens). Sacado el 25 oct 2026 de tareas reales: con estos numeros el estimado da exacto el costo que Claude Code reporta (total_cost_usd, costBasis 'list') en 8 tareas. Al terminar, el costo que vale es el que reporta Claude (cost_usd_final), no este. Un modelo nuevo sin precio aqui: el vivo dice 'sin precio' y no inventa.",
+    "por_millon": {
+      "claude-haiku-5-5": {
+        "entrada": 0.1,
+        "salida": 0.5,
+        "cache_lectura": 0.01,
+        "cache_escritura_1h": 0.2
+      },
+      "claude-sonnet-5-5": {
+        "entrada": 2.0,
+        "salida": 10.0,
+        "cache_lectura": 0.1,
+        "cache_escritura_1h": 4.0
+      },
+      "claude-opus-5-5": {
+        "entrada": 4.0,
+        "salida": 20.0,
+        "cache_lectura": 0.2,
+        "cache_escritura_1h": 8.0
+      }
+    },
+    "factores": {
+      "_que_es": "solo si el modelo no trae su propio precio de cache: multiplican el de entrada",
+      "cache_escritura_5m": 1.25,
+      "cache_escritura_1h": 2.0,
+      "cache_lectura": 0.1
+    },
+    "alias": {
+      "haiku": "claude-haiku-5-5",
+      "sonnet": "claude-sonnet-5-5",
+      "opus": "claude-opus-5-5"
+    }
+  }
+}
