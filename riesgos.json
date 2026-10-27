@@ -1,0 +1,216 @@
+{
+  "_que_es": "Tabla de niveles de riesgo R0-R3 por TIPO de accion y alcance. La lee el runner en cada tarea (no hay que reiniciar). Se puede editar a mano: cambiar el nivel de un tipo, las horas de vencimiento o las senales. Si este archivo no se puede leer, el runner trata TODA tarea como R3 (no hace nada sin ti) y lo dice en el registro.",
+  "_como_clasifica": "1) Las acciones que la tarea DECLARA en \"acciones\": [{\"tipo\": ..., \"ruta\": ..., \"usd\": ...}] (lo mas fiable). 2) Lo que la tarea o el motor marcan como \"sensible\". 3) Lo que se deduce del encargo con las \"senales\" de cada tipo (verbo + objeto, por frase; una frase que niega antes del verbo -no, nunca, sin...- no cuenta). Se usa la UNION de las tres: nunca menos que lo declarado. El nivel del pedido es el mayor de sus acciones. El alcance cambia el nivel: escribir dentro de la carpeta de trabajo es R0, fuera R1; gastar hasta umbral_gasto_usd es R1, mas (o sin cifra) R2; una ruta de rutas_r3 sube a R3.",
+  "version": 1,
+  "umbral_gasto_usd": 0.5,
+  "niveles": {
+    "R0": {
+      "nombre": "reversible y local",
+      "pide_aprobacion": false,
+      "explica": "Leer, listar, compilar o escribir en la carpeta de trabajo de la tarea: no pregunta."
+    },
+    "R1": {
+      "nombre": "reversible con costo o alcance",
+      "pide_aprobacion": true,
+      "vence_h": 24,
+      "alcance_aprobacion": "tipo",
+      "explica": "Escribir fuera de la carpeta de trabajo, gastar poco, crear archivos en el proyecto: una vez por tipo y por tarea; espera hasta 24 h."
+    },
+    "R2": {
+      "nombre": "irreversible o externo",
+      "pide_aprobacion": true,
+      "vence_h": 2,
+      "alcance_aprobacion": "accion",
+      "explica": "Borrar archivos, git push, publicar, enviar correo o mensaje, gastar mas del umbral: siempre, por accion exacta; vence en 2 h."
+    },
+    "R3": {
+      "nombre": "nunca sin ti delante",
+      "pide_aprobacion": true,
+      "vence_h": 2,
+      "alcance_aprobacion": "accion",
+      "solo_en_app": true,
+      "explica": "rm -rf, git push --force, cambiar claves, tocar .claude/ o credenciales, apagar el PC: solo en la app, nunca por WhatsApp; pedido por canal remoto = denegado al instante."
+    }
+  },
+  "pregunta_desde": {
+    "_que_es": "Desde que nivel pregunta cada opcion de Ajustes -> Permisos. R3 pregunta siempre, tambien con 'Hazlo sin preguntar'.",
+    "siempre": "R1",
+    "delicado": "R2",
+    "nunca": "R3"
+  },
+  "politicas": {
+    "_que_es": "Politicas por tipo (solo R1): \"permitir\" = ese tipo no pregunta nunca. Son politicas, no aprobaciones concretas; en R2/R3 se ignoran.",
+    "ejemplo_desactivado__escribir_fuera": "permitir"
+  },
+  "rutas_r3": [
+    ".claude",
+    ".ssh",
+    "credentials",
+    "credenciales",
+    "secret.txt",
+    "apis.json",
+    "proxy.json",
+    ".git-credentials",
+    ".env"
+  ],
+  "negaciones": [
+    "no",
+    "nunca",
+    "jamas",
+    "jamás",
+    "sin",
+    "ni",
+    "prohibido",
+    "prohibida",
+    "evita",
+    "evitar",
+    "never",
+    "dont",
+    "don't"
+  ],
+  "tipos": {
+    "leer": {
+      "nivel": "R0",
+      "nombre": "leer o listar archivos",
+      "senales": []
+    },
+    "compilar": {
+      "nivel": "R0",
+      "nombre": "compilar o probar",
+      "senales": []
+    },
+    "escribir_trabajo": {
+      "nivel": "R0",
+      "nombre": "escribir en la carpeta de trabajo",
+      "senales": []
+    },
+    "escribir_fuera": {
+      "nivel": "R1",
+      "nombre": "escribir fuera de la carpeta de trabajo",
+      "senales": [],
+      "_nota": "Se deduce por alcance: una ruta absoluta fuera de la carpeta de trabajo con un verbo de escribir en la misma frase."
+    },
+    "crear_en_proyecto": {
+      "nivel": "R1",
+      "nombre": "crear archivos en el proyecto",
+      "senales": []
+    },
+    "gastar_poco": {
+      "nivel": "R1",
+      "nombre": "gastar hasta el umbral",
+      "senales": [],
+      "_nota": "Lo decide la cifra: gastar con una cifra <= umbral_gasto_usd."
+    },
+    "gastar": {
+      "nivel": "R2",
+      "nombre": "gastar dinero",
+      "senales": [
+        "\\bgast\\w*\\s+(?:dinero|plata|\\$|\\d|cr[eé]ditos?|m[aá]s de)",
+        "\\bcompr(?:a|ar|e|o|es|en)\\b",
+        "\\bpag(?:a|ar|o|ue|ues)\\b",
+        "\\bsuscri\\w*",
+        "\\bcomprar cr[eé]ditos\\b"
+      ]
+    },
+    "borrar": {
+      "nivel": "R2",
+      "nombre": "borrar archivos",
+      "senales": [
+        "\\bborr(?:a|ar|ad[oa]s?|ando|e|en|es|o)(?:lo|la|los|las|me|te)?\\b",
+        "\\belimin(?:a|ar|ad[oa]s?|ando|e|en|es|o)(?:lo|la|los|las)?\\b",
+        "\\bdelete\\b",
+        "\\bremove\\b",
+        "\\brm\\s+\\S",
+        "\\bdel\\s+(?:/[a-z]\\b|[a-z]:\\\\)",
+        "\\bquit\\w* (?:el|la|los|las) (?:archivo|carpeta)"
+      ]
+    },
+    "git_push": {
+      "nivel": "R2",
+      "nombre": "subir cambios con git push",
+      "senales": [
+        "\\bgit\\s+push\\b",
+        "\\bhaz\\s+(?:un\\s+)?push\\b"
+      ]
+    },
+    "publicar": {
+      "nivel": "R2",
+      "nombre": "publicar",
+      "senales": [
+        "\\bpublic(?:a|ar|ad[oa]s?|ando|alo|ala|alos|en|ue|quen)\\b",
+        "\\bdeploy\\w*",
+        "\\bdespl[ei]eg\\w*",
+        "\\bsub[ei]r? (?:a|al) (?:github|internet|la web|producci[oó]n|youtube|instagram)",
+        "\\bupload\\w*"
+      ]
+    },
+    "enviar": {
+      "nivel": "R2",
+      "nombre": "enviar correo o mensaje",
+      "senales": [
+        "\\benv[ií](?:a|ar|o|e|es|en)\\w*\\s+(?:un |el |la |los |las )?(?:correo|e-?mail|mensaje|whatsapp|sms|telegram|a\\s)",
+        "\\bmand(?:a|ar|e)\\w*\\s+(?:un |el )?(?:correo|e-?mail|mensaje|whatsapp)",
+        "\\bsend\\s+(?:an?\\s+)?(?:e-?mail|message)",
+        "\\bescrib\\w*\\s+(?:un (?:correo|mensaje) )?a\\s+(?:otras personas|mis clientes|todos)"
+      ]
+    },
+    "permisos_totales": {
+      "nivel": "R2",
+      "nombre": "correr con permisos totales (bypassPermissions)",
+      "senales": []
+    },
+    "borrar_recursivo": {
+      "nivel": "R3",
+      "nombre": "borrar en masa (rm -rf y parecidos)",
+      "senales": [
+        "\\brm\\s+-(?:rf|fr|r)\\b",
+        "\\bremove-item\\b[^\\n]*-recurse",
+        "\\brmdir\\s+/s\\b",
+        "\\bdel\\s+/s\\b",
+        "\\bformat\\w*\\s+(?:el disco|[a-z]:)",
+        "\\bborr\\w*\\s+(?:todo|toda|todos|todas)\\b",
+        "\\bvac[ií]a\\w*\\s+(?:la|el)\\s+(?:carpeta|disco|papelera)"
+      ]
+    },
+    "git_push_force": {
+      "nivel": "R3",
+      "nombre": "git push --force",
+      "senales": [
+        "\\bgit\\s+push\\b[^\\n.;]*?(?:--force\\b|\\s-f\\b)"
+      ]
+    },
+    "cambiar_claves": {
+      "nivel": "R3",
+      "nombre": "cambiar claves o contrasenas",
+      "senales": [
+        "\\bcambi\\w*\\s+(?:la |las |mi |mis |tu |tus |el |los )?(?:clave|claves|contrase[nñ]a|contrase[nñ]as|password|api key|token)",
+        "\\brot\\w*\\s+(?:la |las |el |los )?(?:clave|claves|token|api key)"
+      ]
+    },
+    "tocar_credenciales": {
+      "nivel": "R3",
+      "nombre": "tocar .claude/ o credenciales",
+      "senales": [
+        "\\b(?:edit|modific|borr|cambi|toc|escrib|sobrescrib|mueve|mover|copi)\\w*\\b[^.;\\n]{0,60}(?:\\.claude\\b|credencial|secret\\.txt|apis\\.json|\\.ssh\\b|\\.env\\b)"
+      ]
+    },
+    "apagar_pc": {
+      "nivel": "R3",
+      "nombre": "apagar o reiniciar el PC",
+      "senales": [
+        "\\b(?:apag|reinici)\\w*\\s+(?:el |la |mi |tu )?(?:pc|ordenador|computador|computadora|equipo|m[aá]quina)\\b",
+        "\\bshutdown\\s+/[sr]\\b",
+        "\\bstop-computer\\b",
+        "\\brestart-computer\\b"
+      ]
+    }
+  },
+  "mapa_sensible": {
+    "_que_es": "Las categorias viejas de \"sensible\" (en tareas y motores) -> tipo de esta tabla.",
+    "borrar": "borrar",
+    "publicar": "publicar",
+    "gastar": "gastar",
+    "enviar": "enviar"
+  },
+  "_acentos": "Antes de comparar, el encargo se pasa a minusculas y SIN acentos: las senales se escriben sin tildes."
+}

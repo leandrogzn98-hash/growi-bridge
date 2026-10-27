@@ -1,8 +1,34 @@
 {
-  "_que_es": "Motores del runner de Growi Bridge. Un corredor, muchos motores: cada task elige su motor con el campo \"motor\" (por defecto \"claude\"). Los textos {prompt}, {modelo}, {session_id}, {cwd}, {allowed_tools}, {disallowed_tools}, {permission_mode} se rellenan con los datos de la tarea. Las rutas relativas son relativas a la carpeta de growi-bridge.py. Modo seguro: ningun motor lleva bypassPermissions ni --yolo; los permisos los pide cada tarea.",
+  "_que_es": "Motores del runner de Growi Bridge, esquema 2 (descriptor generico): los motores se DESCRIBEN con datos, no se programan uno a uno. El runner lee solo el descriptor; no hay codigo especial por motor. Un descriptor mal formado no rompe el runner: ese motor queda 'no disponible' con el motivo. Cada task elige su motor con \"motor\" (por defecto el de por_defecto). Modo seguro: ningun motor lleva bypassPermissions ni --yolo; los permisos los pide cada tarea. Las rutas relativas son relativas a la carpeta de growi-bridge.py.",
+  "esquema": 2,
+  "_esquema": {
+    "id": "el mismo nombre que la clave del motor",
+    "nombre": "nombre visible",
+    "invocacion": "tipo comando | http | http_asincrono. comando: plantilla = lista de argumentos con huecos {prompt} {cwd} {session} {model} (y {binario}, {permisos}, {allowed_tools}, {disallowed_tools}, {permission_mode}); una sublista es OPCIONAL: solo se pone si todos sus huecos tienen valor. prompt_por argumento | stdin (sin {prompt} en la plantilla: stdin). http: metodo + ruta (se pega a base_url) + cuerpo ({mensajes}, {modelo}, {prompt}). http_asincrono: crear, estado (sondeo PENDING/IN_PROGRESS/SUCCEEDED/FAILED) y descargar.",
+    "formato_salida": "json_por_lineas | json_final | texto_plano",
+    "extraer": "como sacar de la salida texto, costo, turnos y sesion: ruta JSON ('choices.0.message.content'), {\"ruta\": [...]} (la primera que exista), {\"evento\": tipo, \"ruta\": ..., \"si\": {ruta: valor}} en json_por_lineas, {\"contar_evento\": tipo}, {\"fijo\": valor, \"por_que\": ...}, o \"no_lo_da\" (entonces la ventana dice 'sin dato', nunca un numero inventado) En json_final: error_si = ruta que vale true, o {\"ruta\": \"status\", \"igual\" | \"distinto_de\": valor}; error = {\"ruta\": ...} con el mensaje.",
+    "reanudar": "{\"modo\": \"en_plantilla\"} (la plantilla ya lleva {session}) | {\"modo\": \"argumento\", \"args\": [\"--session-id\", \"{session}\"]} | {\"modo\": \"plantilla\", \"plantilla\": [...]} | {\"modo\": \"historial_local\"} | \"no_soporta\" (las rondas van como sesion nueva con resumen)",
+    "errores": "transitorio: patrones que se reintentan (429/5xx/timeout/sin respuesta); definitivo: patrones que no (400/401/403/configuracion). Se mira primero definitivo. auth: patrones de 401 / sesión caducada → «clave inválida o sesión caducada», definitivo, y se vuelve a comprobar el acceso.",
+    "timeout_min": "minutos por defecto de una tarea con este motor",
+    "entorno": "variables de entorno del motor. NO_PROXY=127.0.0.1,localhost siempre va (el proxy local intercepta 127.0.0.1 con un 500 falso); el JSON se manda en UTF-8",
+    "requisitos": "binario, archivos, version_min, version_comando, clave (true si necesita credencial), suscripcion; version_min: la ficha dice si la versión instalada llega",
+    "base_url": "a donde apunta la API de ese motor (oficial del proveedor; locales http://127.0.0.1:puerto)",
+    "credencial_ref": "{proveedor, etiqueta}: el motor usa la clave ACTIVA de ese proveedor en Ajustes -> Claves (Administrador de credenciales de Windows, destino growi-bridge/<proveedor>-<etiqueta>, o respaldo DPAPI), a la base_url de esa clave; la etiqueta solo vale para el destino viejo growi-bridge/<proveedor>/<etiqueta>. null si no usa clave. credencial_como: {\"entorno\": VAR} o {\"cabecera\": H, \"formato\": \"Bearer {clave}\"}",
+    "capacidades": "streaming, reanudar, costo, herramientas, habilidades_growi: lo que la ficha honesta dice que puede (y lo que NO puede)",
+    "verificado_en_vivo": "false = 'sin verificar en vivo' en la ficha (nota_verificacion dice por que)",
+    "fallback": "lista de motores de respaldo: DECLARADO, sin implementar (es de t-router-fallbacks)",
+    "carril_b": "true si el carril B puede usarlo (solo nube)",
+    "contexto": "{tokens, props?, campo?, tokenizar?, reserva_salida?, fuente}: cuánto cabe en una petición del motor. La revisión pregunta al servidor (props) y cuenta con su tokenizador si lo hay; si el prompt del juez no cabe, recorta el parte del motor y la obra y lo dice. null = sin dato (no se recorta).",
+    "esquema_rubrica_en": "ruta del cuerpo HTTP donde va el esquema JSON de la rúbrica para que el servidor fuerce la salida (llama.cpp: response_format.schema; Ollama: format). Igual se valida al llegar.",
+    "autenticacion": "opcional. {preferencia: [sesion_cli, clave], sesion_cli: {nombre, comprobar: [\"{binario}\", ...] (sin gastar), sin_sesion_si: patrón, timeout_s, como_iniciar}, quitar_entorno: [VAR...]}: el motor puede entrar con la sesión propia de su programa (OAuth que guarda el CLI) en vez de con clave. Si la sesión vale, está disponible sin clave y se le quitan esas variables del entorno.",
+    "puede": "lista de lo que SÍ hace (la ficha lo muestra en «Qué sí puede»)",
+    "no_puede": "lista de lo que NO puede, además de lo que se deduce de capacidades",
+    "frase_selector": "frase del motor en «Quién responde» (si en_selector y disponible; Ollama la usa en sus filas de modelo)",
+    "convive": "opcional: con qué otro motor comparte recursos (p. ej. la VRAM) y cuándo se usa cada uno; la ficha lo muestra en «Convive con»"
+  },
   "por_defecto": "claude",
   "revision": {
-    "_que_es": "Motores baratos para revisar una tarea terminada, en este orden. Solo se usa uno si responde en ese momento (llama no se arranca solo para revisar).",
+    "_que_es": "El revisor es un motor más, descrito aquí. (1) Los criterios tipados del task se comprueban con código ($0) y mandan: si uno falla no hay aprobación. (2) Juez 1: el primero de «orden» que responda (un juez que responde con un JSON que no cumple el esquema de la rúbrica NO se salta: la revisión queda «sin revisión»); llama no se arranca solo para revisar. (3) Juez 2 («segundo_juez»): solo si un check falló o la tarea es R2/R3, nunca en R0; si no coinciden, la tarea queda «necesita decisión» con los dos veredictos.",
     "orden": [
       {
         "motor": "llama"
@@ -13,9 +39,45 @@
       {
         "motor": "claude",
         "modelo": "haiku",
-        "allowed_tools": "Read,Glob,Grep"
+        "allowed_tools": "Read,Glob,Grep",
+        "solo_desde": "R1",
+        "_por_que": "Haiku nunca se gasta en tareas R0 (si Hermes y Ollama no responden, una R0 queda sin revisión)."
       }
     ],
+    "segundo_juez": {
+      "motor": "claude",
+      "modelo": "haiku",
+      "allowed_tools": "Read,Glob,Grep",
+      "_que_es": "Juez barato de otra familia (solo lectura). Se llama solo en desacuerdo o riesgo alto."
+    },
+    "rubrica": {
+      "dimensiones": [
+        "completitud",
+        "correccion",
+        "no_regresion",
+        "evidencia"
+      ],
+      "escala": "1-5",
+      "umbral_min": 3,
+      "_que_es": "Aprobado exige que el juez diga «si» y que las 4 dimensiones lleguen al umbral. El umbral se ajusta A MANO tras revisar calibracion-revisor.json (cada ~30 casos); nada cambia solo."
+    },
+    "comandos_permitidos": [
+      "python",
+      "py",
+      "node",
+      "npm",
+      "npx",
+      "pnpm",
+      "yarn",
+      "pytest",
+      "git",
+      "dotnet",
+      "cargo",
+      "go",
+      "tsc"
+    ],
+    "_comandos": "Criterios tipados compila/comando: un solo programa de esta lista con sus argumentos, sin shell (se rechazan & | < > ^ ; ` $( y %VARIABLES%); git solo para leer. Corren ocultos en la carpeta de la tarea con tope de tiempo.",
+    "timeout_check_s": 60,
     "max_rondas": 3
   },
   "router": {
@@ -235,6 +297,7 @@
   },
   "motores": {
     "claude": {
+      "id": "claude",
       "nombre": "Claude",
       "tipo": "cli_sincrono",
       "descripcion": "Motor principal. Usa la sesion Max de Claude Code.",
@@ -301,7 +364,12 @@
         "error_si": "is_error"
       },
       "timeout_min": 30,
-      "entorno": {},
+      "entorno": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
       "healthcheck": {
         "tipo": "binario"
       },
@@ -318,12 +386,123 @@
           "--verbose",
           "--include-partial-messages"
         ]
+      },
+      "invocacion": {
+        "tipo": "comando",
+        "plantilla": [
+          "{binario}",
+          "-p",
+          "{prompt}",
+          "--output-format",
+          "json",
+          [
+            "--model",
+            "{model}"
+          ],
+          [
+            "--resume",
+            "{session}"
+          ],
+          [
+            "--allowedTools",
+            "{allowed_tools}"
+          ],
+          [
+            "--disallowedTools",
+            "{disallowed_tools}"
+          ],
+          [
+            "--permission-mode",
+            "{permission_mode}"
+          ]
+        ],
+        "prompt_por": "argumento"
+      },
+      "formato_salida": "json_final",
+      "extraer": {
+        "texto": "result",
+        "costo": {
+          "ruta": [
+            "total_cost_usd",
+            "cost_usd"
+          ]
+        },
+        "turnos": {
+          "ruta": "num_turns"
+        },
+        "sesion": {
+          "ruta": "session_id"
+        },
+        "error_si": "is_error"
+      },
+      "reanudar": {
+        "modo": "en_plantilla",
+        "como": "--resume {session}"
+      },
+      "errores": {
+        "transitorio": [
+          "\\b429\\b",
+          "\\b5(?:00|02|03|04|29)\\b",
+          "timed? ?out|timeout",
+          "sin respuesta",
+          "no responde",
+          "conexi[oó]n cortada",
+          "sin conexi[oó]n",
+          "overloaded",
+          "rate.?limit",
+          "l[ií]mite de uso",
+          "PROXY:",
+          "ECONNRE|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed"
+        ],
+        "definitivo": [
+          "\\b40[013]\\b",
+          "clave rechazada",
+          "sin permiso",
+          "falta la clave",
+          "sin credencial",
+          "no encuentro '",
+          "no est[aá] instalado",
+          "descriptor mal formado",
+          "configuraci[oó]n",
+          "CODIFICACI[OÓ]N"
+        ]
+      },
+      "requisitos": {
+        "binario": "claude",
+        "version_min": null,
+        "version_comando": [
+          "{binario}",
+          "--version"
+        ],
+        "clave": false,
+        "suscripcion": "Claude Max (sesión de Claude Code iniciada en este PC)"
+      },
+      "base_url": "https://api.anthropic.com",
+      "credencial_ref": null,
+      "capacidades": {
+        "streaming": true,
+        "reanudar": true,
+        "costo": true,
+        "herramientas": true,
+        "habilidades_growi": true
+      },
+      "carril_b": true,
+      "ubicacion": "nube",
+      "verificado_en_vivo": true,
+      "nota_verificacion": "Motor principal: corre cada día (orquestación, consumo en vivo, router).",
+      "fallback": [],
+      "_compat_v1": "Las claves tipo, binario, script_npm, comando, comando_reanudar, prompt_por, salida, sesion, url, cuerpo, crear, estado, descargar, clave_api y healthcheck.url de este motor son la forma v1: solo las lee la app 0.2.0 hasta que se reinicie. El runner nuevo lee solo los campos v2 (invocacion, formato_salida, extraer, reanudar, errores, requisitos, base_url, credencial_ref, capacidades). Se pueden borrar despues del reinicio.",
+      "contexto": {
+        "tokens": 9000,
+        "reserva_salida": 0,
+        "fuente": "tope de la línea de comandos de Windows (32 767 caracteres): el prompt va como argumento; ~9 000 tokens a 3 caracteres por token"
       }
     },
     "codex": {
+      "id": "codex",
       "nombre": "Codex",
       "tipo": "cli_sincrono",
-      "descripcion": "Segundo motor (OpenAI Codex CLI). Solo si el binario existe.",
+      "descripcion": "Segundo motor de texto/código (OpenAI Codex CLI, `codex exec --json`), lanzado con node + codex.js (nunca por cmd.exe). Entra con la sesión ChatGPT Plus del propio CLI (sin clave). Solo lectura salvo acceptEdits (sandbox workspace-write).",
       "binario": "codex",
       "script_npm": "node_modules/@openai/codex/bin/codex.js",
       "comando": [
@@ -404,15 +583,187 @@
         }
       },
       "timeout_min": 30,
-      "entorno": {},
+      "entorno": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
       "healthcheck": {
         "tipo": "binario"
-      }
+      },
+      "invocacion": {
+        "tipo": "comando",
+        "plantilla": [
+          "{binario}",
+          "exec",
+          "--json",
+          "--skip-git-repo-check",
+          "-C",
+          "{cwd}",
+          "{permisos}",
+          [
+            "-m",
+            "{model}"
+          ],
+          "-"
+        ],
+        "prompt_por": "stdin"
+      },
+      "formato_salida": "json_por_lineas",
+      "extraer": {
+        "texto": {
+          "evento": "item.completed",
+          "ruta": "item.text",
+          "si": {
+            "item.type": "agent_message"
+          },
+          "toma": "ultimo"
+        },
+        "costo": "no_lo_da",
+        "turnos": {
+          "contar_evento": "turn.completed"
+        },
+        "sesion": {
+          "evento": "thread.started",
+          "ruta": "thread_id"
+        },
+        "error": {
+          "eventos": [
+            "turn.failed",
+            "error"
+          ],
+          "ruta": [
+            "error.message",
+            "message"
+          ]
+        },
+        "_visto": "Salida real de codex-cli 0.160.1 bajo subprocess con stdin, 26 oct 2026: JSONL, un evento por línea con campo type. Paso 1 (con herramienta): thread.started{thread_id} → turn.started → item.started{item:{type:command_execution,command,status:in_progress}} → item.completed{item:{type:command_execution,exit_code:0,status:completed}} → item.completed{item:{id,type:agent_message,text}} → turn.completed{usage:{input_tokens,cached_input_tokens,cache_write_input_tokens,output_tokens,reasoning_output_tokens}}. Resume: thread.started con el MISMO thread_id → turn.started → item.completed(agent_message) → turn.completed. Sin costo en $ ni nombre de modelo en la salida (el modelo sale solo en ~/.codex/sessions: gpt-6.1-sol, effort high, plan_type plus)."
+      },
+      "reanudar": {
+        "modo": "plantilla",
+        "plantilla": [
+          "{binario}",
+          "exec",
+          "--json",
+          "--skip-git-repo-check",
+          "-C",
+          "{cwd}",
+          "{permisos}",
+          [
+            "-m",
+            "{model}"
+          ],
+          "resume",
+          "{session}",
+          "-"
+        ],
+        "como": "exec --json ... resume {session} - (el thread_id de thread.started)"
+      },
+      "errores": {
+        "transitorio": [
+          "\\b429\\b",
+          "\\b5(?:00|02|03|04|29)\\b",
+          "timed? ?out|timeout",
+          "sin respuesta",
+          "no responde",
+          "conexi[oó]n cortada",
+          "sin conexi[oó]n",
+          "overloaded",
+          "rate.?limit",
+          "l[ií]mite de uso",
+          "PROXY:",
+          "ECONNRE|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed"
+        ],
+        "definitivo": [
+          "\\b40[013]\\b",
+          "clave rechazada",
+          "sin permiso",
+          "falta la clave",
+          "sin credencial",
+          "no encuentro '",
+          "no est[aá] instalado",
+          "descriptor mal formado",
+          "configuraci[oó]n",
+          "CODIFICACI[OÓ]N"
+        ],
+        "auth": [
+          "\\b401\\b",
+          "Unauthorized",
+          "Not logged in",
+          "refresh token",
+          "token (?:has )?expired",
+          "Please (?:re-?)?log ?in",
+          "codex login"
+        ],
+        "_que_es": "auth: 401 / sesión de ChatGPT caducada → «clave inválida o sesión caducada», definitivo, y se vuelve a comprobar `codex login status`. El stderr de cada corrida trae «AuthRequired» de un MCP propio de la config de Codex (memoria-mcp): no es un fallo de Codex y ningún patrón lo casa."
+      },
+      "requisitos": {
+        "binario": "codex",
+        "script_npm": "node_modules/@openai/codex/bin/codex.js",
+        "version_min": null,
+        "version_comando": [
+          "{binario}",
+          "--version"
+        ],
+        "clave": false,
+        "suscripcion": "ChatGPT Plus de Leandro ($20/mes, ya pagado): sesión del CLI (`codex login status` → «Logged in using ChatGPT»)"
+      },
+      "base_url": "https://api.openai.com/v1",
+      "credencial_ref": null,
+      "capacidades": {
+        "streaming": false,
+        "reanudar": true,
+        "costo": false,
+        "herramientas": true,
+        "habilidades_growi": false
+      },
+      "carril_b": true,
+      "ubicacion": "nube",
+      "verificado_en_vivo": true,
+      "nota_verificacion": "Verificado en vivo el 26 oct 2026 (codex-cli 0.160.1, sesión ChatGPT Plus, modelo gpt-6.1-sol): tarea corta por run_engine con acceptEdits → exit 0, 34 s, creó codex-prueba.txt (uno/dos/tres), result «LISTO», num_turns 1, session_id = thread_id; resume en la misma sesión → exit 0, 19 s, «uno, dos, tres» sin herramientas. Costo: sin dato (el CLI no lo da). Ver share\\outbox\\ESTADO-CODEX.md.",
+      "fallback": [],
+      "_compat_v1": "Las claves tipo, binario, script_npm, comando, comando_reanudar, prompt_por, salida, sesion, url, cuerpo, crear, estado, descargar, clave_api y healthcheck.url de este motor son la forma v1: solo las lee la app 0.2.0 hasta que se reinicie. El runner nuevo lee solo los campos v2 (invocacion, formato_salida, extraer, reanudar, errores, requisitos, base_url, credencial_ref, capacidades). Se pueden borrar despues del reinicio.",
+      "autenticacion": {
+        "preferencia": [
+          "sesion_cli"
+        ],
+        "sesion_cli": {
+          "nombre": "sesión ChatGPT Plus de Codex",
+          "comprobar": [
+            "{binario}",
+            "login",
+            "status"
+          ],
+          "sin_sesion_si": "not logged in|api key",
+          "timeout_s": 30,
+          "como_iniciar": "abre una terminal normal de Windows, escribe codex login, entra con tu cuenta de ChatGPT (Plus) en el navegador y pulsa «Comprobar ahora» en Modelos → Motores"
+        },
+        "quitar_entorno": [
+          "OPENAI_API_KEY",
+          "CODEX_API_KEY"
+        ],
+        "_que_es": "Solo la sesión ChatGPT del CLI (no hay credencial_ref): `codex login status` es gratis. Si dijera «Not logged in» o «Logged in using an API key», el motor queda no disponible: Codex no debe gastar por API key. OPENAI_API_KEY / CODEX_API_KEY se quitan de su entorno."
+      },
+      "puede": [
+        "texto y código",
+        "edita archivos en la carpeta de la tarea con acceptEdits (sandbox workspace-write); sin permiso, solo lectura",
+        "reanuda la misma sesión (exec resume <thread_id>): verificado en vivo, recordó la ronda anterior",
+        "da turnos (turn.completed) y tokens por turno, no costo",
+        "$0 marginal: va con la suscripción ChatGPT Plus que ya pagas"
+      ],
+      "no_puede": [
+        "no usa las habilidades de Growi",
+        "consume el límite de uso de ChatGPT Plus (si se acaba, falla hasta que se renueve)"
+      ],
+      "frase_selector": "Codex (ChatGPT Plus): segundo motor de código, $0 extra sobre tu suscripción.",
+      "en_selector": true
     },
     "llama": {
+      "id": "llama",
       "nombre": "Local Hermes 3 directo $0",
       "tipo": "api_sincrona",
-      "descripcion": "llama.cpp (llama-server) con Hermes 3 8B en la RTX 3060. API compatible con OpenAI. Gratis.",
+      "descripcion": "llama.cpp (llama-server) en modo router: un solo endpoint 127.0.0.1:8080 para todos los .gguf de models\\ (uno cargado a la vez en la RTX 3060). API compatible con OpenAI. Gratis.",
       "url": "http://127.0.0.1:8080/v1/chat/completions",
       "cuerpo": {
         "messages": "{mensajes}",
@@ -425,8 +776,9 @@
         }
       },
       "modelo": {
-        "campo": null,
-        "por_defecto": "hermes-3-8b-q4_k_m"
+        "campo": "model",
+        "por_defecto": "hermes-3-8b-q4_k_m",
+        "_router": "el router exige \"model\" en cada peticion (sin el: 400). Nombre = el .gguf de models\\ sin extension."
       },
       "sesion": {
         "tipo": "historial_local"
@@ -447,27 +799,40 @@
       "timeout_min": 30,
       "entorno": {
         "NO_PROXY": "127.0.0.1,localhost",
-        "no_proxy": "127.0.0.1,localhost"
+        "no_proxy": "127.0.0.1,localhost",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
       },
       "healthcheck": {
         "tipo": "http",
-        "url": "http://127.0.0.1:8080/health"
+        "url": "http://127.0.0.1:8080/health",
+        "ruta": "/health"
       },
       "servidor": {
+        "modo": "router",
+        "_router": "Un proceso padre en 127.0.0.1:8080 (--models-dir, sin -m) y un hijo por modelo cargado en otro puerto de 127.0.0.1. --models-max cuenta modelos, no memoria: 1 en 6 GB (dos 8B no caben). Verificado build 11873, 26 oct 2026: /models, /models/load y /models/unload funcionan; el router solo descubre los .gguf al arrancar. No auto-actualizar llama-server: fijar el exe y probar cada build.",
         "exe": "llama/llama-server.exe",
         "gguf": "models/hermes-3-8b-q4_k_m.gguf",
+        "models_dir": "models",
+        "preset": "models-preset.ini",
         "args": [
-          "-m",
-          "{gguf}",
+          "--models-dir",
+          "..\\models",
+          "--models-max",
+          "1",
+          "--models-preset",
+          "..\\models-preset.ini",
           "--host",
           "127.0.0.1",
           "--port",
-          "8080",
-          "--ctx-size",
-          "8192",
-          "-ngl",
-          "99"
+          "8080"
         ],
+        "router": {
+          "modelos": "/models",
+          "cargar": "/models/load",
+          "descargar": "/models/unload",
+          "espera_carga_s": 300
+        },
         "log": "llama/llama-server.log",
         "espera_s": 180,
         "como_instalar": "Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
@@ -491,12 +856,113 @@
           "usage.completion_tokens",
           "timings.predicted_n"
         ]
-      }
+      },
+      "invocacion": {
+        "tipo": "http",
+        "metodo": "POST",
+        "ruta": "/v1/chat/completions",
+        "cuerpo": {
+          "messages": "{mensajes}",
+          "stream": false
+        }
+      },
+      "formato_salida": "json_final",
+      "extraer": {
+        "texto": "choices.0.message.content",
+        "costo": {
+          "fijo": 0.0,
+          "por_que": "corre en tu PC: no cuesta dinero"
+        },
+        "turnos": {
+          "fijo": 1
+        },
+        "sesion": "historial_local",
+        "uso_in": [
+          "usage.prompt_tokens",
+          "timings.prompt_n"
+        ],
+        "uso_out": [
+          "usage.completion_tokens",
+          "timings.predicted_n"
+        ]
+      },
+      "reanudar": {
+        "modo": "historial_local",
+        "como": "historial en sesiones\\<id>.json"
+      },
+      "errores": {
+        "transitorio": [
+          "no responde",
+          "servidor apagado",
+          "sin respuesta",
+          "conexi[oó]n cortada",
+          "todav[ií]a est[aá] cargando",
+          "no respondi[oó] en",
+          "se cerr[oó] al arrancar",
+          "\\b5(?:00|02|03|04)\\b",
+          "PROXY:",
+          "timed? ?out|timeout"
+        ],
+        "definitivo": [
+          "\\b40[013]\\b",
+          "CODIFICACI[OÓ]N",
+          "no est[aá] instalado",
+          "falta .*\\.(?:exe|gguf)",
+          "descriptor mal formado",
+          "no es una direcci[oó]n local"
+        ]
+      },
+      "requisitos": {
+        "binario": null,
+        "archivos": [
+          "llama/llama-server.exe",
+          "models/hermes-3-8b-q4_k_m.gguf",
+          "models-preset.ini"
+        ],
+        "version_min": null,
+        "version_comando": [
+          "llama/llama-server.exe",
+          "--version"
+        ],
+        "clave": false,
+        "suscripcion": null
+      },
+      "base_url": "http://127.0.0.1:8080",
+      "credencial_ref": null,
+      "capacidades": {
+        "streaming": true,
+        "reanudar": true,
+        "costo": true,
+        "herramientas": false,
+        "habilidades_growi": false
+      },
+      "carril_b": false,
+      "ubicacion": "local",
+      "verificado_en_vivo": true,
+      "nota_verificacion": "API sincrona compatible con OpenAI (no es un CLI). Modo router verificado el 26 oct 2026 (t-router-llama-server): /models, /models/load, /models/unload y chat con \"model\".",
+      "no_puede": [
+        "comparte la VRAM con Ollama (mismo Hermes 3 8B, otro programa): con los dos cargados en la RTX 3060 de 6 GB quedan 111 MiB libres y va más lento (medido el 26 oct 2026: carga 28,5 s en vez de 15,2 s, 34 tok/s en vez de 45). El router usa uno a la vez"
+      ],
+      "convive": "Mismo Hermes 3 8B que «Ollama · Hermes 3 8B» (127.0.0.1:11434). Aquí el .gguf vive en models\\ y lo trae el descargador GGUF (catálogo curado); contexto 8192 (preset). El router lo prefiere para lo simple y cae a Ollama si no está. No corren bien a la vez en 6 GB de VRAM.",
+      "fallback": [],
+      "_compat_v1": "Las claves tipo, binario, script_npm, comando, comando_reanudar, prompt_por, salida, sesion, url, cuerpo, crear, estado, descargar, clave_api y healthcheck.url de este motor son la forma v1: solo las lee la app 0.2.0 hasta que se reinicie. El runner nuevo lee solo los campos v2 (invocacion, formato_salida, extraer, reanudar, errores, requisitos, base_url, credencial_ref, capacidades). Se pueden borrar despues del reinicio.",
+      "contexto": {
+        "tokens": 8192,
+        "props": "/props",
+        "campo": "default_generation_settings.n_ctx",
+        "tokenizar": "/tokenize",
+        "reserva_salida": 800,
+        "fuente": "ctx-size 8192 y parallel 1 del preset [hermes-3-8b-q4_k_m] de models-preset.ini",
+        "_medido": "26 oct 2026: 7 516 tokens de prompt caben; 8 311 -> HTTP 400 exceed_context_size_error (n_ctx 8192, 4 slots con la caché unificada)",
+        "_router": "26 oct 2026, router build 11873 con el preset: n_slots = 1, n_ctx_slot = 8192, kv_unified = false (una tarea a la vez con las 8192 enteras). En modo router /props sin ?model= da n_ctx 0 y se usa este dato."
+      },
+      "esquema_rubrica_en": "response_format.schema"
     },
     "ollama": {
-      "nombre": "Ollama (respaldo local $0)",
+      "id": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
       "tipo": "api_sincrona",
-      "descripcion": "Ollama por su API (POST /api/chat, sin ollama run). Respaldo gratis.",
+      "descripcion": "Ollama 0.40.10 por su API (POST /api/chat con stream:false, sin ollama run) con Hermes 3 8B (Q4_K_M). Corre en tu PC, gratis. Es el mismo modelo que «Local Hermes 3 directo» (llama-server), servido por otro programa.",
       "url": "http://127.0.0.1:11434/api/chat",
       "cuerpo": {
         "model": "{modelo}",
@@ -530,11 +996,18 @@
       "timeout_min": 30,
       "entorno": {
         "NO_PROXY": "127.0.0.1,localhost",
-        "no_proxy": "127.0.0.1,localhost"
+        "no_proxy": "127.0.0.1,localhost",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
       },
       "healthcheck": {
         "tipo": "http",
-        "url": "http://127.0.0.1:11434/api/tags"
+        "url": "http://127.0.0.1:11434/api/tags",
+        "ruta": "/api/tags",
+        "despertar": [
+          "{binario}",
+          "list"
+        ]
       },
       "vivo": {
         "_que_es": "Streaming (NDJSON): cada trozo es un token de salida; el ultimo (done=true) trae prompt_eval_count / eval_count.",
@@ -551,9 +1024,109 @@
         "uso_out": [
           "eval_count"
         ]
-      }
+      },
+      "invocacion": {
+        "tipo": "http",
+        "metodo": "POST",
+        "ruta": "/api/chat",
+        "cuerpo": {
+          "model": "{modelo}",
+          "messages": "{mensajes}",
+          "stream": false
+        }
+      },
+      "formato_salida": "json_final",
+      "extraer": {
+        "texto": "message.content",
+        "costo": {
+          "fijo": 0.0,
+          "por_que": "corre en tu PC: no cuesta dinero"
+        },
+        "turnos": {
+          "fijo": 1
+        },
+        "sesion": "historial_local",
+        "uso_in": [
+          "prompt_eval_count"
+        ],
+        "uso_out": [
+          "eval_count"
+        ]
+      },
+      "reanudar": {
+        "modo": "historial_local",
+        "como": "historial en sesiones\\<id>.json"
+      },
+      "errores": {
+        "transitorio": [
+          "no responde",
+          "servidor apagado",
+          "sin respuesta",
+          "conexi[oó]n cortada",
+          "todav[ií]a est[aá] cargando",
+          "no respondi[oó] en",
+          "se cerr[oó] al arrancar",
+          "\\b5(?:00|02|03|04)\\b",
+          "PROXY:",
+          "timed? ?out|timeout"
+        ],
+        "definitivo": [
+          "\\b40[013]\\b",
+          "CODIFICACI[OÓ]N",
+          "no est[aá] instalado",
+          "falta .*\\.(?:exe|gguf)",
+          "descriptor mal formado",
+          "no es una direcci[oó]n local"
+        ]
+      },
+      "requisitos": {
+        "binario": "ollama",
+        "version_min": null,
+        "version_comando": [
+          "{binario}",
+          "--version"
+        ],
+        "clave": false,
+        "suscripcion": null
+      },
+      "base_url": "http://127.0.0.1:11434",
+      "credencial_ref": null,
+      "capacidades": {
+        "streaming": true,
+        "reanudar": true,
+        "costo": true,
+        "herramientas": false,
+        "habilidades_growi": false
+      },
+      "carril_b": false,
+      "ubicacion": "local",
+      "verificado_en_vivo": true,
+      "nota_verificacion": "26 oct 2026 (t-ollama-formalizar): ollama.exe 0.40.10 en %LOCALAPPDATA%\\Programs\\Ollama; GET /api/tags lista hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M (8.03B, Q4_K_M, 4,9 GB); POST /api/chat stream:false → 200 con texto; una tarea real del runner con motor ollama respondió ($0). Decisión de Leandro (26 oct 2026): Bridge usa Hermes local vía Ollama.",
+      "puede": [
+        "texto: responde con Hermes 3 8B en tu PC, sin internet y sin clave",
+        "$0: no cuesta dinero (solo luz y VRAM)",
+        "reanuda guardando el historial en sesiones\\<id>.json",
+        "streaming (consumo en vivo) y revisor del orden de revisión si llama-server no responde",
+        "Ollama se despierta solo (ollama list) si su servidor de fondo estaba dormido"
+      ],
+      "no_puede": [
+        "contexto 4096 tokens (medido en /api/ps: context_length 4096), no 32k ni 128k: lo largo no cabe",
+        "comparte la VRAM con llama-server: la RTX 3060 Laptop tiene 6 GB; Ollama ocupa 4046 MiB y llama-server ~5,5 GB. Medido a la vez: 111 MiB libres, carga 28,5 s en vez de 15,2 s y 34 tok/s en vez de 45. El router usa uno a la vez (llama primero, Ollama de respaldo)",
+        "el catálogo curado de modelos NO vive aquí: vive en el descargador GGUF (models\\ de llama-server)"
+      ],
+      "convive": "Mismo Hermes 3 8B que «Local Hermes 3 directo» (llama-server, 127.0.0.1:8080), en otro programa y otro puerto (11434). El router manda lo simple a llama-server y usa Ollama si llama-server no está; la revisión, igual (llama primero, luego Ollama). No corren bien a la vez en 6 GB de VRAM: Ollama suelta el modelo solo a los 5 min sin uso; llama-server se para con «Liberar VRAM» o al salir de la app. El carril B no usa ninguno de los dos.",
+      "frase_selector": "Hermes 3 8B por Ollama, en tu PC: gratis y privado; contexto 4096; comparte la VRAM con «Local Hermes 3 directo» (no a la vez).",
+      "fallback": [],
+      "_compat_v1": "Las claves tipo, binario, script_npm, comando, comando_reanudar, prompt_por, salida, sesion, url, cuerpo, crear, estado, descargar, clave_api y healthcheck.url de este motor son la forma v1: solo las lee la app 0.2.0 hasta que se reinicie. El runner nuevo lee solo los campos v2 (invocacion, formato_salida, extraer, reanudar, errores, requisitos, base_url, credencial_ref, capacidades). Se pueden borrar despues del reinicio.",
+      "contexto": {
+        "tokens": 4096,
+        "reserva_salida": 800,
+        "fuente": "medido el 26 oct 2026: GET /api/ps da context_length 4096 con Hermes 3 8B cargado (num_ctx por defecto de Ollama 0.40.10)"
+      },
+      "esquema_rubrica_en": "format"
     },
     "meshy": {
+      "id": "meshy",
       "nombre": "Meshy (3D)",
       "tipo": "api_asincrona",
       "especialidad": "3d",
@@ -593,9 +1166,322 @@
         "gastar"
       ],
       "timeout_min": 30,
-      "entorno": {},
+      "entorno": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
       "healthcheck": {
         "tipo": "clave_api"
+      },
+      "invocacion": {
+        "tipo": "http_asincrono",
+        "crear": {
+          "metodo": "POST",
+          "ruta": "/openapi/v2/text-to-3d",
+          "cuerpo": {
+            "mode": "preview",
+            "prompt": "{prompt}"
+          },
+          "campo_id": "result"
+        },
+        "estado": {
+          "metodo": "GET",
+          "ruta": "/openapi/v2/text-to-3d/{tarea_id}",
+          "campo": "status",
+          "pendiente": [
+            "PENDING",
+            "IN_PROGRESS"
+          ],
+          "exito": "SUCCEEDED",
+          "fallo": [
+            "FAILED",
+            "CANCELED",
+            "EXPIRED"
+          ],
+          "cada_s": 10
+        },
+        "descargar": {
+          "campo_url": "model_urls.glb",
+          "carpeta": "outbox/meshy",
+          "extension": ".glb"
+        }
+      },
+      "formato_salida": "json_final",
+      "extraer": {
+        "costo": "no_lo_da",
+        "turnos": {
+          "fijo": 1
+        },
+        "sesion": "no_lo_da"
+      },
+      "reanudar": "no_soporta",
+      "errores": {
+        "transitorio": [
+          "\\b429\\b",
+          "\\b5(?:00|02|03|04|29)\\b",
+          "timed? ?out|timeout",
+          "sin respuesta",
+          "no responde",
+          "conexi[oó]n cortada",
+          "sin conexi[oó]n",
+          "overloaded",
+          "rate.?limit",
+          "l[ií]mite de uso",
+          "PROXY:",
+          "ECONNRE|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed"
+        ],
+        "definitivo": [
+          "\\b40[013]\\b",
+          "clave rechazada",
+          "sin permiso",
+          "falta la clave",
+          "sin credencial",
+          "no encuentro '",
+          "no est[aá] instalado",
+          "descriptor mal formado",
+          "configuraci[oó]n",
+          "CODIFICACI[OÓ]N"
+        ]
+      },
+      "requisitos": {
+        "binario": null,
+        "version_min": null,
+        "version_comando": null,
+        "clave": true,
+        "suscripcion": "créditos de Meshy"
+      },
+      "base_url": "https://api.meshy.ai",
+      "credencial_ref": {
+        "proveedor": "meshy",
+        "etiqueta": "meshy-personal"
+      },
+      "credencial_como": {
+        "cabecera": "Authorization",
+        "formato": "Bearer {clave}"
+      },
+      "capacidades": {
+        "streaming": false,
+        "reanudar": false,
+        "costo": false,
+        "herramientas": false,
+        "habilidades_growi": false
+      },
+      "carril_b": false,
+      "ubicacion": "nube",
+      "verificado_en_vivo": false,
+      "nota_verificacion": "Nunca se ejecutó (sin clave y gasta créditos). Crear, sondear y descargar están escritos, no probados contra la API real.",
+      "fallback": [],
+      "_compat_v1": "Las claves tipo, binario, script_npm, comando, comando_reanudar, prompt_por, salida, sesion, url, cuerpo, crear, estado, descargar, clave_api y healthcheck.url de este motor son la forma v1: solo las lee la app 0.2.0 hasta que se reinicie. El runner nuevo lee solo los campos v2 (invocacion, formato_salida, extraer, reanudar, errores, requisitos, base_url, credencial_ref, capacidades). Se pueden borrar despues del reinicio."
+    },
+    "gemini": {
+      "id": "gemini",
+      "nombre": "Gemini (Antigravity CLI)",
+      "descripcion": "Gemini por el CLI de Google Antigravity (agy). NO es Gemini CLI: Gemini CLI está retirado para cuentas personales desde el 18 jun 2026 (HTTP 410). Entra con la sesión propia de agy (OAuth de Google, la guarda agy) o, si no, con la clave Gemini ACTIVA de Ajustes → Claves (GEMINI_API_KEY solo en el entorno del proceso).",
+      "invocacion": {
+        "tipo": "comando",
+        "plantilla": [
+          "{binario}",
+          "-p",
+          "{prompt}",
+          "--output-format",
+          "json",
+          "{permisos}",
+          [
+            "--model",
+            "{model}"
+          ],
+          [
+            "--conversation",
+            "{session}"
+          ]
+        ],
+        "prompt_por": "argumento"
+      },
+      "formato_salida": "json_final",
+      "extraer": {
+        "texto": "response",
+        "costo": "no_lo_da",
+        "turnos": {
+          "ruta": "num_turns"
+        },
+        "sesion": {
+          "ruta": "conversation_id"
+        },
+        "error_si": {
+          "ruta": "status",
+          "distinto_de": "SUCCESS"
+        },
+        "error": {
+          "ruta": "error"
+        },
+        "_visto": "Salida real de agy 1.4.7 bajo subprocess con pipe, 26 oct 2026: éxito = {conversation_id, status:'SUCCESS', response, duration_seconds, num_turns, usage{input_tokens, output_tokens, thinking_tokens, cache_read_tokens, total_tokens}} (sin campo error); fallo = status:'ERROR' + error. No trae costo."
+      },
+      "reanudar": {
+        "modo": "en_plantilla",
+        "como": "--conversation {session} (el conversation_id de la salida JSON)"
+      },
+      "nota_reanudar": "--conversation <id> sale en agy --help; que de verdad recuerde la ronda anterior NO está verificado (no hubo sesión para probarlo).",
+      "errores": {
+        "transitorio": [
+          "\\b429\\b",
+          "\\b5(?:00|02|03|04|29)\\b",
+          "timed? ?out|timeout",
+          "sin respuesta",
+          "no responde",
+          "conexi[oó]n cortada",
+          "sin conexi[oó]n",
+          "overloaded",
+          "rate.?limit",
+          "l[ií]mite de uso",
+          "PROXY:",
+          "ECONNRE|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed"
+        ],
+        "definitivo": [
+          "\\b40[013]\\b",
+          "clave rechazada",
+          "sin permiso",
+          "falta la clave",
+          "sin credencial",
+          "no encuentro '",
+          "no est[aá] instalado",
+          "descriptor mal formado",
+          "configuraci[oó]n",
+          "CODIFICACI[OÓ]N",
+          "authentication failed",
+          "not logged",
+          "Please sign in",
+          "Authentication expired",
+          "API key not valid",
+          "API_KEY_INVALID",
+          "PERMISSION_DENIED",
+          "UNAUTHENTICATED",
+          "User location is not supported",
+          "quota.*exhausted|exhausted.*quota"
+        ],
+        "auth": [
+          "authentication failed",
+          "not logged into",
+          "Please sign in",
+          "Authentication required",
+          "Authentication expired",
+          "API key not valid",
+          "API_KEY_INVALID",
+          "\\b401\\b",
+          "UNAUTHENTICATED"
+        ],
+        "_que_es": "auth: 401 / sesión caducada → la tarea dice «clave inválida o sesión caducada», es definitiva (no se reintenta) y el motor vuelve a comprobar su acceso. Ojo: sin sesión, agy espera 60 s el login en el navegador y dice 'authentication failed or timed out': por eso 'authentication failed' va en definitivo (se mira antes que transitorio)."
+      },
+      "timeout_min": 15,
+      "entorno": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "NO_COLOR": "1"
+      },
+      "requisitos": {
+        "binario": "agy",
+        "version_min": "1.4.0",
+        "version_comando": [
+          "{binario}",
+          "--version"
+        ],
+        "clave": false,
+        "suscripcion": "Cuenta de Google con sesión de agy (free tier) o clave de Gemini (AI Studio)",
+        "como_instalar": "Ya está en este PC (C:\\Users\\forte\\AppData\\Local\\agy\\bin\\agy.exe). Guía oficial: antigravity.google/docs/cli"
+      },
+      "autenticacion": {
+        "preferencia": [
+          "sesion_cli",
+          "clave"
+        ],
+        "sesion_cli": {
+          "nombre": "sesión de agy (Google)",
+          "comprobar": [
+            "{binario}",
+            "models"
+          ],
+          "sin_sesion_si": "sign in|not logged|log in|login",
+          "timeout_s": 30,
+          "como_iniciar": "abre una terminal normal de Windows (sin «Administrador»), escribe agy, inicia sesión con Google (jobsforleandro@gmail.com) en el navegador que se abre, sal con /quit y pulsa «Comprobar ahora» en Modelos → Motores"
+        },
+        "quitar_entorno": [
+          "GEMINI_API_KEY",
+          "GOOGLE_API_KEY"
+        ],
+        "_que_es": "Con la sesión de agy iniciada el motor no necesita clave y se le quitan GEMINI_API_KEY y GOOGLE_API_KEY del entorno (agy preferiría la clave). Sin sesión, usa la clave Gemini ACTIVA de Ajustes → Claves (credencial_ref). El token OAuth lo guarda y renueva agy, nunca el Bridge."
+      },
+      "base_url": "https://generativelanguage.googleapis.com",
+      "credencial_ref": {
+        "proveedor": "gemini",
+        "etiqueta": "gemini-personal"
+      },
+      "credencial_como": {
+        "entorno": "GEMINI_API_KEY"
+      },
+      "modelo": {
+        "por_defecto": null,
+        "_que_es": "Sin --model usa el que agy tenga por defecto. Free tier: modelos Flash / Flash-Lite (Pro salió del free tier en abr 2026)."
+      },
+      "permisos": {
+        "_que_es": "Se elige por tarea con permission_mode. Sin permiso pedido: --mode plan (planifica, no toca archivos). OJO: la configuración propia de agy en este PC tiene toolPermission always-proceed. --dangerously-skip-permissions no se usa nunca.",
+        "por_modo": {
+          "": [
+            "--mode",
+            "plan"
+          ],
+          "default": [
+            "--mode",
+            "plan"
+          ],
+          "plan": [
+            "--mode",
+            "plan"
+          ],
+          "acceptEdits": [
+            "--mode",
+            "accept-edits"
+          ]
+        }
+      },
+      "capacidades": {
+        "streaming": false,
+        "reanudar": true,
+        "costo": false,
+        "herramientas": false,
+        "habilidades_growi": false
+      },
+      "puede": [
+        "texto y código",
+        "revisión barata (revisor de la orquestación, mejor que Hermes 3 8B local)",
+        "$0 en el free tier de Google (modelos Flash / Flash-Lite)",
+        "da tokens y turnos al terminar (no costo)",
+        "entra sin clave si la sesión de agy está iniciada"
+      ],
+      "no_puede": [
+        "Pro no está en el free tier (desde abr 2026)",
+        "desde Venezuela sin proxy: NO comprobado en vivo con una respuesta real"
+      ],
+      "frase_selector": "Gemini (Antigravity): revisor barato por internet, $0 en el free tier de Google.",
+      "en_selector": true,
+      "carril_b": false,
+      "ubicacion": "nube",
+      "verificado_en_vivo": true,
+      "nota_verificacion": "Verificado en vivo el 26 oct 2026 (agy 1.4.7, sesión de Google de Leandro): agy -p ... --output-format json --mode plan → exit 0, 420 bytes, status SUCCESS, num_turns 1, respuesta en 3 viñetas, 35 s.",
+      "healthcheck": {
+        "tipo": "binario"
+      },
+      "sensible": [],
+      "fallback": [
+        "llama"
+      ],
+      "_comandos": {
+        "version": "agy --version",
+        "tarea": "agy -p ... --output-format json",
+        "sesion": "agy models (sin gastar)",
+        "iniciar_sesion": "iniciar-sesion-agy.bat (doble clic, sin Administrador)"
       }
     }
   },

@@ -1,0 +1,47 @@
+{
+  "nombre": "Claro",
+  "tipo": "claro",
+  "descripcion": "El tema de siempre, estilo Mac: contenido blanco, barra lateral gris muy clara, un solo acento azul. Es el tema por defecto.",
+  "tokens": {
+    "bg": "#FFFFFF",
+    "sidebar": "#F5F5F7",
+    "card": "#F5F5F7",
+    "field": "#FFFFFF",
+    "text": "#1D1D1F",
+    "muted": "#5F5F63",
+    "line": "#E5E5EA",
+    "green": "#34C759",
+    "green_text": "#1F7A33",
+    "blue": "#0066CC",
+    "orange": "#FF9500",
+    "orange_text": "#9A5200",
+    "red": "#C81E1E"
+  },
+  "fuente": {
+    "familia": "Segoe UI",
+    "titulo": 22,
+    "seccion": 11,
+    "cuerpo": 10,
+    "pie": 9
+  },
+  "fijos": {
+    "seg_bg": "#e8e8ed",
+    "seg_sel": "#ffffff",
+    "seg_hover": "#dcdce1",
+    "accent": "#0066cc",
+    "accent_hover": "#0057b0",
+    "off_track": "#e9e9ea",
+    "on_accent": "#ffffff"
+  },
+  "mapa": {
+    "#E8E8ED": "#E8E8ED",
+    "#D2D2D7": "#D2D2D7",
+    "#E9E9EA": "#E9E9EA",
+    "#DCEBFF": "#DCEBFF",
+    "#6E6E73": "#6E6E73",
+    "#FBECEC": "#FBECEC",
+    "#D8D8DD": "#D8D8DD",
+    "#3A3A3C": "#3A3A3C",
+    "#5A7086": "#5A7086"
+  }
+}

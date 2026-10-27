@@ -1,5 +1,5 @@
 @echo off
-REM Instala Growi Bridge 0.2.0-alpha (puente + runner + proxy + pantalla + mascota).
+REM Instala Growi Bridge 0.1.0-alpha (puente + runner + proxy + pantalla + mascota).
 REM Reemplaza el servidor viejo (pc-server.py), el runner y la v1.0 de la app.
 REM Para quitarlo: schtasks /delete /tn GrowiBridgeApp /f
 
@@ -38,11 +38,11 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-REM Piloto CustomTkinter (solo la pagina Ajustes). Version fija. Si falla, la
-REM app no se rompe: usa la pagina Ajustes clasica de tkinter.
-python -m pip install --quiet customtkinter==6.0.0
+REM Claves (Ajustes - Claves): keyring guarda cada clave en el Administrador de
+REM credenciales de Windows. Si falla, la app no se rompe: usa el respaldo DPAPI.
+python -m pip install --quiet keyring==25.7.0
 if errorlevel 1 (
-  echo AVISO: no se pudo instalar customtkinter. La app funciona igual, con la pagina Ajustes clasica.
+  echo AVISO: no se pudo instalar keyring. La app funciona igual: guarda las claves cifradas con DPAPI.
 )
 echo [2/5] Copiando archivos a %PUENTE%...
 if not exist "%PUENTE%" mkdir "%PUENTE%"
@@ -50,7 +50,6 @@ copy /y "%ORIGEN%growi-bridge.py" "%PUENTE%\"
 copy /y "%ORIGEN%growi.png" "%PUENTE%\"
 copy /y "%ORIGEN%growi.ico" "%PUENTE%\"
 copy /y "%ORIGEN%growi-tray.png" "%PUENTE%\"
-if exist "%ORIGEN%growi-tray-b.png" copy /y "%ORIGEN%growi-tray-b.png" "%PUENTE%\"
 copy /y "%ORIGEN%growi-header.png" "%PUENTE%\"
 copy /y "%ORIGEN%iniciar-growi-bridge.bat" "%PUENTE%\"
 copy /y "%ORIGEN%probar-growi-bridge.bat" "%PUENTE%\"
@@ -63,12 +62,16 @@ if exist "%ORIGEN%mascot" (
   echo AVISO: no se encontro la carpeta mascot en %ORIGEN%
   echo La app funciona igual, solo que la mascota no tendra animacion de saludo.
 )
+rem Temas (claro / oscuro Raycast): sin esta carpeta solo queda el claro.
+if exist "%ORIGEN%temas" xcopy /y /e /i "%ORIGEN%temas" "%PUENTE%\temas"
 if not exist "%PUENTE%\growi-bridge.py" (
   echo.
   echo ERROR: no se pudo copiar growi-bridge.py. Revisa la ruta de origen.
   pause
   exit /b 1
 )
+echo Token del plano de control (cifrado con DPAPI en %LOCALAPPDATA%\GrowiBridge, fuera de esta carpeta)...
+python "%PUENTE%\growi-bridge.py" --generar-token
 echo [3/5] Cerrando el servidor viejo, el runner y la app v1.0 (si estan corriendo)...
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'pc-server\.py|runner\.py|growi-bridge\.py' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
 echo [4/5] Quitando las tareas viejas (GrowiBridge, GrowiRunner)...

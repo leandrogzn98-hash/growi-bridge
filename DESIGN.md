@@ -381,3 +381,384 @@ Ver `THEME` en `growi-bridge.py` (una sola fuente de verdad):
   motor. Nada de «cuota restante»: Anthropic no la publica.
 - **Honestidad:** sin uso reportado se dice «sin vivo»; mientras Claude
   arranca (a veces 30–60 s antes del primer mensaje), «esperando al motor».
+
+## Ronda 0.3.0 — Motor genérico: tarjetas Motores y Nuevo motor (26 oct 2026)
+
+- **Dónde:** página Modelos, justo después de «Quién responde». Dos
+  tarjetas nuevas, construidas con CustomTkinter según el veredicto del
+  piloto (superficie por superficie, con la versión tkinter clásica de
+  respaldo: sin customtkinter, CTk roto, `"piloto_ctk": false` o
+  `GROWI_BRIDGE_CTK=0`). Las dos versiones son el mismo código con distinto
+  juego de piezas, así que el respaldo es la misma superficie.
+- **Motores:** etiqueta de sección apagada fuera de la tarjeta (como Ajustes),
+  tarjeta con esquinas 10 y borde fino, selector (esquinas 8) + «Comprobar
+  ahora», y la ficha como lista de dos columnas: etiqueta apagada a la
+  izquierda, valor a la derecha. El color nunca va solo: verde de texto
+  (#1F7A33) para «disponible / respondió / encontrado», rojo #C81E1E para «no
+  disponible / sin credencial», naranja de texto (#9A5200) para «sin
+  verificar en vivo», «sin dato» y lo que el motor no puede. Siempre con
+  palabras.
+- **Nuevo motor:** campos uno debajo de otro con el título en semibold y la
+  ayuda apagada debajo (estilo BFF), formato de salida en control segmentado
+  en píldora, y un solo botón de acento: **Probar**. Al lado, una línea de
+  estado (azul mientras prueba, verde «Guardado», rojo «No se guardó») y
+  debajo el resultado en palabras: salida, costo y turnos (o «no los da») y
+  si reanuda.
+- **Sin tecnicismos de más:** «motor», «comando», «formato de salida», «URL
+  base», «credencial», «sin dato». Lo técnico (rutas JSON, evento:ruta) solo
+  aparece en los campos de JSON, que se apagan con «Texto normal».
+- **Coste de arranque medido:** ver ESTADO-MOTOR-GENERICO.md (≈ +0,3 s con
+  CTk; la clásica no añade).
+
+## Ronda 0.3.0 — Guardrail siempre a la vista (26 oct 2026)
+
+- **Fila fija de Tareas** (fuera del scroll, CustomTkinter con respaldo
+  clásico): tarjeta de esquinas 10 y borde fino; «Permisos» apagado + nivel en
+  semibold; «N esperando tu aprobación» en semibold; «Cambiar nivel» (botón
+  gris, esquinas 8) a la derecha; debajo, una línea apagada que explica.
+- **Colores del nivel:** «Siempre pregunta» verde de texto (es lo seguro),
+  «Solo lo delicado» texto normal, «Sin preguntar» rojo. **Contador:** rojo
+  con ≥1, apagado con 0. Rojo #FF6363 solo en oscuro; en claro #C81E1E
+  (6,3:1 sobre blanco; nunca #FF6363 sobre blanco, 2,91:1).
+- **Popup:** tarjeta CustomTkinter (respaldo clásico), título semibold con el
+  número exacto, una línea apagada con el nivel, «Ver tareas» (único botón de
+  acento azul) + «Cerrar». Abajo a la derecha, encima de la bandeja.
+- **Distintivo de la bandeja** (el mismo lienzo de `_tray_image`, no otro
+  mecanismo): ámbar #FF9F0A con número #1D1D1F (9,6:1) arriba a la derecha +
+  punto ámbar abajo a la izquierda; «!» blanco sobre #D70015 (5,6:1) para «Sin
+  preguntar»; «?» blanco sobre #6E6E73 para «no se pudo leer». Borde #1D1D1F
+  de 2 px para que se vea sobre barra clara y oscura. Manda sobre el % de
+  cuota (que sigue en el tooltip).
+- **Coste de arranque medido:** +0,03 s (la fila tarda 10-11 ms). Ver
+  ESTADO-GUARDRAIL-VISIBLE.md.
+
+## Ronda 0.3.0 — Vencimiento de las aprobaciones (26 oct 2026)
+
+- **Dónde:** dentro de la tarjeta «Esperan tu aprobación» que ya existía en
+  Tareas (tkinter clásico, no se reconstruyó: no es superficie nueva). No hay
+  página nueva.
+- **Dos líneas nuevas por tarea, debajo de «Lo hizo sensible»:** «Nivel R2,
+  irreversible o externo. Motivo: …» (apagado, 9) y «Vence el lun 26/10 a las
+  05:32, hora de Caracas (quedan 1 h 59 min). Si no respondes, no se hace.»
+  (semibold 10, texto normal; naranja de texto #9A5200 en los últimos 15 min y
+  al vencer). La cuenta atrás se repinta sin rehacer la tarjeta. El color nunca
+  va solo: la frase dice el tiempo.
+- **Columna Estado:** «vencida» / «R3 denegada» (corto para que quepa); el
+  motivo completo y el approval_id van en DETALLE.
+- **Sin tecnicismos:** «nivel», «vence», «hora de Caracas», «tardía,
+  descartada». El approval_id solo aparece en DETALLE y en el pedido de WhatsApp.
+
+## Ronda 0.3.0 — Checkpoint por ronda (26 oct 2026)
+
+- **Dónde:** no hay página nueva ni superficie nueva. Lo visible va como líneas
+  dentro de la tarjeta DETALLE de Tareas (el `tk.Label` que ya existía, así que
+  sigue en tkinter clásico; la regla CustomTkinter no aplica porque no se
+  construyó ninguna fila ni control nuevo) y en el banner de trabajo.
+- **Líneas de DETALLE**, en el mismo cuerpo 10 y color de texto normal que el
+  resto del detalle, debajo de «Recuperada tras corte»:
+  «Último estado conocido (al volver a arrancar, 2026-10-26 04:25): ronda 2,
+  siguiente_paso revisar (murió con Claude corriendo; se reanuda la ronda 2 con la
+  misma sesión y la misma carpeta). Gastado hasta ese punto: $0.02 eq.» ·
+  «Checkpoint: ronda 2 (intento 2), motor corriendo, siguiente_paso revisar;
+  reanudada desde «ronda 2»» · «Plan …: fase 1 a medias, fase 2 pendiente» ·
+  «Ronda 2: se reanudó sin la sesión original (…)».
+- **Banner:** el paso añade «(reanuda tras corte)» cuando la ronda viene del
+  checkpoint, o «Revisando … (reanuda tras corte: solo la revisión)».
+- **Palabras:** «último estado conocido», «siguiente_paso», «sesión», «resumen
+  del checkpoint». `siguiente_paso` se deja tal cual porque es lo que Leandro
+  pidió leer y lo que Growi lee en la VM; nada de JSON ni ids de sesión en la
+  ventana (el id solo va en la base, el transcript y el resultado).
+- **Dineros:** el «gastado hasta ese punto» usa la misma celda que la columna
+  Costo (real / eq. / $0 local); lo que llevaba el paso cortado sale como «~$x
+  estimado en vivo; no se suma» porque no hay cifra final.
+
+## Ronda 0.3.0 — Criterios tipados y doble juez (26 oct 2026)
+
+- **Dónde:** no hay página nueva ni superficie nueva. Lo visible va como líneas
+  dentro de la tarjeta DETALLE de Tareas (el `tk.Label` que ya existía) y en la
+  columna Revisión. No se construyó ninguna fila ni control nuevo, así que la
+  regla CustomTkinter no aplica (igual que en el checkpoint). La corrección de
+  Leandro va por la paleta Ctrl+K (dos acciones nuevas en la lista que ya
+  existía) con el `messagebox` de confirmación de siempre.
+- **Líneas de DETALLE**, debajo de «Revisión (…)», sangradas, cuerpo 10, color
+  de texto normal: «Comprobado por código (pasa / FALLA): [lineas] informe.md
+  tiene al menos 150 líneas: … tiene 20 líneas reales (pedido: al menos 150):
+  no» (FALLA en mayúsculas: la palabra dice el estado, el color nunca va solo);
+  «Juez: Local Hermes 3 directo $0 dijo aprobado (completitud 5, corrección 5,
+  no-regresión 5, evidencia 4)»; «… aprobó, pero un check determinista falla:
+  no se aprueba (los hechos mandan)»; «Segundo juez (…): claude haiku, valido,
+  41.7 s, $0.0077 eq.» o «Sin segundo juez: tarea R0: …»; el recorte del
+  contexto si lo hubo; «Tu etiqueta: «rechazado» (…, corrige al revisor)» o la
+  pista «¿La revisión se equivocó? Ctrl+K → «Corregir la revisión»».
+- **Desacuerdo:** «Revisión (llama): necesita tu decisión (los dos jueces no
+  coinciden)» y un bloque «Los dos veredictos:» con «– Juez 1: …» y «– Juez 2:
+  …», cada uno con su sí/no, las cuatro puntuaciones y lo que falta. La columna
+  Revisión dice «Jueces en desacuerdo: decide tú».
+- **Palabras:** «comprobado por código», «juez», «veredicto», «rúbrica»,
+  «segundo juez», «tu etiqueta». El detalle de un esquema que no valida va al
+  `.revision.json` y al registro; en la ventana solo sale «sin veredicto
+  válido» con el motivo corto (p. ej. «la respuesta no trae ningún JSON»).
+  En ese caso la columna Revisión dice «sin revisión» (en texto plano, sin
+  tilde: sin revision), nunca «Sí».
+- **Dineros:** el costo del segundo juez sale como «$x eq.» (sesión Max, a
+  precio de lista), igual que la columna Costo.
+
+## Ronda 0.3.0 — Gateway unificado: Estado como panel de control y Claves (26 oct 2026)
+
+- **Dónde:** página Estado, tarjeta **Gateway** justo debajo de Servicios (antes
+  del Mapa de disponibilidad), y tarjeta **Claves** al final de Ajustes. Las dos
+  son superficies nuevas: CustomTkinter con la versión tkinter clásica de
+  respaldo (el mismo código con el kit `_KitCtk` / `_KitTk`, como Motores). Las
+  tablas, el Registro, los Canvas y la mascota no se tocaron.
+- **Gateway:** etiqueta de sección apagada fuera de la tarjeta, tarjeta de
+  esquinas 10 con borde fino, una línea de explicación apagada y una línea de
+  estado; debajo, grupos con su título en semibold (Proceso, Cola, Skills,
+  Modelos y respaldo, Canales, Motores, Recarga en caliente) y filas de dos
+  columnas: etiqueta apagada a la izquierda, valor a la derecha (estilo ficha de
+  Motores). Cada motor lleva dos filas sangradas: Credencial (proveedor, clave
+  activa, «termina en XXXX») y Base URL.
+- **Matriz de estados:** cargando (azul de texto), sin conexión y error (rojo
+  #C81E1E, con «Reintentar», botón gris de esquinas 8), vacío (naranja de texto
+  #9A5200, «no hay ningún motor descrito»), contenido («Leído en vivo a las
+  HH:MM:SS», apagado). El color nunca va solo: la frase dice el estado.
+- **Colores de valor:** verde de texto #1F7A33 para vivo / disponible /
+  conectado, rojo para no disponible / sin credencial, naranja de texto para
+  avisos (re-encoladas al arrancar, esperas, sin túnel). La mascota apagada se
+  dice «apagada» en gris, no en rojo (no es un fallo).
+- **Claves:** por referencia, el título «proveedor, referencia «etiqueta»» en
+  semibold, «La usa: …» apagado, un selector (esquinas 8) con las claves
+  guardadas del mismo proveedor («clave-b (termina en 2222)») + «Usar esta», y
+  una línea verde «Activa: …» o roja si no está guardada. Se dibuja la primera
+  vez que se abre Ajustes (no suma al arranque).
+- **Sin tecnicismos de más:** «gateway», «plano de control», «token» y «túnel»
+  solo en esta tarjeta, que es justamente lo que enseña; nada de JSON ni pids
+  fuera de la fila Proceso.
+- **Coste de arranque medido:** +0,035 s de media (`build_gui` 2,005 → 2,039 s,
+  3 veces cada uno); el panel tarda 63-65 ms; Claves 218 ms al abrir Ajustes.
+  Ver ESTADO-GATEWAY.md.
+
+## Ronda 0.3.0 — Skills nativas: sección Skills de Bridge (26 oct 2026)
+
+- **Dónde:** página Skills (la que ya existía en la barra lateral), arriba, antes
+  de la lista de Claude Code (que sigue en tkinter clásico con su Treeview). Dos
+  tarjetas nuevas: **Skills de Bridge** y **Borradores**. Superficie nueva:
+  CustomTkinter con la versión clásica de respaldo (el mismo código con el kit
+  `_KitCtk` / `_KitTk`, como Motores y Gateway).
+- **Skills de Bridge:** etiqueta de sección apagada fuera de la tarjeta, tarjeta
+  de esquinas 10 con borde fino, línea de explicación apagada, una fila de
+  botones (esquinas 8): **Validar skills** (el único acento azul), «Volver a
+  leer» y «Abrir la carpeta» (grises). Debajo, la línea de estado y una fila por
+  skill separada por una línea fina: nombre en semibold + «versión X, origen»
+  apagado; la descripción en texto normal; «Requisitos: …» en semibold y una
+  línea sangrada por requisito. Luego «No se cargaron (N)» con la ruta en
+  semibold, el motivo en rojo y la evidencia redactada en apagado.
+- **Colores (los de THEME, sin paleta nueva):** verde de texto para «está /
+  todos cumplidos / pasa», rojo #C81E1E para «falta / no pasa / no se carga»,
+  naranja de texto para avisos (`always`, más de 6 niveles), azul de texto
+  mientras lee. El color nunca va solo: la frase dice el estado.
+- **Matriz de estados:** leyendo (azul), vacía (naranja, «La carpeta está, pero
+  no hay ninguna skill»), error (rojo, con el motivo y «Volver a leer» como
+  reintento), sin conexión (rojo, «Sin conexión con la carpeta de skills: … no
+  existe o no se puede abrir») y contenido («N cargadas, M no se cargaron. Leído
+  a las …; requisitos comprobados en vivo a las …», apagado).
+- **Borradores:** misma tarjeta; por borrador, nombre semibold + «(borrador, no
+  activo)», descripción, de qué tarea vino (apagado) y dos botones grises
+  «Editar» y «Aprobar». Sin acento: aprobar es una decisión, no la acción
+  principal de la página.
+- **Evidencia redactada:** una skill con un secreto (p. ej. la de prueba con
+  `sk-ant-falso123`) sale «skills\con-secreto (sospechosa)», el motivo en rojo y
+  la línea en apagado ya redactada: «ANTHROPIC_API_KEY=[REDACTED CREDENTIAL]». El
+  secreto nunca se pinta.
+- **Sin tecnicismos de más:** «skill», «requisito», «programa», «variable»,
+  «borrador», «tapada», «sospechosa». YAML, frontmatter y PATH solo en los
+  motivos exactos del validador (son lo que hay que corregir).
+- **Coste de arranque medido:** +0,094 s de media (`build_gui` 1,905 → 1,998 s,
+  3 veces cada uno, copias aisladas); la sección tarda 31-36 ms en CTk y 9 ms en
+  clásico. Ver ESTADO-SKILLS.md.
+
+## Ronda 0.3.0 — Skills semilla (26 oct 2026)
+
+- **Sin superficie nueva:** la siembra (`--sembrar-skills`) es de consola. Las 7
+  skills instaladas salen en la tarjeta **Skills de Bridge** que ya existía, con
+  su descripción y sus requisitos en vivo (p. ej. «Programa «blender»: falta: no
+  está en el PATH» en rojo). Ver ESTADO-SKILLS-SEMILLA.md.
+
+## Ronda 0.3.0 — Memoria en el PC (26 oct 2026)
+
+- **La memoria es un archivo, no una pantalla:** no hay pestaña nueva. Se ve
+  abriendo `memory\MEMORY.md` o la nota del día (paleta: «Abrir la memoria»,
+  «Abrir la nota de hoy…», «Abrir la carpeta de la memoria»).
+- **Confirmación de cada escritura:** ventanita «Memoria» (tema claro, Segoe
+  UI): título semibold «Guardado en la memoria», el mensaje con dónde quedó y
+  por qué («Guardado en la nota de hoy (2026-10-26.md): «…». Porque es de un día
+  concreto («25 oct»). Archivo: …»), y dos botones: **Abrir el archivo** (azul
+  #007AFF, el único acento) y **Cerrar** (gris). Esc cierra. Un fallo sale con
+  el mensaje en rojo y sin «Abrir». Bajo Enviar, en Tareas, la fila de estado
+  repite el mensaje con «✓».
+- **Paleta Ctrl+K:** al escribir «recuerda esto: …» o «/nuevo», la lista se
+  reduce a una sola sección «Memoria» con una fila: «Recordar: «…»» (el hecho
+  recortado a 40 caracteres con «…», para que no choque con el chip Enter) o
+  «Sesión nueva: guardar el snapshot y empezar otra».
+- **Conflictos de sync:** aviso de bandeja «Memoria: N conflicto(s) con la VM»
+  que lleva al Registro; nada de diálogos que bloqueen.
+- Capturas: `share\outbox\capturas-memoria\r3-*.png`. Ver ESTADO-MEMORIA.md.
+
+
+## Ronda 0.3.0 — Claves BYOK: una fila por clave (26 oct 2026)
+
+- **Dónde:** Ajustes → Claves (sustituye la tarjeta «clave activa por
+  referencia» del gateway) y la página APIs (sustituye la tabla y las filas «una
+  por servicio»). Es la misma superficie dibujada dos veces, la primera vez que
+  se abre cada página (no suma al arranque). CustomTkinter con la versión
+  tkinter clásica de respaldo (kit `_KitCtk` / `_KitTk`), colores de THEME,
+  esquinas 10 en tarjetas y 8 en botones.
+- **Estructura:** tarjeta «Claves» con la explicación, «Dónde se guardan» y la
+  advertencia honesta (apagadas); un mensaje de la última acción; grupos por
+  proveedor con el título en semibold (y la nota de Gemini apagada); cada clave
+  es una sub-tarjeta: «Proveedor «etiqueta» ••••1234» en semibold + «Activa»
+  (verde de texto) o «Inactiva» (gris) + «Usar esta» a la derecha; URL base
+  editable + «Guardar URL»; línea de gasto; «Tope del mes $» + «Guardar tope»;
+  «Probar sin gastar» y «Borrar»; resultado de la prueba. Debajo, la línea de la
+  sesión Max y la tarjeta «Añadir o reemplazar una clave» (Guardar en azul).
+- **Colores:** verde de texto solo para «Activa», guardado y clave válida; rojo
+  para clave incorrecta, URL rechazada y tope alcanzado; naranja de texto para
+  el 75–99 % del tope, el aviso de «borrada aquí no es revocada» y apis.json en
+  texto plano. El color nunca va solo: la frase lo dice.
+- **Medido:** abrir la superficie 338–414 ms con CTk (146–159 ms la clásica);
+  `build_gui` sin diferencia fuera del ruido. Ver ESTADO-CREDENCIALES.md.
+
+## Ronda 0.3.0 — Atajos personalizables: Ajustes → Atajos (27 oct 2026)
+
+- **Patrón:** Flow Launcher (el campo se pulsa, no se escribe) + la tabla de
+  conflictos de Fluent Search (interno / reservado / otra app). Superficie
+  nueva con CustomTkinter (regla del piloto), con la clásica de respaldo: la
+  misma sección sale en `_build_ajustes_tk` con el mismo «kit» de filas.
+- **Estructura:** sección «Atajos» justo después de General. Una fila de
+  explicación (y el aviso de settings.json dañado, si lo hay); «Dentro de
+  Bridge» y «En cualquier aplicación» como subtítulos (semibold + explicación
+  apagada); cada acción es una fila: título + explicación a la izquierda,
+  campo blanco (esquina 8, borde fino #E5E5EA) + «Quitar» a la derecha. Debajo
+  del título, el mensaje de la última acción y, si hay sugerencia, un botón
+  azul «Usar Ctrl + Alt + …».
+- **Estados del campo:** «Sin atajo» en gris; la combinación en texto normal
+  («Ctrl + Alt + T», palabras normales con espacios); capturando: borde del
+  azul de acento de THEME (#0066CC, el mismo del foco en el piloto) de 2 px y
+  «Pulsa la combinación…», que se va completando
+  («Ctrl + Alt + …»).
+- **Colores:** verde de texto solo para «Guardado…»; rojo para rechazos y
+  conflictos; gris para «Cancelado» y la ayuda. El color nunca va solo: la frase
+  dice el motivo. Sin colores nuevos (THEME).
+- **Medido:** la sección Atajos 117–146 ms (CTk); página Ajustes entera
+  1,42–1,80 s antes y 1,55–1,75 s después (ruido del PC mayor que la
+  diferencia). Ver ESTADO-ATAJOS.md.
+
+## Ronda 0.3.0 — Comandos de IA guardados (27 oct 2026)
+
+- **Patrón:** Raycast AI Commands (título, prompt con marcadores, icono,
+  modelo, creatividad; integrados que se duplican para adaptarlos).
+- **Paleta Ctrl+K (tkinter clásico, como manda el piloto):** sección nueva
+  «Comandos de IA» con la lista vacía (entre Frecuentes y Todas las acciones);
+  cada comando es una fila con su icono a la izquierda en gris apagado (un
+  símbolo de texto, nunca un emoji) y su título; «(motor no disponible)» en el
+  propio título cuando el motor no existe. El aviso de archivo dañado va el
+  primero de la sección. Chip = su atajo, si lo tiene.
+- **Formulario «Nuevo comando de IA»** (superficie nueva: CustomTkinter con la
+  clásica de respaldo, kit `_KitCtk` / `_KitTk`): ventana propia con scroll,
+  tarjeta de esquinas 10 y borde fino; cada campo con el título en semibold y la
+  ayuda apagada debajo (estilo BFF); creatividad y salida en control segmentado;
+  el atajo con el mismo campo «pulsa la combinación» de Ajustes → Atajos (el
+  mensaje va debajo, a lo ancho). Un solo acento azul: **Guardar**. «Borrar
+  este comando» gris, a la derecha, con confirmación.
+- **Ventana del comando** (misma regla): título con el icono, línea apagada con
+  creatividad y salida, línea del motor (azul mientras comprueba, verde de
+  texto «disponible», rojo «no disponible»), «Texto seleccionado» con su origen
+  apagado, un campo por dato pedido, **Ejecutar** (el único acento), la línea de
+  estado y, al terminar, el resultado editable con «Copiar» y «Reemplazar el
+  texto» (grises).
+- **Confirmación del reemplazo** (guardrail «Preguntarme siempre»): título
+  semibold, permisos apagados, el texto nuevo completo y el que se sustituye
+  (de solo lectura), **Reemplazar** (acento) y «Cancelar». Modal; Esc cancela.
+- **Colores:** los de THEME. Verde de texto para «disponible», «Guardado» y
+  «Reemplazado… con tu confirmación»; naranja de texto para «sin preguntar» y
+  «esperando tu sí»; rojo para «motor no disponible», «Falta …» y archivo
+  dañado. El color nunca va solo: la frase dice el estado.
+- **Medido:** ver ESTADO-COMANDOS-IA.md (arranque sin diferencia fuera del
+  ruido; el formulario se abre en 0,2–0,5 s con CTk, 0,05 s en clásico).
+
+## Ronda 0.3.0 — Asistentes personalizados = perfiles (27 oct 2026)
+
+- **Qué es:** un asistente NO es un modelo nuevo: nombre + foto + para qué
+  sirve + instrucciones + modelo por defecto (id de motor) + modelo de revisión
+  + canales + skills + tono + carpetas + guardrail. Un archivo por perfil en
+  `asistentes\<id>.md` (frontmatter YAML + instrucciones en Markdown).
+- **Paleta Ctrl+K (tkinter clásico, como manda el piloto):** fila fija arriba,
+  bajo la ayuda, en el gris de tarjeta: foto redonda de 28 px, «Trabajas con
+  Growi» en semibold y debajo, apagado, «Claude, todas las de Carpetas, sin
+  preguntar (el perfil: siempre pregunta)»; a la derecha el chip gris
+  «Cambiar» (filtra la lista a los perfiles). Sección nueva «Asistentes» entre
+  Frecuentes y Comandos de IA: una fila por perfil con su foto de 20 px
+  («Usar Contable», «Growi (activo)»), «Nuevo asistente» y «Abrir la carpeta de
+  asistentes». El aviso «Asistentes: N no se cargaron (ver por qué)» va primero
+  con «!». Junto a «Recordar: …» sale «Recordar solo para <perfil> (sus notas
+  propias)».
+- **Bandeja:** «Asistente: Growi» con submenú de casillas de radio (los perfiles
+  con canal bandeja), «Nuevo asistente…» y el aviso de los que no cargan. El
+  tooltip suma la línea «Asistente: Growi». Los menús de pystray no dibujan
+  imágenes: la foto sale en el aviso del cambio.
+- **Aviso del cambio** (superficie nueva: CustomTkinter con la clásica de
+  respaldo): tarjeta abajo a la derecha, como el popup del guardrail; foto de
+  40 px, «Ahora trabajas con …» (título semibold), «Antes: …» apagado, y tres
+  líneas: modelo, carpetas y permisos (con el nivel de antes si cambió).
+  «Cerrar» gris; se va solo a los 8 s.
+- **Formulario «Nuevo asistente»** (superficie nueva: CTk con la clásica de
+  respaldo, kit `_KitCtk` / `_KitTk`): ventana con scroll, tarjeta de esquinas
+  10, cada campo con título semibold y ayuda apagada (estilo BFF). Foto con
+  vista previa redonda y «Elegir…»; modelo y revisión en desplegable; tono y
+  guardrail en control segmentado; canales en casillas (WhatsApp «(no
+  existe)» y apagado si el canal no existe); carpetas en segmentado «Todas las
+  de Carpetas / Solo estas / Ninguna de trabajo» + filas «ruta · Solo leer /
+  Leer y escribir · Quitar». Un solo acento azul: **Guardar**; «Abrir el
+  archivo (avanzado)» gris. Al elegir «Hazlo sin preguntar» la explicación se
+  pone roja y aparece, en semibold rojo, «Para bajar los permisos, escribe SIN
+  PREGUNTAR (sin eso no se guarda)» con su campo.
+- **Avatar por defecto:** círculo #E8E8ED con la inicial en #1D1D1F (colores
+  que ya estaban en THEME / _DARK_MAP). Sin colores nuevos.
+- **Colores:** verde de texto para «Guardado» y «Están todas» (skills); naranja
+  de texto para foto que no existe y skills que faltan; rojo para motor no
+  disponible, carpeta que no existe, «nunca» y los rechazos. El color nunca va
+  solo: la frase lo dice.
+- **Medido:** ver ESTADO-ASISTENTES.md (leer los perfiles 4,7 ms; arranque sin
+  diferencia fuera del ruido; formulario 0,6–1,9 s con CTk, 0,09 s clásico).
+
+## Ronda 0.3.0 — Temas: Claro / Oscuro Raycast / Según el sistema (27 oct 2026)
+
+- **Sustituye** al párrafo «Tema oscuro (Dirección Raycast), siguiendo a
+  Windows» de más arriba (#1E1E20…): ese oscuro ya no se usa.
+- **Archivos:** `temas\claro.json` (el de siempre, estilo Mac, por defecto) y
+  `temas\oscuro-raycast.json`. Cada uno: `nombre`, `tipo` (claro/oscuro),
+  `tokens` (los de THEME: bg, sidebar, card, field, text, muted, line, green,
+  green_text, blue, orange, orange_text, red), `fuente` (Segoe UI 22/11/10/9),
+  `fijos` (botones grises, acento y su texto) y `mapa` (los grises fijos del
+  claro → su par en oscuro). THEME sigue siendo la única fuente de verdad: el
+  tema solo rellena THEME.
+- **Oscuro Raycast:** fondo #0F0F0F, tarjetas y barra lateral #1A1A1C, texto
+  #F4F4F5, apagado #A1A1AA (7,48:1), líneas #2C2C30, verde #34C759 (verde de
+  texto #4CD964), acento #FF6363 con texto #0F0F0F encima (6,59:1; blanco
+  sobre #FF6363 no llega), rojo de error #FF453A, naranja de texto #FFB340.
+- **Claro:** sin cambios. Nunca texto #FF6363 en claro (2,91:1): ahí el rojo
+  es #C81E1E (5,74:1).
+- **Selector (Ajustes → Apariencia, CTk con la clásica de respaldo):** control
+  segmentado «Claro / Oscuro / Según el sistema» (esquinas 8), debajo «Tema
+  por nombre» (desplegable con los temas de la carpeta) + «Abrir la carpeta de
+  temas», una línea apagada «Ahora: …» y, en rojo de texto, un renglón por
+  archivo que no se cargó con el motivo («le falta el token «line»», «no es
+  JSON válido (línea 1…)», «contraste 1,69:1 de «muted» sobre «bg»…»).
+- **Cambio en caliente:** una tapa del tema nuevo («Cambiando a «…»…») cubre
+  la ventana mientras se re-pinta; nunca se ve mitad clara y mitad oscura. Si
+  algo no se puede re-pintar (otra fuente o tamaños, colores ambiguos, un
+  widget con un color fuera del tema) no se toca nada, se guarda y se pide
+  reiniciar (reinicio honesto). El texto del estado («Conectado», «Todo
+  encendido») es el mismo en los dos temas.
+- **Lo que no es tema:** layout, bordes de ventana, esquinas, sombras,
+  transparencias, animaciones, el dibujo del icono de la bandeja y de la
+  mascota. Alto contraste de Windows: fuera de este cambio.

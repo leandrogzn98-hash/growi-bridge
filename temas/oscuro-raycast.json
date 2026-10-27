@@ -1,0 +1,47 @@
+{
+  "nombre": "Oscuro Raycast",
+  "tipo": "oscuro",
+  "descripcion": "Direccion Raycast: fondo casi negro, tarjetas un punto mas claras, acento rojo #FF6363 solo en acciones primarias (con texto oscuro encima), verde #34C759 para encendido y exito.",
+  "tokens": {
+    "bg": "#0F0F0F",
+    "sidebar": "#1A1A1C",
+    "card": "#1A1A1C",
+    "field": "#0F0F0F",
+    "text": "#F4F4F5",
+    "muted": "#A1A1AA",
+    "line": "#2C2C30",
+    "green": "#34C759",
+    "green_text": "#4CD964",
+    "blue": "#FF6363",
+    "orange": "#FF9500",
+    "orange_text": "#FFB340",
+    "red": "#FF453A"
+  },
+  "fuente": {
+    "familia": "Segoe UI",
+    "titulo": 22,
+    "seccion": 11,
+    "cuerpo": 10,
+    "pie": 9
+  },
+  "fijos": {
+    "seg_bg": "#2a2a2e",
+    "seg_sel": "#45454d",
+    "seg_hover": "#35353b",
+    "accent": "#ff6363",
+    "accent_hover": "#ff7b7b",
+    "off_track": "#3a3a3f",
+    "on_accent": "#0f0f0f"
+  },
+  "mapa": {
+    "#E8E8ED": "#2A2A2E",
+    "#D2D2D7": "#3F3F46",
+    "#E9E9EA": "#3A3A3F",
+    "#DCEBFF": "#2E2E33",
+    "#6E6E73": "#A1A1A6",
+    "#FBECEC": "#2B1717",
+    "#D8D8DD": "#4A4A50",
+    "#3A3A3C": "#D4D4D8",
+    "#5A7086": "#8E9BAA"
+  }
+}

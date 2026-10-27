@@ -4,6 +4,8 @@ proxy.json
 folders.json
 settings.json
 apis.json
+# Respaldo DPAPI de Ajustes -> Claves (blobs cifrados, solo sirven en este PC): nunca al repositorio.
+credenciales.dpapi.json
 rules.json
 pc-specs.json
 *.log
@@ -16,3 +18,4 @@ __pycache__/
 share/
 sesiones/
 _prueba-orquestacion/
+cred-ayudante/
