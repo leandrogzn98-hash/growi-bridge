@@ -1,0 +1,22 @@
+{
+ "mutex": "Local\\GrowiBridgeInstanciaUnicaPruebaE5",
+ "openmutex_desde_aqui_error": 5,
+ "copia_pid": 22048,
+ "copia_codigo_salida": 0,
+ "copia_segundos": 0.93,
+ "evento_marcado_por_la_copia": true,
+ "pythonw_antes": [
+  16924
+ ],
+ "pythonw_despues": [
+  16924
+ ],
+ "escuchan_en_el_puerto": {
+  "8797": [
+   16924
+  ]
+ },
+ "log": [
+  "2026-10-27T19:31:12-04:00 Growi Bridge ya esta corriendo (pid 16924): esta copia (pid 22048) se cierra sin tocar nada (el mutex Local\\GrowiBridgeInstanciaUnicaPruebaE5 ya existe (lo creó una copia con más privilegios)); se pidió a la instancia que ya corre que se traiga al frente"
+ ]
+}

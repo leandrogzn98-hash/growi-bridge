@@ -1,0 +1,63 @@
+{
+ "carril": "b",
+ "pid_primera": 27492,
+ "pythonw_de_la_copia": [
+  {
+   "pid": 27492,
+   "name": "pythonw.exe",
+   "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\b\\app\\growi-bridge.py"
+  }
+ ],
+ "ventanas_principales": [
+  {
+   "hwnd": 145390,
+   "clase": "TkTopLevel",
+   "titulo": "Growi Bridge — carril B",
+   "visible": true,
+   "minimizada": false,
+   "en_barra_de_tareas": true
+  }
+ ],
+ "ventana_primera": {
+  "hwnd": 145390,
+  "clase": "TkTopLevel",
+  "titulo": "Growi Bridge — carril B",
+  "visible": true,
+  "minimizada": false,
+  "en_barra_de_tareas": true
+ },
+ "iconos_bandeja_por_pid": {
+  "27492": true
+ },
+ "escuchan_en_el_puerto": {
+  "8799": [
+   27492
+  ]
+ },
+ "puente": {
+  "/gateway/salud": "HTTP 200 {\"ok\": true, \"pid\": 27492, \"puerto\": 8799, \"carril\": \"b\"}",
+  "/health": "HTTP 404 {\"error\": \"no encontrado\"}"
+ },
+ "gateway_lock": {
+  "pid": 27492,
+  "inicio": "2026-10-27T19:27:37-04:00",
+  "puerto": 8799,
+  "carril": "b",
+  "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\b\\app\\growi-bridge.py",
+  "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+ },
+ "primer_plano": {
+  "hwnd": 145390,
+  "pid": 27492,
+  "titulo": "Growi Bridge — carril B"
+ },
+ "lock_obsoleto_antes": {
+  "pid": 17216,
+  "inicio": "2026-10-27T19:25:33-04:00",
+  "puerto": 8799,
+  "carril": "b",
+  "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\b\\app\\growi-bridge.py",
+  "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+ },
+ "proceso_sigue_vivo": true
+}

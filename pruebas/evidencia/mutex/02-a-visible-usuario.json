@@ -1,0 +1,80 @@
+{
+ "antes": {
+  "visible": true,
+  "minimizada": false,
+  "primer_plano": {
+   "hwnd": 397180,
+   "pid": 27200,
+   "titulo": "Growi Bridge"
+  }
+ },
+ "despues": {
+  "carril": "a",
+  "pid_primera": 27200,
+  "pythonw_de_la_copia": [
+   {
+    "pid": 27200,
+    "name": "pythonw.exe",
+    "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\a\\app\\growi-bridge.py"
+   }
+  ],
+  "ventanas_principales": [
+   {
+    "hwnd": 397180,
+    "clase": "TkTopLevel",
+    "titulo": "Growi Bridge",
+    "visible": true,
+    "minimizada": false,
+    "en_barra_de_tareas": true
+   }
+  ],
+  "ventana_primera": {
+   "hwnd": 397180,
+   "clase": "TkTopLevel",
+   "titulo": "Growi Bridge",
+   "visible": true,
+   "minimizada": false,
+   "en_barra_de_tareas": true
+  },
+  "iconos_bandeja_por_pid": {
+   "27200": true
+  },
+  "escuchan_en_el_puerto": {
+   "8797": [
+    27200
+   ]
+  },
+  "puente": {
+   "/gateway/salud": "HTTP 200 {\"ok\": true, \"pid\": 27200, \"puerto\": 8797, \"carril\": \"a\"}",
+   "/health": "HTTP 404 {\"error\": \"no encontrado\"}"
+  },
+  "gateway_lock": {
+   "pid": 27200,
+   "inicio": "2026-10-27T19:24:29-04:00",
+   "puerto": 8797,
+   "carril": "a",
+   "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\a\\app\\growi-bridge.py",
+   "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+  },
+  "primer_plano": {
+   "hwnd": 397180,
+   "pid": 27200,
+   "titulo": "Growi Bridge"
+  }
+ },
+ "primera_visible": true,
+ "primera_minimizada": false,
+ "primera_en_primer_plano": true,
+ "primera_arriba_en_orden_z": true,
+ "ventanas_por_encima": [],
+ "log": [
+  "2026-10-27T19:24:58-04:00 Growi Bridge ya esta corriendo (pid 27200): esta copia (pid 27412) se cierra sin tocar nada (el mutex Local\\GrowiBridgeInstanciaUnicaPrueba ya existe); se pidió a la instancia que ya corre que se traiga al frente",
+  "2026-10-27T19:24:58-04:00 instancia unica: otra copia pidió la ventana; se trae al frente",
+  "2026-10-27T19:24:59-04:00 instancia unica: ventana normal, en primer plano",
+  "2026-10-27T19:25:07-04:00 Growi Bridge ya esta corriendo (pid 27200): esta copia (pid 26752) se cierra sin tocar nada (el mutex Local\\GrowiBridgeInstanciaUnicaPrueba ya existe); se pidió a la instancia que ya corre que se traiga al frente",
+  "2026-10-27T19:25:07-04:00 instancia unica: otra copia pidió la ventana; se trae al frente",
+  "2026-10-27T19:25:08-04:00 instancia unica: ventana normal, en primer plano"
+ ],
+ "segunda_codigo_salida": "0",
+ "segunda_segundos": 4.6
+}

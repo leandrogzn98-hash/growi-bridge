@@ -1,0 +1,68 @@
+{
+ "rc_watchdog": 0,
+ "stderr": "",
+ "segundos": 19.9,
+ "watchdog_log": [
+  "2026-10-27 19:27:13 carril A (8797) reinicio"
+ ],
+ "despues": {
+  "carril": "a",
+  "pid_primera": 26312,
+  "pythonw_de_la_copia": [
+   {
+    "pid": 26312,
+    "name": "pythonw.exe",
+    "cmdline": "pythonw growi-bridge.py"
+   }
+  ],
+  "ventanas_principales": [
+   {
+    "hwnd": 528254,
+    "clase": "TkTopLevel",
+    "titulo": "Growi Bridge",
+    "visible": true,
+    "minimizada": false,
+    "en_barra_de_tareas": true
+   }
+  ],
+  "ventana_primera": {
+   "hwnd": 528254,
+   "clase": "TkTopLevel",
+   "titulo": "Growi Bridge",
+   "visible": true,
+   "minimizada": false,
+   "en_barra_de_tareas": true
+  },
+  "iconos_bandeja_por_pid": {
+   "26312": false
+  },
+  "escuchan_en_el_puerto": {
+   "8797": []
+  },
+  "puente": {
+   "/gateway/salud": "HTTP 200 {\"ok\": true, \"pid\": 26312, \"puerto\": 8797, \"carril\": \"a\"}",
+   "/health": "HTTP 404 {\"error\": \"no encontrado\"}"
+  },
+  "gateway_lock": {
+   "pid": 26312,
+   "inicio": "2026-10-27T19:27:14-04:00",
+   "puerto": 8797,
+   "carril": "a",
+   "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\a\\app\\growi-bridge.py",
+   "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+  },
+  "primer_plano": {
+   "hwnd": 528254,
+   "pid": 26312,
+   "titulo": "Growi Bridge"
+  }
+ },
+ "log": [
+  "2026-10-27T19:26:51-04:00 Growi Bridge v0.2.0-alpha arrancado (carril A, puerto 8797). Administrador: sí. Gateway: proceso único pid 27252 (mutex Local\\GrowiBridgeInstanciaUnicaPrueba, gateway.lock).",
+  "2026-10-27T19:26:51-04:00 runner: arrancado",
+  "2026-10-27T19:26:51-04:00 runner: arrancado (claude=C:\\Users\\forte\\.local\\bin\\claude.EXE)",
+  "2026-10-27T19:27:26-04:00 Growi Bridge v0.2.0-alpha arrancado (carril A, puerto 8797). Administrador: sí. Gateway: proceso único pid 26312 (mutex Local\\GrowiBridgeInstanciaUnicaPrueba, gateway.lock).",
+  "2026-10-27T19:27:26-04:00 runner: arrancado",
+  "2026-10-27T19:27:26-04:00 runner: arrancado (claude=C:\\Users\\forte\\.local\\bin\\claude.EXE)"
+ ]
+}

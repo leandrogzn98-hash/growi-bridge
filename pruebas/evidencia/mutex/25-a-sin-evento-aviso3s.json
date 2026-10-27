@@ -1,0 +1,14 @@
+{
+ "mutex": "Local\\GrowiBridgeInstanciaUnicaPruebaSinEvento",
+ "ventanas_de_la_copia_a_1_2s": [
+  [
+   "#32770",
+   "Growi Bridge"
+  ]
+ ],
+ "codigo_salida": 0,
+ "segundos_hasta_salir": 3.99,
+ "log": [
+  "2026-10-27T19:31:27-04:00 Growi Bridge ya esta corriendo (pid 16924): esta copia (pid 28648) se cierra sin tocar nada (el mutex Local\\GrowiBridgeInstanciaUnicaPruebaSinEvento ya existe); no se pudo avisar a la instancia que ya corre"
+ ]
+}

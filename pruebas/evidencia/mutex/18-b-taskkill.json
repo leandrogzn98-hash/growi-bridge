@@ -1,0 +1,12 @@
+{
+ "taskkill": "Correcto: se terminó el proceso con PID 17216.",
+ "pythonw_de_la_copia": [],
+ "gateway_lock_queda": {
+  "pid": 17216,
+  "inicio": "2026-10-27T19:25:33-04:00",
+  "puerto": 8799,
+  "carril": "b",
+  "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\b\\app\\growi-bridge.py",
+  "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+ }
+}

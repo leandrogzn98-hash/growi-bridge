@@ -1,0 +1,12 @@
+{
+ "taskkill": "Correcto: se terminó el proceso con PID 27252.",
+ "pythonw_de_la_copia": [],
+ "gateway_lock_queda": {
+  "pid": 27252,
+  "inicio": "2026-10-27T19:26:39-04:00",
+  "puerto": 8797,
+  "carril": "a",
+  "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\a\\app\\growi-bridge.py",
+  "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+ }
+}

@@ -14106,13 +14106,141 @@ def instancia_unica():
     return True, None
 
 
+# ---- traer al frente la instancia que ya corre
+# Evento con nombre (auto-reset), uno por carril: lo crea la instancia unica
+# al arrancar y su bucle de Tk lo mira cada 300 ms; la segunda copia lo
+# abre, lo marca y sale. Se deriva del nombre del mutex, asi que lleva el
+# mismo sufijo de carril (y el de una copia de prueba con GROWI_BRIDGE_MUTEX).
+_mostrar_evento = None
+
+
+def _nombre_mostrar():
+    m = GATEWAY.get("mutex") or "Local\\GrowiBridgeInstanciaUnica"
+    return (m.replace("GrowiBridgeInstanciaUnica", "GrowiBridgeMostrar")
+            if "GrowiBridgeInstanciaUnica" in m else m + "-Mostrar")
+
+
+def _mostrar_crear():
+    """La instancia unica crea el evento. Con DACL explicita: la app corre
+    elevada y, si la DACL por defecto no dejara entrar a una copia sin
+    elevar (el caso del error 5 del mutex), esa copia no podria marcarlo.
+    Usuarios autenticados solo pueden marcarlo (EVENT_MODIFY_STATE |
+    SYNCHRONIZE); etiqueta de integridad media."""
+    global _mostrar_evento
+    name = _nombre_mostrar()
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k32, adv = ctypes.windll.kernel32, ctypes.windll.advapi32
+
+        class SA(ctypes.Structure):
+            _fields_ = [("nLength", wintypes.DWORD), ("lpSecurityDescriptor", ctypes.c_void_p),
+                        ("bInheritHandle", wintypes.BOOL)]
+        sd = ctypes.c_void_p()
+        sa = None
+        if adv.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                "D:(A;;0x1F0003;;;SY)(A;;0x1F0003;;;BA)(A;;0x1F0003;;;OW)(A;;0x100002;;;AU)S:(ML;;NW;;;ME)",
+                1, ctypes.byref(sd), None):
+            sa = SA(ctypes.sizeof(SA), sd, False)
+        k32.CreateEventW.restype = ctypes.c_void_p
+        h = k32.CreateEventW(ctypes.byref(sa) if sa else None, False, False, name)
+        if not h:
+            h = k32.CreateEventW(None, False, False, name)
+        if sd:
+            k32.LocalFree(sd)
+        _mostrar_evento = h or None
+        if not h:
+            log(f"instancia unica: no se pudo crear el evento {name} (error {k32.GetLastError()}); "
+                "una segunda copia no podrá traer la ventana al frente")
+    except Exception as e:
+        log(f"instancia unica: evento {name} no disponible ({type(e).__name__}: {e})")
+
+
+def _mostrar_poll():
+    """Bucle de Tk: si una segunda copia marcó el evento, show_window() (el
+    mismo camino que el doble clic en la bandeja: sirve con withdraw e iconify)."""
+    if _mostrar_evento is None or _root is None:
+        return
+    try:
+        import ctypes
+        if ctypes.windll.kernel32.WaitForSingleObject(ctypes.c_void_p(_mostrar_evento), 0) == 0:
+            log("instancia unica: otra copia pidió la ventana; se trae al frente")
+            show_window()
+            _root.after(500, _mostrar_comprobar)
+    except Exception:
+        pass
+    try:
+        _root.after(300, _mostrar_poll)
+    except Exception:
+        pass
+
+
+def _mostrar_comprobar():
+    """Si la ventana quedo visible pero sin el foco (la copia que lo pidio no
+    tenia derecho a cederlo, p. ej. la lanzo un proceso de fondo), se toma
+    con AttachThreadInput al hilo que tiene el foco. Lo deja en el registro."""
+    try:
+        import ctypes
+        u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+        u32.GetForegroundWindow.restype = ctypes.c_void_p
+        hw = int(_root.wm_frame(), 16)
+        como = "en primer plano"
+        fg = u32.GetForegroundWindow()
+        if fg != hw:
+            otro = u32.GetWindowThreadProcessId(ctypes.c_void_p(fg), None) if fg else 0
+            mio = k32.GetCurrentThreadId()
+            unido = bool(otro) and otro != mio and u32.AttachThreadInput(mio, otro, True)
+            try:
+                u32.BringWindowToTop(ctypes.c_void_p(hw))
+                u32.SetForegroundWindow(ctypes.c_void_p(hw))
+            finally:
+                if unido:
+                    u32.AttachThreadInput(mio, otro, False)
+            como = ("en primer plano (tomado con AttachThreadInput)" if u32.GetForegroundWindow() == hw
+                    else "visible y encima, pero sin el foco del teclado")
+        log(f"instancia unica: ventana {_root.state()}, {como}")
+    except Exception:
+        pass
+
+
+def _mostrar_senalar():
+    """Segunda copia: marca el evento de la primera. True si se pudo."""
+    name = _nombre_mostrar()
+    try:
+        import ctypes
+        k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
+        k32.OpenEventW.restype = ctypes.c_void_p
+        k32.GetLastError.restype = ctypes.c_ulong
+        h = k32.OpenEventW(0x0002, False, name)  # EVENT_MODIFY_STATE
+        if not h:
+            log(f"instancia unica: no se pudo abrir {name} (error {k32.GetLastError()})")
+            return False
+        try:
+            # Esta copia la acaba de lanzar el usuario: puede ceder el primer
+            # plano a la otra (sin esto Windows solo haría parpadear el botón).
+            u32.AllowSetForegroundWindow(-1)  # ASFW_ANY
+            return bool(k32.SetEvent(ctypes.c_void_p(h)))
+        finally:
+            k32.CloseHandle(ctypes.c_void_p(h))
+    except Exception as e:
+        log(f"instancia unica: no se pudo marcar {name} ({type(e).__name__}: {e})")
+        return False
+
+
 def _aviso_ya_corre(motivo):
-    """La segunda copia: lo dice en el registro y en una ventana (se cierra
-    sola a los 15 s) y sale. No toca ventana, puerto, cola, llama ni watchdog."""
+    """La segunda copia: pide a la primera que se traiga al frente y sale sin
+    ventana. Solo si no lo consigue (la primera aún arranca, evento sin
+    acceso) muestra un aviso corto (3 s; antes 15 s). No toca puerto, cola,
+    runner ni watchdog."""
     d = _lock_leer() or {}
     pid = d.get("pid")
+    traida = _mostrar_senalar()
     log(f"Growi Bridge ya esta corriendo{f' (pid {pid})' if pid else ''}: esta copia (pid {os.getpid()}) "
-        f"se cierra sin tocar nada ({motivo})")
+        f"se cierra sin tocar nada ({motivo}); "
+        + ("se pidió a la instancia que ya corre que se traiga al frente" if traida
+           else "no se pudo avisar a la instancia que ya corre"))
+    if traida:
+        return
     txt = ("Growi Bridge ya está corriendo" + (f" (proceso {pid})" if pid else "") + ".\n\n"
            "Esta copia se cierra sin tocar nada. Busca el icono de Growi en la bandeja.")
     try:
@@ -14120,7 +14248,7 @@ def _aviso_ya_corre(motivo):
         u32 = ctypes.windll.user32
         fn = getattr(u32, "MessageBoxTimeoutW", None)
         if fn is not None:
-            fn(0, txt, "Growi Bridge", 0x40 | 0x40000, 0, 15000)  # info + siempre encima
+            fn(0, txt, "Growi Bridge", 0x40 | 0x40000, 0, 3000)  # info + siempre encima
         else:
             u32.MessageBoxW(0, txt, "Growi Bridge", 0x40 | 0x40000)
     except Exception:
@@ -32482,6 +32610,9 @@ def main():
     _set_app_user_model_id()
     ok, motivo = instancia_unica()
     if ok:
+        # Evento «trae la ventana al frente» de este carril: cuanto antes,
+        # para que una segunda copia lanzada durante el arranque lo encuentre.
+        _mostrar_crear()
         # Indice de skills de Bridge al arrancar, en un hilo (la pagina
         # Skills dice «Leyendo…» mientras tanto).
         threading.Thread(target=skills_indexar, args=("arranque",), daemon=True).start()
@@ -32611,6 +32742,7 @@ def main():
     if LANE == "a":  # el carril B es una copia de fondo: sin asistente inicial
         root.after(400, maybe_onboarding)
     root.after(1000, _tick)
+    root.after(300, _mostrar_poll)
     try:
         root.mainloop()
     except KeyboardInterrupt:

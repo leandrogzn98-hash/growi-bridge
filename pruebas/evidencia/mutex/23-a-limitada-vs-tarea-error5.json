@@ -1,0 +1,86 @@
+{
+ "antes": {
+  "visible": false,
+  "minimizada": false,
+  "primer_plano": {
+   "hwnd": 399680,
+   "pid": 17756,
+   "titulo": "(otra app)"
+  }
+ },
+ "despues": {
+  "carril": "a",
+  "pid_primera": 16924,
+  "pythonw_de_la_copia": [
+   {
+    "pid": 16924,
+    "name": "pythonw.exe",
+    "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe growi-bridge.py"
+   }
+  ],
+  "ventanas_principales": [
+   {
+    "hwnd": 331666,
+    "clase": "TkTopLevel",
+    "titulo": "Growi Bridge",
+    "visible": true,
+    "minimizada": false,
+    "en_barra_de_tareas": true
+   }
+  ],
+  "ventana_primera": {
+   "hwnd": 331666,
+   "clase": "TkTopLevel",
+   "titulo": "Growi Bridge",
+   "visible": true,
+   "minimizada": false,
+   "en_barra_de_tareas": true
+  },
+  "iconos_bandeja_por_pid": {
+   "16924": true
+  },
+  "escuchan_en_el_puerto": {
+   "8797": [
+    16924
+   ]
+  },
+  "puente": {
+   "/gateway/salud": "HTTP 200 {\"ok\": true, \"pid\": 16924, \"puerto\": 8797, \"carril\": \"a\"}",
+   "/health": "HTTP 404 {\"error\": \"no encontrado\"}"
+  },
+  "gateway_lock": {
+   "pid": 16924,
+   "inicio": "2026-10-27T19:30:16-04:00",
+   "puerto": 8797,
+   "carril": "a",
+   "programa": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mutex\\a\\app\\growi-bridge.py",
+   "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+  },
+  "primer_plano": {
+   "hwnd": 331666,
+   "pid": 16924,
+   "titulo": "Growi Bridge"
+  }
+ },
+ "primera_visible": true,
+ "primera_minimizada": false,
+ "primera_en_primer_plano": true,
+ "primera_arriba_en_orden_z": true,
+ "ventanas_por_encima": [],
+ "log": [
+  "2026-10-27T19:30:29-04:00 Growi Bridge v0.2.0-alpha arrancado (carril A, puerto 8797). Administrador: sí. Gateway: proceso único pid 16924 (mutex Local\\GrowiBridgeInstanciaUnicaPrueba, gateway.lock).",
+  "2026-10-27T19:30:29-04:00 runner: arrancado",
+  "2026-10-27T19:30:29-04:00 runner: arrancado (claude=C:\\Users\\forte\\.local\\bin\\claude.EXE)",
+  "2026-10-27T19:30:39-04:00 Growi Bridge ya esta corriendo (pid 16924): esta copia (pid 6060) se cierra sin tocar nada (el mutex Local\\GrowiBridgeInstanciaUnicaPrueba ya existe); se pidió a la instancia que ya corre que se traiga al frente",
+  "2026-10-27T19:30:39-04:00 instancia unica: otra copia pidió la ventana; se trae al frente",
+  "2026-10-27T19:30:40-04:00 instancia unica: ventana normal, en primer plano"
+ ],
+ "segunda_codigo_salida": "0",
+ "segunda_segundos": 2.11,
+ "segunda_integridad": [
+  "Etiqueta"
+ ],
+ "segunda_integridad_sid": [
+  "S-1-16-8192"
+ ]
+}
