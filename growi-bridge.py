@@ -15937,27 +15937,46 @@ def add_api_whatsapp():
         "llega al PC en segundos por el puente")
 
 def show_window():
+    """Vuelve la ventana al frente: sirve igual si estaba escondida en la
+    bandeja (withdraw) o minimizada (iconify)."""
     if _root is None:
         return
     try:
         _root.deiconify()
         _root.lift()
+        # Un instante encima de todo: lift() solo no gana a la ventana que
+        # tiene el foco ahora (p. ej. el navegador al hacer doble clic).
+        _root.attributes("-topmost", True)
+        _root.after(200, lambda: _root.attributes("-topmost", False))
         _root.focus_force()
     except Exception:
         pass
 
 
+def _a_la_bandeja():
+    """Carril A con icono en la bandeja: esconder es withdraw() (sin ventana,
+    sin boton en la barra de tareas, sin Alt+Tab). Sin icono no se esconde
+    del todo (no habria por donde volver) y el carril B queda como estaba:
+    los dos minimizan a la barra de tareas (iconify)."""
+    return LANE == "a" and _tray_icon is not None
+
+
 def hide_to_tray(toast=False):
-    """Minimiza la ventana (la mascota sigue visible en su esquina). El
-    aviso de que sigue corriendo sale solo si lo pide la X con el ajuste
-    «minimizar» (toast=True) y solo la primera vez; Ctrl+Alt+G nunca avisa."""
+    """Esconde la ventana en la bandeja (la mascota sigue visible en su
+    esquina; puente, runner y proxy siguen igual). El aviso de que sigue
+    corriendo sale solo si lo pide la X con el ajuste «minimizar»
+    (toast=True) y solo la primera vez; Ctrl+Alt+G nunca avisa."""
     if _root is None:
         return
     try:
-        _root.iconify()
+        if _a_la_bandeja():
+            _root.withdraw()
+        else:
+            _root.iconify()
     except Exception:
         pass
-    log("ventana minimizada (el programa sigue corriendo)")
+    log("ventana escondida en la bandeja (el programa sigue corriendo)" if _a_la_bandeja()
+        else "ventana minimizada (el programa sigue corriendo)")
     if not toast or _tray_icon is None:
         return
     s = load_settings()
@@ -15975,12 +15994,20 @@ CLOSE_MODES = (("ask", "Preguntarme"), ("minimize", "Minimizar a la bandeja"),
                ("quit", "Salir del todo"))
 
 
+def close_mode():
+    """Lo que hace la X ahora: 'minimize', 'quit' o 'ask'. Sin eleccion
+    guardada, el carril A se queda en la bandeja (por defecto) y el B
+    pregunta, como siempre. Se lee en cada clic: el cambio en Ajustes vale
+    al momento."""
+    m = load_settings().get("on_close")
+    if m in ("minimize", "quit", "ask"):
+        return m
+    return "minimize" if LANE == "a" else "ask"
+
+
 def _set_close_mode(mode):
     s = load_settings()
-    if mode == "ask":
-        s.pop("on_close", None)
-    else:
-        s["on_close"] = mode
+    s["on_close"] = mode  # "ask" tambien se guarda: sin clave vale el defecto
     save_settings(s)
     var = _widgets.get("close_var")
     if var is not None and var.get() != mode:
@@ -15988,9 +16015,9 @@ def _set_close_mode(mode):
     log("ajustes: al cerrar la ventana -> " + dict(CLOSE_MODES)[mode].lower())
 
 
-def _ask_close_mode():
-    """Primera vez que se pulsa la X: pregunta que hacer y (si se deja
-    marcado) lo recuerda. Devuelve 'minimize', 'quit' o None (cancelar)."""
+def _ask_close_mode(recordar=True):
+    """La X con «Preguntarme»: pregunta que hacer y (si se deja marcado) lo
+    recuerda. Devuelve 'minimize', 'quit' o None (cancelar)."""
     res = {"mode": None}
     box = tk.Toplevel(_root)
     box.title("Cerrar Growi Bridge")
@@ -16009,7 +16036,7 @@ def _ask_close_mode():
              "Si salgo, se paran el puente y el runner.", font=(FONT, 10),
              bg=THEME["bg"], fg=THEME["muted"], wraplength=S(380),
              justify="left").pack(anchor="w", padx=20)
-    remember = tk.BooleanVar(value=True)
+    remember = tk.BooleanVar(value=recordar)
     tk.Checkbutton(box, text="Recordar mi elección (se cambia en Ajustes)",
                    variable=remember, font=(FONT, 10), bg=THEME["bg"],
                    fg=THEME["text"], activebackground=THEME["bg"],
@@ -16037,19 +16064,74 @@ def _ask_close_mode():
 
 
 def on_close_window():
-    """La X de la ventana: hace lo que elegiste en Ajustes (minimizar a la
-    bandeja o salir). Si aun no elegiste, lo pregunta una vez."""
-    mode = load_settings().get("on_close")
-    if mode not in ("minimize", "quit"):
-        mode = _ask_close_mode()
+    """La X de la ventana: hace lo que dice Ajustes (minimizar a la bandeja,
+    salir o preguntar). Por defecto, en el carril A, minimiza a la bandeja."""
+    mode = close_mode()
+    if mode == "ask":
+        # Si «Preguntarme» lo elegiste tu en Ajustes, no se pisa por defecto.
+        mode = _ask_close_mode(recordar=load_settings().get("on_close") != "ask")
     if mode == "quit":
         quit_app()
     elif mode == "minimize":
         hide_to_tray(toast=True)
 
 
+_SALIDA = {"hecha": False}
+
+
+def _al_minimizar(e):
+    """El boton minimizar de la ventana (carril A con bandeja): en vez de
+    quedarse en la barra de tareas, se esconde en la bandeja como la X."""
+    if _root is None or e.widget is not _root or not _a_la_bandeja():
+        return
+    try:
+        if _root.state() == "iconic":
+            _root.after_idle(hide_to_tray)
+    except Exception:
+        pass
+
+
+def _fin_de_sesion_registrar(icon):
+    """Cerrar sesion / apagar Windows: la ventana oculta de la bandeja
+    (pystray, de nivel superior, recibe los mensajes de difusion) contesta
+    WM_QUERYENDSESSION que si (pystray devolvia 0 = «no apagues») y con
+    WM_ENDSESSION corre quit_app() en el hilo de la ventana y lo espera:
+    al volver de WM_ENDSESSION Windows puede terminar el proceso."""
+    WM_QUERYENDSESSION, WM_ENDSESSION = 0x0011, 0x0016
+
+    def _query(wparam, lparam):
+        log("windows: pide cerrar la sesión o apagar; contesto que sí")
+        return 1
+
+    def _end(wparam, lparam):
+        if not wparam:  # la sesion al final no se cierra: se sigue
+            log("windows: el cierre de sesión se canceló; sigo corriendo")
+            return 0
+        log("windows: se cierra la sesión o se apaga: salgo del todo (puente, runner, bandeja)")
+        listo = threading.Event()
+
+        def _salir():
+            try:
+                quit_app()
+            finally:
+                listo.set()
+        try:
+            _root.after(0, _salir)
+        except Exception:
+            _salir()
+        if not listo.wait(15):
+            log("windows: la salida no terminó en 15 s; Windows cierra el proceso")
+        return 0
+
+    icon._message_handlers[WM_QUERYENDSESSION] = _query
+    icon._message_handlers[WM_ENDSESSION] = _end
+
+
 def quit_app():
     global _tray_icon
+    if _SALIDA["hecha"]:  # Salir y luego el final de mainloop: una sola vez
+        return
+    _SALIDA["hecha"] = True
     log("saliendo de Growi Bridge...")
     try:
         atajos_salir()  # UnregisterHotKey de cada atajo global: quedan libres
@@ -16122,6 +16204,7 @@ def build_tray():
     )
     icon = pystray.Icon("GrowiBridge" + ("B" if LANE == "b" else ""), image, _tray_title(), menu)
     _patch_tray_clicks(icon)
+    _fin_de_sesion_registrar(icon)
     try:
         icon.run_detached()
     except AttributeError:
@@ -19029,7 +19112,7 @@ def _patch_tray_clicks(icon):
     orig = icon._message_handlers.get(pw.WM_NOTIFY)
     if orig is None:
         return
-    pend = {"t": None}
+    pend = {"t": None, "tras_doble": False}
 
     def _single():
         # Clic: Tareas filtrada a las que esperan tu aprobacion; sin ninguna,
@@ -19043,10 +19126,15 @@ def _patch_tray_clicks(icon):
             if pend["t"]:
                 pend["t"].cancel()
                 pend["t"] = None
+            # El doble clic acaba con otro WM_LBUTTONUP: ese no es un clic nuevo.
+            pend["tras_doble"] = True
             if _root is not None:
                 _root.after(0, show_window)
             return 0
         if lparam == 0x0202:  # WM_LBUTTONUP
+            if pend["tras_doble"]:
+                pend["tras_doble"] = False
+                return 0
             if pend["t"]:
                 return 0
             try:
@@ -30931,9 +31019,7 @@ def _build_ajustes_tk(tab_aj):
     tk.Label(crow, text="Qué hace la X: quedarse en la bandeja (sigue recibiendo tareas) "
              "o salir del todo.", font=(FONT, 9), bg=THEME["card"],
              fg=THEME["muted"]).pack(anchor="w")
-    _close_now = load_settings().get("on_close")
-    _widgets["close_var"] = tk.StringVar(
-        value=_close_now if _close_now in ("minimize", "quit") else "ask")
+    _widgets["close_var"] = tk.StringVar(value=close_mode())
     _crow_opts = tk.Frame(crow, bg=THEME["card"])
     _crow_opts.pack(anchor="w", pady=(4, 0))
     for _k, _lab in CLOSE_MODES:
@@ -31271,9 +31357,7 @@ def _build_ajustes_ctk(tab_aj):
     text_block(r, "Al cerrar la ventana",
                "Qué hace la X: quedarse en la bandeja (sigue recibiendo tareas) "
                "o salir del todo.")
-    _close_now = load_settings().get("on_close")
-    _widgets["close_var"] = tk.StringVar(
-        value=_close_now if _close_now in ("minimize", "quit") else "ask")
+    _widgets["close_var"] = tk.StringVar(value=close_mode())
     segmented(r, _widgets["close_var"], CLOSE_MODES, _set_close_mode).pack(
         anchor="w", pady=(10, 0))
 
@@ -32420,6 +32504,11 @@ def main():
     if settings.get("guardrail") not in ("siempre", "delicado", "nunca"):
         settings["guardrail"] = "siempre"
         save_settings(settings)
+    if LANE == "a" and "on_close" not in settings:
+        # Instalacion nueva: la X se queda en la bandeja sin preguntar. Una
+        # eleccion ya guardada («quit», «ask» o «minimize») no se toca.
+        settings["on_close"] = "minimize"
+        save_settings(settings)
     # Claves de la 0.2.0 (apis.json, una por servicio) -> almacen de claves,
     # como «principal» con su base URL por defecto, sin volver a pegarlas.
     try:
@@ -32464,6 +32553,7 @@ def main():
         return 2
     global _tray_icon
     _tray_icon = build_tray()
+    root.bind("<Unmap>", _al_minimizar, add="+")
     log(f"Growi Bridge v{VERSION} arrancado (carril {LANE.upper()}, puerto {BRIDGE_PORT}). "
         f"Administrador: {'sí' if state['admin'] else 'no'}. Gateway: proceso único pid {os.getpid()} "
         f"(mutex {GATEWAY.get('mutex')}, {LOCK_FILE.name}).")
@@ -32526,7 +32616,25 @@ def main():
     except KeyboardInterrupt:
         pass
     quit_app()
+    _salida_sin_zombis()
     return 0
+
+
+def _salida_sin_zombis(espera_s=8):
+    """Tras quit_app(): el proceso solo termina cuando acaban los hilos que
+    no son daemon. Se les da un margen; si alguno sigue colgado (servidor,
+    bandeja), se dice cual en el log y se sale igual: nunca queda un
+    pythonw de Growi Bridge vivo sin ventana ni bandeja."""
+    fin = time.time() + espera_s
+    while time.time() < fin:
+        vivos = [t for t in threading.enumerate()
+                 if t is not threading.main_thread() and not t.daemon and t.is_alive()]
+        if not vivos:
+            return
+        time.sleep(0.2)
+    log("salida: hilos que no terminaron en {} s: {}; salgo igual".format(
+        espera_s, ", ".join(t.name for t in vivos)))
+    os._exit(0)
 
 
 def _auto_update_check():
