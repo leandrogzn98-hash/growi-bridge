@@ -1,0 +1,8 @@
+{
+  "modo": "gateway-http-colgado",
+  "umbral_s": 10,
+  "timeout_total_s": 1800,
+  "error": "lanzamiento sin progreso en 5 min",
+  "error_exacto": true,
+  "esperado_s": 10.0
+}

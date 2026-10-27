@@ -1,0 +1,108 @@
+{
+  "modo": "gateway-colgado",
+  "umbral_s": 20,
+  "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gw-t_3pq976",
+  "duracion_s": 26.6,
+  "resultado": {
+    "status": "error",
+    "error": "lanzamiento sin progreso en 5 min",
+    "error_tipo": "definitivo",
+    "duration_s": 20.2,
+    "cost_usd": null,
+    "exit_code": null,
+    "estado": "fallida",
+    "reintentos": 0
+  },
+  "checkpoint": {
+    "estado": "fallida",
+    "paso": "motor",
+    "siguiente_paso": "terminada",
+    "historial": "[{\"at\": \"2026-10-27T16:49:43-04:00\", \"estado\": \"lanzando\", \"nota\": \"terminada\"}, {\"at\": \"2026-10-27T16:50:03-04:00\", \"estado\": \"fallida\", \"nota\": \"resultado del motor: error\"}, {\"at\": \"2026-10-27T16:50:03-04:00\", \"estado\": \"fallida\", \"nota\": \"fallida: terminada\"}]"
+  },
+  "cola": {
+    "estado": "fallida",
+    "motivo": "lanzamiento sin progreso en 5 min",
+    "reintentos": 0
+  },
+  "es_transitorio": false,
+  "log": [
+    "2026-10-27T16:49:43-04:00 memoria [prueba-gw-colgado]: inyectados MEMORY.md (1380 car.), 2026-10-27.md (188 car.); no existe 2026-10-26.md: se carga solo la de hoy; total 1958 car.; 0 notas más viejas no se cargan",
+    "2026-10-27T16:49:43-04:00 runner [prueba-gw-colgado]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gw-t_3pq976\\share\\inbox (timeout 30 min)",
+    "2026-10-27T16:49:43-04:00 runner [prueba-gw-colgado]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 27120",
+    "2026-10-27T16:50:03-04:00 runner [prueba-gw-colgado]: lanzamiento sin progreso en 5 min: claude lleva 20 s sin un evento (límite 20 s); se mató el árbol de procesos del pid 27120",
+    "2026-10-27T16:50:03-04:00 runner [prueba-gw-colgado]: terminado: error duracion=20.2s costo=None",
+    "2026-10-27T16:50:03-04:00 runner [prueba-gw-colgado]: fallida: Lo intenté pero no pude confirmar que funcionara. lanzamiento sin progreso en 5 min."
+  ],
+  "latidos_y_vivo": [
+    {
+      "t": 10.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:49:37-04:00",
+      "idle_s": 0
+    },
+    {
+      "t": 13.3,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:49:37-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:49:37-04:00",
+        "last_activity": "2026-10-27T16:49:37-04:00",
+        "idle_s": 0
+      }
+    },
+    {
+      "t": 13.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:49:37-04:00",
+      "idle_s": 6
+    },
+    {
+      "t": 19.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:49:43-04:00",
+      "idle_s": 5
+    },
+    {
+      "t": 25.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:49:43-04:00",
+      "idle_s": 10
+    },
+    {
+      "t": 28.7,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:49:43-04:00",
+      "idle_s": 15
+    },
+    {
+      "t": 34.9,
+      "archivo": "runner-live.json",
+      "estado": "terminado",
+      "ultima_actividad": "2026-10-27T16:49:43-04:00",
+      "idle_s": 20
+    }
+  ],
+  "procesos_falsos_vistos_durante": [
+    {
+      "pid": 24184,
+      "name": "python.exe",
+      "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -c import time; time.sleep(3600)  # growi-fake-hijo"
+    },
+    {
+      "pid": 27120,
+      "name": "python.exe",
+      "cmdline": "Local\\Programs\\Python\\Python312\\python.exe C:\\Users\\forte\\growi-bridge-lane2\\growi-bridge\\pruebas\\fake_claude.py colgado"
+    }
+  ],
+  "procesos_falsos_vivos_despues": []
+}

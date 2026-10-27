@@ -1,0 +1,69 @@
+{
+  "modo": "runner-colgado",
+  "umbral_s": 20,
+  "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-7m08kll_",
+  "resultado": {
+    "runner": "growi-runner/1.2",
+    "id": "prueba-runner-colgado",
+    "status": "error",
+    "started_at": "2026-10-27T16:45:36-04:00",
+    "finished_at": "2026-10-27T16:45:56-04:00",
+    "duration_s": 20.2,
+    "exit_code": null,
+    "result": "",
+    "cost_usd": null,
+    "num_turns": null,
+    "session_id": null,
+    "stderr": "",
+    "error": "lanzamiento sin progreso en 5 min"
+  },
+  "log": [
+    "2026-10-27T16:45:36-04:00 [prueba-runner-colgado] corriendo claude -p en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-7m08kll_\\share\\inbox (timeout 30 min)",
+    "2026-10-27T16:45:36-04:00 [prueba-runner-colgado] claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 10408",
+    "2026-10-27T16:45:56-04:00 [prueba-runner-colgado] lanzamiento sin progreso en 5 min: 20 s sin una linea de salida (limite 20 s); se mato el arbol de procesos del pid 10408",
+    "2026-10-27T16:45:56-04:00 [prueba-runner-colgado] terminado: status=error duracion=20.2s costo=None error=lanzamiento sin progreso en 5 min"
+  ],
+  "latidos": [
+    {
+      "t": 3.4,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:45:31-04:00",
+      "current": null
+    },
+    {
+      "t": 6.5,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:45:36-04:00",
+      "current": {
+        "id": "prueba-runner-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:45:36-04:00",
+        "last_activity": "2026-10-27T16:45:36-04:00",
+        "idle_s": 0
+      }
+    },
+    {
+      "t": 28.1,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:45:56-04:00",
+      "current": null
+    }
+  ],
+  "task_archivado_en_done": true,
+  "procesos_falsos_vistos_durante": [
+    {
+      "pid": 10408,
+      "name": "python.exe",
+      "cmdline": "Local\\Programs\\Python\\Python312\\python.exe C:\\Users\\forte\\growi-bridge-lane2\\growi-bridge\\pruebas\\fake_claude.py colgado"
+    },
+    {
+      "pid": 23816,
+      "name": "python.exe",
+      "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -c import time; time.sleep(3600)  # growi-fake-hijo"
+    }
+  ],
+  "procesos_falsos_vivos_despues": [],
+  "claude_exe_antes": 2,
+  "claude_exe_despues": 2
+}

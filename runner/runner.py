@@ -73,6 +73,11 @@ def _oculto():
 
 POLL_SECONDS = 5
 HEARTBEAT_SECONDS = 60
+# Sin una sola linea de stdout/stderr en este tiempo, el intento se da por
+# colgado y se mata (arbol completo). Es inactividad, no duracion: el limite
+# total sigue siendo timeout_min. Solo para pruebas: GROWI_NO_PROGRESS_S.
+NO_PROGRESS_TIMEOUT_S = 300
+NO_PROGRESS_TXT = "lanzamiento sin progreso en 5 min"
 LIVE_SECONDS = 5
 # Precio de lista ($ por millon de tokens) solo para el ESTIMADO en vivo; el
 # costo que vale es el que Claude reporta al final (total_cost_usd). Calibrado
@@ -92,6 +97,18 @@ SAFE_ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456
 
 def now_iso():
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _iso(t):
+    return datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds")
+
+
+def no_progress_s():
+    try:
+        v = int(os.environ.get("GROWI_NO_PROGRESS_S") or NO_PROGRESS_TIMEOUT_S)
+        return v if v > 0 else NO_PROGRESS_TIMEOUT_S
+    except ValueError:
+        return NO_PROGRESS_TIMEOUT_S
 
 
 def log(msg):
@@ -182,7 +199,84 @@ def validate_task(data):
 # ---- consumo en vivo (runner-live.json) y latido que no se congela
 _LOCK = threading.RLock()
 _LIVE = {"d": None, "t0": 0.0, "written": 0.0, "msgs": {}}
-_CUR = {"task": None, "tasks_done": 0, "hb": 0.0}
+_CUR = {"task": None, "tasks_done": 0, "hb": 0.0, "act": 0.0}
+
+
+def touch():
+    """Hubo actividad del motor (una linea de stdout/stderr o un evento)."""
+    _CUR["act"] = time.time()
+
+
+def _kill_tree(proc):
+    """Mata el intento entero: claude lanza node y este sus hijos. Con
+    psutil, hijos primero y luego el padre; sin psutil, taskkill /T /F."""
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        try:
+            parent = psutil.Process(proc.pid)
+            kids = parent.children(recursive=True)
+            for k in kids:
+                try:
+                    k.kill()
+                except psutil.Error:
+                    pass
+            parent.kill()
+            psutil.wait_procs(kids + [parent], timeout=10)
+        except psutil.Error:
+            pass
+    else:
+        try:
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                           capture_output=True, timeout=15, **_oculto())
+        except Exception:
+            pass
+    try:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait(10)
+    except Exception:
+        pass
+
+
+def _wait_watch(proc, task, result):
+    """Espera al proceso vigilando dos limites: inactividad (no_progress_s
+    sin ninguna linea) y el total de la tarea (timeout_min). Devuelve el
+    codigo de salida, o None si hubo que matarlo (result ya dice por que)."""
+    deadline = time.time() + task["timeout_min"] * 60
+    limit = no_progress_s()
+    while True:
+        try:
+            return proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        now = time.time()
+        idle = now - _CUR["act"]
+        if idle >= limit:
+            _kill_tree(proc)
+            result["status"] = "error"
+            result["error"] = NO_PROGRESS_TXT
+            log(f"[{task['id']}] {NO_PROGRESS_TXT}: {idle:.0f} s sin una linea de salida "
+                f"(limite {limit} s); se mato el arbol de procesos del pid {proc.pid}")
+            return None
+        if now >= deadline:
+            _kill_tree(proc)
+            result["status"] = "timeout"
+            result["error"] = f"timeout de {task['timeout_min']} min"
+            log(f"[{task['id']}] timeout de {task['timeout_min']} min; se mato el arbol de procesos del pid {proc.pid}")
+            return None
+
+
+def _stderr_reader(pipe, buf):
+    """Lee stderr linea a linea: cada linea cuenta como actividad."""
+    try:
+        for raw in pipe:
+            touch()
+            buf.append(raw.decode("utf-8", "replace"))
+    except (OSError, ValueError):
+        pass
 
 
 def _atomic_write(path, data):
@@ -348,77 +442,75 @@ def _fill_from_final(result, data, rc):
 
 def _run_stream(task, result):
     """claude con --output-format stream-json; un hilo lector suma el uso de
-    cada mensaje segun llega. Devuelve False si no llego ni un evento (esta
-    version de claude no entiende stream-json): el que llama lo repite con json."""
-    import tempfile
+    cada mensaje segun llega y marca la actividad. Devuelve False si no llego
+    ni un evento (esta version de claude no entiende stream-json): el que
+    llama lo repite con json. Si se mato por inactividad, no se repite."""
     cmd = _build_cmd(task, ["--output-format", "stream-json", "--verbose", "--include-partial-messages"])
     st = {"final": None, "events": 0, "uso": False, "model_of": {}, "text": "", "raw": deque(maxlen=60)}
-    with tempfile.TemporaryFile() as err:
-        proc = subprocess.Popen(cmd, cwd=task["cwd"], stdout=subprocess.PIPE, stderr=err,
-                                stdin=subprocess.DEVNULL, **_oculto())
-        log(f"[{task['id']}] claude lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
+    errbuf = deque(maxlen=400)
+    touch()
+    proc = subprocess.Popen(cmd, cwd=task["cwd"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            stdin=subprocess.DEVNULL, **_oculto())
+    log(f"[{task['id']}] claude lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
 
-        def reader():
-            try:
-                for raw in proc.stdout:
-                    line = raw.decode("utf-8", "replace").strip()
-                    if not line:
-                        continue
-                    # Los trozos de texto (cientos) no traen uso: se saltan sin parsear.
-                    if '"content_block_delta"' in line[:160]:
-                        st["events"] += 1
-                        continue
-                    try:
-                        ev = json.loads(line)
-                    except ValueError:
-                        st["raw"].append(line)
-                        continue
-                    if not isinstance(ev, dict):
-                        continue
+    def reader():
+        try:
+            for raw in proc.stdout:
+                touch()
+                line = raw.decode("utf-8", "replace").strip()
+                if not line:
+                    continue
+                # Los trozos de texto (cientos) no traen uso: se saltan sin parsear.
+                if '"content_block_delta"' in line[:160]:
                     st["events"] += 1
-                    t = ev.get("type")
-                    if t == "stream_event":
-                        e = ev.get("event") or {}
-                        key = ev.get("api_message_id") or (e.get("message") or {}).get("id")
-                        if e.get("type") == "message_start":
-                            m = e.get("message") or {}
-                            st["model_of"][key] = m.get("model")
-                            if isinstance(m.get("usage"), dict):
-                                st["uso"] = True
-                                live_msg(key, m.get("model"), _usage_norm(m["usage"]))
-                        elif e.get("type") == "message_delta" and isinstance(e.get("usage"), dict):
-                            st["uso"] = True
-                            live_msg(key, st["model_of"].get(key), _usage_norm(e["usage"]))
-                    elif t == "assistant":
-                        m = ev.get("message") or {}
+                    continue
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    st["raw"].append(line)
+                    continue
+                if not isinstance(ev, dict):
+                    continue
+                st["events"] += 1
+                t = ev.get("type")
+                if t == "stream_event":
+                    e = ev.get("event") or {}
+                    key = ev.get("api_message_id") or (e.get("message") or {}).get("id")
+                    if e.get("type") == "message_start":
+                        m = e.get("message") or {}
+                        st["model_of"][key] = m.get("model")
                         if isinstance(m.get("usage"), dict):
                             st["uso"] = True
-                            live_msg(m.get("id"), m.get("model"), _usage_norm(m["usage"]))
-                        for b in m.get("content") or []:
-                            if isinstance(b, dict) and b.get("type") == "text":
-                                st["text"] = b.get("text") or st["text"]
-                    elif t == "result":
-                        st["final"] = ev
-            except (OSError, ValueError):
-                pass
+                            live_msg(key, m.get("model"), _usage_norm(m["usage"]))
+                    elif e.get("type") == "message_delta" and isinstance(e.get("usage"), dict):
+                        st["uso"] = True
+                        live_msg(key, st["model_of"].get(key), _usage_norm(e["usage"]))
+                elif t == "assistant":
+                    m = ev.get("message") or {}
+                    if isinstance(m.get("usage"), dict):
+                        st["uso"] = True
+                        live_msg(m.get("id"), m.get("model"), _usage_norm(m["usage"]))
+                    for b in m.get("content") or []:
+                        if isinstance(b, dict) and b.get("type") == "text":
+                            st["text"] = b.get("text") or st["text"]
+                elif t == "result":
+                    st["final"] = ev
+        except (OSError, ValueError):
+            pass
 
-        th = threading.Thread(target=reader, daemon=True)
-        th.start()
-        try:
-            rc = proc.wait(timeout=task["timeout_min"] * 60)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            rc = None
-            result["status"] = "timeout"
-            result["error"] = f"timeout de {task['timeout_min']} min"
-        th.join(15)
-        err.seek(0)
-        result["stderr"] = err.read().decode("utf-8", "replace")[-MAX_STDERR_CHARS:]
+    th = threading.Thread(target=reader, daemon=True)
+    th_err = threading.Thread(target=_stderr_reader, args=(proc.stderr, errbuf), daemon=True)
+    th.start()
+    th_err.start()
+    rc = _wait_watch(proc, task, result)
+    th.join(15)
+    th_err.join(15)
+    result["stderr"] = "".join(errbuf)[-MAX_STDERR_CHARS:]
     result["exit_code"] = rc
     if not st["uso"]:
         live_set(modo_vivo="sin vivo", nota="claude no reportó uso mientras corría (sin vivo)")
     tail = st["text"] or "\n".join(st["raw"])
-    if result["status"] == "timeout":
+    if rc is None:  # matado por inactividad o por el timeout total
         result["result"] = tail[-MAX_RESULT_CHARS:]
         return True
     if st["final"] is None:
@@ -432,26 +524,47 @@ def _run_stream(task, result):
 
 
 def _run_plain(task, result):
-    """Como siempre: --output-format json, esperando al final."""
-    proc = subprocess.run(
-        _build_cmd(task, ["--output-format", "json"]), cwd=task["cwd"], capture_output=True,
-        text=True, encoding="utf-8", errors="replace", timeout=task["timeout_min"] * 60,
-        stdin=subprocess.DEVNULL, **_oculto())
-    log(f"[{task['id']}] claude lanzado oculto ({OCULTO_TXT})")
-    result["exit_code"] = proc.returncode
-    result["stderr"] = (proc.stderr or "")[-MAX_STDERR_CHARS:]
-    stdout = proc.stdout or ""
+    """Como siempre: --output-format json. Ya no es un subprocess.run
+    bloqueante: dos hilos leen stdout/stderr segun llega (cada linea es
+    actividad) y el mismo vigilante de inactividad y timeout total."""
+    outbuf, errbuf = [], deque(maxlen=400)
+    touch()
+    proc = subprocess.Popen(
+        _build_cmd(task, ["--output-format", "json"]), cwd=task["cwd"], stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, **_oculto())
+    log(f"[{task['id']}] claude lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
+
+    def reader():
+        try:
+            for raw in proc.stdout:
+                touch()
+                outbuf.append(raw)
+        except (OSError, ValueError):
+            pass
+
+    th = threading.Thread(target=reader, daemon=True)
+    th_err = threading.Thread(target=_stderr_reader, args=(proc.stderr, errbuf), daemon=True)
+    th.start()
+    th_err.start()
+    rc = _wait_watch(proc, task, result)
+    th.join(15)
+    th_err.join(15)
+    result["exit_code"] = rc
+    result["stderr"] = "".join(errbuf)[-MAX_STDERR_CHARS:]
+    stdout = b"".join(outbuf).decode("utf-8", "replace")
+    if rc is None:  # matado por inactividad o por el timeout total
+        result["result"] = stdout[-MAX_RESULT_CHARS:]
+        return
     try:
         data = json.loads(stdout)
         if not isinstance(data, dict):
             raise ValueError
-        _fill_from_final(result, data, proc.returncode)
+        _fill_from_final(result, data, rc)
     except ValueError:
         result["result"] = stdout[:MAX_RESULT_CHARS]
-        result["status"] = "ok" if proc.returncode == 0 else "error"
-        if proc.returncode != 0:
-            result["error"] = f"claude salio con codigo {proc.returncode} y salida no-JSON"
-
+        result["status"] = "ok" if rc == 0 else "error"
+        if rc != 0:
+            result["error"] = f"claude salio con codigo {rc} y salida no-JSON"
 
 def run_task(task):
     """Corre claude -p. Devuelve el dict de resultado (mismos campos que v1.1)."""
@@ -556,7 +669,9 @@ def process_one(task_file):
     except OSError as e:
         log(f"[{task['id']}] no se pudo mover a processing: {e}")
         return False
-    _CUR["task"] = {"id": task["id"], "motor": "claude", "modelo": task["model"]}
+    _CUR["task"] = {"id": task["id"], "motor": "claude", "modelo": task["model"],
+                    "started_at": now_iso()}
+    touch()
     heartbeat(_CUR["tasks_done"], _CUR["task"])
     try:
         result = run_task(task)
@@ -564,7 +679,8 @@ def process_one(task_file):
         _CUR["task"] = None
     try:
         write_result(result)
-        log(f"[{task['id']}] terminado: status={result['status']} duracion={result['duration_s']}s costo={result['cost_usd']}")
+        log(f"[{task['id']}] terminado: status={result['status']} duracion={result['duration_s']}s costo={result['cost_usd']}"
+            + (f" error={result['error']}" if result.get("error") else ""))
     except OSError as e:
         log(f"[{task['id']}] no se pudo escribir el resultado: {e}")
     try:
@@ -575,10 +691,14 @@ def process_one(task_file):
 
 
 def heartbeat(tasks_done, current):
-    """runner-status.json. 'current' = la tarea en curso (id, motor, modelo)
-    o null. Mientras corre una tarea lo escribe el hilo de pulso cada 60 s:
-    un last_poll viejo ya no significa 'Claude trabajando', es un problema."""
+    """runner-status.json. 'current' = la tarea en curso (id, motor, modelo,
+    started_at, last_activity, idle_s) o null. Mientras corre una tarea lo
+    escribe el hilo de pulso cada 60 s: un last_poll viejo ya no significa
+    'Claude trabajando', es un problema; un idle_s que crece, tampoco."""
     _CUR["hb"] = time.time()
+    if current:
+        act = _CUR["act"] or _CUR["hb"]
+        current = dict(current, last_activity=_iso(act), idle_s=round(_CUR["hb"] - act))
     status = {
         "runner": VERSION,
         "alive": True,

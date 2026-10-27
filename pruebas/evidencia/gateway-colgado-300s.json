@@ -1,0 +1,575 @@
+{
+  "modo": "gateway-colgado",
+  "umbral_s": 300,
+  "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gw-n3a29g8k",
+  "duracion_s": 307.9,
+  "resultado": {
+    "status": "error",
+    "error": "lanzamiento sin progreso en 5 min",
+    "error_tipo": "definitivo",
+    "duration_s": 300.8,
+    "cost_usd": null,
+    "exit_code": null,
+    "estado": "fallida",
+    "reintentos": 0
+  },
+  "checkpoint": {
+    "estado": "fallida",
+    "paso": "motor",
+    "siguiente_paso": "terminada",
+    "historial": "[{\"at\": \"2026-10-27T16:56:16-04:00\", \"estado\": \"lanzando\", \"nota\": \"terminada\"}, {\"at\": \"2026-10-27T17:01:17-04:00\", \"estado\": \"fallida\", \"nota\": \"resultado del motor: error\"}, {\"at\": \"2026-10-27T17:01:17-04:00\", \"estado\": \"fallida\", \"nota\": \"fallida: terminada\"}]"
+  },
+  "cola": {
+    "estado": "fallida",
+    "motivo": "lanzamiento sin progreso en 5 min",
+    "reintentos": 0
+  },
+  "es_transitorio": false,
+  "log": [
+    "2026-10-27T16:56:16-04:00 memoria [prueba-gw-colgado]: inyectados MEMORY.md (1380 car.), 2026-10-27.md (188 car.); no existe 2026-10-26.md: se carga solo la de hoy; total 1958 car.; 0 notas más viejas no se cargan",
+    "2026-10-27T16:56:16-04:00 runner [prueba-gw-colgado]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gw-n3a29g8k\\share\\inbox (timeout 30 min)",
+    "2026-10-27T16:56:16-04:00 runner [prueba-gw-colgado]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 17276",
+    "2026-10-27T17:01:17-04:00 runner [prueba-gw-colgado]: lanzamiento sin progreso en 5 min: claude lleva 301 s sin un evento (límite 300 s); se mató el árbol de procesos del pid 17276",
+    "2026-10-27T17:01:17-04:00 runner [prueba-gw-colgado]: terminado: error duracion=300.8s costo=None",
+    "2026-10-27T17:01:17-04:00 runner [prueba-gw-colgado]: fallida: Lo intenté pero no pude confirmar que funcionara. lanzamiento sin progreso en 5 min."
+  ],
+  "latidos_y_vivo": [
+    {
+      "t": 11.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:10-04:00",
+      "idle_s": 0
+    },
+    {
+      "t": 14.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:10-04:00",
+      "idle_s": 6
+    },
+    {
+      "t": 17.4,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:56:10-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:56:10-04:00",
+        "last_activity": "2026-10-27T16:56:10-04:00",
+        "idle_s": 0
+      }
+    },
+    {
+      "t": 20.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 4
+    },
+    {
+      "t": 26.7,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 9
+    },
+    {
+      "t": 29.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 14
+    },
+    {
+      "t": 36.0,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 19
+    },
+    {
+      "t": 42.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 24
+    },
+    {
+      "t": 45.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 29
+    },
+    {
+      "t": 51.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 34
+    },
+    {
+      "t": 54.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 39
+    },
+    {
+      "t": 60.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 45
+    },
+    {
+      "t": 67.0,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 50
+    },
+    {
+      "t": 73.1,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:57:10-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:56:10-04:00",
+        "last_activity": "2026-10-27T16:56:16-04:00",
+        "idle_s": 54
+      }
+    },
+    {
+      "t": 73.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 57
+    },
+    {
+      "t": 79.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 62
+    },
+    {
+      "t": 82.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 67
+    },
+    {
+      "t": 88.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 72
+    },
+    {
+      "t": 94.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 77
+    },
+    {
+      "t": 97.9,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 82
+    },
+    {
+      "t": 104.1,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 87
+    },
+    {
+      "t": 107.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 92
+    },
+    {
+      "t": 113.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 97
+    },
+    {
+      "t": 119.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 102
+    },
+    {
+      "t": 122.7,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 107
+    },
+    {
+      "t": 128.9,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 112
+    },
+    {
+      "t": 132.0,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:58:11-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:56:10-04:00",
+        "last_activity": "2026-10-27T16:56:16-04:00",
+        "idle_s": 114
+      }
+    },
+    {
+      "t": 135.1,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 117
+    },
+    {
+      "t": 138.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 122
+    },
+    {
+      "t": 144.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 128
+    },
+    {
+      "t": 150.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 133
+    },
+    {
+      "t": 153.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 138
+    },
+    {
+      "t": 159.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 143
+    },
+    {
+      "t": 162.9,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 148
+    },
+    {
+      "t": 169.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 153
+    },
+    {
+      "t": 176.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 158
+    },
+    {
+      "t": 179.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 163
+    },
+    {
+      "t": 185.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 168
+    },
+    {
+      "t": 191.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 174
+    },
+    {
+      "t": 194.7,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:59:11-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:56:10-04:00",
+        "last_activity": "2026-10-27T16:56:16-04:00",
+        "idle_s": 175
+      }
+    },
+    {
+      "t": 197.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 180
+    },
+    {
+      "t": 200.9,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 185
+    },
+    {
+      "t": 207.1,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 190
+    },
+    {
+      "t": 213.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 195
+    },
+    {
+      "t": 216.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 200
+    },
+    {
+      "t": 222.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 206
+    },
+    {
+      "t": 225.7,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 211
+    },
+    {
+      "t": 231.9,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 216
+    },
+    {
+      "t": 238.1,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 221
+    },
+    {
+      "t": 241.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 226
+    },
+    {
+      "t": 247.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 231
+    },
+    {
+      "t": 253.6,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T17:00:11-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:56:10-04:00",
+        "last_activity": "2026-10-27T16:56:16-04:00",
+        "idle_s": 235
+      }
+    },
+    {
+      "t": 253.6,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 238
+    },
+    {
+      "t": 259.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 243
+    },
+    {
+      "t": 266.0,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 248
+    },
+    {
+      "t": 269.1,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 253
+    },
+    {
+      "t": 275.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 258
+    },
+    {
+      "t": 278.4,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 263
+    },
+    {
+      "t": 284.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 268
+    },
+    {
+      "t": 290.7,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 273
+    },
+    {
+      "t": 293.8,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 278
+    },
+    {
+      "t": 300.0,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 283
+    },
+    {
+      "t": 306.2,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 288
+    },
+    {
+      "t": 309.3,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 294
+    },
+    {
+      "t": 315.5,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T17:01:12-04:00",
+      "current": {
+        "id": "prueba-gw-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "modelo_real": null,
+        "estado": "en curso",
+        "started_at": "2026-10-27T16:56:10-04:00",
+        "last_activity": "2026-10-27T16:56:16-04:00",
+        "idle_s": 296
+      }
+    },
+    {
+      "t": 315.5,
+      "archivo": "runner-live.json",
+      "estado": "en curso",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 299
+    },
+    {
+      "t": 318.6,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T17:01:17-04:00",
+      "current": null
+    },
+    {
+      "t": 318.6,
+      "archivo": "runner-live.json",
+      "estado": "terminado",
+      "ultima_actividad": "2026-10-27T16:56:16-04:00",
+      "idle_s": 301
+    }
+  ],
+  "status_final_current": null,
+  "procesos_falsos_vistos_durante": [
+    {
+      "pid": 5876,
+      "name": "python.exe",
+      "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -c import time; time.sleep(3600)  # growi-fake-hijo"
+    },
+    {
+      "pid": 17276,
+      "name": "python.exe",
+      "cmdline": "Local\\Programs\\Python\\Python312\\python.exe C:\\Users\\forte\\growi-bridge-lane2\\growi-bridge\\pruebas\\fake_claude.py colgado"
+    }
+  ],
+  "procesos_falsos_vivos_despues": []
+}

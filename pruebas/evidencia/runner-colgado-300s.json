@@ -1,0 +1,131 @@
+{
+  "modo": "runner-colgado",
+  "umbral_s": 300,
+  "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-sc5lwthl",
+  "resultado": {
+    "runner": "growi-runner/1.2",
+    "id": "prueba-runner-colgado",
+    "status": "error",
+    "started_at": "2026-10-27T16:50:38-04:00",
+    "finished_at": "2026-10-27T16:55:38-04:00",
+    "duration_s": 300.8,
+    "exit_code": null,
+    "result": "",
+    "cost_usd": null,
+    "num_turns": null,
+    "session_id": null,
+    "stderr": "",
+    "error": "lanzamiento sin progreso en 5 min"
+  },
+  "log": [
+    "2026-10-27T16:50:38-04:00 [prueba-runner-colgado] corriendo claude -p en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-sc5lwthl\\share\\inbox (timeout 30 min)",
+    "2026-10-27T16:50:38-04:00 [prueba-runner-colgado] claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 15044",
+    "2026-10-27T16:55:38-04:00 [prueba-runner-colgado] lanzamiento sin progreso en 5 min: 301 s sin una linea de salida (limite 300 s); se mato el arbol de procesos del pid 15044",
+    "2026-10-27T16:55:38-04:00 [prueba-runner-colgado] terminado: status=error duracion=300.8s costo=None error=lanzamiento sin progreso en 5 min"
+  ],
+  "latidos": [
+    {
+      "t": 3.4,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:50:33-04:00",
+      "current": null
+    },
+    {
+      "t": 6.5,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:50:38-04:00",
+      "current": {
+        "id": "prueba-runner-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:50:38-04:00",
+        "last_activity": "2026-10-27T16:50:38-04:00",
+        "idle_s": 0
+      }
+    },
+    {
+      "t": 68.2,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:51:38-04:00",
+      "current": {
+        "id": "prueba-runner-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:50:38-04:00",
+        "last_activity": "2026-10-27T16:50:38-04:00",
+        "idle_s": 60
+      }
+    },
+    {
+      "t": 126.8,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:52:38-04:00",
+      "current": {
+        "id": "prueba-runner-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:50:38-04:00",
+        "last_activity": "2026-10-27T16:50:38-04:00",
+        "idle_s": 120
+      }
+    },
+    {
+      "t": 188.5,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:53:38-04:00",
+      "current": {
+        "id": "prueba-runner-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:50:38-04:00",
+        "last_activity": "2026-10-27T16:50:38-04:00",
+        "idle_s": 180
+      }
+    },
+    {
+      "t": 247.2,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:54:38-04:00",
+      "current": {
+        "id": "prueba-runner-colgado",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:50:38-04:00",
+        "last_activity": "2026-10-27T16:50:38-04:00",
+        "idle_s": 240
+      }
+    },
+    {
+      "t": 306.4,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:55:38-04:00",
+      "current": null
+    }
+  ],
+  "status_final": {
+    "runner": "growi-runner/1.2",
+    "alive": true,
+    "last_poll": "2026-10-27T16:55:38-04:00",
+    "tasks_done": 1,
+    "current": null,
+    "claude": "C:\\Users\\forte\\.local\\bin\\claude.EXE",
+    "pid": 1948,
+    "vivo": "runner-live.json"
+  },
+  "task_archivado_en_done": true,
+  "procesos_falsos_vistos_durante": [
+    {
+      "pid": 15044,
+      "name": "python.exe",
+      "cmdline": "Local\\Programs\\Python\\Python312\\python.exe C:\\Users\\forte\\growi-bridge-lane2\\growi-bridge\\pruebas\\fake_claude.py colgado"
+    },
+    {
+      "pid": 28436,
+      "name": "python.exe",
+      "cmdline": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -c import time; time.sleep(3600)  # growi-fake-hijo"
+    }
+  ],
+  "procesos_falsos_vivos_despues": [],
+  "claude_exe_antes": 2,
+  "claude_exe_despues": 2
+}

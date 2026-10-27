@@ -1,0 +1,63 @@
+{
+  "modo": "runner-lento",
+  "umbral_s": 20,
+  "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-a6b908io",
+  "resultado": {
+    "runner": "growi-runner/1.2",
+    "id": "prueba-runner-lento",
+    "status": "ok",
+    "started_at": "2026-10-27T16:46:30-04:00",
+    "finished_at": "2026-10-27T16:47:16-04:00",
+    "duration_s": 46.1,
+    "exit_code": 0,
+    "result": "hecho tras 23 eventos",
+    "cost_usd": 0,
+    "num_turns": 1,
+    "session_id": "fake-sesion",
+    "stderr": "",
+    "error": null
+  },
+  "log": [
+    "2026-10-27T16:46:30-04:00 [prueba-runner-lento] corriendo claude -p en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-a6b908io\\share\\inbox (timeout 30 min)",
+    "2026-10-27T16:46:30-04:00 [prueba-runner-lento] claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 24132",
+    "2026-10-27T16:47:16-04:00 [prueba-runner-lento] terminado: status=ok duracion=46.1s costo=0"
+  ],
+  "latidos": [
+    {
+      "t": 3.4,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:46:25-04:00",
+      "current": null
+    },
+    {
+      "t": 6.5,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:46:30-04:00",
+      "current": {
+        "id": "prueba-runner-lento",
+        "motor": "claude",
+        "modelo": null,
+        "started_at": "2026-10-27T16:46:30-04:00",
+        "last_activity": "2026-10-27T16:46:30-04:00",
+        "idle_s": 0
+      }
+    },
+    {
+      "t": 52.7,
+      "archivo": "runner-status.json",
+      "last_poll": "2026-10-27T16:47:16-04:00",
+      "current": null
+    }
+  ],
+  "task_archivado_en_done": true,
+  "procesos_falsos_vistos_durante": [
+    {
+      "pid": 24132,
+      "name": "python.exe",
+      "cmdline": "al\\Programs\\Python\\Python312\\python.exe C:\\Users\\forte\\growi-bridge-lane2\\growi-bridge\\pruebas\\fake_claude.py lento 45.0"
+    }
+  ],
+  "procesos_falsos_vivos_despues": [],
+  "claude_exe_antes": 2,
+  "claude_exe_despues": 2
+}

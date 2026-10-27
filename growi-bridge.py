@@ -4062,6 +4062,11 @@ HEARTBEAT_SECONDS = 60
 MAX_PROMPT_CHARS = 100_000
 DEFAULT_TIMEOUT_MIN = 30
 MAX_TIMEOUT_MIN = 120
+# Sin un evento del motor en este tiempo, el intento se da por colgado y se
+# mata (arbol completo). Es inactividad, no duracion: el limite total sigue
+# siendo timeout_min. Solo para pruebas: GROWI_NO_PROGRESS_S.
+NO_PROGRESS_TIMEOUT_S = 300
+NO_PROGRESS_TXT = "lanzamiento sin progreso en 5 min"
 MAX_RESULT_CHARS = 20_000
 MAX_STDERR_CHARS = 2_000
 ALLOWED_MODELS = {"sonnet", "opus", "haiku"}
@@ -4070,6 +4075,18 @@ SAFE_ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456
 
 def _now_iso():
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _ts_iso(t):
+    return datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds")
+
+
+def no_progress_s():
+    try:
+        v = int(os.environ.get("GROWI_NO_PROGRESS_S") or NO_PROGRESS_TIMEOUT_S)
+        return v if v > 0 else NO_PROGRESS_TIMEOUT_S
+    except ValueError:
+        return NO_PROGRESS_TIMEOUT_S
 
 
 def _safe_id(task_id):
@@ -4540,6 +4557,15 @@ _FALLBACK_ENGINES = {
 _eng_cache = {"mtime": None, "data": None, "err": None}
 # Lo que esta corriendo ahora (para el boton Parar, que lo mata de verdad).
 _RUN = {"proc": None, "conn": None, "stop": False, "id": None, "ck": None}
+# Ultima actividad del motor de la tarea en curso (cada evento stream-json o
+# trozo HTTP): la usan el vigilante de inactividad, el latido y el vivo.
+_ACT = {"t": 0.0, "started_at": None}
+
+
+def _act_touch():
+    _ACT["t"] = time.time()
+
+
 # Procesos que lanzo la app (pid -> (quien lo lanzo, hora)), para la pestana
 # Recursos.
 _LAUNCHED = {}
@@ -4789,6 +4815,9 @@ def live_write(force=False):
             return
         if d.get("estado") != "terminado":
             d["elapsed_s"] = round(time.time() - _LIVE["t0"], 1)
+            if _ACT["t"]:
+                d["ultima_actividad"] = _ts_iso(_ACT["t"])
+                d["idle_s"] = round(time.time() - _ACT["t"])
         d["actualizado"] = _now_iso()
         _LIVE["written"] = time.time()
         text = json.dumps(d, ensure_ascii=False, indent=2)
@@ -5676,11 +5705,13 @@ def _first_num(data, paths):
     return None
 
 
-def _http_local_stream(url, body, timeout, vivo, on_piece):
+def _http_local_stream(url, body, timeout, vivo, on_piece, idle=None):
     """POST en streaming a 127.0.0.1 (SSE de llama-server o NDJSON de
     Ollama). Llama on_piece(n_trozos) segun llegan. Devuelve (texto,
     tokens_entrada, tokens_salida); los tokens son los que el servidor
-    reporta al final (None si no los reporta)."""
+    reporta al final (None si no los reporta). idle = segundos maximos sin
+    recibir nada (inactividad): al pasarlos, LocalCallError(NO_PROGRESS_TXT)."""
+    sock_timeout = min(timeout, idle) if idle else timeout
     import http.client
     u = urlparse(url)
     host, port = u.hostname or "", u.port or 80
@@ -5692,7 +5723,7 @@ def _http_local_stream(url, body, timeout, vivo, on_piece):
     headers = {"Accept": "text/event-stream, application/x-ndjson, application/json",
                "User-Agent": "GrowiBridge", "Content-Type": "application/json; charset=utf-8"}
     fmt = vivo.get("formato", "sse")
-    conn = http.client.HTTPConnection(host, port, timeout=timeout)
+    conn = http.client.HTTPConnection(host, port, timeout=sock_timeout)
     _RUN["conn"] = conn
     parts, n, tin, tout, deadline = [], 0, None, None, time.time() + timeout
     try:
@@ -5715,6 +5746,7 @@ def _http_local_stream(url, body, timeout, vivo, on_piece):
                 line = resp.readline()
                 if not line:
                     break
+                _act_touch()
                 s = line.decode("utf-8", "replace").strip()
                 if not s:
                     continue
@@ -5748,6 +5780,8 @@ def _http_local_stream(url, body, timeout, vivo, on_piece):
         except ConnectionRefusedError:
             raise LocalCallError(f"no responde: nada escucha en {where} (servidor apagado)")
         except TimeoutError:
+            if sock_timeout < timeout:
+                raise LocalCallError(NO_PROGRESS_TXT)
             raise LocalCallError(f"sin respuesta de {where} en {timeout:.0f} s")
         except (OSError, http.client.HTTPException) as e:
             if _RUN.get("stop"):
@@ -6884,12 +6918,28 @@ def _base_result(task, motor_id):
 
 
 def _kill_tree(proc):
-    """Mata el proceso y todos sus hijos (claude/codex lanzan node)."""
-    try:
-        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                       capture_output=True, timeout=15, **_oculto())
-    except Exception:
-        pass
+    """Mata el proceso y todos sus hijos (claude/codex lanzan node). Con
+    psutil, hijos primero y luego el padre; sin psutil, taskkill /T /F."""
+    ps = _res_psutil()
+    if ps is not None:
+        try:
+            parent = ps.Process(proc.pid)
+            kids = parent.children(recursive=True)
+            for k in kids:
+                try:
+                    k.kill()
+                except ps.Error:
+                    pass
+            parent.kill()
+            ps.wait_procs(kids + [parent], timeout=10)
+        except ps.Error:
+            pass
+    else:
+        try:
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                           capture_output=True, timeout=15, **_oculto())
+        except Exception:
+            pass
     try:
         if proc.poll() is None:
             proc.kill()
@@ -7229,6 +7279,7 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
             log(f"runner [{task['id']}]: {result['error']}; no se reintenta con ventana visible")
             return True
         _RUN["proc"] = proc
+        _act_touch()  # el reloj de inactividad empieza al lanzar
         result["lanzamiento"] = _lanzamiento(proc)
         log(f"runner [{task['id']}]: {motor_id} lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
         _track_launch(proc, f"runner: tarea {task['id']}, motor {MOTOR_CORTO.get(motor_id, motor_id)}")
@@ -7239,6 +7290,7 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
                     line = raw.decode("utf-8", "replace").strip()
                     if not line:
                         continue
+                    _act_touch()  # cada evento stream-json es progreso
                     # Los trozos de texto (cientos) no traen uso: se saltan sin parsear.
                     if '"content_block_delta"' in line[:160]:
                         st["events"] += 1
@@ -7261,6 +7313,7 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
         th = threading.Thread(target=_reader, daemon=True)
         th.start()
         rc = None
+        sin_progreso = False
         try:
             if stdin_mode:
                 try:
@@ -7268,12 +7321,31 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
                     proc.stdin.close()
                 except OSError:
                     pass
-            try:
-                rc = proc.wait(timeout=timeout_s)
-            except subprocess.TimeoutExpired:
-                _kill_tree(proc)
-                result["status"] = "timeout"
-                result["error"] = f"timeout de {task['timeout_min']} min (se mató el proceso)"
+            # Dos limites: el total de la tarea (timeout_min) y la inactividad
+            # (no_progress_s sin un solo evento). Un motor que produce eventos
+            # y tarda no se corta: solo el que se queda callado.
+            deadline, limit = time.time() + timeout_s, no_progress_s()
+            while True:
+                try:
+                    rc = proc.wait(timeout=1)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                idle = time.time() - _ACT["t"]
+                if idle >= limit:
+                    _kill_tree(proc)
+                    sin_progreso = True
+                    result["status"] = "error"
+                    result["error"] = NO_PROGRESS_TXT
+                    result["error_tipo"] = "definitivo"  # no se reintenta en bucle
+                    log(f"runner [{task['id']}]: {NO_PROGRESS_TXT}: {motor_id} lleva {idle:.0f} s sin "
+                        f"un evento (límite {limit} s); se mató el árbol de procesos del pid {proc.pid}")
+                    break
+                if time.time() >= deadline:
+                    _kill_tree(proc)
+                    result["status"] = "timeout"
+                    result["error"] = f"timeout de {task['timeout_min']} min (se mató el proceso)"
+                    break
         finally:
             _RUN["proc"] = None
         th.join(15)
@@ -7290,7 +7362,8 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
         result["error"] = "parado por el usuario (se mató el proceso)"
         result["result"] = tail[-MAX_RESULT_CHARS:]
         return True
-    if result["status"] == "timeout":
+    if result["status"] == "timeout" or sin_progreso:
+        # Sin progreso no se repite con json: se colgaria igual otros 5 min.
         result["result"] = tail[-MAX_RESULT_CHARS:]
         return True
     final = st["final"]
@@ -7431,7 +7504,8 @@ def _run_http_engine(task, motor_id, eng, result, prompt, for_review=False):
             try:
                 text, tin, tout = _http_local_stream(
                     eng["url"], sbody, timeout, vivo,
-                    lambda k: live_tokens(rol, model, 0, k, modo="en vivo (trozos)"))
+                    lambda k: live_tokens(rol, model, 0, k, modo="en vivo (trozos)"),
+                    idle=no_progress_s())
                 fuente = "streaming"
             except _NoStream as e:
                 log(f"runner [{task['id']}]: {name} no contestó en streaming ({e}); lo repito sin streaming")
@@ -7442,6 +7516,12 @@ def _run_http_engine(task, motor_id, eng, result, prompt, for_review=False):
             tin, tout = _first_num(data, sal.get("uso_in")), _first_num(data, sal.get("uso_out"))
             fuente = "al cerrar"
     except LocalCallError as e:
+        if str(e) == NO_PROGRESS_TXT and not _RUN.get("stop"):
+            result["error"] = NO_PROGRESS_TXT
+            result["error_tipo"] = "definitivo"  # no se reintenta en bucle
+            log(f"runner [{task['id']}]: {NO_PROGRESS_TXT}: {name} no mandó nada en "
+                f"{no_progress_s()} s; se cortó la conexión")
+            return
         result["error"] = (str(e) if "parado por el usuario" in str(e) or _RUN.get("stop")
                            else f"{name}: {e}")
         if _RUN.get("stop") and "parado" not in result["error"]:
@@ -13495,6 +13575,8 @@ def _process_one_impl(task_file):
         result = run_task(task)
     else:
         _RUN.update(stop=False, id=task["id"], proc=None, conn=None)
+        _ACT["started_at"] = _now_iso()
+        _act_touch()
         state["current"] = task["id"]
         n = task.get("ronda", 0)
         eng = get_engine(task["motor"]) or {}
@@ -13714,6 +13796,9 @@ def runner_heartbeat():
                        "modelo": state.get("current_modelo"),
                        "modelo_real": lv.get("modelo_real") if lv.get("task_id") == state["current"] else None,
                        "estado": lv.get("estado") if lv.get("task_id") == state["current"] else None}
+                act = _ACT["t"] or time.time()
+                cur.update(started_at=_ACT["started_at"], last_activity=_ts_iso(act),
+                           idle_s=round(time.time() - act))
             status = {
                 "runner": f"growi-bridge/{VERSION}", "alive": True, "last_poll": _now_iso(),
                 "tasks_done": state["tasks_done"], "current": cur,
@@ -20562,8 +20647,11 @@ def _apply_live_to_tree():
         if lv:
             v = _live_values(lv)
             extra = (f" {lv['nota']}." if lv.get("nota") else "")
+            quieto = (f" Última actividad del motor hace {_fmt_secs(lv['idle_s'])}."
+                      if lv.get("estado") != "terminado" and isinstance(lv.get("idle_s"), (int, float))
+                      and lv["idle_s"] >= 30 else "")
             lbl.config(text=(f"En vivo: {lv.get('task_id')}, {v['estado']}, {v['motor']}, "
-                             f"lleva {v['tiempo']}. Tokens entrada / salida: {v['tokens']}. "
+                             f"lleva {v['tiempo']}.{quieto} Tokens entrada / salida: {v['tokens']}. "
                              f"Hasta ahora: {v['costo']}"
                              + (" (estimado a precio de lista; al terminar vale el que reporta Claude)"
                                 if v["costo"].startswith("~") else "") + "." + extra),
