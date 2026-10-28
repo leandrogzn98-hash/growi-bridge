@@ -1,0 +1,101 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv",
+ "audio": {
+  "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.mp3",
+  "bytes": 239741
+ },
+ "ficha_real": {
+  "id": "transcribe",
+  "nombre": "Transcribir (faster-whisper)",
+  "es_motor": false,
+  "coste": "$0, local, offline",
+  "python": "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+  "faster_whisper": null,
+  "ffmpeg": "C:\\Users\\forte\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.EXE",
+  "modelo": "small",
+  "modelo_ruta": "C:\\Users\\forte\\.cache\\huggingface\\hub\\blobs\\42\\429ffc84492c1122da005d7274fc397bf142fe12066eb7e4612dc25c579db2ea",
+  "modelo_mb": 461.1,
+  "idioma": "es",
+  "disponible": false,
+  "motivo": "falta instalar faster-whisper en C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe (pip install faster-whisper==1.2.1; o pon en settings.json «transcribe_python» el Python que ya lo tenga)",
+  "no_hace": [
+   "no usa la nube ni Descript",
+   "no traduce",
+   "no separa quién habla"
+  ]
+ },
+ "tarea_real": {
+  "status": "error",
+  "error": "no se puede transcribir aquí: falta instalar faster-whisper en C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe (pip install faster-whisper==1.2.1; o pon en settings.json «transcribe_python» el Python que ya lo tenga)",
+  "motor": "transcribe (herramienta)",
+  "cost_usd": 0.0,
+  "herramienta": {
+   "id": "transcribe",
+   "coste": "$0, local, offline",
+   "modelo": "small"
+  }
+ },
+ "d_completa_simulada": {
+  "status": "ok",
+  "idioma_detectado": "es",
+  "transcripcion": {
+   "duracion_audio_s": 60.0,
+   "hasta_s": 60.0,
+   "idioma": "es",
+   "probabilidad": 0.99,
+   "parcial": false,
+   "cancelada": false,
+   "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.transcripcion.txt"
+  },
+  "archivo": "# Transcripción de clip-prueba.mp3\n# idioma: es (pedido: es; el modelo detectó es con 0.99) · modelo small · $0, local, offline\n\n[00s] segmento simulado (no es una transcripción real)\n[10s] segmento simulado (no es una transcripción real)\n[20s] segmento simulado (no es una transcripción real)\n[30s] segmento simulado (no es una transcripción real)\n[40s] segmento simulado (no es una transcripción re",
+  "progreso_visto": [
+   "Transcribiendo clip-prueba.mp3: 10 s de 60 s (17 %)",
+   "Transcribiendo clip-prueba.mp3: 20 s de 60 s (33 %)",
+   "Transcribiendo clip-prueba.mp3: 30 s de 60 s (50 %)",
+   "Transcribiendo clip-prueba.mp3: 40 s de 60 s (67 %)",
+   "Transcribiendo clip-prueba.mp3: 50 s de 60 s (83 %)",
+   "Transcribiendo clip-prueba.mp3: 60 s de 60 s (100 %)"
+  ]
+ },
+ "d_cancelada_simulada": {
+  "status": "error",
+  "error": "transcripción cancelada a los 40 s; lo hecho quedó en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.transcripcion.PARCIAL.txt marcado PARCIAL",
+  "transcripcion": {
+   "duracion_audio_s": 60.0,
+   "hasta_s": 40.0,
+   "idioma": "es",
+   "probabilidad": 0.99,
+   "parcial": true,
+   "cancelada": true,
+   "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.transcripcion.PARCIAL.txt"
+  },
+  "queda_tmp": false,
+  "queda_completa": false,
+  "parcial": "# Transcripción de clip-prueba.mp3\n# idioma: es (pedido: es; el modelo detectó es con 0.99) · modelo small · $0, local, offline\n# PARCIAL: cancelada a los 40 s de 60 s. NO está completa.\n\n[00s] segmento simulado (no es una transcripción real)\n[10s] segmento simulado (no es una transcripción real)\n[20s] segmento simulado (no es una transcripción real)\n[30s] segmento simulado (no es una transcripción real)\n[40s] segmento simulado (no es una transcripción real)\n"
+ },
+ "paleta_tarea": {
+  "id": "t-transcribir-20261028-044549",
+  "prompt": "Transcribe C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.mp3",
+  "revisar": false,
+  "herramienta": {
+   "id": "transcribe",
+   "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.mp3",
+   "idioma": "es"
+  }
+ },
+ "log": [
+  "2026-10-28T04:45:36-04:00 asistentes: carpeta nueva C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\app\\asistentes con los perfiles iniciales: growi.md, guionista-summit.md, contable.md",
+  "2026-10-28T04:45:37-04:00 herramientas: transcribir: no disponible: falta instalar faster-whisper en C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe (pip install faster-whisper==1.2.1; o pon en settings.json «transcribe_python» el Python que ya lo tenga)",
+  "2026-10-28T04:45:42-04:00 skills: índice (primer uso): 0 cargada(s), 0 no se cargaron, 0 borrador(es) [sin_carpeta, 0 ms]; C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\app\\skills no existe o no se puede abrir",
+  "2026-10-28T04:45:42-04:00 memoria: primera tarea del día: creados en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\memoria: MEMORY.md (mínima: no llegó la semilla de la VM), 2026-10-28.md, sesion-actual.md",
+  "2026-10-28T04:45:43-04:00 runner [t-trs-real]: fallida: Lo intenté pero no pude confirmar que funcionara. no se puede transcribir aquí: falta instalar faster-whisper en C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Py",
+  "2026-10-28T04:45:43-04:00 runner [t-trs-sim]: transcribir clip-prueba.mp3 (es, modelo small, $0, local, offline)",
+  "2026-10-28T04:45:43-04:00 runner [t-trs-sim]: idioma detectado: es (0.99)",
+  "2026-10-28T04:45:46-04:00 runner [t-trs-sim]: transcribir: Transcripción lista (es, 60 s de audio, $0, local, offline) en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.transcripcion.txt",
+  "2026-10-28T04:45:46-04:00 runner [t-trs-cancel]: transcribir clip-prueba.mp3 (es, modelo small, $0, local, offline)",
+  "2026-10-28T04:45:47-04:00 runner [t-trs-cancel]: idioma detectado: es (0.99)",
+  "2026-10-28T04:45:49-04:00 runner [t-trs-cancel]: transcribir: transcripción cancelada a los 40 s; lo hecho quedó en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-transcribe-9z9uu1gv\\trabajo\\clip-prueba.transcripcion.PARCIAL.txt marcado PARCIAL",
+  "2026-10-28T04:45:49-04:00 transcribir: encolada t-transcribir-20261028-044549 (clip-prueba.mp3); $0, local, offline"
+ ],
+ "tracebacks_en_log": 0
+}

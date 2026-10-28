@@ -8045,10 +8045,252 @@ def herramienta_correr(task, pedido):
     return result
 
 
+# ---- herramienta «transcribe» (t-transcribe-whisper): audio/video -> texto
+# con faster-whisper en local ($0, offline una vez bajado el modelo). La receta
+# es la probada en la VM: ffmpeg decodifica a f32le 16 kHz mono y se parchea
+# faster_whisper.audio.decode_audio (faster-whisper 1.2.1 choca con av>=19).
+# Corre en un proceso aparte (el Python que tenga faster-whisper), avisa del
+# progreso real (segundo de audio por el que va) y se puede cancelar: lo que
+# quede se marca PARCIAL, nunca como completo. Nada de nube ni de Descript.
+TRANSCRIBE_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".mp3", ".wav", ".m4a", ".ogg", ".opus", ".flac",
+                  ".aac", ".wma")
+_TRS_EXT_RE = "(?:" + "|".join(e[1:] for e in TRANSCRIBE_EXT) + ")"
+# primero una ruta absoluta (puede llevar espacios), si no un nombre suelto sin espacios
+TRANSCRIBE_MEDIA_ABS_RE = re.compile(r"[A-Za-z]:[\\/][^\"'<>|\r\n]*?\." + _TRS_EXT_RE + r"\b", re.I)
+TRANSCRIBE_MEDIA_RE = re.compile(r"[^\s\"'<>|]+\." + _TRS_EXT_RE + r"\b", re.I)
+TRANSCRIBE_COSTE = "$0, local, offline"
+TRANSCRIBE_WORKER = r'''# Lo escribe Growi Bridge (herramienta transcribe). No editar: se reescribe.
+import json, subprocess, sys
+import numpy as np
+import faster_whisper.audio as fwa
+from faster_whisper import WhisperModel
+
+archivo, salida, idioma, modelo, ffmpeg = sys.argv[1:6]
+
+
+def decodificar(ruta, sampling_rate=16000, **_k):
+    # receta de la VM: ffmpeg -> f32le mono (evita PyAV; faster-whisper 1.2.1 choca con av>=19)
+    out = subprocess.run([ffmpeg, "-nostdin", "-v", "error", "-i", ruta, "-f", "f32le", "-ac", "1",
+                          "-ar", str(sampling_rate), "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(out, np.float32)
+
+
+fwa.decode_audio = decodificar
+audio = decodificar(archivo)
+dur = len(audio) / 16000.0
+print(json.dumps({"evento": "audio", "duracion": dur}), flush=True)
+m = WhisperModel(modelo, device="cpu", compute_type="int8", local_files_only=True)
+segs, info = m.transcribe(audio, language=None if idioma == "auto" else idioma, vad_filter=True)
+print(json.dumps({"evento": "idioma", "idioma": info.language,
+                  "probabilidad": round(float(info.language_probability or 0), 3)}), flush=True)
+
+
+def hms(t):
+    t = int(t)
+    return f"{t // 3600:02d}:{t % 3600 // 60:02d}:{t % 60:02d}"
+
+
+with open(salida, "w", encoding="utf-8") as f:
+    for s in segs:
+        f.write(f"[{hms(s.start)} - {hms(s.end)}] {s.text.strip()}\n")
+        f.flush()
+        print(json.dumps({"evento": "progreso", "hasta": float(s.end), "duracion": dur}), flush=True)
+print(json.dumps({"evento": "fin"}), flush=True)
+'''
+_TRS = {"ficha": None, "t": 0.0}
+
+
+def _transcribe_python():
+    """El Python con faster-whisper: settings «transcribe_python» o el de la app."""
+    p = str(load_settings().get("transcribe_python") or "").strip()
+    return p if p and Path(p).is_file() else sys.executable.replace("pythonw.exe", "python.exe")
+
+
+def _transcribe_modelo_local(nombre="small"):
+    """(ruta del model.bin, MB) del modelo CTranslate2 en la caché de Hugging Face, o (None, None)."""
+    hub = Path(os.environ.get("HF_HOME") or HOME_DIR / ".cache" / "huggingface") / "hub"
+    for snap in sorted((hub / f"models--Systran--faster-whisper-{nombre}" / "snapshots").glob("*")):
+        mb = snap / "model.bin"
+        try:
+            real = mb.resolve()
+            return str(real), round(real.stat().st_size / 1048576, 1)
+        except OSError:
+            continue
+    return None, None
+
+
+def transcribe_ficha(fresca=False):
+    """Lo que hay de verdad en este PC (medido ahora): faster-whisper, ffmpeg y el modelo."""
+    if not fresca and _TRS["ficha"] and time.time() - _TRS["t"] < 600:
+        return _TRS["ficha"]
+    nombre = str(load_settings().get("transcribe_modelo") or "small")
+    py = _transcribe_python()
+    f = {"id": "transcribe", "nombre": "Transcribir (faster-whisper)", "es_motor": False, "coste": TRANSCRIBE_COSTE,
+         "python": py, "faster_whisper": None, "ffmpeg": shutil.which("ffmpeg"), "modelo": nombre,
+         "modelo_ruta": None, "modelo_mb": None, "idioma": "es", "disponible": False, "motivo": None,
+         "no_hace": ["no usa la nube ni Descript", "no traduce", "no separa quién habla"]}
+    f["modelo_ruta"], f["modelo_mb"] = _transcribe_modelo_local(nombre)
+    try:
+        r = subprocess.run([py, "-c", "import faster_whisper;print(faster_whisper.__version__)"], capture_output=True,
+                           text=True, timeout=60, encoding="utf-8", errors="replace", **_oculto())
+        f["faster_whisper"] = r.stdout.strip() if r.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        f["faster_whisper"] = None
+    faltas = []
+    if not f["faster_whisper"]:
+        faltas.append(f"falta instalar faster-whisper en {py} (pip install faster-whisper==1.2.1; o pon en "
+                      "settings.json «transcribe_python» el Python que ya lo tenga)")
+    if not f["ffmpeg"]:
+        faltas.append("falta ffmpeg en el PATH")
+    if not f["modelo_ruta"]:
+        faltas.append(f"falta el modelo Systran/faster-whisper-{nombre} en la caché de Hugging Face (se baja una vez)")
+    f["disponible"] = not faltas
+    f["motivo"] = "; ".join(faltas) or None
+    _TRS.update(ficha=f, t=time.time())
+    log("herramientas: transcribir: " + (f"lista ({TRANSCRIBE_COSTE}; modelo {nombre} {f['modelo_mb']} MB)"
+                                          if f["disponible"] else f"no disponible: {f['motivo']}"))
+    return f
+
+
+def transcribe_de_tarea(task):
+    """{'archivo','idioma'} si la tarea pide transcribir un audio o video."""
+    h = task.get("herramienta") if isinstance(task.get("herramienta"), dict) else None
+    if h and h.get("id") not in (None, "transcribe"):
+        return None
+    texto = str(task.get("prompt") or "")
+    if not h and not re.search(r"\btranscrib\w*|\btranscripci[oó]n\b", texto, re.I):
+        return None
+    archivo = (h or {}).get("archivo")
+    if not archivo:
+        m = TRANSCRIBE_MEDIA_ABS_RE.search(texto) or TRANSCRIBE_MEDIA_RE.search(texto)
+        archivo = m.group(0).strip() if m else None
+    if not archivo and not h:
+        return None
+    return {"archivo": archivo, "idioma": str((h or {}).get("idioma") or "es")}
+
+
+def transcribe_correr(task, pedido, ficha=None):
+    """Corre la transcripción con progreso real; deja <archivo>.transcripcion.txt
+    (o .PARCIAL.txt si se cancela o se corta). Resultado como el de un motor, $0."""
+    result = _base_result(task, "transcribe (herramienta)")
+    t0 = time.time()
+    f = ficha or transcribe_ficha()
+    archivo = Path(pedido.get("archivo") or "")
+    if pedido.get("archivo") and not archivo.is_absolute():
+        archivo = Path(task.get("cwd") or INBOX) / archivo
+    result.update(cost_usd=0.0, herramienta={"id": "transcribe", "coste": TRANSCRIBE_COSTE, "modelo": f["modelo"]})
+    if not pedido.get("archivo") or not archivo.is_file():
+        result["error"] = f"no encuentro el audio o video ({archivo if pedido.get('archivo') else 'el encargo no nombra un archivo'})"
+        result["error_tipo"] = "definitivo"
+        return result
+    if not f["disponible"]:
+        result["error"] = f"no se puede transcribir aquí: {f['motivo']}"
+        result["error_tipo"] = "definitivo"
+        return result
+    worker = APP_DIR / "herramientas" / "transcribe_worker.py"
+    worker.parent.mkdir(parents=True, exist_ok=True)
+    if not worker.exists() or worker.read_text(encoding="utf-8") != TRANSCRIBE_WORKER:
+        worker.write_text(TRANSCRIBE_WORKER, encoding="utf-8")
+    final = archivo.with_name(archivo.stem + ".transcripcion.txt")
+    tmp = archivo.with_name(archivo.stem + ".transcripcion.tmp")
+    cmd = [f["python"], str(worker), str(archivo), str(tmp), pedido["idioma"], f["modelo"], f["ffmpeg"]]
+    log(f"runner [{task['id']}]: transcribir {archivo.name} ({pedido['idioma']}, modelo {f['modelo']}, {TRANSCRIBE_COSTE})")
+    info = {"duracion": None, "idioma": None, "probabilidad": None, "hasta": 0.0}
+    cancelada, err_lineas = False, []
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                         errors="replace", **_oculto())
+    _RUN["proc"] = p
+    hilo_err = threading.Thread(target=lambda: err_lineas.extend(p.stderr.readlines()), daemon=True)
+    hilo_err.start()
+    ultimo_log = 0.0
+    for linea in p.stdout:
+        if _RUN.get("stop"):
+            cancelada = True
+            break
+        try:
+            ev = json.loads(linea)
+        except ValueError:
+            continue
+        if ev.get("evento") == "audio":
+            info["duracion"] = ev.get("duracion")
+        elif ev.get("evento") == "idioma":
+            info.update(idioma=ev.get("idioma"), probabilidad=ev.get("probabilidad"))
+            log(f"runner [{task['id']}]: idioma detectado: {info['idioma']} ({info['probabilidad']})")
+        elif ev.get("evento") == "progreso":
+            info["hasta"] = ev.get("hasta") or info["hasta"]
+            pct = (100 * info["hasta"] / info["duracion"]) if info["duracion"] else None
+            state["paso"] = (f"Transcribiendo {archivo.name}: {_gw_hace(info['hasta'])} de "
+                             f"{_gw_hace(info['duracion'] or 0)}" + (f" ({pct:.0f} %)" if pct is not None else ""))
+            if time.time() - ultimo_log > 10:
+                ultimo_log = time.time()
+                log(f"runner [{task['id']}]: {state['paso']}")
+    if cancelada or _RUN.get("stop"):
+        cancelada = True
+        _kill_tree(p)
+    p.wait()
+    hilo_err.join(timeout=2)
+    cab = (f"# Transcripción de {archivo.name}\n# idioma: {info['idioma'] or 'sin dato'}"
+           + (f" (detectado, {info['probabilidad']})" if pedido["idioma"] == "auto" else
+              f" (pedido: {pedido['idioma']}; el modelo detectó {info['idioma']} con {info['probabilidad']})")
+           + f" · modelo {f['modelo']} · {TRANSCRIBE_COSTE}\n")
+    hecho = tmp.read_text(encoding="utf-8") if tmp.exists() else ""
+    ok = (not cancelada) and p.returncode == 0
+    if ok:
+        final.write_text(cab + "\n" + hecho, encoding="utf-8")
+        destino = final
+    elif hecho.strip():  # lo que hay, marcado PARCIAL (nunca como completo)
+        destino = archivo.with_name(archivo.stem + ".transcripcion.PARCIAL.txt")
+        destino.write_text(cab + f"# PARCIAL: {'cancelada' if cancelada else 'se cortó'} a los "
+                                 f"{_gw_hace(info['hasta'])} de {_gw_hace(info['duracion'] or 0)}. NO está completa.\n\n"
+                           + hecho, encoding="utf-8")
+    else:
+        destino = None
+    try:
+        tmp.unlink()
+    except OSError:
+        pass
+    result.update(finished_at=_now_iso(), duration_s=round(time.time() - t0, 1), exit_code=p.returncode,
+                  archivos=[str(destino)] if destino else [], idioma_detectado=info["idioma"],
+                  transcripcion={"duracion_audio_s": info["duracion"], "hasta_s": info["hasta"],
+                                 "idioma": info["idioma"], "probabilidad": info["probabilidad"],
+                                 "parcial": not ok, "cancelada": cancelada, "archivo": str(destino) if destino else None})
+    if ok:
+        result.update(status="ok", result=f"Transcripción lista ({info['idioma']}, {_gw_hace(info['duracion'] or 0)} de "
+                                          f"audio, {TRANSCRIBE_COSTE}) en {destino}")
+    elif cancelada:
+        result.update(status="error", error=f"transcripción cancelada a los {_gw_hace(info['hasta'])}"
+                                            + (f"; lo hecho quedó en {destino} marcado PARCIAL" if destino else
+                                               "; no quedó nada a medias"), error_tipo="definitivo")
+    else:
+        result.update(status="error", error="la transcripción falló: " + "".join(err_lineas)[-600:],
+                      error_tipo="definitivo")
+    log(f"runner [{task['id']}]: transcribir: {result.get('result') or result.get('error')}")
+    return result
+
+
+def transcribe_ui():
+    """Paleta: elegir un audio o video y encolar la transcripción (español)."""
+    ruta = filedialog.askopenfilename(title="Transcribir un audio o video",
+                                      filetypes=[("Audio o video", " ".join("*" + e for e in TRANSCRIBE_EXT))])
+    if not ruta:
+        return None
+    tid = "t-transcribir-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    TASKS.mkdir(parents=True, exist_ok=True)
+    (TASKS / f"{tid}.task.json").write_text(json.dumps({
+        "id": tid, "prompt": f"Transcribe {ruta}", "revisar": False,
+        "herramienta": {"id": "transcribe", "archivo": ruta, "idioma": "es"}}, ensure_ascii=False), encoding="utf-8")
+    log(f"transcribir: encolada {tid} ({Path(ruta).name}); {TRANSCRIBE_COSTE}")
+    toast("Transcripción en la cola ($0, local)")
+    return tid
+
+
 def run_engine(task, prompt=None, eng=None):
     """Corre una tarea con su motor, leyendo SOLO su descriptor (eng: un
     descriptor ya traducido que aun no esta en engines.json, para la prueba
     de «Nuevo motor»)."""
+    pedido_t = transcribe_de_tarea(task) if eng is None else None
+    if pedido_t:  # transcribir audio/video: faster-whisper local (herramienta), no un motor
+        return transcribe_correr(task, pedido_t)
     pedido = herramienta_de_tarea(task) if eng is None else None
     if pedido:  # tornamesa / QC: lo hace Blender (herramienta), no un motor
         return herramienta_correr(task, pedido)
@@ -37063,6 +37305,23 @@ def _build_ajustes_ctk(tab_aj):
              + "".join(f" Falta: {o['falta']}." for o in f["operaciones"].values() if o["falta"]))
         _ui_call(lambda: _bl.winfo_exists() and _bl.configure(text=t))
     threading.Thread(target=_bf_txt, daemon=True).start()
+    r, der = side_row(mm, "Herramienta: transcribir audio y video (no es un motor)", None)
+    _tr = _Label(r._left, text="Comprobando faster-whisper…", font=F(13), text_color=T["muted"], anchor="w",
+                 justify="left", height=1)
+    _tr.pack(anchor="w", fill="x", pady=(2, 0))
+    wrap_to(_tr, r._left)
+    _widgets["aj_transcribe"] = _tr
+    button(der, "Transcribir…", transcribe_ui).pack()
+
+    def _tr_txt():  # en un hilo: mirar faster-whisper lanza un Python aparte
+        f = transcribe_ficha()
+        t = (f"{TRANSCRIBE_COSTE}. Español por defecto; deja <archivo>.transcripcion.txt junto al audio o video, con "
+             f"marcas de tiempo. Modelo {f['modelo']}: "
+             + (f"{f['modelo_mb']} MB en este PC. " if f["modelo_mb"] else "sin bajar. ")
+             + ("Lista." if f["disponible"] else f"No disponible: {f['motivo']}.")
+             + " No hace: " + "; ".join(f["no_hace"]) + ".")
+        _ui_call(lambda: _tr.winfo_exists() and _tr.configure(text=t))
+    threading.Thread(target=_tr_txt, daemon=True).start()
     r = row(mm)
     text_block(r, "Modo Automático", "Rápido: local o barato primero. Equilibrado: barato primero, caro si hace "
                                      "falta. Potente: el mejor disponible primero. También en la bandeja y en Ctrl+K.")
@@ -38704,6 +38963,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("transcribir", "Transcribir un audio o video ($0, local, offline)",
+          "transcribir transcripcion audio video nota de voz whisper subtitulos texto", transcribe_ui),
         C("revisor", "Revisor: rúbrica, calibración y costo por revisión",
           "revisor rubrica calibracion acuerdo juez haiku hermes costo revision umbral",
           lambda: (show_window(), revisor_ui())),
