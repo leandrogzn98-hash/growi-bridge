@@ -1,0 +1,22 @@
+{
+ "filas": [
+  {
+   "servicio": "Claude Max",
+   "estado": "no detectada",
+   "detalle": "Claude Code está, pero no hay sesión de suscripción iniciada"
+  },
+  {
+   "servicio": "ChatGPT",
+   "estado": "no detectada",
+   "detalle": "Codex no está instalado"
+  }
+ ],
+ "secciones_sin_sesion": [
+  [
+   "Automático",
+   [
+    "Automático"
+   ]
+  ]
+ ]
+}

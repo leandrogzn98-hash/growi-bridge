@@ -23924,6 +23924,114 @@ def engine_choices():
     return out
 
 
+# ---- BYOS visible (t-byos-visible): las suscripciones como suscripciones.
+# El estado se detecta EN VIVO (programa instalado, sesion, plan); sin sesion
+# la fila dice «no detectada», nunca «conectada». Nunca se lee un token: de
+# Claude solo el tipo de plan (_claude_plan) y si hay sesion OAuth; de Codex,
+# lo que dice `codex login status`.
+_SUSC = {"t": 0.0, "filas": None}
+SECCIONES_SELECTOR = ("Automático", "Mi suscripción", "Mis claves", "Local", "Otros motores")
+_SECCION_PREFIJO = "── "
+
+
+def suscripciones_estado(fresca=False):
+    if not fresca and _SUSC["filas"] is not None and time.time() - _SUSC["t"] < 300:
+        return _SUSC["filas"]
+    filas = []
+    exe = shutil.which("claude")
+    plan = _claude_plan()
+    try:
+        cred = json.loads((HOME_DIR / ".claude" / ".credentials.json").read_text(encoding="utf-8"))
+        oauth = bool(cred.get("claudeAiOauth"))
+    except (OSError, ValueError):
+        oauth = False
+    conectada = bool(exe) and oauth and plan in ("max", "pro")
+    filas.append({
+        "id": "claude", "servicio": "Claude " + ({"max": "Max", "pro": "Pro"}.get(plan or "", "Max")),
+        "estado": "conectada" if conectada else "no detectada", "cli": exe, "sesion": oauth,
+        "plan": plan or ("clave de API (no es suscripción)" if plan == "api" else None),
+        "detalle": ("Claude Code con sesión " + plan.capitalize() + " (OAuth del propio programa)") if conectada else
+                   ("Claude Code no está instalado" if not exe else
+                    "hay clave de API (ANTHROPIC_API_KEY): eso no es la suscripción" if plan == "api" else
+                    "Claude Code está, pero no hay sesión de suscripción iniciada"),
+        "riesgo": "Usar la sesión Max por un proxy desde Venezuela puede hacer que Anthropic suspenda la cuenta. "
+                  "Exporta tus conversaciones de vez en cuando: si la cuenta cae, es lo único que se salva."})
+    eng = get_engine("codex") or {}
+    base = _resolve_binary(eng) if eng else None
+    txt, ok = "", False
+    if base:
+        try:
+            r = subprocess.run(base + ["login", "status"], capture_output=True, timeout=30, stdin=subprocess.DEVNULL,
+                               env=_ensure_no_proxy(dict(os.environ)), **_oculto())
+            txt = _ANSI_RE.sub("", (r.stdout or b"").decode("utf-8", "replace") + (r.stderr or b"").decode("utf-8", "replace")).strip()
+            ok = r.returncode == 0
+        except (OSError, subprocess.TimeoutExpired) as e:
+            txt = f"codex login status falló ({type(e).__name__})"
+    chatgpt = ok and bool(re.search(r"chatgpt", txt, re.I))
+    filas.append({
+        "id": "codex", "servicio": "ChatGPT", "estado": "conectada" if chatgpt else "no detectada",
+        "cli": " ".join(base) if base else None, "sesion": chatgpt,
+        "plan": "sesión de ChatGPT" if chatgpt else ("clave de API de OpenAI (no es suscripción)"
+                                                     if ok and re.search(r"api key", txt, re.I) else None),
+        "detalle": ("Codex con " + txt.splitlines()[0][:80]) if ok and txt else
+                   ("Codex no está instalado" if not base else f"sin sesión: {txt.splitlines()[0][:80] if txt else '—'}"),
+        "riesgo": None})
+    _SUSC.update(t=time.time(), filas=filas)
+    log("suscripciones: " + "; ".join(f"{f['servicio']} {f['estado']} ({f['detalle']})" for f in filas))
+    return filas
+
+
+def _seccion_de(model, plan, codex_sesion):
+    if model == "motor:auto":
+        return "Automático"
+    if model in ("sonnet", "opus", "haiku"):
+        return "Mis claves" if plan == "api" else "Mi suscripción" if plan in ("max", "pro") else None
+    if model == "motor:codex":
+        return "Mi suscripción" if codex_sesion else "Mis claves"
+    if model.startswith("api:"):
+        return "Mis claves"
+    if model == "motor:llama" or model.startswith("ollama:"):
+        return "Local"
+    return "Otros motores"
+
+
+def engine_choices_secciones(choices=None):
+    """[(seccion, [(label, model, frase)…])] solo con lo disponible de verdad:
+    los Claude van en «Mi suscripción» si hay sesión Max/Pro, en «Mis claves»
+    si hay clave de API, y no salen si no hay ninguna de las dos."""
+    choices = engine_choices() if choices is None else choices
+    plan = _claude_plan()
+    codex = next((f for f in (_SUSC["filas"] or []) if f["id"] == "codex"), None)
+    grupos = {s: [] for s in SECCIONES_SELECTOR}
+    for c in choices:
+        sec = _seccion_de(c[1], plan, bool(codex and codex["sesion"]))
+        if sec:
+            grupos[sec].append(c)
+    return [(s, grupos[s]) for s in SECCIONES_SELECTOR if grupos[s]]
+
+
+def _selector_valores(choices):
+    """Valores del desplegable con cabeceras de sección (no elegibles)."""
+    out = []
+    for sec, items in engine_choices_secciones(choices):
+        out.append(f"{_SECCION_PREFIJO}{sec} ──")
+        out += [c[0] for c in items]
+    return out
+
+
+def _selector_saltar_cabecera(cb):
+    """Si se elige una cabecera, pasa al primer modelo de debajo."""
+    v = cb.get()
+    if not v.startswith(_SECCION_PREFIJO):
+        return
+    vals = list(cb.cget("values"))
+    i = vals.index(v) if v in vals else -1
+    nxt = next((x for x in vals[i + 1:] if not x.startswith(_SECCION_PREFIJO)), None)
+    if nxt:
+        cb.set(nxt)
+        cb.event_generate("<<ComboboxSelected>>")
+
+
 def _default_engine_label(choices):
     s = load_settings()
     want = "motor:auto" if s.get("motor") == AUTO else str(s.get("default_engine") or "sonnet")
@@ -23936,13 +24044,18 @@ def _refresh_engine_widgets():
     _ASK_ENGINES.update({l: m for l, m, _d in choices})
     labels = [c[0] for c in choices]
     default_label = _default_engine_label(choices)
+    valores = _selector_valores(choices)  # con cabeceras: Mi suscripción / Mis claves / Local
     for key in ("ask_engine", "mdl_engine"):
         cb = _widgets.get(key)
         if cb is None:
             continue
-        cb.config(values=labels)
-        if cb.get() not in labels:
-            cb.set(default_label)
+        cb.config(values=valores)
+        if not getattr(cb, "_secciones", False):
+            cb.bind("<<ComboboxSelected>>", lambda _e, c=cb: _selector_saltar_cabecera(c), add="+")
+            cb._secciones = True
+        if cb.get() not in labels or cb.get() not in valores:
+            cb.set(default_label if default_label in valores else next(
+                (v for v in valores if not v.startswith(_SECCION_PREFIJO)), default_label))
     _update_engine_desc()
 
 
@@ -31884,7 +31997,39 @@ def _build_ajustes_ctk(tab_aj):
     button(der, "Abrir", lambda: _widgets["show_page"]("estado")).pack()
 
     # ---- 4. Motores y modelos
-    mm = section("Motores y modelos")
+    mm = section("Motores, modelos y suscripciones")
+    _susc_lbl = {}
+    for _sid, _snom in (("claude", "Claude Max"), ("codex", "ChatGPT")):
+        r, der = side_row(mm, f"Suscripción: {_snom}", None)
+        _susc_lbl[_sid] = _Label(r._left, text="Comprobando en este PC…", font=F(13), text_color=T["muted"],
+                                 anchor="w", justify="left", height=1)
+        _susc_lbl[_sid].pack(anchor="w", fill="x", pady=(2, 0))
+        wrap_to(_susc_lbl[_sid], r._left)
+        if _sid == "claude":
+            _rl = _Label(r._left, text="", font=F(13), text_color=T["orange_text"], anchor="w", justify="left",
+                         height=1)
+            _rl.pack(anchor="w", fill="x", pady=(4, 0))
+            wrap_to(_rl, r._left)
+            _susc_lbl["riesgo"] = _rl
+            button(der, "Exportar conversaciones", export_guia_ui).pack()
+    _widgets["aj_susc"] = _susc_lbl
+
+    def _susc_txt():  # en un hilo: `codex login status` lanza un programa
+        filas = suscripciones_estado(fresca=True)
+
+        def pintar():
+            for f in filas:
+                lb = _susc_lbl.get(f["id"])
+                if lb is not None and lb.winfo_exists():
+                    lb.configure(text=f"{f['servicio']} — {f['estado']}. {f['detalle']}."
+                                      + (f" Plan: {f['plan']}." if f.get("plan") else ""),
+                                 text_color=T["green_text"] if f["estado"] == "conectada" else T["muted"])
+                if f.get("riesgo") and _susc_lbl.get("riesgo") is not None:
+                    _susc_lbl["riesgo"].configure(text="⚠ " + f["riesgo"] + " El uso de la sesión se cuenta como "
+                                                        "$ equivalente de Max, nunca como $ real.")
+            _refresh_engine_widgets()  # el selector ya sabe si ChatGPT es suscripción o clave
+        _ui_call(pintar)
+    threading.Thread(target=_susc_txt, daemon=True).start()
     side_row(mm, "Motor por defecto",
              f"{default_motor()}: lo dice engines.json (por_defecto). Cada tarea puede elegir otro.")
     r, der = side_row(mm, "Carpeta de modelos", str(MODELS_DIR))

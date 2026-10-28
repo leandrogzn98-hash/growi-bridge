@@ -1,0 +1,68 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-byos-d3e98xjd",
+ "a_filas": {
+  "claude": "Claude Max — conectada. Claude Code con sesión Max (OAuth del propio programa). Plan: max.",
+  "riesgo": "⚠ Usar la sesión Max por un proxy desde Venezuela puede hacer que Anthropic suspenda la cuenta. Exporta tus conversaciones de vez en cuando: si la cuenta cae, es lo único que se salva. El uso de la sesión se cuenta como $ equivalente de Max, nunca como $ real.",
+  "codex": "ChatGPT — conectada. Codex con Logged in using ChatGPT. Plan: sesión de ChatGPT."
+ },
+ "a_detectado_en_vivo": [
+  {
+   "id": "claude",
+   "servicio": "Claude Max",
+   "estado": "conectada",
+   "cli": "C:\\Users\\forte\\.local\\bin\\claude.EXE",
+   "sesion": true,
+   "plan": "max",
+   "detalle": "Claude Code con sesión Max (OAuth del propio programa)",
+   "riesgo": "Usar la sesión Max por un proxy desde Venezuela puede hacer que Anthropic suspenda la cuenta. Exporta tus conversaciones de vez en cuando: si la cuenta cae, es lo único que se salva."
+  },
+  {
+   "id": "codex",
+   "servicio": "ChatGPT",
+   "estado": "conectada",
+   "cli": "C:\\Program Files\\nodejs\\node.EXE C:\\Users\\forte\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js",
+   "sesion": true,
+   "plan": "sesión de ChatGPT",
+   "detalle": "Codex con Logged in using ChatGPT",
+   "riesgo": null
+  }
+ ],
+ "c_boton_exportar_en_fila_max": [
+  "Exportar conversaciones",
+  "Exportar conversaciones"
+ ],
+ "b_selector_valores": [
+  "── Automático ──",
+  "Automático (recomendado)",
+  "── Mi suscripción ──",
+  "Claude Sonnet",
+  "Claude Opus",
+  "Claude Haiku",
+  "Codex (por internet)"
+ ],
+ "b_secciones": [
+  [
+   "Automático",
+   [
+    "Automático (recomendado)"
+   ]
+  ],
+  [
+   "Mi suscripción",
+   [
+    "Claude Sonnet",
+    "Claude Opus",
+    "Claude Haiku",
+    "Codex (por internet)"
+   ]
+  ]
+ ],
+ "b_al_elegir_cabecera_queda": "Automático (recomendado)",
+ "d_etiquetas_gasto": [
+  "Hoy $0.00 real / $0.00 equivalente Max"
+ ],
+ "log": [
+  "2026-10-27T23:50:57-04:00 suscripciones: Claude Max conectada (Claude Code con sesión Max (OAuth del propio programa)); ChatGPT conectada (Codex con Logged in using ChatGPT)"
+ ],
+ "tracebacks_en_log": 0
+}
