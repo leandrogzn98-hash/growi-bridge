@@ -51,3 +51,11 @@ cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
 construye sobre lo que sí existe en el código.
 
 **Observación (arranque, medida):** `build_gui` tarda **15-16 s con el código de la base** (4a88d34) y 17-18 s ahora. El perfil (cProfile) da **`tema_seccion` → `_KitCtk.option` (CTkOptionMenu) ~11 s** (fase A, temas; `t-temas-oscuro-sistema` sigue a medias en su cadena, por eso no se tocó). Antes se apuntó: la app tarda 11-13 s en abrir el puente (lo ve el smoke del gate). Compilar `growi-bridge.py` en una carpeta nueva tarda ~9 s, pero un lanzador con `.pyc` en caché **no** bajó el tiempo medido en la app real, así que se descartó. Queda para un fix aparte: perfilar `build_gui` (antes se vio `_gw_poll_loop` y la carga de imágenes).
+
+## Lista 040plus (orden de INDICE-040PLUS.md)
+
+| # | Spec | Estado | Commit / ESTADO |
+|---|---|---|---|
+| 1 | t-canal-whatsapp | **SALTADO (bloqueado)** — Leandro lo dejó para después (26 oct 17:49) y el spike sigue sin prueba en vivo ni número de pruebas | — |
+| 2 | t-idempotencia-cuarentena-030 | **LISTO** (FALTA: efectos que el motor hace por su cuenta dentro de su corrida; escalada por tiempo) | `7598c07`, `ESTADO-IDEMPOTENCIA-CUARENTENA.md` |
+| 3 | t-paralelo-seguro-030 | **LISTO** (FALTA: solapamiento descubierto a mitad — sin rastreo de escrituras por proceso) | `8fc3100`, `ESTADO-PARALELO-SEGURO.md` |
