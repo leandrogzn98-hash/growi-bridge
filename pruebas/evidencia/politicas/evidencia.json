@@ -1,0 +1,59 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78",
+ "b_editor_abierto": "Reglas permanentes",
+ "b_creada": {
+  "mensaje": "Guardada: Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)",
+  "reglas": [
+   "Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)"
+  ]
+ },
+ "b_allow_R2_rechazado": "No se guardó: «Permitir siempre» solo vale para lo reversible (R0-R1). Lo irreversible o externo (R2) y lo que nunca se hace sin ti (R3) se pregunta siempre, por acción exacta.",
+ "b_dos_reglas": [
+  "Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)",
+  "No permitir nunca: borrar en masa (rm -rf y parecidos) en cualquier carpeta (R3)"
+ ],
+ "b_editando": "Editando: Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)",
+ "b_editada": [
+  "Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)",
+  "No permitir nunca: borrar en masa (rm -rf y parecidos) en cualquier carpeta (R3)"
+ ],
+ "b_revocar_dijo_no": {
+  "pregunta": "¿Quito esta regla?\n\nPreguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)",
+  "reglas": [
+   "Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)",
+   "No permitir nunca: borrar en masa (rm -rf y parecidos) en cualquier carpeta (R3)"
+  ]
+ },
+ "b_revocada": [
+  "No permitir nunca: borrar en masa (rm -rf y parecidos) en cualquier carpeta (R3)"
+ ],
+ "b_politicas_json": {
+  "_que_es": "Reglas permanentes de Growi Bridge (Ajustes → Permisos → Reglas permanentes). Las crea solo el usuario en la app; una tarea o el asistente NUNCA. Orden: no permitir > preguntar > permitir > el nivel de permisos. «Permitir siempre» solo vale para R0-R1.",
+  "version": 1,
+  "reglas": [
+   {
+    "accion": "borrar_recursivo",
+    "carpeta": "",
+    "limite_usd": null,
+    "decision": "deny",
+    "nivel": "R3",
+    "id": "r-2b7aa9",
+    "creada_por": "el usuario en la app",
+    "creada_en": "2026-10-28T03:35:33-04:00"
+   }
+  ]
+ },
+ "f_registro": [
+  "10-28 03:35 · el usuario en la app revocó la regla «Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)»",
+  "10-28 03:35 · el usuario en la app editó la regla «Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)»",
+  "10-28 03:35 · el usuario en la app creó la regla «No permitir nunca: borrar en masa (rm -rf y parecidos) en cualquier carpeta (R3)»",
+  "10-28 03:35 · el usuario en la app creó la regla «Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-polgui-9g1dof78\\compartida (R1)»"
+ ],
+ "log": [
+  "2026-10-28T03:35:32-04:00 políticas: guardadas 1 regla(s) (el usuario en la app)",
+  "2026-10-28T03:35:33-04:00 políticas: guardadas 2 regla(s) (el usuario en la app)",
+  "2026-10-28T03:35:34-04:00 políticas: guardadas 2 regla(s) (el usuario en la app)",
+  "2026-10-28T03:35:35-04:00 políticas: guardadas 1 regla(s) (el usuario en la app)"
+ ],
+ "tracebacks_en_log": 0
+}

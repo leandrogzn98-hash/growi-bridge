@@ -8753,7 +8753,15 @@ def run_task(task):
     # empezar (p. ej. para Blender) o al terminar. Solo cuando lo pide.
     lv = task.get("liberar_vram")
     antes = srv_liberar_para_tarea(task, "antes") if lv == "antes" else []
-    res = _run_task_motor(task)
+    _pol_conocer()
+    try:
+        res = _run_task_motor(task)
+    finally:
+        try:
+            if _pol_vigilar(task) and isinstance(locals().get("res"), dict):
+                res["politicas_revertidas"] = True
+        except Exception as e:
+            log(f"políticas [{task.get('id')}]: no se pudo comprobar {POL_FILE.name} ({type(e).__name__}: {e})")
     if lv and isinstance(res, dict):
         despues = srv_liberar_para_tarea(task, "despues") if lv == "despues" else []
         res["vram_liberada"] = {"cuando": lv, "notas": antes + despues}
@@ -8902,7 +8910,7 @@ SENSITIVE = {
 # guardan por familia (raiz): los tipos R1 aprobados (valen para toda la
 # tarea) y los «pases» R2/R3 (cada uno vale UNA vez, para la accion exacta
 # que se aprobo). Nada de esto va a disco: solo las politicas de riesgos.json.
-_APPROVED = {}  # raiz -> {"tipos": set(tipos R1), "pases": [set(tipos aprobados en un pedido)]}
+_APPROVED = {}  # raiz -> {"tipos": set(tipos R1), "hashes": {hash del paso: approval_id}, "por_tipo": {...}}
 
 
 def guardrail_level():
@@ -9051,11 +9059,13 @@ def _negada(frase, ini, negs):
     return bool(ult) and not _RESET_NEG.search(antes[ult.end():])
 
 
-def _accion(tabla, tipo, origen, evidencia, nivel=None):
+def _accion(tabla, tipo, origen, evidencia, nivel=None, ruta=None, usd=None, frase=None):
     t = (tabla.get("tipos") or {}).get(tipo) or {}
     return {"tipo": tipo, "nivel": nivel or t.get("nivel") or "R2",
             "nombre": t.get("nombre") or tipo.replace("_", " "), "origen": origen,
-            "palabras": [str(evidencia)[:80]]}
+            "palabras": [str(evidencia)[:80]], "rutas": [str(ruta)] if ruta else [],
+            "usd": usd if isinstance(usd, (int, float)) else None,
+            "frases": [str(frase)[:400]] if frase else []}
 
 
 def _ruta_r3(ruta, tabla):
@@ -9091,8 +9101,9 @@ def _de_declaradas(task, tabla):
         tipo = str(a.get("tipo") or "").strip()
         ruta, usd = a.get("ruta"), a.get("usd")
         ev = "declarada por la tarea" + (f": {ruta}" if ruta else "") + (f": ${usd}" if usd is not None else "")
+        fr = json.dumps(a, sort_keys=True, ensure_ascii=False)
         if ruta and tipo != "leer" and _ruta_r3(str(ruta), tabla):
-            out.append(_accion(tabla, "tocar_credenciales", "declarada", ev))
+            out.append(_accion(tabla, "tocar_credenciales", "declarada", ev, ruta=ruta, frase=fr))
             continue
         if tipo in ("escribir", "escribir_trabajo", "escribir_fuera") and ruta:
             tipo = "escribir_trabajo" if _dentro(str(ruta), task["cwd"]) else "escribir_fuera"
@@ -9104,9 +9115,10 @@ def _de_declaradas(task, tabla):
             tipo = ("gastar_poco" if isinstance(usd, (int, float)) and 0 <= usd <= umbral else "gastar")
         if tipo not in (tabla.get("tipos") or {}):
             out.append(_accion(tabla, tipo or "desconocido", "declarada",
-                               f"tipo «{tipo}» que no está en {RIESGOS_FILE.name}", nivel="R2"))
+                               f"tipo «{tipo}» que no está en {RIESGOS_FILE.name}", nivel="R2", ruta=ruta, usd=usd,
+                               frase=fr))
             continue
-        out.append(_accion(tabla, tipo, "declarada", ev))
+        out.append(_accion(tabla, tipo, "declarada", ev, ruta=ruta, usd=usd, frase=fr))
     return out
 
 
@@ -9124,11 +9136,12 @@ def _de_encargo(task, tabla):
                 if not m or _negada(frase, m.start(), negs):
                     continue
                 tp = tipo
-                if tipo == "gastar":
-                    n = _monto(frase)
-                    if n is not None and n <= umbral:
-                        tp = "gastar_poco"
-                out.append(_accion(tabla, tp, "encargo", m.group(0).strip()))
+                n = _monto(frase) if tipo == "gastar" else None
+                if n is not None and n <= umbral:
+                    tp = "gastar_poco"
+                rr = [r.rstrip(".:") for r in _RUTA_ABS.findall(frase)]
+                out.append(_accion(tabla, tp, "encargo", m.group(0).strip(), ruta=rr[0] if rr else None, usd=n,
+                                   frase=frase))
                 break
         # Alcance: una ruta absoluta en la misma frase que un verbo de escribir o borrar.
         rutas = [r.rstrip(".:") for r in _RUTA_ABS.findall(frase)]
@@ -9139,9 +9152,9 @@ def _de_encargo(task, tabla):
         vb = vb if vb and not _negada(frase, vb.start(), negs) else None
         for r in rutas:
             if (vw or vb) and _ruta_r3(r, tabla):
-                out.append(_accion(tabla, "tocar_credenciales", "encargo", r))
+                out.append(_accion(tabla, "tocar_credenciales", "encargo", r, ruta=r, frase=frase))
             elif vw and not _dentro(r, task["cwd"]):
-                out.append(_accion(tabla, "escribir_fuera", "encargo", r))
+                out.append(_accion(tabla, "escribir_fuera", "encargo", r, ruta=r, frase=frase))
     return out
 
 
@@ -9168,12 +9181,18 @@ def clasificar_riesgo(task):
     # Una por tipo (la primera evidencia de cada origen se suma)
     junto = {}
     for a in acc:
-        j = junto.setdefault(a["tipo"], dict(a, palabras=[]))
+        j = junto.setdefault(a["tipo"], dict(a, palabras=[], rutas=[], frases=[], usd=None))
         if _rango(a["nivel"]) > _rango(j["nivel"]):
             j["nivel"] = a["nivel"]
         for p in a["palabras"]:
             if p not in j["palabras"] and len(j["palabras"]) < 4:
                 j["palabras"].append(p)
+        for campo in ("rutas", "frases"):
+            for x in a.get(campo) or []:
+                if x not in j[campo]:
+                    j[campo].append(x)
+        if isinstance(a.get("usd"), (int, float)):
+            j["usd"] = max(j["usd"] or 0, a["usd"])
         if a["origen"] == "declarada":
             j["origen"] = "declarada"
     lista = sorted(junto.values(), key=lambda a: -_rango(a["nivel"]))
@@ -9458,38 +9477,553 @@ def costo_por_tarea_completada():
     return por
 
 
+# ---- politicas persistentes (t-politicas-persistentes-030)
+# politicas.json (carpeta de Bridge, legible a mano): reglas por tipo de
+# accion y carpeta, con su decision. Orden de Claude Code: deny > ask > allow
+# > modo global (el guardrail). Solo persisten las POLITICAS; cada aprobacion
+# concreta vale para un paso, su hash y su vencimiento. Un «permitir siempre»
+# solo vale para R0-R1: R2 y R3 se preguntan siempre, por accion exacta.
+# NINGUNA politica la crea una tarea ni el asistente: solo el usuario en la
+# app. Una tarea que pide escribir politicas.json se rechaza, y si un motor
+# lo cambia durante la tarea, la app lo devuelve a como estaba (y lo apunta).
+POL_FILE = APP_DIR / "politicas.json"
+POL_DECISIONES = (("allow", "Permitir siempre"), ("ask", "Preguntar siempre"), ("deny", "No permitir nunca"))
+_POL = {"firma": None, "contenido": None, "cargado": False}
+_POL_LOCK = threading.RLock()
+
+
+def _pol_sha(b):
+    return hashlib.sha256(b).hexdigest() if b is not None else None
+
+
+def _pol_leer_bytes():
+    try:
+        return POL_FILE.read_bytes()
+    except OSError:
+        return None
+
+
+def _pol_conocer():
+    """La primera vez: lo que hay en disco es lo bueno (lo dejó el usuario)."""
+    with _POL_LOCK:
+        if not _POL["cargado"]:
+            b = _pol_leer_bytes()
+            _POL.update(firma=_pol_sha(b), contenido=b, cargado=True)
+
+
+def politicas_leer():
+    """(reglas, error). Sin archivo: [] (no hay reglas)."""
+    _pol_conocer()
+    b = _pol_leer_bytes()
+    if b is None:
+        return [], None
+    try:
+        d = json.loads(b.decode("utf-8"))
+        reglas = d.get("reglas") if isinstance(d, dict) else None
+        if not isinstance(reglas, list):
+            raise ValueError("falta la lista «reglas»")
+        ok = []
+        for r in reglas:
+            if isinstance(r, dict) and r.get("decision") in dict(POL_DECISIONES) and r.get("accion"):
+                ok.append(r)
+        return ok, None
+    except (ValueError, UnicodeDecodeError) as e:
+        return [], f"{POL_FILE.name} mal formado ({e})"
+
+
+def politicas_guardar(reglas, quien):
+    """SOLO desde la app (el usuario). Escribe y recuerda la firma buena."""
+    d = {"_que_es": "Reglas permanentes de Growi Bridge (Ajustes → Permisos → Reglas permanentes). Las crea solo "
+                    "el usuario en la app; una tarea o el asistente NUNCA. Orden: no permitir > preguntar > "
+                    "permitir > el nivel de permisos. «Permitir siempre» solo vale para R0-R1.",
+         "version": 1, "reglas": reglas}
+    b = json.dumps(d, ensure_ascii=False, indent=1).encode("utf-8")
+    with _POL_LOCK:
+        tmp = POL_FILE.with_suffix(".tmp")
+        tmp.write_bytes(b)
+        os.replace(tmp, POL_FILE)
+        _POL.update(firma=_pol_sha(b), contenido=b, cargado=True)
+    log(f"políticas: guardadas {len(reglas)} regla(s) ({quien})")
+
+
+def _pol_nivel(tipo):
+    tabla, _e = cargar_riesgos()
+    return ((tabla or {}).get("tipos") or {}).get(tipo, {}).get("nivel") or ("R0" if tipo == "*" else "R2")
+
+
+def _pol_nombre(tipo):
+    if tipo == "*":
+        return "cualquier acción"
+    tabla, _e = cargar_riesgos()
+    return ((tabla or {}).get("tipos") or {}).get(tipo, {}).get("nombre") or tipo.replace("_", " ")
+
+
+def politica_frase(r):
+    dec = dict(POL_DECISIONES).get(r.get("decision"), r.get("decision"))
+    lim = r.get("limite_usd")
+    que = _pol_nombre(r.get("accion"))
+    if isinstance(lim, (int, float)):
+        que += (f" hasta ${lim:g}" if r.get("decision") == "allow" else f" de más de ${lim:g}")
+    donde = f"en {r['carpeta']}" if r.get("carpeta") else "en cualquier carpeta"
+    return f"{dec}: {que} {donde} ({_pol_nivel(r.get('accion'))})"
+
+
+def politica_validar(r):
+    """Motivo por el que una regla no se puede guardar, o None."""
+    if r.get("decision") not in dict(POL_DECISIONES):
+        return "elige qué hacer: permitir, preguntar o no permitir"
+    tabla, _e = cargar_riesgos()
+    if r.get("accion") != "*" and r.get("accion") not in ((tabla or {}).get("tipos") or {}):
+        return "elige un tipo de acción de la lista"
+    if r["decision"] == "allow" and (r.get("accion") == "*" or _rango(_pol_nivel(r["accion"])) >= 2):
+        return ("«Permitir siempre» solo vale para lo reversible (R0-R1). Lo irreversible o externo (R2) y lo "
+                "que nunca se hace sin ti (R3) se pregunta siempre, por acción exacta")
+    lim = r.get("limite_usd")
+    if lim is not None and (not isinstance(lim, (int, float)) or lim < 0):
+        return "el límite es un monto en $ (p. ej. 0.5)"
+    return None
+
+
+def _pol_coincide(r, accion, task):
+    if r.get("accion") not in ("*", accion["tipo"]):
+        return False
+    lim = r.get("limite_usd")
+    if isinstance(lim, (int, float)):
+        usd = accion.get("usd")
+        if not isinstance(usd, (int, float)):
+            return False
+        if (r["decision"] == "allow" and usd > lim) or (r["decision"] != "allow" and usd <= lim):
+            return False
+    carp = str(r.get("carpeta") or "").strip()
+    if not carp:
+        return True
+    import fnmatch
+    rutas = accion.get("rutas") or [task.get("cwd") or ""]
+    for ruta in rutas:
+        if any(ch in carp for ch in "*?["):
+            if fnmatch.fnmatch(os.path.normcase(os.path.abspath(ruta)), os.path.normcase(carp)):
+                return True
+        elif _dentro(ruta, carp):
+            return True
+    return False
+
+
+def politica_decidir(accion, task):
+    """(decision, regla) para UNA accion: deny > ask > allow; (None, None) = modo global."""
+    reglas, _e = politicas_leer()
+    hits = [r for r in reglas if _pol_coincide(r, accion, task)]
+    for dec in ("deny", "ask", "allow"):
+        for r in hits:
+            if r["decision"] != dec:
+                continue
+            if dec == "allow" and _rango(accion["nivel"]) >= 2:
+                log(f"políticas: «{politica_frase(r)}» no vale para {accion['nombre']} ({accion['nivel']}): "
+                    "R2/R3 se preguntan siempre")
+                continue
+            return dec, r
+    return None, None
+
+
+def accion_hash(task, a):
+    """La huella de la accion EXACTA (tipo, rutas, monto, frases donde sale,
+    carpeta y motor): si cambia entre la aprobacion y la ejecucion, la
+    aprobacion no vale (patron TrustLoop)."""
+    base = {"tipo": a.get("tipo"), "rutas": sorted(os.path.normcase(str(x)) for x in a.get("rutas") or []),
+            "usd": a.get("usd"), "frases": sorted(a.get("frases") or [])
+            or [_sin_acentos(task.get("prompt") or "")[:4000]],
+            "cwd": os.path.normcase(str(task.get("cwd") or "")), "motor": task.get("motor")}
+    return hashlib.sha256(json.dumps(base, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
+def _quien(canal):
+    nombre = str(load_settings().get("user_name") or "").strip() or "el usuario"
+    return f"{nombre} en la app" if str(canal or "app") in ("app", "") else f"{nombre} por {canal}"
+
+
+def _pol_evento(evento, **kw):
+    """Una línea más en el registro de auditoría (el mismo de las aprobaciones)."""
+    d = {"at": hora_caracas(time.time()), "evento": evento, **kw}
+    try:
+        OUTBOX.mkdir(parents=True, exist_ok=True)
+        with open(APR_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    except OSError as e:
+        log(f"políticas: no se pudo escribir el registro ({e})")
+
+
+_POL_INTENTO_RE = re.compile(r"politicas\.json")
+
+
+def _pol_intento(task):
+    """True si la tarea pide escribir/borrar politicas.json (o lo declara)."""
+    for a in task.get("acciones") or []:
+        if "politicas.json" in _sin_acentos(str(a.get("ruta") or "")) and a.get("tipo") != "leer":
+            return True
+    texto = _sin_acentos(" \n".join([task.get("prompt") or ""] + [str(c) for c in task.get("criterios") or []]))
+    for frase in _frases(texto):
+        if _POL_INTENTO_RE.search(frase) and (_VERBO_ESCRIBIR.search(frase) or _VERBO_BORRAR.search(frase)
+                                              or re.search(r"\b(?:anad|agreg|cambi|quit|permit|regla)\w*", frase)):
+            return True
+    return False
+
+
+def _pol_vigilar(task):
+    """Tras correr un motor: si politicas.json cambió sin pasar por la app, se
+    devuelve a como estaba y se apunta (una tarea nunca crea políticas)."""
+    _pol_conocer()
+    with _POL_LOCK:
+        b = _pol_leer_bytes()
+        if _pol_sha(b) == _POL["firma"]:
+            return False
+        try:
+            if _POL["contenido"] is None:
+                POL_FILE.unlink()
+            else:
+                tmp = POL_FILE.with_suffix(".tmp")
+                tmp.write_bytes(_POL["contenido"])
+                os.replace(tmp, POL_FILE)
+            hecho = "devuelto a como estaba"
+        except OSError as e:
+            hecho = f"NO se pudo devolver ({e})"
+    log(f"políticas [{task.get('id')}]: la tarea cambió {POL_FILE.name} sin pasar por la app: {hecho}. Una tarea "
+        "nunca crea políticas")
+    _pol_evento("politicas_cambio_rechazado", tarea=task.get("id"), raiz=task.get("raiz"), motor=task.get("motor"),
+                quien=f"la tarea {task.get('id')} ({task.get('motor')})", desde="motor", resultado=hecho)
+    return True
+
+
+def politicas_auditoria(n=40):
+    """Las últimas decisiones del registro, en palabras."""
+    try:
+        lineas = APR_LOG.read_text(encoding="utf-8").splitlines()[-400:]
+    except OSError:
+        return []
+    out = []
+    for x in reversed(lineas):
+        try:
+            d = json.loads(x)
+        except ValueError:
+            continue
+        ev = d.get("evento")
+        cuando = str(d.get("at") or "")[5:16].replace("T", " ")
+        if ev in ("politica_allow", "politica_deny", "politica_ask"):
+            txt = (f"{cuando} · {d.get('tarea')}: {d.get('accion')} → {d.get('decision_txt')} por la regla "
+                   f"«{d.get('regla_frase')}» (puesta por {d.get('regla_quien')})")
+        elif ev in ("aprobada", "rechazada"):
+            txt = (f"{cuando} · {d.get('quien') or d.get('canal')} {'aprobó' if ev == 'aprobada' else 'rechazó'} "
+                   f"{d.get('approval_id')} ({d.get('nivel')}) desde {d.get('canal') or 'app'}; vio: "
+                   f"«{str(d.get('motivo') or '')[:140]}»; política: {d.get('politica') or 'ninguna (nivel de permisos)'}")
+        elif ev == "pedido":
+            txt = (f"{cuando} · pedido {d.get('approval_id')} ({d.get('nivel')}) para {d.get('tarea')}: "
+                   f"{str(d.get('motivo') or '')[:160]}")
+        elif ev == "aprobacion_invalidada":
+            txt = (f"{cuando} · {d.get('tarea')}: la aprobación {d.get('approval_id')} ya no vale — la acción cambió "
+                   f"({d.get('hash_aprobado')} → {d.get('hash_ahora')}); se vuelve a pedir")
+        elif ev in ("politicas_intento", "politicas_cambio_rechazado"):
+            txt = f"{cuando} · {d.get('quien')}: intentó cambiar las políticas → {d.get('resultado')}"
+        elif ev in ("regla_creada", "regla_editada", "regla_revocada"):
+            verbo = {"regla_creada": "creó", "regla_editada": "editó", "regla_revocada": "revocó"}[ev]
+            txt = f"{cuando} · {d.get('quien')} {verbo} la regla «{d.get('regla_frase')}»"
+        else:
+            txt = f"{cuando} · {ev}: {d.get('tarea') or ''} {str(d.get('resultado') or d.get('motivo') or '')[:120]}"
+        out.append((ev, txt))
+        if len(out) >= n:
+            break
+    return out
+
+
+# ---- editor (Ajustes → Permisos y seguridad → «Reglas permanentes»)
+_POLUI = {"top": None}
+
+
+def politica_guardar_ui(regla, rid=None):
+    """Crea (rid None) o edita una regla, como el usuario en la app. (ok, mensaje)."""
+    regla = dict(regla)
+    if regla.get("limite_usd") in ("", None):
+        regla["limite_usd"] = None
+    else:
+        try:
+            regla["limite_usd"] = float(str(regla["limite_usd"]).replace(",", ".").replace("$", ""))
+        except ValueError:
+            return False, "el límite es un monto en $ (p. ej. 0.5)"
+    regla["carpeta"] = str(regla.get("carpeta") or "").strip()
+    why = politica_validar(regla)
+    if why:
+        return False, why
+    reglas, _e = politicas_leer()
+    quien = _quien("app")
+    regla["nivel"] = _pol_nivel(regla["accion"])
+    if rid:
+        vieja = next((r for r in reglas if r.get("id") == rid), None)
+        if vieja is None:
+            return False, "esa regla ya no está"
+        vieja.update(regla, editada_por=quien, editada_en=_now_iso())
+        r = vieja
+        ev = "regla_editada"
+    else:
+        r = dict(regla, id="r-" + secrets.token_hex(3), creada_por=quien, creada_en=_now_iso())
+        reglas.append(r)
+        ev = "regla_creada"
+    politicas_guardar(reglas, quien)
+    _pol_evento(ev, quien=quien, desde="app", regla_id=r["id"], regla_frase=politica_frase(r))
+    return True, politica_frase(r)
+
+
+def politica_revocar_ui(rid, confirmar=True):
+    reglas, _e = politicas_leer()
+    r = next((x for x in reglas if x.get("id") == rid), None)
+    if r is None:
+        return False
+    if confirmar and not messagebox.askyesno("Revocar regla", f"¿Quito esta regla?\n\n{politica_frase(r)}"):
+        return False
+    quien = _quien("app")
+    politicas_guardar([x for x in reglas if x.get("id") != rid], quien)
+    _pol_evento("regla_revocada", quien=quien, desde="app", regla_id=rid, regla_frase=politica_frase(r))
+    return True
+
+
+def politicas_ui():
+    """La ventana del editor (CTk con respaldo clásico)."""
+    top = _POLUI.get("top")
+    if top is not None:
+        try:
+            top.deiconify()
+            top.lift()
+            _politicas_render()
+            return top
+        except tk.TclError:
+            pass
+    top = tk.Toplevel(_root)
+    top.title("Reglas permanentes")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(720)}x{S(640)}")
+    page = _scrollable(top)
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(page)
+        except Exception as e:
+            log(f"políticas: CustomTkinter no disponible ({type(e).__name__}: {e}); editor clásico")
+    k = k or _KitTk(page)
+    _POLUI.update(top=top, kit=k, editando=None)
+    card = k.section("Reglas permanentes", "Qué hacer siempre con un tipo de acción en una carpeta. Manda «No "
+                                           "permitir» sobre «Preguntar», y «Preguntar» sobre «Permitir»; lo que no "
+                                           "cubre ninguna regla sigue tu nivel de permisos. Las crea solo tú, aquí.")
+    tabla, _e = cargar_riesgos()
+    tipos = [("*", "cualquier acción")] + [(t, f"{v.get('nombre')} ({v.get('nivel')})")
+                                            for t, v in ((tabla or {}).get("tipos") or {}).items()]
+    _POLUI["tipos"] = tipos
+    f = k.frame(card)
+    f.pack(fill="x", padx=16, pady=(4, 2))
+    k.label(f, "Qué", muted=True, wrap=0).pack(side="left", padx=(0, 8))
+    cb = ttk.Combobox(f, values=[lab for _t, lab in tipos], state="readonly", width=44, font=(FONT, 10))
+    cb.current(0)
+    cb.pack(side="left")
+    _POLUI["accion"] = cb
+    f = k.frame(card)
+    f.pack(fill="x", padx=16, pady=2)
+    k.label(f, "Dónde", muted=True, wrap=0).pack(side="left", padx=(0, 8))
+    _POLUI["carpeta"] = k.entry(f, width=46)
+    _POLUI["carpeta"].pack(side="left")
+    k.button(f, "Elegir…", lambda: _pol_elegir_carpeta()).pack(side="left", padx=(6, 0))
+    f = k.frame(card)
+    f.pack(fill="x", padx=16, pady=2)
+    k.label(f, "Límite $ (solo gastar)", muted=True, wrap=0).pack(side="left", padx=(0, 8))
+    _POLUI["limite"] = k.entry(f, width=8)
+    _POLUI["limite"].pack(side="left")
+    f = k.frame(card)
+    f.pack(fill="x", padx=16, pady=2)
+    _POLUI["decision"] = k.segmented(f, list(POL_DECISIONES), lambda _v: None)
+    _POLUI["decision"].pack(side="left")
+    f = k.frame(card)
+    f.pack(fill="x", padx=16, pady=(6, 2))
+    _POLUI["guardar"] = k.button(f, "Añadir regla", _pol_guardar_click, accent=True)
+    _POLUI["guardar"].pack(side="left")
+    k.button(f, "Limpiar", _pol_limpiar).pack(side="left", padx=(8, 0))
+    _POLUI["msg"] = k.label(card, "", wrap=600)
+    _POLUI["msg"].pack(fill="x", padx=16, pady=(4, 2))
+    _POLUI["lista"] = k.frame(card)
+    _POLUI["lista"].pack(fill="x", padx=16, pady=(4, 12))
+    aud = k.section("Registro de decisiones", f"Quién aprobó qué, cuándo, desde dónde, qué vio y qué regla aplicó "
+                                              f"(se guarda en {APR_LOG.name}, nunca se borra).")
+    _POLUI["audit"] = k.frame(aud)
+    _POLUI["audit"].pack(fill="x", padx=16, pady=(4, 12))
+    _politicas_render()
+    return top
+
+
+def _pol_elegir_carpeta():
+    d = filedialog.askdirectory(title="Carpeta de la regla")
+    if d:
+        _POLUI["carpeta"].delete(0, "end")
+        _POLUI["carpeta"].insert(0, os.path.normpath(d))
+
+
+def _pol_limpiar():
+    _POLUI["editando"] = None
+    _POLUI["accion"].current(0)
+    _POLUI["carpeta"].delete(0, "end")
+    _POLUI["limite"].delete(0, "end")
+    try:
+        _POLUI["guardar"].configure(text="Añadir regla")
+    except Exception:
+        pass
+
+
+def _pol_guardar_click():
+    k = _POLUI["kit"]
+    i = _POLUI["accion"].current()
+    regla = {"accion": _POLUI["tipos"][max(i, 0)][0], "carpeta": _POLUI["carpeta"].get(),
+             "limite_usd": _POLUI["limite"].get().strip() or None, "decision": k.seg_get(_POLUI["decision"])}
+    ok, msg = politica_guardar_ui(regla, _POLUI.get("editando"))
+    k.set_label(_POLUI["msg"], text=("Guardada: " + msg) if ok else f"No se guardó: {msg}.",
+                color="green_text" if ok else "red")
+    if ok:
+        _pol_limpiar()
+    _politicas_render()
+
+
+def _pol_editar(rid):
+    reglas, _e = politicas_leer()
+    r = next((x for x in reglas if x.get("id") == rid), None)
+    if r is None:
+        return
+    _POLUI["editando"] = rid
+    ids = [t for t, _l in _POLUI["tipos"]]
+    _POLUI["accion"].current(ids.index(r["accion"]) if r["accion"] in ids else 0)
+    _POLUI["carpeta"].delete(0, "end")
+    _POLUI["carpeta"].insert(0, r.get("carpeta") or "")
+    _POLUI["limite"].delete(0, "end")
+    if r.get("limite_usd") is not None:
+        _POLUI["limite"].insert(0, f"{r['limite_usd']:g}")
+    seg = _POLUI["decision"]
+    if hasattr(seg, "_keys"):  # CTkSegmentedButton: se pone por su texto
+        seg.set(dict(POL_DECISIONES)[r["decision"]])
+    else:
+        seg.var.set(r["decision"])
+    try:
+        _POLUI["guardar"].configure(text="Guardar cambios")
+    except Exception:
+        pass
+    _POLUI["kit"].set_label(_POLUI["msg"], text=f"Editando: {politica_frase(r)}", color="blue")
+
+
+def _politicas_render():
+    k = _POLUI.get("kit")
+    if k is None:
+        return
+    box = _POLUI["lista"]
+    for ch in box.winfo_children():
+        ch.destroy()
+    reglas, err = politicas_leer()
+    if err:
+        k.label(box, f"No pude leer las reglas: {err}. Mientras, no se aplica ninguna.", color="red").pack(anchor="w")
+    if not reglas and not err:
+        k.label(box, "Sin reglas: todo sigue tu nivel de permisos.", muted=True).pack(anchor="w")
+    for r in reglas:
+        fila = k.frame(box)
+        fila.pack(fill="x", pady=2)
+        k.label(fila, politica_frase(r), wrap=430,
+                color={"allow": "green_text", "deny": "red", "ask": "orange_text"}.get(r["decision"])).pack(
+            side="left", anchor="w")
+        k.button(fila, "Revocar", lambda i=r["id"]: (politica_revocar_ui(i), _politicas_render())).pack(
+            side="right", padx=(6, 0))
+        k.button(fila, "Editar", lambda i=r["id"]: _pol_editar(i)).pack(side="right")
+    ab = _POLUI["audit"]
+    for ch in ab.winfo_children():
+        ch.destroy()
+    filas = politicas_auditoria(25)
+    if not filas:
+        k.label(ab, "Todavía no hay decisiones apuntadas.", muted=True).pack(anchor="w")
+    for ev, txt in filas:
+        k.label(ab, txt, wrap=640, muted=ev not in ("politica_deny", "politicas_intento",
+                                                    "politicas_cambio_rechazado", "aprobacion_invalidada"),
+                color="red" if ev in ("politica_deny", "politicas_intento", "politicas_cambio_rechazado",
+                                      "aprobacion_invalidada") else None).pack(anchor="w", pady=1)
+
+
 def _approval_needed(task):
-    """None si puede correr; si no, {"nivel", "acciones", "motivo", ...}."""
+    """None si puede correr; si no, {"nivel", "acciones", "motivo", ...} con UN
+    paso (cada paso sensible se aprueba aparte, con su approval_id), o
+    {"denegada": True, ...} si una política (o la regla dura) lo prohíbe."""
     tabla, _err = cargar_riesgos()
     cls = clasificar_riesgo(task)
     level = guardrail_level()
     desde = _rango(_desde(tabla, level))
     pol = (tabla or {}).get("politicas") or {}
-    need = [a for a in cls["acciones"] if a["nivel"] != "R0" and _rango(a["nivel"]) >= desde
-            and not (a["nivel"] == "R1" and pol.get(a["tipo"]) == "permitir")]
+    if _pol_intento(task):  # regla dura: una tarea nunca escribe politicas.json
+        a = {"tipo": "cambiar_politicas", "nivel": "R3", "nombre": f"cambiar {POL_FILE.name}", "origen": "encargo",
+             "palabras": [POL_FILE.name], "rutas": [str(POL_FILE)], "frases": [], "usd": None}
+        motivo = (f"una tarea no puede crear ni cambiar políticas ({POL_FILE.name}): solo tú, en la app "
+                  "(Ajustes → Permisos → Reglas permanentes)")
+        _pol_evento("politicas_intento", tarea=task.get("id"), raiz=task.get("raiz"),
+                    quien=f"la tarea {task.get('id')} (canal {task.get('canal') or 'app'})", desde="tarea",
+                    resultado="rechazada antes de empezar", vio=str(task.get("prompt") or "")[:300])
+        log(f"políticas [{task.get('id')}]: RECHAZADA: pide cambiar {POL_FILE.name}; solo el usuario crea políticas")
+        return {"denegada": True, "nivel": "R3", "acciones": [a], "motivo": motivo, "regla": None}
+    need = []
+    for a in cls["acciones"]:
+        a["hash"] = accion_hash(task, a)
+        dec, regla = politica_decidir(a, task)
+        if dec:
+            _pol_evento(f"politica_{dec}", tarea=task.get("id"), raiz=task.get("raiz"), accion=a["nombre"],
+                        nivel=a["nivel"], hash=a["hash"], decision_txt=dict(POL_DECISIONES)[dec],
+                        regla_id=regla.get("id"), regla_frase=politica_frase(regla),
+                        regla_quien=regla.get("editada_por") or regla.get("creada_por"))
+        if dec == "deny":
+            log(f"políticas [{task.get('id')}]: {a['nombre']} lo prohíbe «{politica_frase(regla)}»: no se ejecuta")
+            return {"denegada": True, "nivel": a["nivel"], "acciones": [a], "regla": regla,
+                    "motivo": f"{a['nombre']}: lo prohíbe tu regla «{politica_frase(regla)}»"}
+        if dec == "allow":
+            log(f"políticas [{task.get('id')}]: {a['nombre']} permitido por «{politica_frase(regla)}»")
+            continue
+        if dec == "ask":
+            need.append(dict(a, politica=politica_frase(regla)))
+            continue
+        if (a["nivel"] != "R0" and _rango(a["nivel"]) >= desde
+                and not (a["nivel"] == "R1" and pol.get(a["tipo"]) == "permitir")):
+            need.append(a)
     gasto, est = _gasto_pide_aprobacion(task, level)  # t-estimado-gasto-030
     if est is not None:
         task["_estimado"] = est
     if gasto:
+        gasto.setdefault("hash", accion_hash(task, gasto))
         need.append(gasto)
     if not need:
         return None
-    ap = _APPROVED.get(task["raiz"]) or {"tipos": set(), "pases": []}
-    pend = [a for a in need if not (a["nivel"] == "R1" and a["tipo"] in ap["tipos"])]
+    ap = _APPROVED.setdefault(task["raiz"], {"tipos": set(), "hashes": {}, "por_tipo": {}})
+    pend, cubiertos = [], []
+    for a in need:
+        if a["nivel"] == "R1" and a["tipo"] in ap["tipos"] and not a.get("politica"):
+            continue  # R1: una vez por tipo y por tarea
+        aid = ap["hashes"].get(a["hash"])
+        if aid:  # la aprobación de ESTE paso exacto (se gasta solo si la tarea arranca)
+            cubiertos.append((a, aid))
+            continue
+        viejo = ap["por_tipo"].pop(a["tipo"], None)
+        if viejo and viejo["hash"] != a["hash"]:
+            ap["hashes"].pop(viejo["hash"], None)
+            log(f"runner [{task['id']}]: la aprobación {viejo['aid']} ya no vale: «{a['nombre']}» cambió desde que "
+                f"la aprobaste (hash {viejo['hash']} → {a['hash']}); se vuelve a pedir")
+            _pol_evento("aprobacion_invalidada", tarea=task.get("id"), raiz=task.get("raiz"),
+                        approval_id=viejo["aid"], accion=a["nombre"], hash_aprobado=viejo["hash"],
+                        hash_ahora=a["hash"], resultado="se vuelve a pedir")
+        pend.append(a)
     if not pend:
+        for a, aid in cubiertos:  # todos los pasos aprobados: cada aprobación vale una vez
+            ap["hashes"].pop(a["hash"], None)
+            ap["por_tipo"].pop(a["tipo"], None)
+            log(f"runner [{task['id']}]: usa tu aprobación {aid} para «{a['nombre']}» (hash {a['hash']}); vale una vez")
         return None
-    tipos = {a["tipo"] for a in pend}
-    for i, pase in enumerate(ap["pases"]):
-        if tipos <= pase:  # R2/R3: el pase vale una sola vez, para esta accion
-            ap["pases"].pop(i)
-            log(f"runner [{task['id']}]: usa la aprobación que diste ({', '.join(sorted(tipos))}); "
-                "vale una vez")
-            return None
-    nivel = max((a["nivel"] for a in pend), key=_rango)
-    return {"nivel": nivel, "acciones": pend, "motivo": motivo_riesgo(pend) + (
-                f". {est['texto']}" if est else ""),
+    pend.sort(key=lambda a: -_rango(a["nivel"]))
+    paso = pend[0]
+    resto = (f" (paso 1 de {len(pend)}: cada paso sensible se aprueba aparte; luego vienen "
+             f"{', '.join(a['nombre'] for a in pend[1:])})" if len(pend) > 1 else "")
+    return {"nivel": paso["nivel"], "acciones": [paso], "motivo": motivo_riesgo([paso]) + (
+                f"; regla «{paso['politica']}»" if paso.get("politica") else "") + resto + (
+                f". {est['texto']}" if est and paso is gasto else ""),
             "nivel_tarea": cls["nivel"], "tabla": cls["tabla"], "permisos": level,
-            "estimado": est}
+            "estimado": est, "pasos_pendientes": len(pend)}
 
 
 def _apr_evento(ev, row, **kw):
@@ -9635,6 +10169,23 @@ def _park_for_approval(task_file, task, need):
             f"pedido {row['approval_id']}, vence el {hora_caracas_txt(row['vence_ts'])} (Caracas); "
             "no se ejecuta sola")
         return "esperando_aprobacion", dest
+
+
+def _pol_denegar(task_file, task, cid, need):
+    """Una política (o la regla dura) lo prohíbe: no se ejecuta, sin reintentos."""
+    DONE.mkdir(parents=True, exist_ok=True)
+    dest = DONE / task_file.name
+    shutil.move(str(task_file), str(dest))
+    motivo = need["motivo"]
+    rep = f"{NO_CONFIRMADO} No se ejecutó: {motivo}."
+    res = _error_result(task["id"], motivo)
+    res.update(raiz=task["raiz"], estado="fallida", reporte=rep, reintentos=0, motor=task.get("motor"),
+               no_ejecutado=True, politica=(need.get("regla") or {}).get("id"))
+    _write_result(res)
+    _family_update(task["raiz"], estado="fallida", reporte=rep, error=motivo, motor=task.get("motor"),
+                   tarea=task["id"], solo_si_falta_encargo=str(task.get("prompt") or "")[:2000])
+    cola_set(cid, estado="fallida", archivo=str(dest), motivo=f"definitivo, sin reintentos: {motivo}"[:300])
+    log(f"runner [{task['id']}]: no se ejecuta: {motivo}")
 
 
 def _cerrar_sin_ejecutar(raiz, tarea, src, motivo, reporte, info, estado_apr):
@@ -9797,9 +10348,12 @@ def decidir_aprobacion(approval_id=None, decision="aprobar", canal="app", raiz=N
                 acc = json.loads(row.get("acciones") or "[]")
             except ValueError:
                 acc = []
-            ap = _APPROVED.setdefault(row["raiz"], {"tipos": set(), "pases": []})
-            ap["tipos"].update(a["tipo"] for a in acc if a.get("nivel") == "R1")
-            ap["pases"].append({a["tipo"] for a in acc})
+            ap = _APPROVED.setdefault(row["raiz"], {"tipos": set(), "hashes": {}, "por_tipo": {}})
+            ap["tipos"].update(a["tipo"] for a in acc if a.get("nivel") == "R1" and not a.get("politica"))
+            for a in acc:
+                if a.get("hash"):
+                    ap["hashes"][a["hash"]] = row["approval_id"]
+                    ap["por_tipo"][a["tipo"]] = {"hash": a["hash"], "aid": row["approval_id"]}
             dest = TASKS / src.name
             shutil.move(str(src), str(dest))
             t = time.time() - 5
@@ -9811,7 +10365,9 @@ def decidir_aprobacion(approval_id=None, decision="aprobar", canal="app", raiz=N
             _family_update(row["raiz"], estado="pendiente", archivo_espera=None, aprobada_por_usuario=_now_iso(),
                            aprobacion=_apr_info(row))
             _apr_pedido_archivo(row, _nivel_nombre(row["nivel"]))
-            _apr_evento("aprobada", row, canal=canal)
+            _apr_evento("aprobada", row, canal=canal, quien=_quien(canal), desde=canal,
+                        hashes=[a.get("hash") for a in acc],
+                        politica="; ".join(a["politica"] for a in acc if a.get("politica")) or None)
             log(f"tareas: aprobaste {row['raiz']} ({row['approval_id']}, {row['nivel']}); vuelve a la cola")
             return True, "aprobada; vuelve a la cola"
         DONE.mkdir(parents=True, exist_ok=True)
@@ -9829,7 +10385,7 @@ def decidir_aprobacion(approval_id=None, decision="aprobar", canal="app", raiz=N
         _family_update(row["raiz"], estado="rechazada", archivo_espera=None,
                        reporte="No se hizo nada: la rechazaste antes de empezar.", aprobacion=_apr_info(row))
         _apr_pedido_archivo(row, _nivel_nombre(row["nivel"]))
-        _apr_evento("rechazada", row, canal=canal)
+        _apr_evento("rechazada", row, canal=canal, quien=_quien(canal), desde=canal)
         log(f"tareas: rechazaste {row['raiz']}")
         return True, "rechazada"
 
@@ -15080,6 +15636,9 @@ def _process_one_impl(task_file):
         if task.get("_estimado"):  # el estimado queda a la vista ANTES de ejecutar
             _family_update(task["raiz"], estimado=task["_estimado"]["texto"])
             log(f"runner [{task['id']}]: {task['_estimado']['texto'][:300]}")
+        if need and need.get("denegada"):
+            _pol_denegar(task_file, task, cid, need)
+            return True
         if need:
             est, dest = _park_for_approval(task_file, task, need)
             cola_set(cid, estado=est, archivo=str(dest))
@@ -35410,6 +35969,9 @@ def _build_ajustes_ctk(tab_aj):
         _widgets[f"aj_{_k}"] = _e
     r, der = side_row(gr, "Carpetas", "Dónde puede leer y escribir Growi (la lista se edita en Carpetas).")
     button(der, "Editar", lambda: _widgets["show_page"]("carpetas")).pack()
+    r, der = side_row(gr, "Reglas permanentes", "«Permitir siempre», «Preguntar siempre» o «No permitir nunca» un "
+                                                "tipo de acción en una carpeta, y el registro de quién aprobó qué.")
+    button(der, "Editar reglas", politicas_ui).pack()
     r, der = side_row(gr, "Exportar mis conversaciones", "La ruta oficial de Claude, paso a paso; "
                                                           "Bridge apunta la fecha y comprueba el ZIP.")
     button(der, "Exportar", export_guia_ui).pack()
@@ -36976,6 +37538,9 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("politicas", "Reglas permanentes (permitir, preguntar o no permitir)",
+          "reglas politicas permisos permitir siempre preguntar negar auditoria registro aprobaciones",
+          lambda: (show_window(), politicas_ui())),
         C("perfil", "Editar mi perfil (Sobre mí)", "perfil sobre mi quien soy tono como escribo editar mi perfil",
           lambda: (show_window(), _show_page("sobremi"))),
         C("pedir_cosecha", "Pedir cosecha de tendencias (TikTok / Instagram, por la VM)",

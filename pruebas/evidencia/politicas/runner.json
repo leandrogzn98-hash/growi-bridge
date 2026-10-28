@@ -1,0 +1,195 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350",
+ "a_reglas": [
+  [
+   true,
+   "Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida (R1)"
+  ],
+  [
+   true,
+   "No permitir nunca: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida\\secreto (R1)"
+  ],
+  [
+   true,
+   "Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\otra (R1)"
+  ]
+ ],
+ "a_allow_en_R2_no_se_puede": [
+  false,
+  "«Permitir siempre» solo vale para lo reversible (R0-R1). Lo irreversible o externo (R2) y lo que nunca se hace sin ti (R3) se pregunta siempre, por acción exacta"
+ ],
+ "a_politicas_json": {
+  "_que_es": "Reglas permanentes de Growi Bridge (Ajustes → Permisos → Reglas permanentes). Las crea solo el usuario en la app; una tarea o el asistente NUNCA. Orden: no permitir > preguntar > permitir > el nivel de permisos. «Permitir siempre» solo vale para R0-R1.",
+  "version": 1,
+  "reglas": [
+   {
+    "accion": "escribir_fuera",
+    "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida",
+    "decision": "allow",
+    "limite_usd": null,
+    "nivel": "R1",
+    "id": "r-98382c",
+    "creada_por": "Leandro en la app",
+    "creada_en": "2026-10-28T03:32:07-04:00"
+   },
+   {
+    "accion": "escribir_fuera",
+    "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida\\secreto",
+    "decision": "deny",
+    "limite_usd": null,
+    "nivel": "R1",
+    "id": "r-01ddda",
+    "creada_por": "Leandro en la app",
+    "creada_en": "2026-10-28T03:32:07-04:00"
+   },
+   {
+    "accion": "escribir_fuera",
+    "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\otra",
+    "decision": "ask",
+    "limite_usd": null,
+    "nivel": "R1",
+    "id": "r-75f4aa",
+    "creada_por": "Leandro en la app",
+    "creada_en": "2026-10-28T03:32:07-04:00"
+   }
+  ]
+ },
+ "a_allow": {
+  "estado": "sin_revision",
+  "motor_llamado": true,
+  "aprobacion": null,
+  "motivo": ""
+ },
+ "a_choque_deny_gana": {
+  "estado": "fallida",
+  "motor_llamado": false,
+  "aprobacion": null,
+  "motivo": "escribir fuera de la carpeta de trabajo: lo prohíbe tu regla «No permitir nunca: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida\\secreto (R1)»"
+ },
+ "a_ask": {
+  "estado": "esperando_aprobacion",
+  "motor_llamado": false,
+  "aprobacion": "apr-t-pol-ask-20261028033213-c985",
+  "motivo": "escribir fuera de la carpeta de trabajo (R1, deducido del encargo: «c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-politicas-jpnj2350\\otra\\informe.t»); regla «Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\otra (R1)»"
+ },
+ "d_pasos": {
+  "paso1": {
+   "estado": "esperando_aprobacion",
+   "motor_llamado": false,
+   "aprobacion": "apr-t-pol-pasos-20261028033213-b50d",
+   "motivo": "borrar archivos (R2, deducido del encargo: «borra») (paso 1 de 2: cada paso sensible se aprueba aparte; luego vienen enviar correo o mensaje)"
+  },
+  "aprobar1": [
+   true,
+   "aprobada; vuelve a la cola"
+  ],
+  "paso2": {
+   "estado": "esperando_aprobacion",
+   "motor_llamado": false,
+   "aprobacion": "apr-t-pol-pasos-20261028033213-1a9d",
+   "motivo": "enviar correo o mensaje (R2, deducido del encargo: «envia un correo»)"
+  },
+  "aprobar2": [
+   true,
+   "aprobada; vuelve a la cola"
+  ],
+  "final": {
+   "estado": "sin_revision",
+   "motor_llamado": true,
+   "aprobacion": "apr-t-pol-pasos-20261028033213-1a9d",
+   "motivo": "enviar correo o mensaje (R2, deducido del encargo: «envia un correo»)"
+  },
+  "ids_distintos": true
+ },
+ "e_hash": {
+  "pedido": {
+   "estado": "esperando_aprobacion",
+   "motor_llamado": false,
+   "aprobacion": "apr-t-pol-hash-20261028033216-5919",
+   "motivo": "borrar archivos (R2, deducido del encargo: «borra»)"
+  },
+  "aprobada": [
+   true,
+   "aprobada; vuelve a la cola"
+  ],
+  "tras_cambiar": {
+   "estado": "esperando_aprobacion",
+   "motor_llamado": false,
+   "aprobacion": "apr-t-pol-hash-20261028033216-6d34",
+   "motivo": "borrar archivos (R2, deducido del encargo: «borra»)"
+  },
+  "nuevo_pedido": true
+ },
+ "c_pide_cambiar": {
+  "estado": "fallida",
+  "motor_llamado": false,
+  "aprobacion": null,
+  "motivo": "una tarea no puede crear ni cambiar políticas (politicas.json): solo tú, en la app (Ajustes → Permisos → Reglas permanentes)"
+ },
+ "c_motor_lo_cambia": {
+  "estado": "sin_revision",
+  "motor_llamado": true,
+  "aprobacion": null,
+  "motivo": ""
+ },
+ "c_politicas_igual_que_antes": true,
+ "f_registro_en_palabras": [
+  "10-28 03:32 · la tarea t-pol-motor (claude): intentó cambiar las políticas → devuelto a como estaba",
+  "10-28 03:32 · la tarea t-pol-intento (canal app): intentó cambiar las políticas → rechazada antes de empezar",
+  "10-28 03:32 · pedido apr-t-pol-hash-20261028033216-6d34 (R2) para t-pol-hash: borrar archivos (R2, deducido del encargo: «borra»)",
+  "10-28 03:32 · t-pol-hash: la aprobación apr-t-pol-hash-20261028033216-5919 ya no vale — la acción cambió (c8ee895620a33b00 → 115482348775c791); se vuelve a pedir",
+  "10-28 03:32 · Leandro en la app aprobó apr-t-pol-hash-20261028033216-5919 (R2) desde app; vio: «borrar archivos (R2, deducido del encargo: «borra»)»; política: ninguna (nivel de permisos)",
+  "10-28 03:32 · pedido apr-t-pol-hash-20261028033216-5919 (R2) para t-pol-hash: borrar archivos (R2, deducido del encargo: «borra»)",
+  "10-28 03:32 · Leandro en la app aprobó apr-t-pol-pasos-20261028033213-1a9d (R2) desde app; vio: «enviar correo o mensaje (R2, deducido del encargo: «envia un correo»)»; política: ninguna (nivel de permisos)",
+  "10-28 03:32 · pedido apr-t-pol-pasos-20261028033213-1a9d (R2) para t-pol-pasos: enviar correo o mensaje (R2, deducido del encargo: «envia un correo»)",
+  "10-28 03:32 · Leandro en la app aprobó apr-t-pol-pasos-20261028033213-b50d (R2) desde app; vio: «borrar archivos (R2, deducido del encargo: «borra») (paso 1 de 2: cada paso sensible se aprueba aparte; luego vienen enviar correo o mensaje»; política: ninguna (nivel de permisos)",
+  "10-28 03:32 · pedido apr-t-pol-pasos-20261028033213-b50d (R2) para t-pol-pasos: borrar archivos (R2, deducido del encargo: «borra») (paso 1 de 2: cada paso sensible se aprueba aparte; luego vienen enviar correo o mensaje)",
+  "10-28 03:32 · pedido apr-t-pol-ask-20261028033213-c985 (R1) para t-pol-ask: escribir fuera de la carpeta de trabajo (R1, deducido del encargo: «c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-politicas-jpnj2350\\otra\\informe.t»); regla «P",
+  "10-28 03:32 · t-pol-ask: escribir fuera de la carpeta de trabajo → Preguntar siempre por la regla «Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\otra (R1)» (puesta por Leandro en la app)",
+  "10-28 03:32 · t-pol-choque: escribir fuera de la carpeta de trabajo → No permitir nunca por la regla «No permitir nunca: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida\\secreto (R1)» (puesta por Leandro en la app)",
+  "10-28 03:32 · t-pol-allow: escribir fuera de la carpeta de trabajo → Permitir siempre por la regla «Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida (R1)» (puesta por Leandro en la app)",
+  "10-28 03:32 · Leandro en la app creada la regla «Preguntar siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\otra (R1)»",
+  "10-28 03:32 · Leandro en la app creada la regla «No permitir nunca: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida\\secreto (R1)»",
+  "10-28 03:32 · Leandro en la app creada la regla «Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida (R1)»"
+ ],
+ "f_una_aprobacion_completa": {
+  "at": "2026-10-28T03:32:13-04:00",
+  "evento": "aprobada",
+  "approval_id": "apr-t-pol-pasos-20261028033213-b50d",
+  "tarea": "t-pol-pasos",
+  "raiz": "t-pol-pasos",
+  "nivel": "R2",
+  "motivo": "borrar archivos (R2, deducido del encargo: «borra») (paso 1 de 2: cada paso sensible se aprueba aparte; luego vienen enviar correo o mensaje)",
+  "pedido": "Borra el archivo C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\trabajo\\viejo.txt. Luego envía un correo a ana@ejemplo.com con el resumen.",
+  "creado_en": "2026-10-28T03:32:13-04:00",
+  "vence_en": "2026-10-28T05:32:13-04:00",
+  "estado": "aprobada",
+  "resultado": "aprobada: vuelve a la cola",
+  "canal": "app",
+  "quien": "Leandro en la app",
+  "desde": "app",
+  "hashes": [
+   "c8ee895620a33b00"
+  ],
+  "politica": null
+ },
+ "log": [
+  "2026-10-28T03:32:07-04:00 políticas: guardadas 1 regla(s) (Leandro en la app)",
+  "2026-10-28T03:32:07-04:00 políticas: guardadas 2 regla(s) (Leandro en la app)",
+  "2026-10-28T03:32:07-04:00 políticas: guardadas 3 regla(s) (Leandro en la app)",
+  "2026-10-28T03:32:07-04:00 políticas [t-pol-allow]: escribir fuera de la carpeta de trabajo permitido por «Permitir siempre: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida (R1)»",
+  "2026-10-28T03:32:13-04:00 políticas [t-pol-choque]: escribir fuera de la carpeta de trabajo lo prohíbe «No permitir nunca: escribir fuera de la carpeta de trabajo en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-politicas-jpnj2350\\compartida\\secreto (R1)»: no se ejecuta",
+  "2026-10-28T03:32:13-04:00 runner [t-pol-ask]: espera tu aprobación (R1: escribir fuera de la carpeta de trabajo (R1, deducido del encargo: «c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-politicas-jpnj2350\\otra\\informe.t»); regla «P); pedido apr-t-pol-ask-20261028033213-c985, vence el jueves 29/10 a las 03:32 (Caracas); no se ejecuta sola",
+  "2026-10-28T03:32:13-04:00 runner [t-pol-pasos]: espera tu aprobación (R2: borrar archivos (R2, deducido del encargo: «borra») (paso 1 de 2: cada paso sensible se aprueba aparte; luego vienen enviar correo o mensaje)); pedido apr-t-pol-pasos-20261028033213-b50d, vence el miércoles 28/10 a las 05:32 (Caracas); no se ejecuta sola",
+  "2026-10-28T03:32:13-04:00 runner [t-pol-pasos]: espera tu aprobación (R2: enviar correo o mensaje (R2, deducido del encargo: «envia un correo»)); pedido apr-t-pol-pasos-20261028033213-1a9d, vence el miércoles 28/10 a las 05:32 (Caracas); no se ejecuta sola",
+  "2026-10-28T03:32:13-04:00 runner [t-pol-pasos]: usa tu aprobación apr-t-pol-pasos-20261028033213-b50d para «borrar archivos» (hash c8ee895620a33b00); vale una vez",
+  "2026-10-28T03:32:13-04:00 runner [t-pol-pasos]: usa tu aprobación apr-t-pol-pasos-20261028033213-1a9d para «enviar correo o mensaje» (hash d087935b5fed6453); vale una vez",
+  "2026-10-28T03:32:16-04:00 runner [t-pol-hash]: espera tu aprobación (R2: borrar archivos (R2, deducido del encargo: «borra»)); pedido apr-t-pol-hash-20261028033216-5919, vence el miércoles 28/10 a las 05:32 (Caracas); no se ejecuta sola",
+  "2026-10-28T03:32:16-04:00 runner [t-pol-hash]: la aprobación apr-t-pol-hash-20261028033216-5919 ya no vale: «borrar archivos» cambió desde que la aprobaste (hash c8ee895620a33b00 → 115482348775c791); se vuelve a pedir",
+  "2026-10-28T03:32:16-04:00 runner [t-pol-hash]: espera tu aprobación (R2: borrar archivos (R2, deducido del encargo: «borra»)); pedido apr-t-pol-hash-20261028033216-6d34, vence el miércoles 28/10 a las 05:32 (Caracas); no se ejecuta sola",
+  "2026-10-28T03:32:16-04:00 políticas [t-pol-intento]: RECHAZADA: pide cambiar politicas.json; solo el usuario crea políticas",
+  "2026-10-28T03:32:16-04:00 runner [t-pol-intento]: no se ejecuta: una tarea no puede crear ni cambiar políticas (politicas.json): solo tú, en la app (Ajustes → Permisos → Reglas permanentes)",
+  "2026-10-28T03:32:19-04:00 políticas [t-pol-motor]: la tarea cambió politicas.json sin pasar por la app: devuelto a como estaba. Una tarea nunca crea políticas"
+ ],
+ "tracebacks_en_log": 0
+}

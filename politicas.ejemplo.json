@@ -1,0 +1,33 @@
+{
+ "_que_es": "EJEMPLO, no activo. Las reglas de verdad van en politicas.json y se crean SOLO en la app (Ajustes → Permisos y seguridad → Reglas permanentes). Orden: deny > ask > allow > nivel de permisos. «allow» solo vale para R0-R1.",
+ "version": 1,
+ "reglas": [
+  {
+   "id": "r-ejemplo-1",
+   "accion": "escribir_fuera",
+   "carpeta": "C:\\Users\\forte\\growi-bridge\\share",
+   "limite_usd": null,
+   "nivel": "R1",
+   "decision": "allow",
+   "nota": "Los tasks Opus de orquestación siempre escriben en la carpeta share: no volver a preguntar."
+  },
+  {
+   "id": "r-ejemplo-2",
+   "accion": "borrar_recursivo",
+   "carpeta": "",
+   "limite_usd": null,
+   "nivel": "R3",
+   "decision": "deny",
+   "nota": "Borrar en masa (rm -rf y parecidos): nunca, en ninguna carpeta."
+  },
+  {
+   "id": "r-ejemplo-3",
+   "accion": "escribir_fuera",
+   "carpeta": "C:\\Users\\forte\\OneDrive",
+   "limite_usd": null,
+   "nivel": "R1",
+   "decision": "ask",
+   "nota": "OneDrive se sincroniza: preguntar siempre, aunque el nivel sea «Solo lo delicado»."
+  }
+ ]
+}
