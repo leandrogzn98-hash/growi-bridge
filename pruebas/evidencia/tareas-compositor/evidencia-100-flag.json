@@ -1,0 +1,68 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tareas-compositor-jn1fy_ii",
+ "variante": "flag",
+ "dpi": "100",
+ "build_gui_s": 2.01,
+ "tipos": {
+  "campo": "Text",
+  "selector": "Combobox",
+  "enviar": "Button",
+  "estado": "Label"
+ },
+ "placeholder": null,
+ "selector_por_defecto": "Automático (recomendado)",
+ "acento_enviar": "Accent.TButton",
+ "c_vacio": {
+  "antes": [],
+  "despues": [],
+  "no_creo_nada": true,
+  "errores_en_log": 0
+ },
+ "b_auto": {
+  "archivo": [
+   "t-20261028-141324.task.json"
+  ],
+  "motor": "auto",
+  "model": null,
+  "prompt": "Resume en 3 puntos qué hace la carpeta pruebas",
+  "esperado_motor": "auto"
+ },
+ "d_despues": {
+  "campo": "",
+  "en_la_lista": true,
+  "estado_fila": "● pendiente",
+  "aviso": "⠧ En cola: t-20261028-141324, esperando a que empiece",
+  "placeholder_visible": null
+ },
+ "a_motor_elegido": {
+  "selector": "Claude Haiku",
+  "archivo": [
+   "t-20261028-141325.task.json"
+  ],
+  "model": "haiku",
+  "motor": null,
+  "esperado": "haiku",
+  "campo_limpio": true
+ },
+ "selector_valores": [
+  "── Automático ──",
+  "Automático (recomendado)",
+  "── Mi suscripción ──",
+  "Claude Sonnet",
+  "Claude Opus",
+  "Claude Haiku"
+ ],
+ "foco": {
+  "campo": "nativo (Text)",
+  "selector": "ttk::takefocus",
+  "enviar": "ttk.Button",
+  "intro_enlazado": true
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 502,
+  "fila_pedida": 405,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}

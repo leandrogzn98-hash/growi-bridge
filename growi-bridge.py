@@ -26558,6 +26558,213 @@ def _open_palette():
     entry.focus_set()
 
 
+# ---- Tareas: compositor «Pedirle algo a Growi…» (t-tareas-compositor-045). Debajo del detalle: el campo, el
+# selector de motor («Automático (recomendado)» por defecto) y Enviar (acento). Enviar es _send_ask, el MISMO
+# camino de encolado que la paleta Ctrl+K (_palette_ask_ai): ni camino nuevo ni motor nuevo. Intro en el campo
+# envía (Mayús+Intro, salto de línea); vacío no envía nada. CustomTkinter con la versión clásica de respaldo.
+# Los _widgets de siempre («ask_text», «ask_criterios», «ask_engine», «ask_status») mantienen su interfaz:
+# CTkTextbox es un tk.Text por dentro (get/insert/delete con «1.0»), el selector CTk imita al Combobox
+# (get/set/config(values)/cget/bind <<ComboboxSelected>>) y el estado sigue siendo un tk.Label.
+_COMP: dict = {"ctk": False, "ms": None}
+COMP_PLACEHOLDER = "Pedirle algo a Growi…"
+
+
+class _SelectorMotor:
+    """Selector de motor con piel CTk (un CTkButton que abre un menú): se usa como el ttk.Combobox de siempre.
+    Un CTkOptionMenu costaba ~0,7 s de arranque (dibuja con update_idletasks al crearse)."""
+
+    def __init__(self, k, parent, al_abrir=None):
+        self._v, self._valores, self._binds, self._al_abrir = "", [], [], al_abrir
+        self.btn = k.button(parent, "", self._abrir)
+        self.btn.configure(anchor="w", width=260)
+        self.menu = tk.Menu(parent, tearoff=0)
+
+    def __getattr__(self, nombre):  # pack, focus_set, winfo_*… van al botón
+        return getattr(self.btn, nombre)
+
+    def get(self):
+        return self._v
+
+    def set(self, v):
+        self._v = str(v)
+        self.btn.configure(text=f"{self._v}   ▾")
+
+    def configure(self, **kw):
+        if "values" in kw:
+            self._valores = list(kw.pop("values") or [])
+        if kw:
+            self.btn.configure(**kw)
+    config = configure
+
+    def cget(self, clave):
+        return tuple(self._valores) if clave == "values" else self.btn.cget(clave)
+
+    def bind(self, secuencia, fn=None, add=None):
+        if secuencia == "<<ComboboxSelected>>":
+            if fn is not None:
+                self._binds.append(fn)
+            return None
+        return self.btn.bind(secuencia, fn, add)
+
+    def event_generate(self, secuencia, **_kw):
+        if secuencia == "<<ComboboxSelected>>":
+            for fn in list(self._binds):
+                fn(None)
+
+    def elegir(self, v):
+        self.set(v)
+        self.event_generate("<<ComboboxSelected>>")
+
+    def _abrir(self):
+        if self._al_abrir:
+            self._al_abrir()
+        m = self.menu
+        m.delete(0, "end")
+        for v in self._valores:
+            if v.startswith(_SECCION_PREFIJO):
+                m.add_command(label=v, state="disabled")
+            else:
+                m.add_command(label=("✓  " if v == self._v else "     ") + v, command=lambda x=v: self.elegir(x))
+        b = self.btn
+        try:
+            m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            m.grab_release()
+
+
+def _comp_engine_default():
+    """El motor del compositor: el que elegiste para el chat (Modelos por superficie) o, si no, Automático."""
+    chat = superficie_modelo("chat", avisar=False)
+    return next((l for l, m, _d in engine_choices() if chat and m == chat), AUTO_LABEL)
+
+
+def _comp_construir(tabt, al_abrir_motores):
+    holder = tk.Frame(tabt, bg=THEME["bg"])
+    holder.pack(fill="x", padx=20, pady=8)
+    t0 = time.perf_counter()
+    if _ctk_wanted():
+        try:
+            _teclado_ctk_patch()
+            _comp_ctk(_KitCtk(holder, global_setup=False), holder, al_abrir_motores)
+            _COMP.update(ctk=True, ms=round((time.perf_counter() - t0) * 1000))
+            log(f"tareas: compositor con CustomTkinter ({_COMP['ms']} ms)")
+            return
+        except Exception as e:
+            log(f"tareas: compositor sin CustomTkinter ({type(e).__name__}: {e}); se usa el clásico")
+            for ch in holder.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    _comp_tk(holder, al_abrir_motores)
+    _COMP.update(ctk=False, ms=round((time.perf_counter() - t0) * 1000))
+    log(f"tareas: compositor clásico (tkinter) ({_COMP['ms']} ms)")
+
+
+def _comp_enviar(_e=None):
+    _send_ask()
+    _comp_placeholder()
+    return "break"  # Intro no mete un salto de línea
+
+
+def _comp_placeholder(_e=None):
+    """El texto gris «Pedirle algo a Growi…» se ve solo con el campo vacío y sin el foco."""
+    ph, box = _COMP.get("ph"), _widgets.get("ask_text")
+    if ph is None or box is None:
+        return
+    try:
+        vacio = not box.get("1.0", "end").strip()
+        enfocado = str(box.focus_get() or "").startswith(str(box))
+        if vacio and not enfocado:
+            ph.place(x=S(12), y=S(7))
+            ph.lift()
+        else:
+            ph.place_forget()
+    except Exception:
+        pass
+
+
+def _comp_ctk(k, holder, al_abrir_motores):
+    ctk, T = k.ctk, THEME
+    card = k.card(holder)
+    card.pack(fill="x")
+    k.title(card, "Pedirle algo").pack(anchor="w", padx=16, pady=(12, 2))
+    k.label(card, "Escribe la tarea y elige el motor. Claude hace el trabajo pesado; Hermes 3 corre en local, "
+                  "gratis, para lo rápido. Intro envía; Mayús+Intro, salto de línea.", muted=True, wrap=560).pack(
+        anchor="w", fill="x", padx=16, pady=(0, 6))
+    box = ctk.CTkTextbox(card, height=72, font=k.F(13), corner_radius=8, border_width=1, border_color=T["line"],
+                         fg_color=T["field"], text_color=T["text"], wrap="word")
+    box.pack(fill="x", padx=16, pady=4)
+    ph = tk.Label(box, text=COMP_PLACEHOLDER, font=(FONT, 10), bg=T["field"], fg=T["muted"], cursor="xterm")
+    ph.bind("<Button-1>", lambda _e: box.focus_set())
+    _COMP["ph"] = ph
+    box.bind("<Return>", _comp_enviar)
+    box.bind("<Shift-Return>", lambda _e: None)  # salto de línea normal
+    for ev in ("<FocusIn>", "<FocusOut>", "<KeyRelease>"):
+        box.bind(ev, lambda _e: box.after_idle(_comp_placeholder), add=True)
+    _widgets["ask_text"] = box
+    k.label(card, "Para darla por buena (opcional, una frase por línea): p. ej. \"el archivo notas.txt existe y "
+                  "tiene más de 20 líneas\"", muted=True, wrap=560).pack(anchor="w", fill="x", padx=16, pady=(4, 0))
+    crit = ctk.CTkTextbox(card, height=48, font=k.F(13), corner_radius=8, border_width=1, border_color=T["line"],
+                          fg_color=T["field"], text_color=T["text"], wrap="word")
+    crit.pack(fill="x", padx=16, pady=4)
+    _widgets["ask_criterios"] = crit
+    arow = k.frame(card)
+    arow.pack(fill="x", padx=16, pady=(4, 4))
+    sel = _SelectorMotor(k, arow, al_abrir_motores)
+    sel.configure(values=list(_ASK_ENGINES) or [AUTO_LABEL])
+    sel.set(_comp_engine_default())
+    sel.pack(side="left", padx=(0, 8))
+    _widgets["ask_engine"] = sel
+    env = k.button(arow, "Enviar", _comp_enviar, accent=True)
+    env.pack(side="left")
+    _COMP.update(enviar=env, selector=sel)
+    _widgets["ask_status"] = tk.Label(card, text="", font=(FONT, 9), bg=T["card"], fg=T["green_text"],
+                                      wraplength=S(560), justify="left", anchor="w")
+    _widgets["ask_status"].pack(anchor="w", fill="x", padx=16, pady=(0, 12))
+    box.after(50, _comp_placeholder)
+
+
+def _comp_tk(holder, al_abrir_motores):
+    """La versión clásica de siempre (Text + Combobox + Enviar ttk), con Intro que envía."""
+    ask = tk.Frame(holder, bg=THEME["card"])
+    ask.pack(fill="x")
+    tk.Label(ask, text="Pedirle algo", font=SECTION_FONT,
+             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=16, pady=(12, 2))
+    tk.Label(ask, text="Escribe la tarea y elige el motor. Claude hace el trabajo pesado; "
+             "Hermes 3 corre en local, gratis, para lo rápido. Intro envía; Mayús+Intro, salto de línea.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
+             wraplength=S(560), justify="left").pack(anchor="w", padx=16, pady=(0, 6))
+    _widgets["ask_text"] = tk.Text(ask, height=3, font=(FONT, 10), bg="#FFFFFF",
+                                   fg=THEME["text"], insertbackground=THEME["text"],
+                                   borderwidth=0, highlightthickness=0)
+    _widgets["ask_text"].pack(fill="x", padx=16, pady=4)
+    _widgets["ask_text"].bind("<Return>", _comp_enviar)
+    _widgets["ask_text"].bind("<Shift-Return>", lambda _e: None)
+    tk.Label(ask, text="Para darla por buena (opcional, una frase por línea): p. ej. "
+             "\"el archivo notas.txt existe y tiene más de 20 líneas\"",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
+             wraplength=S(560), justify="left").pack(anchor="w", padx=16, pady=(4, 0))
+    _widgets["ask_criterios"] = tk.Text(ask, height=2, font=(FONT, 10), bg="#FFFFFF",
+                                        fg=THEME["text"], insertbackground=THEME["text"],
+                                        borderwidth=0, highlightthickness=0)
+    _widgets["ask_criterios"].pack(fill="x", padx=16, pady=4)
+    arow = tk.Frame(ask, bg=THEME["card"])
+    arow.pack(fill="x", padx=16, pady=(0, 12))
+    _widgets["ask_engine"] = ttk.Combobox(arow, width=30, font=(FONT, 10),
+                                          state="readonly", postcommand=al_abrir_motores,
+                                          values=list(_ASK_ENGINES))
+    _widgets["ask_engine"].set(_comp_engine_default())
+    _widgets["ask_engine"].pack(side="left", padx=(0, 8))
+    _COMP["enviar"] = ttk.Button(arow, text="Enviar", style="Accent.TButton", command=_comp_enviar)
+    _COMP["enviar"].pack(side="left")
+    _COMP["selector"] = _widgets["ask_engine"]
+    _COMP["ph"] = None
+    _widgets["ask_status"] = tk.Label(ask, text="", font=(FONT, 9),
+                                      bg=THEME["card"], fg=THEME["green_text"])
+    _widgets["ask_status"].pack(anchor="w", padx=16, pady=(0, 12))
+
+
 def _send_ask():
     """Manda la tarea escrita en la pagina Tareas al runner (Claude u
     Ollama local, segun el motor elegido)."""
@@ -43044,28 +43251,6 @@ def build_gui():
     _widgets["live_line"].pack(anchor="w", padx=20, pady=(0, 4))
     _build_live_card(tabt)
     _tdet_construir(tabt)  # detalle debajo de la tabla (t-tareas-detalle-045)
-    ask = tk.Frame(tabt, bg=THEME["card"])
-    ask.pack(fill="x", padx=20, pady=8)
-    tk.Label(ask, text="Pedirle algo", font=SECTION_FONT,
-             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=16, pady=(12, 2))
-    tk.Label(ask, text="Escribe la tarea y elige el motor. Claude hace el trabajo pesado; "
-             "Hermes 3 corre en local, gratis, para lo rápido.",
-             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
-             wraplength=S(560), justify="left").pack(anchor="w", padx=16, pady=(0, 6))
-    _widgets["ask_text"] = tk.Text(ask, height=3, font=(FONT, 10), bg="#FFFFFF",
-                                   fg=THEME["text"], insertbackground=THEME["text"],
-                                   borderwidth=0, highlightthickness=0)
-    _widgets["ask_text"].pack(fill="x", padx=16, pady=4)
-    tk.Label(ask, text="Para darla por buena (opcional, una frase por línea): p. ej. "
-             "\"el archivo notas.txt existe y tiene más de 20 líneas\"",
-             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
-             wraplength=S(560), justify="left").pack(anchor="w", padx=16, pady=(4, 0))
-    _widgets["ask_criterios"] = tk.Text(ask, height=2, font=(FONT, 10), bg="#FFFFFF",
-                                        fg=THEME["text"], insertbackground=THEME["text"],
-                                        borderwidth=0, highlightthickness=0)
-    _widgets["ask_criterios"].pack(fill="x", padx=16, pady=4)
-    arow = tk.Frame(ask, bg=THEME["card"])
-    arow.pack(fill="x", padx=16, pady=(0, 12))
     def _engines_open():
         # Al abrir el desplegable: pedirle al runner la lista de modelos
         # instalados (accion list), como mucho cada 30 s.
@@ -43073,16 +43258,7 @@ def build_gui():
             request_models_list()
         _refresh_engine_widgets()
 
-    _widgets["ask_engine"] = ttk.Combobox(arow, width=30, font=(FONT, 10),
-                                          state="readonly", postcommand=_engines_open,
-                                          values=list(_ASK_ENGINES))
-    _widgets["ask_engine"].set(_default_engine_label(engine_choices()))
-    _widgets["ask_engine"].pack(side="left", padx=(0, 8))
-    ttk.Button(arow, text="Enviar", style="Accent.TButton",
-               command=_send_ask).pack(side="left")
-    _widgets["ask_status"] = tk.Label(ask, text="", font=(FONT, 9),
-                                      bg=THEME["card"], fg=THEME["green_text"])
-    _widgets["ask_status"].pack(anchor="w", padx=16, pady=(0, 12))
+    _comp_construir(tabt, _engines_open)  # «Pedirle algo a Growi…» (t-tareas-compositor-045)
     try:
         _cosecha_build(tabt)  # «Pedir cosecha» a la VM (t-pedir-cosecha)
     except Exception as e:
