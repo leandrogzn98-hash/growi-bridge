@@ -10984,7 +10984,18 @@ def prompt_de_tarea(task):
     except Exception as e:  # un perfil roto nunca para una tarea
         log(f"asistentes [{task.get('id')}]: no se pudo adjuntar el perfil ({type(e).__name__}: {e})")
         asis_txt = ""
-    return rules_prefix() + asis_txt + mem_txt + skills_txt + task["prompt"] + autocritica_txt(task)
+    try:
+        perfil_txt = perfil_bloque_prompt(task)
+    except Exception as e:  # «Sobre mí» roto nunca para una tarea
+        log(f"perfil [{task.get('id')}]: no se pudo adjuntar ({type(e).__name__}: {e})")
+        perfil_txt = ""
+    # el perfil justo antes del encargo: los modelos pequeños hacen más caso a lo último que leen
+    try:
+        perfil_ojo = perfil_recordatorio(task) if perfil_txt else ""
+    except Exception:
+        perfil_ojo = ""
+    return (rules_prefix() + asis_txt + mem_txt + skills_txt + perfil_txt + task["prompt"] + perfil_ojo
+            + autocritica_txt(task))
 
 
 # ---------------------------------------------------------------- memoria en el PC
@@ -27175,6 +27186,245 @@ def _skb_aprobar(carpeta, nombre):
     _skb_refrescar(reindexar=True)
 
 
+# ---------------------------------------------------------------- Sobre mí (t-perfil-sobre-mi)
+# El perfil es lo que el usuario DECLARA (quién es, qué hace, cómo escribe, a
+# quién le habla, qué no hace), en palabras, en memory\PERFIL.md junto a la
+# memoria (que es lo que la IA recoge). El runner lo inyecta resumido en cada
+# tarea; un campo vacío va como «sin dato: no lo inventes, pregunta si hace
+# falta». Nunca se autocompleta (ni de internet ni de otras fuentes): lo que
+# no escribió el usuario, no está. Se lee en cada tarea: un cambio vale para
+# la siguiente sin reiniciar.
+PERFIL_CAMPOS = (
+    ("quien", "Quién soy", "Tu nombre, dónde vives, a qué te dedicas."),
+    ("hago", "Qué vendo / qué hago", "Tus servicios, productos o proyectos."),
+    ("tono", "Cómo escribo", "Tu tono: cercano, formal, directo… y palabras que usas o evitas."),
+    ("publico", "A quién le hablo", "Tus clientes o tu público."),
+    ("no_hago", "Qué NO hago", "Lo que no ofreces o no quieres que el asistente haga en tu nombre."),
+)
+PERFIL_MAX_CAMPO = 400  # caracteres por campo en el prompt (el archivo puede ser más largo)
+_PERFIL_LOG = set()
+
+
+def perfil_archivo():
+    return MEMORY_DIR / "PERFIL.md"
+
+
+def perfil_leer():
+    """{campo: texto} o None si no hay perfil (nunca escrito o borrado)."""
+    try:
+        txt = perfil_archivo().read_text(encoding="utf-8")
+    except OSError:
+        return None
+    por_titulo = {t.lower(): k for k, t, _e in PERFIL_CAMPOS}
+    d, actual = {k: "" for k, _t, _e in PERFIL_CAMPOS}, None
+    for linea in txt.splitlines():
+        if linea.startswith("## "):
+            actual = por_titulo.get(linea[3:].strip().lower())
+            continue
+        if actual:
+            d[actual] += linea + "\n"
+    return {k: v.strip() for k, v in d.items()}
+
+
+def perfil_guardar(d):
+    partes = ["# Sobre mí", "", "Lo escribe el usuario en la app (Ajustes → Sobre mí). El asistente lo lee en cada "
+              "tarea; lo que está vacío no se inventa.", ""]
+    for k, t, _e in PERFIL_CAMPOS:
+        partes += [f"## {t}", str(d.get(k) or "").strip(), ""]
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = perfil_archivo().with_suffix(".tmp")
+    tmp.write_text("\n".join(partes), encoding="utf-8")
+    os.replace(tmp, perfil_archivo())
+
+
+def perfil_exportar(destino):
+    destino = Path(destino)
+    shutil.copy2(perfil_archivo(), destino)
+    log(f"perfil: exportado a {destino}")
+    return destino
+
+
+def perfil_borrar():
+    try:
+        perfil_archivo().unlink()
+    except FileNotFoundError:
+        return False
+    log("perfil: BORRADO por el usuario: el runner queda sin perfil (las tareas no sabrán quién eres)")
+    return True
+
+
+def perfil_bloque_prompt(task):
+    """El perfil resumido para el prompt ('' si no hay o no toca)."""
+    tid = str(task.get("id"))
+    primera = tid not in _PERFIL_LOG
+    _PERFIL_LOG.add(tid)
+    if len(_PERFIL_LOG) > 500:
+        _PERFIL_LOG.clear()
+    if LANE == "b" or _tarea_de_grupo(task):
+        if primera:
+            log(f"perfil [{tid}]: no se inyecta ({'carril B' if LANE == 'b' else 'contexto de grupo'})")
+        return ""
+    d = perfil_leer()
+    con = [t for k, t, _e in PERFIL_CAMPOS if d and d.get(k)]
+    if not con:
+        if primera:
+            log(f"perfil [{tid}]: sin perfil ({'nunca escrito o borrado' if d is None else 'todos los campos vacíos'}): "
+                "la tarea va sin él")
+        return ""
+    lineas = []
+    for k, t, _e in PERFIL_CAMPOS:
+        v = " ".join(str(d.get(k) or "").split())
+        if v:
+            lineas.append(f"- {t}: {v[:PERFIL_MAX_CAMPO]}" + ("…" if len(v) > PERFIL_MAX_CAMPO else ""))
+        else:
+            lineas.append(f"- {t}: DESCONOCIDO (no lo ha escrito). Si el encargo pregunta por esto, responde que no "
+                          "lo sabes porque no está en su perfil y pregúntaselo; no lo deduzcas de nada (ni de las "
+                          "reglas de arriba, que son cómo escribes TÚ, ni de la memoria, ni de internet)")
+    texto = ("PERFIL DEL USUARIO (lo que escribió en «Sobre mí»; habla y trabaja como lo haría esa persona. Para hablar de ella usa solo "
+             "esto: no lo completes con suposiciones, internet ni otras fuentes):\n" + "\n".join(lineas)
+             + "\n--- Fin del perfil ---\n\n")
+    if primera:
+        vac = [t for k, t, _e in PERFIL_CAMPOS if not d.get(k)]
+        log(f"perfil [{tid}]: inyectado ({len(texto)} car.; con dato: {', '.join(con)}"
+            + (f"; vacíos, sin inventar: {', '.join(vac)}" if vac else "") + f"): «{lineas[0][:120]}»")
+    return texto
+
+
+_PERFIL_PISTAS = {
+    "quien": ("quien soy", "mi nombre", "donde vivo", "de donde soy"),
+    "hago": ("que hago", "que vendo", "mi negocio", "mis servicios", "a que me dedico"),
+    "tono": ("tono", "como escribo", "mi estilo", "como hablo"),
+    "publico": ("a quien le hablo", "mi publico", "mis clientes", "mi audiencia"),
+    "no_hago": ("que no hago", "no ofrezco"),
+}
+
+
+def perfil_recordatorio(task):
+    """Si el encargo pregunta por un campo VACÍO del perfil, una última línea
+    (detrás del encargo) lo recuerda: los modelos pequeños rellenan huecos."""
+    if LANE == "b" or _tarea_de_grupo(task):
+        return ""
+    d = perfil_leer()
+    if not d or not any(d.values()):
+        return ""
+    q = _norm(task.get("prompt") or "")
+    faltan = [t for k, t, _e in PERFIL_CAMPOS if not d.get(k) and any(p in q for p in _PERFIL_PISTAS[k])]
+    if not faltan:
+        return ""
+    if ("ojo", task.get("id")) not in _PERFIL_LOG:
+        _PERFIL_LOG.add(("ojo", task.get("id")))
+        log(f"perfil [{task.get('id')}]: el encargo pregunta por algo vacío del perfil ({', '.join(faltan)}): "
+            "se le recuerda al motor que no lo invente")
+    return ("\n\nOJO: en su perfil NO está «" + "», «".join(faltan) + "». No lo inventes ni lo deduzcas: dile "
+            "que no lo sabes porque no lo ha escrito en «Sobre mí» y pregúntaselo.")
+
+
+_PRF = {"kit": None}
+
+
+def _perfil_abrir(page):
+    """La página «Sobre mí» (se dibuja la primera vez que se abre)."""
+    if _PRF.get("kit") is not None:
+        _perfil_cargar_campos()
+        return
+    kit = None
+    if _ctk_wanted():
+        try:
+            kit = _KitCtk(page)
+        except Exception as e:
+            log(f"perfil: CustomTkinter no disponible ({type(e).__name__}: {e}); página clásica")
+    k = _PRF["kit"] = kit or _KitTk(page)
+    tk.Label(page, text="Sobre mí", font=(FONT, 22, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
+        anchor="w", padx=20, pady=(18, 2))
+    tk.Label(page, text="Lo que escribas aquí lo usa el asistente en cada tarea para hablar y trabajar como tú. "
+             "Lo que dejes vacío, no se inventa. Se guarda solo.", font=(FONT, 11), bg=THEME["bg"],
+             fg=THEME["muted"], wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+    card = k.section("Tu perfil", f"Vive junto a tu memoria, en {perfil_archivo()}.")
+    _PRF["campos"] = {}
+    for key, tit, expl in PERFIL_CAMPOS:
+        k.label(card, tit, bold=True, wrap=0).pack(anchor="w", padx=16, pady=(8, 0))
+        k.label(card, expl, muted=True, wrap=560).pack(anchor="w", padx=16)
+        if isinstance(k, _KitCtk):
+            tb = k.ctk.CTkTextbox(card, height=64, corner_radius=8, border_width=1, border_color=THEME["line"],
+                                  fg_color=THEME["field"], text_color=THEME["text"], font=k.F(13), wrap="word")
+        else:
+            tb = tk.Text(card, height=3, font=(FONT, 10), bg=THEME["field"], fg=THEME["text"], wrap="word",
+                         insertbackground=THEME["text"], borderwidth=1, relief="solid")
+        tb.pack(fill="x", padx=16, pady=(4, 2))
+        tb.bind("<KeyRelease>", lambda _e: _perfil_cambio())
+        _PRF["campos"][key] = tb
+    _PRF["estado"] = k.label(card, "", muted=True, wrap=560)
+    _PRF["estado"].pack(anchor="w", padx=16, pady=(6, 2))
+    r = k.row(card, pady=(4, 14))
+    k.button(r, "Exportar", _perfil_exportar_ui).pack(side="left")
+    k.button(r, "Abrir mi memoria", lambda: os.startfile(str(MEMORY_DIR)) if MEMORY_DIR.exists() else None).pack(
+        side="left", padx=(8, 0))
+    k.button(r, "Borrar mi perfil", _perfil_borrar_ui).pack(side="right")
+    _perfil_cargar_campos()
+
+
+def _perfil_cargar_campos():
+    d = perfil_leer()
+    for key, tb in _PRF["campos"].items():
+        tb.delete("1.0", "end")
+        if d and d.get(key):
+            tb.insert("1.0", d[key])
+    vac = [t for key, t, _e in PERFIL_CAMPOS if not (d or {}).get(key)]
+    _PRF["kit"].set_label(_PRF["estado"], text=(
+        "No tienes perfil: las tareas no saben quién eres. Escribe algo y se guarda solo." if d is None else
+        ("Vacío (no se inventa): " + ", ".join(vac) + "." if vac else "Todo el perfil está escrito.")),
+        color="orange_text" if d is None else "muted")
+
+
+def _perfil_cambio():
+    if _PRF.get("pend"):
+        try:
+            _PRF["estado"].after_cancel(_PRF["pend"])
+        except Exception:
+            pass
+    _PRF["pend"] = _PRF["estado"].after(700, _perfil_guardar_ui)
+
+
+def _perfil_guardar_ui():
+    _PRF["pend"] = None
+    d = {key: tb.get("1.0", "end").strip() for key, tb in _PRF["campos"].items()}
+    perfil_guardar(d)
+    vac = [t for key, t, _e in PERFIL_CAMPOS if not d.get(key)]
+    _PRF["kit"].set_label(_PRF["estado"], text=f"Guardado a las {datetime.now():%H:%M:%S}. Vale para la siguiente "
+                                               "tarea." + (f" Vacío (no se inventa): {', '.join(vac)}." if vac else ""),
+                          color="green_text")
+    log(f"perfil: guardado ({sum(1 for v in d.values() if v)} de {len(d)} campos con dato)")
+
+
+def _perfil_exportar_ui():
+    if not perfil_archivo().exists():
+        _PRF["kit"].set_label(_PRF["estado"], text="No hay perfil que exportar.", color="orange_text")
+        return
+    dest = filedialog.asksaveasfilename(title="Exportar mi perfil", defaultextension=".md",
+                                        initialfile=f"perfil-{datetime.now():%Y%m%d}.md",
+                                        filetypes=[("Markdown", "*.md")])
+    if dest:
+        perfil_exportar(dest)
+        _PRF["kit"].set_label(_PRF["estado"], text=f"Exportado a {dest}.", color="green_text")
+
+
+def _perfil_borrar_ui():
+    if not perfil_archivo().exists():
+        return
+    if not messagebox.askyesno("Borrar mi perfil", "Se borra tu perfil. El asistente se queda SIN perfil: las "
+                                                    "próximas tareas no sabrán quién eres hasta que lo vuelvas a "
+                                                    "escribir.\n\n¿Lo borro? (Puedes exportarlo antes.)"):
+        return
+    perfil_borrar()
+    _perfil_cargar_campos()
+    _PRF["kit"].set_label(_PRF["estado"], text="Perfil borrado: el asistente trabaja sin perfil hasta que lo "
+                                               "vuelvas a escribir.", color="red")
+    try:
+        toast("Perfil borrado: el asistente trabaja sin perfil")
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------- Pedir cosecha (t-pedir-cosecha)
 # El Bridge NO ejecuta Apify: arma el pedido, lo estima con la tarifa real y,
 # solo con tu OK explicito (un segundo paso, con su costo a la vista), lo deja
@@ -34990,6 +35240,9 @@ def _build_ajustes_ctk(tab_aj):
         gen, "No suspender mientras trabaja",
         "La PC no se duerme mientras Claude corre una tarea.",
         state.get("keep_awake", True), _sw_keepawake)
+    _r, _der = side_row(gen, "Sobre mí", "Quién eres, qué haces y cómo escribes: el asistente lo usa en cada "
+                                         "tarea. Lo que dejes vacío no se inventa.")
+    button(_der, "Editar mi perfil", lambda: _widgets["show_page"]("sobremi")).pack()
 
     # ---- 2. Apariencia
     ap = section("Apariencia")
@@ -36054,7 +36307,7 @@ def build_gui():
     _widgets["cloud_banner"] = cloud
     pages = {}
     for name in ("estado", "carpetas", "skills", "pantalla", "apis", "modelos",
-                 "tareas", "recursos", "ajustes", "registro"):
+                 "tareas", "recursos", "ajustes", "registro", "sobremi"):
         holder = tk.Frame(content, bg=THEME["bg"])
         pages[name] = _scrollable(holder)
         holder._inner = pages[name]
@@ -36078,6 +36331,8 @@ def build_gui():
             _claves_abrir(name)
         if name == "ajustes":
             tema_al_abrir_ajustes()
+        if name == "sobremi":  # «Sobre mí» (sin botón en la barra: Ajustes → General y la paleta)
+            _perfil_abrir(pages["sobremi"])
         if name == "tareas":
             _tasks_fp[0] = None
             _refresh_tasks_ui()
@@ -36721,6 +36976,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("perfil", "Editar mi perfil (Sobre mí)", "perfil sobre mi quien soy tono como escribo editar mi perfil",
+          lambda: (show_window(), _show_page("sobremi"))),
         C("pedir_cosecha", "Pedir cosecha de tendencias (TikTok / Instagram, por la VM)",
           "cosecha apify tiktok instagram tendencias radar brief summit", lambda: (show_window(), cosecha_abrir())),
         C("mis_comandos", "Mis comandos (scripts)", "scripts comandos carpeta activar desactivar bat ps1 py",

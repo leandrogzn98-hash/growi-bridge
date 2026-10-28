@@ -1,0 +1,42 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff",
+ "a_boton_en_ajustes": true,
+ "a_pagina": "sobremi",
+ "a_estado_sin_perfil": "No tienes perfil: las tareas no saben quién eres. Escribe algo y se guarda solo.",
+ "a_estado_tras_escribir": "Guardado a las 03:20:51. Vale para la siguiente tarea. Vacío (no se inventa): Cómo escribo, A quién le hablo, Qué NO hago.",
+ "a_archivo": "# Sobre mí\n\nLo escribe el usuario en la app (Ajustes → Sobre mí). El asistente lo lee en cada tarea; lo que está vacío no se inventa.\n\n## Quién soy\nLeandro, de Barquisimeto.\n\n## Qué vendo / qué hago\nHAYAI: implementacion de IA y automatizacion. Summit Maker con Angelis.\n\n## Cómo escribo\n\n\n## A quién le hablo\n\n\n## Qué NO hago\n\n",
+ "a_leido": {
+  "quien": "Leandro, de Barquisimeto.",
+  "hago": "HAYAI: implementacion de IA y automatizacion. Summit Maker con Angelis.",
+  "tono": "",
+  "publico": "",
+  "no_hago": ""
+ },
+ "b_bloque_prompt": "PERFIL DEL USUARIO (lo que escribió en «Sobre mí»; habla y trabaja como lo haría esa persona. Para hablar de ella usa solo esto: no lo completes con suposiciones, internet ni otras fuentes):\n- Quién soy: Leandro, de Barquisimeto.\n- Qué vendo / qué hago: HAYAI: implementacion de IA y automatizacion. Summit Maker con Angelis.\n- Cómo escribo: DESCONOCIDO (no lo ha escrito). Si el encargo pregunta por esto, responde que no lo sabes porque no está en su perfil y pregúntaselo; no lo deduzcas de nada (ni de las reglas de arriba, que son cómo escribes TÚ, ni de la memoria, ni de internet)\n- A quién le hablo: DESCONOCIDO (no lo ha escrito). Si el encargo pregunta por esto, responde que no lo sabes porque no está en su perfil y pregúntaselo; no lo deduzcas de nada (ni de las reglas de arriba, que son cómo escribes TÚ, ni de la memoria, ni de internet)\n- Qué NO hago: DESCONOCIDO (no lo ha escrito). Si el encargo pregunta por esto, responde que no lo sabes porque no está en su perfil y pregúntaselo; no lo deduzcas de nada (ni de las reglas de arriba, que son cómo escribes TÚ, ni de la memoria, ni de internet)\n--- Fin del perfil ---\n\n",
+ "paleta": "Editar mi perfil (Sobre mí)",
+ "paleta_lleva_a": "sobremi",
+ "d_exportado": {
+  "existe": true,
+  "estado": "Exportado a C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff\\perfil-exportado.md.",
+  "contenido": "# Sobre mí\n\nLo escribe el usuario en la app (Ajustes → Sobre mí). El asistente lo lee en cada tarea; lo que está vacío no se inventa.\n\n## Quién soy\nLeandro, de Barquisimeto.\n\n## Qué vendo / qué hago\nHAYAI: implementacion de IA y automatizacion. Summit Maker con Angelis.\n\n## Cómo escribo\n\n\n## A quién le hablo\n\n\n## Qué NO hago\n\n"
+ },
+ "d_borrado": {
+  "pregunta": "Se borra tu perfil. El asistente se queda SIN perfil: las próximas tareas no sabrán quién eres hasta que lo vuelvas a escribir.\n\n¿Lo borro? (Puedes exportarlo antes.)",
+  "archivo_existe": false,
+  "aviso": "Perfil borrado: el asistente trabaja sin perfil hasta que lo vuelvas a escribir.",
+  "siguiente_tarea": ""
+ },
+ "log": [
+  "2026-10-28T03:20:23-04:00 gateway: token del plano de control migrado de secret.txt y guardado cifrado en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff\\token\\plano-control-a.dpapi (secret.txt sigue en la carpeta: la app ya no lo lee, pero el servidor del navegador sí; no lo borres hasta que ese también lea el token)",
+  "2026-10-28T03:20:23-04:00 memoria: arranque: creados en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff\\app\\memory: MEMORY.md (mínima: no llegó la semilla de la VM), 2026-10-28.md, sesion-actual.md",
+  "2026-10-28T03:20:24-04:00 comandos: 2 script(s) en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff\\app\\comandos (0 desactivado(s))",
+  "2026-10-28T03:20:24-04:00 cola: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff\\cola.db lista (0 recuperada(s) tras corte)",
+  "2026-10-28T03:20:48-04:00 perfil: guardado (1 de 5 campos con dato)",
+  "2026-10-28T03:20:51-04:00 perfil: guardado (2 de 5 campos con dato)",
+  "2026-10-28T03:20:52-04:00 perfil [t-gui-1]: inyectado (1139 car.; con dato: Quién soy, Qué vendo / qué hago; vacíos, sin inventar: Cómo escribo, A quién le hablo, Qué NO hago): «- Quién soy: Leandro, de Barquisimeto.»",
+  "2026-10-28T03:20:54-04:00 perfil: exportado a C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-perfilgui-oznuziff\\perfil-exportado.md",
+  "2026-10-28T03:20:54-04:00 perfil: BORRADO por el usuario: el runner queda sin perfil (las tareas no sabrán quién eres)",
+  "2026-10-28T03:20:55-04:00 perfil [t-gui-2]: sin perfil (nunca escrito o borrado): la tarea va sin él"
+ ],
+ "tracebacks_en_log": 0
+}
