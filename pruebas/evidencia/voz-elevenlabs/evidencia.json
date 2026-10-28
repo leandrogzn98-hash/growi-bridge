@@ -1,0 +1,44 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-voz-x1epz4z1",
+ "proveedor_en_claves": "ElevenLabs (voz)",
+ "sin_clave_estado": {
+  "clave": false,
+  "usados": null,
+  "limite": 10000,
+  "pct": null,
+  "aviso": null,
+  "error": "sin clave de ElevenLabs en Ajustes → Claves",
+  "fuente": null
+ },
+ "sin_clave_ventana": {
+  "cuota": "Sin clave: pon tu clave de ElevenLabs en Ajustes → Claves. No se finge ninguna voz.",
+  "boton_narrar": "disabled"
+ },
+ "sin_clave_narrar_aprobada": [
+  false,
+  "sin clave de ElevenLabs: no se finge una voz"
+ ],
+ "c_sin_aprobar": [
+  false,
+  "no aprobada: no se generó nada"
+ ],
+ "c_llamadas_a_elevenlabs": [],
+ "c_archivos": [],
+ "d_aviso_80": {
+  "umbral_pct": 80,
+  "cuota": "Este mes: 8200 de 10000 caracteres (82 %); fuente: SIMULADO en la prueba (no hay clave).",
+  "aviso": "Llevas el 82 % de la cuota de voz del mes (8200 de 10000 caracteres): queda poco.",
+  "nota_voz": "Voz en español."
+ },
+ "c_por_la_ventana_dijo_no": {
+  "pregunta": "Voz: Lucía (simulada)\nCaracteres: 73 de los 1800 que te quedan este mes (0.7 % de la cuota)\n\nTexto:\nBienvenidos al taller de Summit Maker. Hoy armamos un agente en una hora.\n\n¿La genero?",
+  "mensaje": "No se generó: no aprobada: no se generó nada.",
+  "archivos": []
+ },
+ "voz_no_espanola": "OJO: esta voz no está marcada como española.",
+ "log": [
+  "2026-10-28T05:01:45-04:00 voz: narración NO aprobada: no se generó nada",
+  "2026-10-28T05:01:45-04:00 voz: narración NO aprobada: no se generó nada"
+ ],
+ "tracebacks_en_log": 0
+}

@@ -2886,8 +2886,12 @@ CRED_PROVIDERS = {
               "test": "/v3/account/balance", "chat": None, "panel": "https://platform.tripo3d.ai"},
     "meshy": {"label": "Meshy", "base": "https://api.meshy.ai", "kind": "bearer",
               "test": "/openapi/v1/balance", "chat": None, "panel": "https://www.meshy.ai/settings/api"},
+    # t-voz-elevenlabs: probar = la suscripción (no gasta); tts sí gasta y pide aprobación
+    "elevenlabs": {"label": "ElevenLabs (voz)", "base": "https://api.elevenlabs.io", "kind": "elevenlabs",
+                   "test": "/v1/user/subscription", "chat": None,
+                   "panel": "https://elevenlabs.io/app/settings/api-keys"},
 }
-CRED_ORDER = ("anthropic", "openai", "gemini", "groq", "openrouter", "xai", "tripo", "meshy")
+CRED_ORDER = ("anthropic", "openai", "gemini", "groq", "openrouter", "xai", "tripo", "meshy", "elevenlabs")
 CRED_ALIASES = {"claude": "anthropic", "anthropic api": "anthropic", "chatgpt": "openai",
                 "openai api": "openai", "google": "gemini", "google gemini": "gemini",
                 "open router": "openrouter", "grok": "xai", "x.ai": "xai", "grok (xai)": "xai",
@@ -3501,6 +3505,8 @@ def _cred_headers(proveedor, clave):
         h.update({"x-api-key": clave, "anthropic-version": "2023-06-01"})
     elif kind == "gemini":
         h["x-goog-api-key"] = clave  # en cabecera: la clave nunca va en la URL (ni en un log)
+    elif kind == "elevenlabs":
+        h["xi-api-key"] = clave
     else:
         h["Authorization"] = f"Bearer {clave}"
     return h
@@ -28706,6 +28712,255 @@ def _revisor_render():
         k.label(box, txt, wrap=640).pack(anchor="w", pady=1)
 
 
+# ---------------------------------------------------------------- voz con ElevenLabs (t-voz-elevenlabs)
+# BYOK: la clave de ElevenLabs va en Ajustes -> Claves (Credential Manager),
+# nunca en un JSON. status/voices/models no gastan; cada tts SI gasta cuota y
+# por eso pide aprobacion con el texto, los caracteres y lo que supone en la
+# cuota. El contador es el de ElevenLabs (subscription.character_count), leido
+# antes y despues de cada narracion: real, no estimado. Sin clave: «sin clave».
+VOZ_FREE_CHARS = 10000  # Free: 10.000 caracteres/mes (si la API dice otro límite, manda la API)
+VOZ_MODELOS = ("eleven_v4", "eleven_v4_turbo")
+VOZ_AVISO_PCT = 80
+VOZ_LOG = OUTBOX / "voz-registro.jsonl"
+_VOZ = {"estado": None, "voces": None}
+
+
+def _voz_get(ruta, cuenta=None):
+    c = cuenta or cred_activa("elevenlabs")
+    clave = cred_clave(c["cuenta"]) if c else None
+    if not clave:
+        return None, "sin clave"
+    req = urllib.request.Request(_cred_url(c, ruta), headers=_cred_headers("elevenlabs", clave))
+    try:
+        with _cred_open(req, 20) as r:
+            return json.loads(r.read().decode("utf-8")), None
+    except urllib.error.HTTPError as e:
+        return None, f"ElevenLabs contestó {e.code}"
+    except Exception as e:
+        return None, _net_reason(e)
+
+
+def voz_estado():
+    """{"clave", "usados", "limite", "pct", "aviso", "error", "fuente"} (sin gastar)."""
+    c = cred_activa("elevenlabs")
+    if not c or not cred_clave(c["cuenta"]):
+        e = {"clave": False, "usados": None, "limite": VOZ_FREE_CHARS, "pct": None, "aviso": None,
+             "error": "sin clave de ElevenLabs en Ajustes → Claves", "fuente": None}
+        _VOZ["estado"] = e
+        return e
+    d, err = _voz_get("/v1/user/subscription", c)
+    if d is None:
+        e = {"clave": True, "usados": None, "limite": VOZ_FREE_CHARS, "pct": None, "aviso": None, "error": err,
+             "fuente": None}
+    else:
+        usados, limite = int(d.get("character_count") or 0), int(d.get("character_limit") or VOZ_FREE_CHARS)
+        e = {"clave": True, "usados": usados, "limite": limite, "pct": round(100 * usados / max(1, limite), 1),
+             "error": None, "fuente": "ElevenLabs /v1/user/subscription (real)", "plan": d.get("tier")}
+    e["aviso"] = voz_aviso(e)
+    _VOZ["estado"] = e
+    return e
+
+
+def voz_aviso(e):
+    if e.get("pct") is not None and e["pct"] >= VOZ_AVISO_PCT:
+        return (f"Llevas el {e['pct']:.0f} % de la cuota de voz del mes ({e['usados']} de {e['limite']} caracteres): "
+                "queda poco.")
+    return None
+
+
+def voz_voces():
+    """[(voice_id, nombre, es_espanol)] con las españolas primero (no gasta)."""
+    d, err = _voz_get("/v1/voices")
+    if d is None:
+        return [], err
+    out = []
+    for v in d.get("voices") or []:
+        lab = " ".join(str(x) for x in (v.get("labels") or {}).values()).lower()
+        langs = " ".join(str((x or {}).get("language") or "") for x in v.get("verified_languages") or []).lower()
+        es = "es" in langs.split() or "spanish" in lab or "español" in lab or (v.get("labels") or {}).get("language") == "es"
+        out.append((v.get("voice_id"), v.get("name"), es))
+    out.sort(key=lambda x: (not x[2], str(x[1])))
+    _VOZ["voces"] = out
+    return out, None
+
+
+def voz_narrar(texto, voice_id, voz_nombre, modelo, carpeta, aprobado=False, es_espanol=True):
+    """Genera la narracion (GASTA cuota). Sin aprobacion no se llama a nada.
+    Deja <carpeta>/narracion-<fecha>.mp3 y su .txt (texto, voz, modelo, caracteres)."""
+    texto = str(texto or "").strip()
+    if not aprobado:
+        log("voz: narración NO aprobada: no se generó nada")
+        return False, "no aprobada: no se generó nada"
+    if not texto:
+        return False, "no hay texto que narrar"
+    c = cred_activa("elevenlabs")
+    clave = cred_clave(c["cuenta"]) if c else None
+    if not clave:
+        return False, "sin clave de ElevenLabs: no se finge una voz"
+    antes = voz_estado()
+    if modelo not in VOZ_MODELOS:
+        return False, f"modelo desconocido: {modelo}"
+    cuerpo = json.dumps({"text": texto, "model_id": modelo}).encode("utf-8")
+    req = urllib.request.Request(_cred_url(c, f"/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128"),
+                                 data=cuerpo, method="POST",
+                                 headers=dict(_cred_headers("elevenlabs", clave), Accept="audio/mpeg"))
+    t0 = time.time()
+    try:
+        with _cred_open(req, 120) as r:
+            audio = r.read()
+    except urllib.error.HTTPError as e:
+        try:
+            det = e.read(400).decode("utf-8", "replace")
+        except Exception:
+            det = ""
+        return False, f"ElevenLabs contestó {e.code}: {det[:200]}"
+    except Exception as e:
+        return False, f"no se pudo generar: {_net_reason(e)}"
+    carpeta = Path(carpeta)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    base = carpeta / f"narracion-{datetime.now():%Y%m%d-%H%M%S}"
+    base.with_suffix(".mp3").write_bytes(audio)
+    despues = voz_estado()
+    gastados = (despues["usados"] - antes["usados"]) if (antes.get("usados") is not None
+                                                         and despues.get("usados") is not None) else None
+    base.with_suffix(".txt").write_text(
+        f"Texto narrado ({len(texto)} caracteres):\n{texto}\n\nVoz: {voz_nombre} ({voice_id})"
+        + ("" if es_espanol else " — OJO: esta voz no está marcada como española")
+        + f"\nModelo: {modelo}\nCuota: {antes.get('usados')} → {despues.get('usados')} de {despues.get('limite')} "
+          f"caracteres (gastados según ElevenLabs: {gastados})\nGenerada: {_now_iso()}\n", encoding="utf-8")
+    reg = {"at": _now_iso(), "voz": voz_nombre, "voice_id": voice_id, "modelo": modelo, "caracteres": len(texto),
+           "gastados_api": gastados, "antes": antes.get("usados"), "despues": despues.get("usados"),
+           "archivo": str(base.with_suffix(".mp3")), "segundos": round(time.time() - t0, 1)}
+    try:
+        with open(VOZ_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(reg, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    log(f"voz: narración en {base.with_suffix('.mp3')} ({len(texto)} car.; cuota {antes.get('usados')} → "
+        f"{despues.get('usados')})")
+    if despues.get("aviso"):
+        toast(despues["aviso"][:80])
+    return True, str(base.with_suffix(".mp3"))
+
+
+_VOZUI = {"top": None}
+
+
+def voz_ui():
+    top = _VOZUI.get("top")
+    if top is not None:
+        try:
+            top.deiconify()
+            top.lift()
+            _voz_refrescar()
+            return top
+        except tk.TclError:
+            pass
+    top = tk.Toplevel(_root)
+    top.title("Narrar con voz")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(640)}x{S(600)}")
+    page = _scrollable(top)
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(page)
+        except Exception as e:
+            log(f"voz: CustomTkinter no disponible ({type(e).__name__}: {e}); ventana clásica")
+    k = k or _KitTk(page)
+    _VOZUI.update(top=top, kit=k)
+    c = k.section("Voz con ElevenLabs (tu clave)", "Para narrar anuncios, tutoriales y demos en español. Cada "
+                                                   "narración gasta cuota: antes te enseño el texto y lo que gasta, "
+                                                   "y sin tu sí no se genera nada.")
+    _VOZUI["cuota"] = k.label(c, "", wrap=560)
+    _VOZUI["cuota"].pack(anchor="w", padx=16, pady=(2, 2))
+    _VOZUI["aviso"] = k.label(c, "", wrap=560, color="red")
+    f = k.frame(c)
+    f.pack(fill="x", padx=16, pady=(6, 2))
+    k.label(f, "Voz", muted=True, wrap=0).pack(side="left", padx=(0, 8))
+    _VOZUI["voz"] = ttk.Combobox(f, values=[], state="readonly", width=40, font=(FONT, 10))
+    _VOZUI["voz"].pack(side="left")
+    _VOZUI["voz_nota"] = k.label(c, "", muted=True, wrap=560)
+    _VOZUI["voz_nota"].pack(anchor="w", padx=16)
+    _VOZUI["voz"].bind("<<ComboboxSelected>>", lambda _e: _voz_nota())
+    f = k.frame(c)
+    f.pack(fill="x", padx=16, pady=(6, 2))
+    _VOZUI["modelo"] = k.segmented(f, [(m, m) for m in VOZ_MODELOS], lambda _v: None)
+    _VOZUI["modelo"].pack(side="left")
+    k.label(c, "Texto", muted=True, wrap=0).pack(anchor="w", padx=16, pady=(8, 0))
+    _VOZUI["texto"] = tk.Text(c, height=6, font=(FONT, 10), bg=THEME["field"], fg=THEME["text"], wrap="word",
+                              insertbackground=THEME["text"], borderwidth=1, relief="solid")
+    _VOZUI["texto"].pack(fill="x", padx=16, pady=2)
+    f = k.frame(c)
+    f.pack(fill="x", padx=16, pady=(6, 2))
+    k.label(f, "Guardar en (el proyecto)", muted=True, wrap=0).pack(side="left", padx=(0, 8))
+    _VOZUI["carpeta"] = k.entry(f, width=40)
+    _VOZUI["carpeta"].insert(0, str(OUTBOX / "narraciones"))
+    _VOZUI["carpeta"].pack(side="left")
+    r = k.row(c, pady=(8, 4))
+    _VOZUI["narrar"] = k.button(r, "Narrar…", _voz_narrar_ui, accent=True)
+    _VOZUI["narrar"].pack(side="left")
+    _VOZUI["msg"] = k.label(c, "", wrap=560)
+    _VOZUI["msg"].pack(anchor="w", padx=16, pady=(2, 12))
+    _voz_refrescar()
+    return top
+
+
+def _voz_refrescar():
+    k = _VOZUI["kit"]
+    e = voz_estado()
+    if not e["clave"]:
+        k.set_label(_VOZUI["cuota"], text="Sin clave: pon tu clave de ElevenLabs en Ajustes → Claves. No se finge "
+                                          "ninguna voz.", color="orange_text")
+        k.set_enabled(_VOZUI["narrar"], False)
+        return
+    k.set_enabled(_VOZUI["narrar"], True)
+    if e["error"]:
+        k.set_label(_VOZUI["cuota"], text=f"No pude leer la cuota: {e['error']}.", color="red")
+    else:
+        k.set_label(_VOZUI["cuota"], text=f"Este mes: {e['usados']} de {e['limite']} caracteres ({e['pct']:.0f} %); "
+                                          f"fuente: {e.get('fuente') or 'sin dato'}.", color="text")
+    if e.get("aviso"):
+        k.set_label(_VOZUI["aviso"], text=e["aviso"], color="red")
+        _VOZUI["aviso"].pack(anchor="w", padx=16, after=_VOZUI["cuota"])
+    voces, err = voz_voces()
+    _VOZUI["voces"] = voces
+    _VOZUI["voz"].configure(values=[f"{n}{'' if es else ' (no es en español)'}" for _i, n, es in voces])
+    if voces:
+        _VOZUI["voz"].current(0)
+    _voz_nota()
+
+
+def _voz_nota():
+    voces = _VOZUI.get("voces") or []
+    i = _VOZUI["voz"].current()
+    if 0 <= i < len(voces):
+        _VOZUI["kit"].set_label(_VOZUI["voz_nota"], text="Voz en español." if voces[i][2] else
+                                "OJO: esta voz no está marcada como española.")
+
+
+def _voz_narrar_ui():
+    k = _VOZUI["kit"]
+    texto = _VOZUI["texto"].get("1.0", "end").strip()
+    voces = _VOZUI.get("voces") or []
+    i = _VOZUI["voz"].current()
+    if not texto or not (0 <= i < len(voces)):
+        k.set_label(_VOZUI["msg"], text="Escribe el texto y elige una voz.", color="orange_text")
+        return
+    e = voz_estado()  # la cuota de AHORA (no gasta), no la de hace un rato
+    n = len(texto)
+    quedan = (e["limite"] - e["usados"]) if e.get("usados") is not None else None
+    ok = messagebox.askyesno("Narrar (gasta cuota)", f"Voz: {voces[i][1]}\nCaracteres: {n}"
+                             + (f" de los {quedan} que te quedan este mes ({100 * n / max(1, e['limite']):.1f} % de la "
+                                f"cuota)" if quedan is not None else "")
+                             + f"\n\nTexto:\n{texto[:600]}\n\n¿La genero?")
+    hecho, msg = voz_narrar(texto, voces[i][0], voces[i][1], k.seg_get(_VOZUI["modelo"]), _VOZUI["carpeta"].get(),
+                            aprobado=ok, es_espanol=voces[i][2])
+    k.set_label(_VOZUI["msg"], text=("Lista: " + msg) if hecho else f"No se generó: {msg}.",
+                color="green_text" if hecho else "orange_text")
+    _voz_refrescar()
+
+
 # ---------------------------------------------------------------- prueba de corte (t-prueba-corte)
 # No es codigo de resiliencia: es el procedimiento para MEDIRLA. El protocolo
 # esta en PROTOCOLO-PRUEBA-CORTE.md; aqui va su resumen, el checklist de
@@ -39116,6 +39371,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("voz", "Narrar con voz (ElevenLabs, tu clave)",
+          "voz narrar narracion elevenlabs tts audio anuncio tutorial demo locucion", lambda: (show_window(), voz_ui())),
         C("verificar_nubes", "Verificar Groq y Gemini (llamada real, medida)",
           "verificar groq gemini nube router llamada real latencia costo venezuela proxy", verificar_nubes_ui),
         C("transcribir", "Transcribir un audio o video ($0, local, offline)",
