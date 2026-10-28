@@ -37046,6 +37046,7 @@ def _res_tick():
         except Exception:
             cpu = None
         _res_set_counter(cpu)
+        resh_agregar(time.time(), cpu=cpu, ram=_res_mem_pct())  # el histórico sigue sin la página
 
 
 def _res_set_counter(cpu):
@@ -37067,23 +37068,10 @@ def _res_set_status(text, ok):
         w.config(text=text, fg=color)
 
 
-def _res_bar(canvas, pct):
-    canvas.delete("all")
-    wd = max(canvas.winfo_width(), S(40))
-    h = S(4)
-    canvas.create_rectangle(0, 0, wd, h, fill="#E5E5EA", width=0)
-    if pct is None:
-        return
-    pct = max(0.0, min(100.0, pct))
-    color = THEME["blue"] if pct < 80 else (FIT_COLORS["orange"] if pct < 95 else FIT_COLORS["red"])
-    if pct > 0:
-        canvas.create_rectangle(0, 0, max(S(2), wd * pct / 100), h, fill=color, width=0)
-
-
 def _res_card_set(key, value, sub, pct):
     _widgets[f"res_{key}_val"].config(text=value)
     _widgets[f"res_{key}_sub"].config(text=sub)
-    _res_bar(_widgets[f"res_{key}_bar"], pct)
+    _resg_spark(key)  # la sparkline de los últimos 5 min (antes, una barra con el valor de ahora)
 
 
 def _res_apply(d):
@@ -37095,6 +37083,14 @@ def _res_apply(d):
     _RES["data"] = d
     gb = 1024 ** 3
     cpu = d.get("cpu")
+    try:  # al histórico en memoria (t-recursos-graficos-045)
+        _g, _dk = d.get("gpu"), d.get("disk")
+        resh_agregar(d.get("ts") or time.time(), cpu=cpu,
+                     ram=d["ram_used"] / d["ram_total"] * 100 if d.get("ram_total") else None,
+                     gpu=_g["util"] if _g else None,
+                     disco=(_dk[2] - _dk[1]) / _dk[2] * 100 if _dk and _dk[2] else None)
+    except Exception:
+        pass
     _res_card_set("cpu", "—" if cpu is None else f"{cpu:.0f} %",
                   f"{d.get('ncpu') or '?'} núcleos lógicos", cpu)
     _res_set_counter(cpu)
@@ -37127,6 +37123,7 @@ def _res_apply(d):
         tool = (f"Datos de {d['tool']}. {ram}Se actualiza cada 2 s mientras esta pestaña "
                 "está abierta; en otra pestaña se pausa.")
     _widgets["res_tool"].config(text=tool)
+    _resg_pintar()
     if _RES["status"][0] in ("Actualizando…", "Leyendo los procesos…"):
         _res_set_status("", None)
     _res_render_table()
@@ -37347,29 +37344,9 @@ def _build_resources_page(tab):
              "tiene andando.", font=(FONT, 11), bg=bg, fg=THEME["muted"], wraplength=S(600),
              justify="left").pack(anchor="w", padx=20, pady=(0, 10))
 
-    # Resumen vivo: cuatro tarjetas (numero grande + barra fina).
-    cards = tk.Frame(tab, bg=bg)
-    cards.pack(fill="x", padx=20, pady=(0, 8))
-    for i, (key, title) in enumerate((("cpu", "CPU"), ("ram", "RAM"), ("gpu", "GPU"),
-                                      ("disk", "Disco libre"))):
-        cards.grid_columnconfigure(i, weight=1, uniform="res")
-        c = tk.Frame(cards, bg=cbg)
-        c.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 4, 0 if i == 3 else 4))
-        tk.Label(c, text=title, font=(FONT, 9), bg=cbg, fg=THEME["muted"]).pack(
-            anchor="w", padx=12, pady=(10, 0))
-        _widgets[f"res_{key}_val"] = tk.Label(c, text="—", font=(FONT, 17, "bold"), bg=cbg,
-                                              fg=THEME["text"], anchor="w")
-        _widgets[f"res_{key}_val"].pack(fill="x", padx=12)
-        sub = tk.Label(c, text="", font=(FONT, 9), bg=cbg, fg=THEME["muted"], anchor="w",
-                       justify="left", wraplength=S(150))
-        sub.pack(fill="x", padx=12)
-        # El texto pequeno se parte al ancho real de la tarjeta (no se corta).
-        c.bind("<Configure>", lambda e, lab=sub: lab.config(wraplength=max(S(60), e.width - S(26))))
-        _widgets[f"res_{key}_sub"] = sub
-        # width pequeno: un Canvas pide 10 cm por defecto y ensanchaba la pagina.
-        bar = tk.Canvas(c, width=S(40), height=S(4), bg=cbg, highlightthickness=0, bd=0)
-        bar.pack(fill="x", padx=12, pady=(6, 12))
-        _widgets[f"res_{key}_bar"] = bar
+    # Resumen vivo: cuatro tarjetas (número grande + sparkline) y los gráficos con su rango
+    # (t-recursos-graficos-045): CustomTkinter con la clásica de respaldo.
+    _resg_construir(tab)
 
     # Mis procesos (Raycast: buscador arriba, lista limpia, barra de acciones
     # abajo con el elegido y su atajo).
@@ -37495,6 +37472,204 @@ def _build_resources_page(tab):
                                     anchor="w", justify="left", wraplength=S(640))
     _widgets["res_tool"].pack(fill="x", padx=20, pady=(0, 16))
     _res_update_actions()
+
+
+# ---- Recursos: gráficos de línea, selector de rango y tarjetas con sparkline (t-recursos-graficos-045). Las
+# muestras son las que la app ya mide (cada RES_INTERVAL_S): la lectura completa con la página a la vista y, sin
+# ella, la CPU y la RAM del contador de la barra lateral. Se guardan en memoria desde que se abrió la app: NO hay
+# histórico entre sesiones, y el selector lo dice. Gráficos y sparklines en Canvas (solo se dibuja); tarjetas y
+# selector en CustomTkinter con la versión clásica de respaldo. La lista de procesos no se toca.
+_RESH: deque = deque(maxlen=int(3600 / RES_INTERVAL_S) + 60)  # 1 h de muestras
+RES_RANGOS = (("1m", "1 min", 60), ("5m", "5 min", 300), ("15m", "15 min", 900), ("1h", "1 h", 3600))
+_RESG: dict = {"kit": None, "ctk": False, "rango": "5m", "graf": {}, "t0": time.time(), "ms": None}
+
+
+def resh_agregar(ts, cpu=None, ram=None, gpu=None, disco=None):
+    """Una muestra real al histórico en memoria (porcentajes 0-100; None si ese recurso no se leyó)."""
+    if cpu is None and ram is None:
+        return
+    if _RESH and ts - _RESH[-1]["ts"] < RES_INTERVAL_S * 0.5:
+        _RESH[-1].update({k: v for k, v in (("cpu", cpu), ("ram", ram), ("gpu", gpu), ("disco", disco))
+                          if v is not None})
+        return
+    _RESH.append({"ts": ts, "cpu": cpu, "ram": ram, "gpu": gpu, "disco": disco})
+
+
+def res_ventana(rango=None, ahora=None):
+    """Las muestras del rango elegido y cuántos segundos de datos hay de verdad."""
+    seg = dict((k, s) for k, _l, s in RES_RANGOS).get(rango or _RESG["rango"], 300)
+    ahora = ahora or time.time()
+    out = [m for m in _RESH if m["ts"] >= ahora - seg]
+    hay = (ahora - _RESH[0]["ts"]) if _RESH else 0
+    return out, seg, hay
+
+
+def _res_mem_pct():
+    ps = _res_psutil()
+    try:
+        if ps is not None:
+            vm = ps.virtual_memory()
+            return (vm.total - vm.available) / vm.total * 100
+        used, total = _res_mem_fallback()
+        return used / total * 100 if total else None
+    except Exception:
+        return None
+
+
+def _resg_construir(tab):
+    """Las tarjetas (con sparkline) y la sección de gráficos con su selector."""
+    holder = tk.Frame(tab, bg=THEME["bg"])
+    holder.pack(fill="x")
+    t0 = time.perf_counter()
+    if _ctk_wanted():
+        try:
+            _teclado_ctk_patch()
+            k = _KitCtk(holder, global_setup=False)
+            _resg_con(k, holder)
+            _RESG.update(kit=k, ctk=True, ms=round((time.perf_counter() - t0) * 1000))
+            log(f"recursos: tarjetas y gráficos con CustomTkinter ({_RESG['ms']} ms)")
+            return
+        except Exception as e:
+            log(f"recursos: sin CustomTkinter ({type(e).__name__}: {e}); se usan las clásicas")
+            for ch in holder.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    k = _KitTk(holder)
+    _resg_con(k, holder)
+    _RESG.update(kit=k, ctk=False, ms=round((time.perf_counter() - t0) * 1000))
+    log(f"recursos: tarjetas y gráficos clásicos (tkinter) ({_RESG['ms']} ms)")
+
+
+def _resg_con(k, holder):
+    bg, cbg = THEME["bg"], THEME["card"]
+    cards = tk.Frame(holder, bg=bg)
+    cards.pack(fill="x", padx=20, pady=(0, 8))
+    for i, (key, title) in enumerate((("cpu", "CPU"), ("ram", "RAM"), ("gpu", "GPU"), ("disk", "Disco libre"))):
+        cards.grid_columnconfigure(i, weight=1, uniform="res")
+        c = k.card(cards)
+        c.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 4, 0 if i == 3 else 4))
+        tk.Label(c, text=title, font=(FONT, 9), bg=cbg, fg=THEME["muted"]).pack(anchor="w", padx=12, pady=(10, 0))
+        _widgets[f"res_{key}_val"] = tk.Label(c, text="—", font=(FONT, 17, "bold"), bg=cbg, fg=THEME["text"],
+                                              anchor="w")
+        _widgets[f"res_{key}_val"].pack(fill="x", padx=12)
+        sub = tk.Label(c, text="", font=(FONT, 9), bg=cbg, fg=THEME["muted"], anchor="w", justify="left",
+                       wraplength=S(150))
+        sub.pack(fill="x", padx=12)
+        # el texto pequeño se parte al ancho real de la tarjeta (no se corta)
+        getattr(c, "_canvas", c).bind("<Configure>", lambda e, lab=sub: lab.config(
+            wraplength=max(S(60), e.width - S(32))), add=True)
+        _widgets[f"res_{key}_sub"] = sub
+        # sparkline (antes, una barra fina): width pequeño, un Canvas pide 10 cm por defecto
+        sp = tk.Canvas(c, width=S(40), height=S(26), bg=cbg, highlightthickness=0, bd=0)
+        sp.pack(fill="x", padx=12, pady=(4, 10))
+        sp.bind("<Configure>", lambda e, kk=key: _resg_spark(kk, e.width), add=True)
+        _widgets[f"res_{key}_bar"] = sp
+        _RESG.setdefault("spark_ancho", {})[key] = S(120)
+    sec = k.section("Uso en el tiempo", "CPU y memoria medidas en este PC cada 2 s. Elige cuánto tiempo ver.")
+    fila = k.frame(sec)
+    fila.pack(fill="x", padx=16, pady=(0, 4))
+    seg = k.segmented(fila, [(c, lab) for c, lab, _s in RES_RANGOS], _resg_rango)
+    _kit_seg_set(k, seg, _RESG["rango"])
+    seg.pack(side="left")
+    _RESG["selector"] = seg
+    _RESG["nota"] = k.label(sec, "", muted=True, wrap=600)
+    _RESG["nota"].pack(anchor="w", fill="x", padx=16, pady=(2, 4))
+    for key, titulo in (("cpu", "CPU"), ("ram", "Memoria")):
+        k.label(sec, titulo, bold=True, wrap=0).pack(anchor="w", padx=16, pady=(6, 0))
+        cv = tk.Canvas(sec, height=S(110), width=S(200), bg=cbg, highlightthickness=0, bd=0)
+        cv.pack(fill="x", padx=16, pady=(2, 4))
+        cv.bind("<Configure>", lambda e, kk=key: _resg_grafico(kk, e.width), add=True)
+        _RESG["graf"][key] = {"cv": cv, "ancho": S(400)}
+    tk.Frame(sec, bg=cbg, height=S(8)).pack()
+
+
+def _resg_rango(clave):
+    _RESG["rango"] = clave
+    _resg_pintar()
+
+
+def _resg_nota():
+    _, seg, hay = res_ventana()
+    if not _RESH:
+        return "Todavía no hay muestras: se toman cada 2 s desde que se abre la app."
+    mins = hay / 60
+    txt = ("Solo hay datos desde que abriste la app (hace " + (f"{mins:.0f} min" if mins >= 1 else f"{hay:.0f} s")
+           + "): no se guarda un histórico entre sesiones.")
+    if hay < seg * 0.95:
+        txt += " Este rango todavía no está completo."
+    return txt
+
+
+def _resg_grafico(key, ancho=None):
+    """Gráfico de línea 0-100 % con rejilla (25/50/75) de la ventana de tiempo elegida."""
+    g = _RESG["graf"].get(key)
+    if not g:
+        return
+    if ancho:
+        g["ancho"] = ancho
+    cv = g["cv"]
+    w, h, izq, pad = max(g["ancho"], S(120)), S(110), S(34), S(6)
+    cv.delete("all")
+    for p in (0, 25, 50, 75, 100):
+        y = h - pad - p / 100 * (h - 2 * pad)
+        cv.create_line(izq, y, w - pad, y, fill=THEME["line"], dash=(2, 3) if p not in (0, 100) else ())
+        cv.create_text(izq - S(4), y, text=f"{p}%", anchor="e", fill=THEME["muted"], font=(FONT, 8))
+    datos, seg, _hay = res_ventana()
+    ahora = time.time()
+    pts = [(izq + (m["ts"] - (ahora - seg)) / seg * (w - pad - izq), h - pad - m[key] / 100 * (h - 2 * pad))
+           for m in datos if m.get(key) is not None]
+    g["puntos"] = pts
+    g["muestras"] = len(pts)
+    if not pts:
+        cv.create_text((izq + w) / 2, h / 2, text="sin datos todavía", fill=THEME["muted"], font=(FONT, 9))
+        return
+    col = THEME["blue"]
+    if len(pts) >= 2:
+        cv.create_line(*[c for p in pts for c in p], fill=col, width=max(1, S(2)))
+    x, y = pts[-1]
+    r = S(3)
+    cv.create_oval(x - r, y - r, x + r, y + r, fill=col, outline=col)
+
+
+_RESG_SPARK_CLAVE = {"cpu": "cpu", "ram": "ram", "gpu": "gpu", "disk": "disco"}
+
+
+def _resg_spark(key, ancho=None):
+    """Sparkline de la tarjeta: los últimos 5 min reales de ese recurso. Sin muestras: nada (no se inventa)."""
+    cv = _widgets.get(f"res_{key}_bar")
+    if cv is None:
+        return
+    if ancho:
+        _RESG.setdefault("spark_ancho", {})[key] = ancho
+    w, h, pad = max(_RESG.get("spark_ancho", {}).get(key, S(120)), S(40)), S(26), S(3)
+    cv.delete("all")
+    datos, seg, _hay = res_ventana("5m")
+    campo = _RESG_SPARK_CLAVE[key]
+    vals = [(m["ts"], m[campo]) for m in datos if m.get(campo) is not None]
+    _RESG.setdefault("spark_n", {})[key] = len(vals)
+    if not vals:
+        return
+    ahora = time.time()
+    pts = [(pad + (t - (ahora - seg)) / seg * (w - 2 * pad), h - pad - v / 100 * (h - 2 * pad)) for t, v in vals]
+    v = vals[-1][1]
+    col = THEME["blue"] if v < 80 else (FIT_COLORS["orange"] if v < 95 else FIT_COLORS["red"])
+    if len(pts) >= 2:
+        cv.create_line(*[c for p in pts for c in p], fill=col, width=max(1, S(2)))
+    x, y = pts[-1]
+    cv.create_oval(x - S(2), y - S(2), x + S(2), y + S(2), fill=col, outline=col)
+
+
+def _resg_pintar():
+    if _RESG.get("kit") is None:
+        return
+    k = _RESG["kit"]
+    k.set_label(_RESG["nota"], text=_resg_nota())
+    for key in _RESG["graf"]:
+        _resg_grafico(key)
+    for key in _RESG_SPARK_CLAVE:
+        _resg_spark(key)
 
 
 def _res_sort(col):

@@ -1,0 +1,137 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-recursos-graficos-jh45hrzu",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 14.48,
+ "kit": "_KitCtk",
+ "selector": "CTkSegmentedButton",
+ "tarjeta": "CTkFrame",
+ "historial": {
+  "muestras": 61,
+  "segundos": 128.6,
+  "cpu": [
+   9.8,
+   13.1,
+   14.2,
+   20.1,
+   14.3,
+   17.0,
+   17.7,
+   10.7,
+   14.1,
+   8.3,
+   4.2,
+   10.9
+  ],
+  "ram": [
+   79.2,
+   79.3,
+   79.3,
+   79.3,
+   79.4,
+   79.2
+  ],
+  "con_gpu": 5,
+  "con_disco": 5
+ },
+ "a_graficos": {
+  "cpu": {
+   "puntos": 61,
+   "items": 12
+  },
+  "ram": {
+   "puntos": 61,
+   "items": 12
+  }
+ },
+ "b_rangos": {
+  "1m": {
+   "muestras_cpu": 29,
+   "nota": "Solo hay datos desde que abriste la app (hace 2 min): no se guarda un histórico entre sesiones."
+  },
+  "5m": {
+   "muestras_cpu": 61,
+   "nota": "Solo hay datos desde que abriste la app (hace 2 min): no se guarda un histórico entre sesiones. Este rango todavía no está completo."
+  },
+  "15m": {
+   "muestras_cpu": 61,
+   "nota": "Solo hay datos desde que abriste la app (hace 2 min): no se guarda un histórico entre sesiones. Este rango todavía no está completo."
+  },
+  "1h": {
+   "muestras_cpu": 61,
+   "nota": "Solo hay datos desde que abriste la app (hace 2 min): no se guarda un histórico entre sesiones. Este rango todavía no está completo."
+  }
+ },
+ "c_tarjetas": {
+  "pantalla": {
+   "cpu": [
+    "9 %",
+    "16 núcleos lógicos"
+   ],
+   "ram": [
+    "12.2 GB",
+    "de 15.4 GB (79 %)"
+   ],
+   "gpu": [
+    "0 %",
+    "VRAM 0 de 6 GB"
+   ],
+   "disk": [
+    "75.9 GB",
+    "libres de 435.5 GB en C:"
+   ]
+  },
+  "fuente": {
+   "cpu": "9 %",
+   "ram": "12.2 GB",
+   "gpu": "0 %",
+   "disk": "75.9 GB"
+  },
+  "sparkline_muestras": {
+   "disk": 5,
+   "gpu": 5,
+   "ram": 61,
+   "cpu": 61
+  }
+ },
+ "c_cuadra": true,
+ "d_procesos": {
+  "columnas": [
+   "name",
+   "pid",
+   "cpu",
+   "ram",
+   "origin"
+  ],
+  "esperadas": [
+   "name",
+   "pid",
+   "cpu",
+   "ram",
+   "origin"
+  ],
+  "filas": 18,
+  "enlaces": {
+   "<<TreeviewSelect>>": true,
+   "<Delete>": true,
+   "<F5>": true
+  },
+  "boton_cerrar": "Cerrar proceso",
+  "buscador": "Entry"
+ },
+ "foco_selector": {
+  "1 min": "1",
+  "5 min": "1",
+  "15 min": "1",
+  "1 h": "1"
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 534,
+  "cuarto_de_contenido": 127,
+  "texto_mas_ancho_con_margen": 123,
+  "selector_pedido": 196,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}
