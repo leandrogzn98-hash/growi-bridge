@@ -1,0 +1,56 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-sup-_1re3hmn",
+ "a_selectores": {
+  "pregunta": "Automático (recomendado)",
+  "chat": "Automático (recomendado)",
+  "comando": "Automático (recomendado)",
+  "revision": "Automático (recomendado)"
+ },
+ "a_tras_elegir_chat": {
+  "chat": "motor:codex"
+ },
+ "a_tras_elegir_revision": {
+  "chat": "motor:codex",
+  "revision": "haiku"
+ },
+ "a_chat_usa_su_modelo": "Codex (por internet)",
+ "b_router": {
+  "rapido": {
+   "elegido": "ollama",
+   "motivo": "ollama: código / depuración / tarea con pasos («funcion»); nivel Rápido: baja un escalón (sonnet → llama) (llama no está disponible: sin respuesta de 127.0.0.1:8080 en 2 s; respondió ollama)",
+   "error": null
+  },
+  "equilibrado": {
+   "elegido": "sonnet",
+   "motivo": "sonnet: código / depuración / tarea con pasos («funcion»)",
+   "error": "Automático eligió Sonnet (código / depuración / tarea con pasos («funcion»)), pero sonnet no está disponible: el mapa tiene el proxy en rojo (El proxy no responde: no contesta (tiempo agotado). La ruta que sí anda: el modelo local.) y claude no llega directo"
+  },
+  "potente": {
+   "elegido": "opus",
+   "motivo": "opus: código / depuración / tarea con pasos («funcion»); nivel Potente: sube un escalón (sonnet → opus)",
+   "error": "Automático eligió Opus (código / depuración / tarea con pasos («funcion»); nivel Potente: sube un escalón (sonnet → opus)), pero opus no está disponible: el mapa tiene el proxy en rojo (El proxy no responde: no contesta (tiempo agotado). La ruta que sí anda: el modelo local.) y claude no llega directo; sonnet no está disponible: el mapa tiene el proxy en rojo (El proxy no responde: no contesta (tiempo agotado). La ruta que sí anda: el modelo local.) y claude no llega directo"
+  }
+ },
+ "b_visible_en_paleta": [
+  "Auto: Rápido (local o barato primero)",
+  "Auto: Equilibrado (barato primero, caro si hace falta) ✓",
+  "Auto: Potente (el mejor disponible primero)"
+ ],
+ "b_segmentado_ajustes": "equilibrado",
+ "c_perfil_codex": "codex",
+ "c_perfil_codex_apagado": null,
+ "d_tras_apagar_codex": {
+  "chat": "motor:auto",
+  "revision": "haiku"
+ },
+ "log": [
+  "2026-10-28T01:35:14-04:00 superficies: Chat de Tareas → motor:codex",
+  "2026-10-28T01:35:15-04:00 superficies: Revisión del runner → haiku",
+  "2026-10-28T01:35:15-04:00 router: modo Automático en «Rápido» (local o barato primero)",
+  "2026-10-28T01:35:17-04:00 router: modo Automático en «Equilibrado» (barato primero, caro si hace falta)",
+  "2026-10-28T01:35:17-04:00 router: modo Automático en «Potente» (el mejor disponible primero)",
+  "2026-10-28T01:35:17-04:00 router: modo Automático en «Equilibrado» (barato primero, caro si hace falta)",
+  "2026-10-28T01:35:17-04:00 superficies: el modelo motor:codex ya no está (el motor «codex» está desactivado): Chat de Tareas usa «Automático»"
+ ],
+ "tracebacks_en_log": 0
+}

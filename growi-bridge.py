@@ -6692,6 +6692,7 @@ def motor_activar(mid, on, sustituto=None):
     if avisos:
         msg += ". " + "; ".join(avisos)
     log(f"motores: {msg}")
+    superficies_revisar()
     try:
         _refresh_engine_widgets()
     except Exception:
@@ -6735,6 +6736,103 @@ def _mot_pintar_onoff(msg=None):
         W["mot_onoff_btn"].configure(text="Activar este motor" if apagado else "Desactivar este motor")
     except Exception:
         pass
+
+
+# ---- modelo por superficie + niveles del modo Automatico
+# (t-modelo-por-superficie-auto). Cada superficie guarda su modelo en
+# settings.json («modelo_superficie»); cambiar una no toca las demas. Un modelo
+# que deja de estar (motor apagado, desinstalado, sin credencial) nunca se queda
+# en silencio: la superficie vuelve a «Automático» y la app lo dice.
+SUPERFICIES = (("pregunta", "Pregunta rápida (paleta y cajita)"), ("chat", "Chat de Tareas"),
+               ("comando", "Comandos de IA guardados"), ("revision", "Revisión del runner"))
+AUTO_NIVELES = (("rapido", "Rápido"), ("equilibrado", "Equilibrado"), ("potente", "Potente"))
+_AUTO_NIVEL_TXT = {"rapido": "local o barato primero", "equilibrado": "barato primero, caro si hace falta",
+                   "potente": "el mejor disponible primero"}
+
+
+def auto_nivel():
+    n = load_settings().get("auto_nivel")
+    return n if n in dict(AUTO_NIVELES) else "equilibrado"
+
+
+def auto_nivel_poner(n):
+    if n not in dict(AUTO_NIVELES):
+        return
+    s = load_settings()
+    s["auto_nivel"] = n
+    save_settings(s)
+    log(f"router: modo Automático en «{dict(AUTO_NIVELES)[n]}» ({_AUTO_NIVEL_TXT[n]})")
+    try:
+        _update_tray_title()
+    except Exception:
+        pass
+
+
+def auto_nivel_ciclar():
+    orden = [k for k, _l in AUTO_NIVELES]
+    auto_nivel_poner(orden[(orden.index(auto_nivel()) + 1) % len(orden)])
+    toast(f"Auto: {dict(AUTO_NIVELES)[auto_nivel()]}")
+
+
+def _modelo_disponible(model):
+    """(ok, motivo) de un modelo del selector («sonnet», «motor:codex»,
+    «ollama:…», «api:…», «motor:auto»)."""
+    m = str(model or "")
+    if m in ("", "motor:auto", AUTO):
+        return True, ""
+    mid = _motor_de_modelo(m) or ("api" if m.startswith("api:") else None)
+    if mid == "api":
+        return (True, "") if any(c[1] == m for c in engine_choices()) else (False, "su clave ya no está")
+    if mid is None:
+        return False, "no sé de qué motor es"
+    if mid in motores_apagados():
+        return False, f"el motor «{mid}» está desactivado"
+    if not any(c[1] == m for c in engine_choices()):
+        return False, "ya no está en la lista de modelos disponibles"
+    return True, ""
+
+
+def superficie_modelo(sup, avisar=True):
+    """El modelo de la superficie, comprobado. Si ya no vale, vuelve a
+    «Automático» (que elige uno que sí esté: Hermes local si no hay nube) y lo dice."""
+    s = load_settings()
+    tabla = dict(s.get("modelo_superficie") or {})
+    m = tabla.get(sup) or ""
+    if not m:
+        return ""
+    ok, why = _modelo_disponible(m)
+    if ok:
+        return m
+    tabla[sup] = "motor:auto"
+    s["modelo_superficie"] = tabla
+    save_settings(s)
+    nom = next((lab for lab, mm, _d in engine_choices() if mm == m), m)
+    msg = f"el modelo {nom} ya no está ({why}): {dict(SUPERFICIES).get(sup, sup)} usa «Automático»"
+    log(f"superficies: {msg}")
+    if avisar:
+        try:
+            toast(f"{nom[:20]} ya no está: uso Automático")
+        except Exception:
+            pass
+    return "motor:auto"
+
+
+def superficie_poner(sup, model):
+    s = load_settings()
+    tabla = dict(s.get("modelo_superficie") or {})
+    tabla[sup] = model
+    s["modelo_superficie"] = tabla
+    save_settings(s)
+    log(f"superficies: {dict(SUPERFICIES).get(sup, sup)} → {model}")
+
+
+def superficies_revisar():
+    """Tras apagar/encender un motor: ninguna superficie se queda con un modelo roto."""
+    return {sup: superficie_modelo(sup) for sup, _l in SUPERFICIES}
+
+
+def _label_de_modelo(model):
+    return next((lab for lab, mm, _d in engine_choices() if mm == model), None)
 
 
 def engine_status(motor_id, autostart=False):
@@ -6960,6 +7058,9 @@ def route_task(prompt, criterios=None):
         break
     up = cfg.get("subir_escalon") or {}
     escalera = [x for x in (up.get("escalera") or []) if x in targets]
+    nv, pick_regla = auto_nivel(), pick  # rápido / equilibrado / potente (t-modelo-por-superficie-auto)
+    if nv == "rapido":
+        no_subir = True
     if not no_subir and pick in escalera and escalera.index(pick) + 1 < len(escalera):
         reason = None
         hit = _kw_hit(_norm(" ".join(crits)), up.get("palabras_en_criterios")) if crits else None
@@ -6973,6 +7074,13 @@ def route_task(prompt, criterios=None):
             nxt = escalera[escalera.index(pick) + 1]
             motivo += f"; sube un escalón ({pick} → {nxt}) por {reason}"
             pick = nxt
+    if nv == "rapido" and pick_regla in escalera and escalera.index(pick_regla) > 0:
+        pick = escalera[escalera.index(pick_regla) - 1]
+        motivo += f"; nivel Rápido: baja un escalón ({pick_regla} → {pick})"
+    elif nv == "potente" and pick in escalera and escalera.index(pick) + 1 < len(escalera):
+        nxt = escalera[escalera.index(pick) + 1]
+        motivo += f"; nivel Potente: sube un escalón ({pick} → {nxt})"
+        pick = nxt
     # El elegido tiene que estar disponible; si no, sus respaldos en orden.
     first, cola_, seen, faltan = pick, [pick], [], []
     while cola_:
@@ -10586,7 +10694,15 @@ def _llm_review(task, result, checks, touched, nivel="R0"):
     responda. Uno que responde con JSON invalido NO se salta: es «sin revision».
     (juez, intentos)"""
     intentos = []
-    for spec in asis_orden_revision(task, _rev_cfg().get("orden") or []):  # la del asistente primero
+    orden_rev = list(_rev_cfg().get("orden") or [])
+    mrev = superficie_modelo("revision", avisar=False)  # t-modelo-por-superficie-auto
+    if mrev and mrev != "motor:auto" and _motor_de_modelo(mrev):
+        mid_rev = _motor_de_modelo(mrev)
+        mod_rev = mrev if mrev in ("sonnet", "opus", "haiku") else (mrev.split(":", 1)[1] if mrev.startswith("ollama:")
+                                                                     else None)
+        orden_rev = [{"motor": mid_rev, "modelo": mod_rev}] + [x for x in orden_rev if not (
+            x.get("motor") == mid_rev and (x.get("modelo") or None) == mod_rev)]
+    for spec in asis_orden_revision(task, orden_rev):  # la del asistente primero
         desde = spec.get("solo_desde")
         if desde in NIVELES_R and _rango(nivel) < _rango(desde):
             intentos.append({"rol": "juez 1", "motor": spec.get("motor"), "modelo": spec.get("modelo"),
@@ -17687,6 +17803,8 @@ def build_tray():
         pystray.MenuItem(_tray_asis_label, _tray_asis_menu()),  # asistentes: elegir el activo
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(_tray_paleta_label, lambda: _tray_palette()),
+        pystray.MenuItem(lambda _i: f"Auto: {dict(AUTO_NIVELES)[auto_nivel()]} (clic: cambiar)",
+                         lambda: _root.after(0, auto_nivel_ciclar)),
         pystray.MenuItem(_tray_proxy_label, lambda: _tray_open_proxy()),
         pystray.MenuItem(_tray_mascot_label, lambda: _root.after(0, toggle_mascot)),
         pystray.Menu.SEPARATOR,
@@ -21993,7 +22111,14 @@ def _palette_ask_ai(q):
     show("tareas")
     box.delete("1.0", "end")
     box.insert("1.0", q)
+    cb = _widgets.get("ask_engine")
+    lab = _label_de_modelo(superficie_modelo("pregunta"))  # el modelo de la pregunta rápida
+    prev = cb.get() if cb is not None else None
+    if lab and cb is not None:
+        cb.set(lab)
     _send_ask()
+    if lab and cb is not None and prev:
+        cb.set(prev)  # el chat sigue con el suyo
 
 
 def _on_ctrl_k(_e=None):
@@ -25613,6 +25738,9 @@ def _selector_saltar_cabecera(cb):
 def _default_engine_label(choices):
     s = load_settings()
     want = "motor:auto" if s.get("motor") == AUTO else str(s.get("default_engine") or "sonnet")
+    chat = superficie_modelo("chat", avisar=False)  # el modelo del chat de Tareas, si lo elegiste
+    if chat:
+        want = chat
     return next((l for l, m, _d in choices if m == want), "Claude Sonnet")
 
 
@@ -30706,6 +30834,9 @@ def cmdia_ejecutar(cmd, texto="", args=None):
     texto, error, tipo_error (sin_seleccion | falta_dato | motor_no_disponible |
     motor) y segundos."""
     args = dict(args or {})
+    if not cmd.get("modelo") or cmd.get("modelo") in ("superficie", "por defecto"):
+        # sin motor propio: el de la superficie «Comandos de IA guardados» (o el principal)
+        cmd = dict(cmd, modelo=_motor_de_modelo(superficie_modelo("comando")) or default_motor())
     base = {"ok": False, "texto": "", "error": None, "tipo_error": None, "segundos": None,
             "motor": cmd.get("modelo")}
     if cmdia_usa_seleccion(cmd["prompt"]) and not (texto or "").strip():
@@ -32018,6 +32149,8 @@ def asis_motor_ok(mid):
     """(ok, motivo) sin llamar a nada: el motor esta descrito en engines.json."""
     if mid == AUTO:
         return True, ""
+    if mid in motores_apagados():
+        return False, f"el motor «{mid}» está desactivado"
     try:
         eng = get_engine(mid)
     except Exception as e:
@@ -33649,6 +33782,24 @@ def _build_ajustes_ctk(tab_aj):
         _ui_call(lambda: _bl.winfo_exists() and _bl.configure(text=t))
     threading.Thread(target=_bf_txt, daemon=True).start()
     r = row(mm)
+    text_block(r, "Modo Automático", "Rápido: local o barato primero. Equilibrado: barato primero, caro si hace "
+                                     "falta. Potente: el mejor disponible primero. También en la bandeja y en Ctrl+K.")
+    _nv = tk.StringVar(value=auto_nivel())
+    segmented(r, _nv, AUTO_NIVELES, auto_nivel_poner).pack(anchor="w", pady=(10, 0))
+    _widgets["aj_auto_nivel"] = _nv
+    _labs = [c[0] for c in engine_choices()]
+    _widgets["aj_superficie"] = {}
+    for _sup, _snom in SUPERFICIES:
+        r, der = side_row(mm, f"Modelo para: {_snom}", "Cada uno guarda el suyo; cambiar uno no toca los demás.")
+        _actual = _label_de_modelo(superficie_modelo(_sup, avisar=False) or "motor:auto") or (_labs[0] if _labs else "")
+        # ttk.Combobox: crear un CTkOptionMenu cuesta ~2,8 s en este PC (perfil de build_gui)
+        _om = ttk.Combobox(der, values=_labs or [""], width=30, state="readonly", font=(FONT, 10))
+        _om.set(_actual)
+        _om.bind("<<ComboboxSelected>>", lambda _e, sp=_sup, w=_om: superficie_poner(sp, dict(
+            (l_, m_) for l_, m_, _d in engine_choices()).get(w.get(), "motor:auto")), add="+")
+        _om.pack()
+        _widgets["aj_superficie"][_sup] = _om
+    r = row(mm)
     _widgets["aj_claves_slot"] = tk.Frame(r, bg=T["bg"])  # aqui dibuja _build_claves las claves
     _widgets["aj_claves_slot"].pack(fill="x")
 
@@ -35247,6 +35398,9 @@ def build_gui():
         C("probar_proxy", "Probar el proxy", "proxy probar conectar vps eeuu salida",
           lambda: (show_window(), _show_page("estado"),
                    proxy_test_ui(_widgets["px_test_btn"], _widgets["px_result"]))),
+        *[C(f"auto_{k}", f"Auto: {lab} ({_AUTO_NIVEL_TXT[k]})" + (" ✓" if auto_nivel() == k else ""),
+            f"auto automatico router nivel {lab.lower()} rapido equilibrado potente", lambda k=k: auto_nivel_poner(k))
+          for k, lab in AUTO_NIVELES],
         C("mis_comandos", "Mis comandos (scripts)", "scripts comandos carpeta activar desactivar bat ps1 py",
           lambda: (show_window(), comandos_ui())),
         C("reanudar_cola", "Reanudar la cola (tras 3 fallos seguidos)", "circuit breaker pausa cola reanudar fallos",
