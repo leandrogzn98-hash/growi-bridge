@@ -1,0 +1,24 @@
+GATE: PASA (6.6 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: manual
+archivos cambiados (lista recibida): runner\runner.py
+
+[PASA] py_compile (0.0 s)
+    1 archivo(s) compilan
+[PASA] ruff check (0.5 s)
+    sin errores (E9,F63,F7,F82) en lineas cambiadas de 1 archivo(s)
+    aviso: 12 hallazgos de estilo preexistentes en lineas no cambiadas
+[PASA] mypy (1.2 s)
+    sin errores en lineas cambiadas de 1 archivo(s)
+    aviso: 1 errores de mypy preexistentes en lineas no cambiadas
+[PASA] pytest (4.7 s)
+    ningun test afectado: suite completa: 6 passed in 3.32s
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar
+
+log: C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-manual.log
+
+real	0m6.844s
+user	0m0.015s
+sys	0m0.016s
+rc=0

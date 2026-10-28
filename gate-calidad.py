@@ -41,7 +41,7 @@ ARCHIVOS CAMBIADOS (en este orden):
      sesion (HEAD al empezar, guardado por --registrar-base en
      UserPromptSubmit) y los no rastreados nuevos;
   3) sin hook: git diff --name-only HEAD + no rastreados;
-  4) sin git: todos los .py.
+  4) sin git ni transcript: todos los .py.
   «Lineas cambiadas» = hunks de git diff -U0 contra la base; un archivo nuevo
   o fuera de git cuenta entero.
 
@@ -51,8 +51,10 @@ misma sesion deja terminar (salida 0) y el log dice FALLA SIN CORREGIR: la
 revision lo ve como fallo. En una sesion de revision (GROWI_TAREA_ROL=
 revision) no corre.
 
-LOG: <raiz>/gate-calidad/gate-calidad-<id>.log (id = GROWI_TAREA_ID si lo
-pone el runner, si no el session_id del hook, si no «manual»). La primera
+LOG: <raiz>/gate-calidad/gate-calidad-<id>.log y, si hay share/outbox/
+(GROWI_BRIDGE_SHARE, <raiz>/share, o la raiz es share/inbox), una copia ahi
+(id = GROWI_TAREA_ID si lo pone el runner, si no el session_id del hook, si
+no «manual»). La primera
 linea es «GATE: PASA|FALLA|FALLA SIN CORREGIR». El gateway lo adjunta al
 prompt de revision (_gate_para_revision en growi-bridge.py).
 
@@ -176,7 +178,7 @@ def _cambiados(raiz, entrada, base, desde):
             if not desde or (f.exists() and f.stat().st_mtime >= desde):
                 nombres.add(f)
         fuentes.append(f"git diff {(base or 'HEAD')[:10]} + no rastreados")
-    else:
+    elif not nombres:  # sin git ni transcript: todos los .py
         nombres.update(p.resolve() for p in raiz.rglob("*.py") if not NO_MIRAR & set(p.parts))
         fuentes.append("sin git: todos los .py")
     dentro = [p for p in nombres if p.exists() and raiz in p.parents and not NO_MIRAR & set(p.relative_to(raiz).parts)]
@@ -545,6 +547,16 @@ def correr(entrada, forzar_smoke=None):
     log = _dir_gate(raiz) / f"gate-calidad-{tid}.log"
     log.write_text(txt + "\n", encoding="utf-8")
     (_dir_gate(raiz) / "ultimo.txt").write_text(str(log) + "\n", encoding="utf-8")
+    # Copia en share/outbox/ (donde la busca la revision del gateway instalado):
+    # GROWI_BRIDGE_SHARE si esta puesto, una share/ en la raiz, o la raiz es share/inbox.
+    for sh in (os.environ.get("GROWI_BRIDGE_SHARE"), raiz / "share", raiz.parent if raiz.name == "inbox" else None):
+        out = Path(sh) / "outbox" if sh else None
+        if out is not None and out.is_dir():
+            try:
+                (out / log.name).write_text(txt + "\n", encoding="utf-8")
+            except OSError:
+                pass
+            break
     print(txt + f"\n\nlog: {log}")
     return txt, bloquear, log
 

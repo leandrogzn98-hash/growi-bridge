@@ -1,0 +1,16 @@
+GATE: PASA (6.7 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: prueba-gate-loop-2
+archivos cambiados (transcript (1) + git diff 2a13b96689 + no rastreados): pruebas\demo_gate_loop.py
+historial de esta sesion: 23:08:57 FALLA -> 23:09:09 PASA
+
+[PASA] py_compile (0.0 s)
+    1 archivo(s) compilan
+[PASA] ruff check (0.4 s)
+    sin errores (E9,F63,F7,F82) en lineas cambiadas de 1 archivo(s)
+[PASA] mypy (0.9 s)
+    sin errores en lineas cambiadas de 1 archivo(s)
+[PASA] pytest (5.1 s)
+    ningun test afectado: suite completa: 9 passed in 3.86s
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar

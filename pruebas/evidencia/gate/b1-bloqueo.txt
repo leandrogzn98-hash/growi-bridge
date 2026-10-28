@@ -1,0 +1,34 @@
+GATE: FALLA (8.3 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: manual
+archivos cambiados (lista recibida): runner\runner_copia_gate.py
+
+[PASA] py_compile (0.0 s)
+    1 archivo(s) compilan
+[FALLA] ruff check (0.6 s)
+    runner_copia_gate.py:762: F821 Undefined name `variable_sin_definir`
+    aviso: estilo en linea cambiada: runner_copia_gate.py:161: SIM102 Use a single `if` statement instead of nested `if` statements
+    aviso: estilo en linea cambiada: runner_copia_gate.py:232: PLW1510 `subprocess.run` without explicit `check` argument
+    aviso: estilo en linea cambiada: runner_copia_gate.py:234: S110 `try`-`except`-`pass` detected, consider logging the exception
+    aviso: estilo en linea cambiada: runner_copia_gate.py:234: BLE001 Do not catch blind exception: `Exception`
+    aviso: estilo en linea cambiada: runner_copia_gate.py:240: S110 `try`-`except`-`pass` detected, consider logging the exception
+    aviso: estilo en linea cambiada: runner_copia_gate.py:240: BLE001 Do not catch blind exception: `Exception`
+    aviso: estilo en linea cambiada: runner_copia_gate.py:406: BLE001 Do not catch blind exception: `Exception`
+    aviso: estilo en linea cambiada: runner_copia_gate.py:561: TRY004 Prefer `TypeError` exception for invalid type
+    aviso: estilo en linea cambiada: runner_copia_gate.py:603: BLE001 Do not catch blind exception: `Exception`
+    aviso: estilo en linea cambiada: runner_copia_gate.py:624: BLE001 Do not catch blind exception: `Exception`
+    aviso: ... y 2 avisos mas (no bloquean)
+[PASA] mypy (1.5 s)
+    sin errores en lineas cambiadas de 1 archivo(s)
+    aviso: no bloquea (var-annotated): runner_copia_gate.py:201: Need type annotation for "_LIVE" [var-annotated]
+[PASA] pytest (5.9 s)
+    ningun test afectado: suite completa: 6 passed in 4.16s
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar
+
+log: C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-manual.log
+
+real	0m8.600s
+user	0m0.015s
+sys	0m0.031s
+rc=2

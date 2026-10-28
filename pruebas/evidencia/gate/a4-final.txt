@@ -1,0 +1,26 @@
+GATE: PASA (34.4 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: manual
+archivos cambiados (git diff HEAD + no rastreados): gate-calidad.py, growi-bridge.py
+
+[PASA] py_compile (0.0 s)
+    2 archivo(s) compilan
+[PASA] ruff check (1.0 s)
+    sin errores (E9,F63,F7,F82) en lineas cambiadas de 2 archivo(s)
+    aviso: 834 hallazgos de estilo preexistentes en lineas no cambiadas
+[PASA] mypy (3.3 s)
+    sin errores en lineas cambiadas de 2 archivo(s)
+    aviso: 41 errores de mypy preexistentes en lineas no cambiadas
+[PASA] pytest (4.9 s)
+    1 test(s) afectados: 9 passed in 3.68s
+[PASA] smoke Tkinter (/gateway/salud) (18.4 s)
+    copia en C:\Users\forte\AppData\Local\Temp\gate-calidad-smoke-26144, puerto 8797, pid 13340
+    /gateway/salud 200 a los 9.1 s
+    salida limpia (quit_app) con codigo 0
+    log sin tracebacks
+
+log: C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-manual.log
+
+real	0m34.638s
+user	0m0.000s
+sys	0m0.015s

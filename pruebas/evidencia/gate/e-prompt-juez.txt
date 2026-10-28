@@ -1,0 +1,97 @@
+===== prompt del juez para prueba-gate-loop (extracto desde la seccion del gate) =====
+Eres un juez estricto. NO hagas el trabajo: solo compruebas si está hecho y lo puntúas.
+
+ENCARGO:
+Tarea de prueba del gate (prueba-gate-loop)
+
+CRITERIOS EN FRASES (estos los juzgas tú):
+1. el archivo de prueba queda sin errores
+
+GATE DE CALIDAD LOCAL (comprobado por código, $0; log completo en C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-prueba-gate-loop.log). Ya comprobó sintaxis (py_compile), lint (ruff), tipos (mypy), tests (pytest) y arranque (smoke): NO lo vuelvas a comprobar a mano; céntrate en los criterios del encargo.
+GATE: PASA (6.9 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: prueba-gate-loop
+archivos cambiados (transcript (1) + git diff 0c17ab4bbd + no rastreados): pruebas\demo_gate_loop.py
+
+[PASA] py_compile (0.0 s)
+    1 archivo(s) compilan
+[PASA] ruff check (0.5 s)
+    sin errores (E9,F63,F7,F82) en lineas cambiadas de 1 archivo(s)
+[PASA] mypy (1.1 s)
+    sin errores en lineas cambiadas de 1 archivo(s)
+[PASA] pytest (4.9 s)
+    ningun test afectado: suite completa: 6 passed in 3.32s
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar
+
+PARTE DEL MOTOR (lo que él dice que hizo; puede exagerar):
+listo
+
+LA OBRA (archivos tocados y su contenido; esto es lo que cuenta, no el parte):
+(no hay archivos tocados que se puedan leer)
+
+RÚBRICA (puntúa de 1 a 5 cada dimensión):
+- completitud: ¿está hecho TODO lo que pide el encargo y cada criterio? (5 = todo, 1 = casi nada)
+- correccion: ¿lo hecho es correcto, sin err
+¿sigue la rubrica de criterios? True
+===== prompt del juez para prueba-tope (extracto desde la seccion del gate) =====
+Eres un juez estricto. NO hagas el trabajo: solo compruebas si está hecho y lo puntúas.
+
+ENCARGO:
+Tarea de prueba del gate (prueba-tope)
+
+CRITERIOS EN FRASES (estos los juzgas tú):
+1. el archivo de prueba queda sin errores
+
+GATE DE CALIDAD LOCAL (comprobado por código, $0; log completo en C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-prueba-tope.log). Ya comprobó sintaxis (py_compile), lint (ruff), tipos (mypy), tests (pytest) y arranque (smoke): NO lo vuelvas a comprobar a mano; céntrate en los criterios del encargo.
+El gate FALLÓ y el agente no lo corrigió: es un HECHO que FALLA, la tarea NO se aprueba.
+GATE: FALLA SIN CORREGIR (5.1 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: prueba-tope
+archivos cambiados (lista recibida): pruebas\roto_tope.py
+historial de esta sesion: 23:06:44 FALLA -> 23:06:49 FALLA -> 23:06:54 FALLA -> 23:07:00 FALLA SIN CORREGIR
+
+[PASA] py_compile (0.0 s)
+    1 archivo(s) compilan
+[FALLA] ruff check (0.4 s)
+    roto_tope.py:2: F821 Undefined name `sin_definir`
+[PASA] mypy (0.8 s)
+    sin errores en lineas cambiadas de 1 archivo(s)
+[PASA] pytest (3.7 s)
+    ningun test afectado: suite completa: 6 passed in 2.64s
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar
+
+El agente no lo corrigio tras 3 bloqueos: se deja terminar; la revision lo ve como fallo.
+
+PARTE DEL MOTOR (lo que él dice que hizo; puede exagerar):
+listo
+
+LA OBRA (archivos tocados y su contenido; esto es lo que cuenta, no el pa
+¿sigue la rubrica de criterios? True
+===== prompt del juez para tarea-sin-log (extracto desde la seccion del gate) =====
+Eres un juez estricto. NO hagas el trabajo: solo compruebas si está hecho y lo puntúas.
+
+ENCARGO:
+Tarea de prueba del gate (tarea-sin-log)
+
+CRITERIOS EN FRASES (estos los juzgas tú):
+1. el archivo de prueba queda sin errores
+
+GATE DE CALIDAD LOCAL: no hay log para esta tarea (C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-tarea-sin-log.log); el gate no corrió. Compruébalo tú si hace falta.
+
+PARTE DEL MOTOR (lo que él dice que hizo; puede exagerar):
+listo
+
+LA OBRA (archivos tocados y su contenido; esto es lo que cuenta, no el parte):
+(no hay archivos tocados que se puedan leer)
+
+RÚBRICA (puntúa de 1 a 5 cada dimensión):
+- completitud: ¿está hecho TODO lo que pide el encargo y cada criterio? (5 = todo, 1 = casi nada)
+- correccion: ¿lo hecho es correcto, sin errores, y hace lo que dice?
+- no_regresion: ¿no rompió nada que ya estaba ni tocó lo que no debía?
+- evidencia: ¿hay pruebas en los hechos o en la obra (no solo en el parte del motor)?
+Reglas: "aprobado" es "si" solo si todas valen 3 o más, ningún hecho dice FALLA y no falta nada. Si apruebas, que_falta va vacío. Si no apruebas, cada cosa de que_falta lleva su arreglo concreto ("falta" y "arreglo"). evidencia: archivos o líneas que lo demuestran. No inventes archivos ni líneas.
+Responde SOLO con un JSON así, sin nada más:
+{"puntuacion": {"completitud": 1-5, "correccion": 1-5, "no_regresion": 1-5, "evidencia": 1-5}, "aprobado": "si" o "no", "que_falta": [{"falta": "qué falta", "arreglo": "qué hacer"}], "evidencia": ["archivo o línea"]}
+¿sigue la rubrica de criterios? True

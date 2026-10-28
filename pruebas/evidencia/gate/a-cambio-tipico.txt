@@ -1,0 +1,25 @@
+GATE: PASA (44.6 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: manual
+archivos cambiados (git diff HEAD + no rastreados): .gitignore, gate-calidad.py, growi-bridge.py, tests\test_gate_calidad.py
+
+[PASA] py_compile (0.0 s)
+    3 archivo(s) compilan
+[PASA] ruff check (1.1 s)
+    sin errores (E9,F63,F7,F82) en lineas cambiadas de 3 archivo(s)
+    aviso: estilo en linea cambiada: growi-bridge.py:9883: ISC004 Unparenthesized implicit string concatenation in collection
+    aviso: estilo en linea cambiada: growi-bridge.py:9886: ISC004 Unparenthesized implicit string concatenation in collection
+    aviso: estilo en linea cambiada: test_gate_calidad.py:76: PLW1510 `subprocess.run` without explicit `check` argument
+    aviso: 832 hallazgos de estilo preexistentes en lineas no cambiadas
+[PASA] mypy (2.6 s)
+    sin errores en lineas cambiadas de 3 archivo(s)
+    aviso: 41 errores de mypy preexistentes en lineas no cambiadas
+[PASA] pytest (5.3 s)
+    1 test(s) afectados: 6 passed in 3.69s
+[PASA] smoke Tkinter (/gateway/salud) (27.7 s)
+    copia en C:\Users\forte\AppData\Local\Temp\gate-calidad-smoke-4268, puerto 8797, pid 27788
+    /gateway/salud 200 a los 16.1 s
+    salida limpia (quit_app) con codigo 0
+    log sin tracebacks
+
+log: C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-manual.log

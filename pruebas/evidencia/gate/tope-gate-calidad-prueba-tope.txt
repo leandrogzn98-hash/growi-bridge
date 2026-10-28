@@ -1,0 +1,18 @@
+GATE: FALLA SIN CORREGIR (5.1 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: prueba-tope
+archivos cambiados (lista recibida): pruebas\roto_tope.py
+historial de esta sesion: 23:06:44 FALLA -> 23:06:49 FALLA -> 23:06:54 FALLA -> 23:07:00 FALLA SIN CORREGIR
+
+[PASA] py_compile (0.0 s)
+    1 archivo(s) compilan
+[FALLA] ruff check (0.4 s)
+    roto_tope.py:2: F821 Undefined name `sin_definir`
+[PASA] mypy (0.8 s)
+    sin errores en lineas cambiadas de 1 archivo(s)
+[PASA] pytest (3.7 s)
+    ningun test afectado: suite completa: 6 passed in 2.64s
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar
+
+El agente no lo corrigio tras 3 bloqueos: se deja terminar; la revision lo ve como fallo.

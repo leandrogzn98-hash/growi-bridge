@@ -1,0 +1,15 @@
+GATE: PASA (0.2 s, $0: sin modelo)
+raiz: C:\Users\forte\source\growi-bridge
+id: manual
+archivos cambiados (git diff HEAD + no rastreados): (ninguno)
+
+[OMITIDO] py_compile / ruff / mypy / pytest (0.0 s)
+    no cambio ningun .py
+[OMITIDO] smoke Tkinter (/gateway/salud) (0.0 s)
+    no cambio growi-bridge.py ni lo que lee al arrancar
+
+log: C:\Users\forte\source\growi-bridge\gate-calidad\gate-calidad-manual.log
+
+real	0m0.500s
+user	0m0.015s
+sys	0m0.015s

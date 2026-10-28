@@ -9870,13 +9870,17 @@ def _gate_para_revision(task, tope=1500):
         cwd = Path(task.get("cwd") or "")
     except TypeError:
         return []
-    for d in [cwd, *cwd.parents][:6]:
-        g = d / "gate-calidad"
-        if (d / "gate-calidad.py").is_file() or g.is_dir():
-            break
+    nombre = f"gate-calidad-{task.get('id')}.log"
+    if (SHARE / "outbox" / nombre).is_file():  # la copia que deja el gate en share/outbox/
+        f = SHARE / "outbox" / nombre
     else:
-        return []
-    f = g / f"gate-calidad-{task.get('id')}.log"
+        for d in [cwd, *cwd.parents][:6]:
+            g = d / "gate-calidad"
+            if (d / "gate-calidad.py").is_file() or g.is_dir():
+                break
+        else:
+            return []
+        f = g / nombre
     try:
         txt = f.read_text(encoding="utf-8", errors="replace").strip()
     except OSError:
