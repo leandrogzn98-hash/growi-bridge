@@ -66,3 +66,4 @@ construye sobre lo que sí existe en el código.
 | 8 | t-pendientes-por-persona | **LISTO** (FALTA: con encargos reales en la app) | `644ec3e`, `ESTADO-PENDIENTES-POR-PERSONA.md` |
 | 9 | t-proxy-alquiler | **BLOQUEADO** (túnel cifrado, consulta legal y plan del VPS sin resolver): solo plan documentado, nada construido | `55376c2`, `ESTADO-PROXY-ALQUILER.md`, `PROXY-ALQUILER-PLAN.md` |
 | 10 | t-mcp-streamable-http | **LISTO** (FALTA: probar con un cliente MCP de terceros; el diseño es PROPUESTA sin aprobar) | ver commit, `ESTADO-MCP-STREAMABLE-HTTP.md`, `DISENO-MCP.md` |
+| 11 | t-claude-ai-custom-connector | **DETENIDO en la subfunción 1** (definición resuelta: Muse = asistente de Meta; su Custom Connector va de Muse hacia el Bridge y exige endpoint público, bloqueado por la regla y el túnel). Pregunta concreta a Leandro en el ESTADO | `ESTADO-CLAUDE-AI-CUSTOM-CONNECTOR.md` |
