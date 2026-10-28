@@ -10,7 +10,7 @@ revision por criterios. Corre, en orden y SOLO sobre lo que cambio:
      completa con tope de 120 s; si no hay suite, lo dice y sigue);
   e) smoke de Tkinter: arranca una COPIA de growi-bridge.py (en %TEMP%, con
      share, cola, token, mutex propios y un puerto de prueba desde 8797; nunca
-     8787/8788/8789), espera 200 en /gateway/salud (tope 30 s), mira que el log
+     8787/8788/8789), espera 200 en /gateway/salud (tope 60 s), mira que el log
      no tenga tracebacks y la cierra por su salida limpia (la X con
      on_close=quit -> quit_app). Solo si cambio growi-bridge.py o un archivo
      que la app lee al arrancar.
@@ -21,7 +21,7 @@ QUE BLOQUEA (salida 2):
     errores de sentencia, F82 nombres sin definir) en LINEAS cambiadas;
   - mypy «error:» en lineas cambiadas (salvo los codigos de AVISO_MYPY);
   - un test en rojo;
-  - smoke: traceback en el log, sin 200 en /gateway/salud en 30 s, o la app
+  - smoke: traceback en el log, sin 200 en /gateway/salud en 60 s, o la app
     no sale sola con su salida limpia (en ese caso se mata igual).
 
 QUE NO BLOQUEA (sale como AVISO):
@@ -79,7 +79,7 @@ from pathlib import Path
 
 MAX_BLOQUEOS = 3
 TOPE_PYTEST_S = 120
-TOPE_SMOKE_S = 30
+TOPE_SMOKE_S = 60  # 30 s se quedaba corto: con el PC en uso la app (HEAD igual) abre el puente en 25-31 s (28-oct-2026)
 PUERTOS_PRUEBA = range(8797, 8820)
 PUERTOS_PROHIBIDOS = {8787, 8788, 8789}
 RUFF_ERRORES = "E9,F63,F7,F82"
@@ -391,6 +391,34 @@ def _ventanas_tk(pid):
     return out
 
 
+LANZADOR_OCULTO = """import runpy, sys, tkinter as tk
+
+
+def _oculta(base):
+    class Oculta(base):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            base.withdraw(self)
+
+        def deiconify(self):
+            return None
+
+        def lift(self, *a):
+            return None
+
+        def focus_force(self):
+            return None
+    Oculta.__name__ = base.__name__
+    return Oculta
+
+
+tk.Tk = _oculta(tk.Tk)
+tk.Toplevel = _oculta(tk.Toplevel)
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+
+
 def ch_smoke(raiz):
     """Copia aislada de la app; nunca toca la instalada ni sus puertos."""
     c = Chequeo("smoke Tkinter (/gateway/salud)")
@@ -431,9 +459,12 @@ def ch_smoke(raiz):
         env.pop(k, None)
     si = subprocess.STARTUPINFO()
     si.dwFlags, si.wShowWindow = subprocess.STARTF_USESHOWWINDOW, 7  # SW_SHOWMINNOACTIVE: no roba el foco
+    # Y la app arranca con todas sus ventanas ocultas (withdraw): el PC puede estar en uso.
+    lanzador = base / "lanzar-oculto.py"
+    lanzador.write_text(LANZADOR_OCULTO, encoding="utf-8")
     pyw = Path(sys.executable).with_name("pythonw.exe")
-    p = subprocess.Popen([str(pyw if pyw.exists() else sys.executable), str(app / APP)], cwd=str(app), env=env,
-                         startupinfo=si)
+    p = subprocess.Popen([str(pyw if pyw.exists() else sys.executable), str(lanzador), str(app / APP)],
+                         cwd=str(app), env=env, startupinfo=si)
     c.detalle.append(f"copia en {base}, puerto {puerto}, pid {p.pid}")
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     t0, salud = time.time(), None

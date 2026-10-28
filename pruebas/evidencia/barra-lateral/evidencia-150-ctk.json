@@ -1,0 +1,127 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-barra-rmd3wd3_",
+ "variante": "ctk",
+ "dpi": "150",
+ "build_gui_s": 14.89,
+ "a_barra": {
+  "ancho_px": 348,
+  "pack_propagate": null,
+  "esperado_px": 348,
+  "marca_textos": [
+   "",
+   "Growi Bridge",
+   "Versión 0.2.0-alpha · carril A\nCon permisos de administrador",
+   "● Conectado — sales por EEUU"
+  ],
+  "avatar": true,
+  "iconos": "Segoe Fluent Icons",
+  "glifos": {
+   "estado": "0xe9d9",
+   "carpetas": "0xe8b7",
+   "skills": "0xea86",
+   "pantalla": "0xe7f4",
+   "apis": "0xe8d7",
+   "modelos": "0xe9f5",
+   "tareas": "0xe9d5",
+   "recursos": "0xe9d2",
+   "ajustes": "0xe713",
+   "registro": "0xea37"
+  }
+ },
+ "b_cero": {
+  "estado": "0",
+  "modelos": "0",
+  "tareas": "0"
+ },
+ "c_cero": {
+  "pantalla": [
+   "$0.00 real",
+   "equivalente Max $0.00 · 0 tareas terminadas"
+  ]
+ },
+ "d_inicial": {
+  "nivel": "Preguntarme siempre",
+  "cola": "0 en espera de tu aprobación",
+  "punto": "#0A84FF"
+ },
+ "b_n": {
+  "pantalla": {
+   "estado": "2",
+   "modelos": "3",
+   "tareas": "7"
+  },
+  "esperado": {
+   "estado": 2,
+   "modelos": 3,
+   "tareas": 7
+  }
+ },
+ "c_n": {
+  "pantalla": [
+   "$0.00 real",
+   "equivalente Max $0.38 · 2 tareas terminadas"
+  ],
+  "day_by_model": {
+   "real": 0,
+   "equiv": 0.38,
+   "n": 2
+  },
+  "tareas_estadistica_gasto": "$0.00"
+ },
+ "d_tras_cambiar": {
+  "radio_encontrado": true,
+  "settings": "delicado",
+  "nivel": "Preguntarme solo lo delicado",
+  "cola": "0 en espera de tu aprobación",
+  "punto": "#0A84FF"
+ },
+ "d_nunca": {
+  "nivel": "Hazlo sin preguntar",
+  "punto": "#34C759",
+  "verde": "#34C759"
+ },
+ "d_clic": {
+  "pagina": "estado"
+ },
+ "d_foco": {
+  "borde_foco": "#0A84FF",
+  "takefocus": "1",
+  "grosor": "3"
+ },
+ "d_intro": {
+  "pagina": "estado"
+ },
+ "e_tipo": "_SwitchBarra",
+ "e_interruptor": {
+  "antes": false,
+  "tras_clic": true,
+  "dibujo": true,
+  "mascota_visible": true
+ },
+ "e_vuelta": {
+  "settings": false,
+  "dibujo": false,
+  "mascota_visible": false
+ },
+ "e_set_switch": {
+  "dibujo": true,
+  "settings_sin_cambiar": false
+ },
+ "altura_minima": {
+  "minsize": [
+   1230,
+   967
+  ],
+  "area_de_trabajo_alto": 1032,
+  "alto_pedido_barra": 865,
+  "alto_minimo": 967,
+  "todo_dentro": true,
+  "partes": 5,
+  "buscar_acciones_visible": false,
+  "detalle_consumo_visible": false
+ },
+ "log_barra": [
+  "2026-10-28T11:17:53-04:00 barra lateral: 232 px, iconos Segoe Fluent Icons, interruptor CustomTkinter (185 ms)"
+ ],
+ "tracebacks_en_log": 0
+}

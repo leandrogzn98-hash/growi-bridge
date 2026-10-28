@@ -3,34 +3,10 @@
 Rama `Claude`. Se detuvo a pedido de Leandro en la **fase 4, spec #5**. Todo lo terminado está commiteado y
 pusheado: cada spec tiene su `ESTADO-*.md`, y el resumen está en `ESTADO-FASE-3.md` y `ESTADO-FASE-4.md`.
 
-## 1. A medias: fase 4 #5 `t-barra-lateral-045` (SIN commitear)
-El cambio está en `growi-bridge.py`, sin commitear. Compila, pero **no se probó**. Copia del diff:
-`pendiente-barra-lateral-045.patch`. Para descartarlo: `git checkout growi-bridge.py`. Para retomarlo: dejar el
-archivo como está.
-
-Hecho en código, sin probar:
-- barra de 232 px;
-- marca compacta: avatar de 40 px, «Growi Bridge» y «Versión … · carril A»;
-- iconos de Segoe Fluent Icons en la navegación;
-- contador de Estado: filas del mapa en «falla»;
-- medidor «Consumo hoy», de `day_by_model`;
-- tarjeta del guardrail abajo: nivel, «N en espera», y clic o Intro → Ajustes → Permisos;
-- interruptor de la mascota en CTk, con el clásico de respaldo;
-- el tiempo de construcción de la barra, en el log.
-
-Falta:
-- La prueba GUI de las verificaciones (a) a (g) del spec:
-  - 232 px medidos;
-  - contadores con 0 y con N;
-  - el medidor cuadra con el gasto real;
-  - la tarjeta cambia al cambiar el nivel y su clic abre Permisos;
-  - el interruptor persiste;
-  - con CTk bloqueado (`GROWI_BRIDGE_CTK=0`) sale la barra clásica;
-  - capturas a 100 % y 150 %.
-- Comprobar que todo cabe a la altura mínima de la ventana y que los glifos de los iconos son los adecuados.
-- Medir el arranque **antes y después** (la versión anterior no registra el tiempo).
-- Los botones de navegación siguen en Tk clásico, con icono. No se convirtieron a CTk.
-- Escribir `ESTADO-BARRA-LATERAL.md`, pasar el gate, commit y push.
+## 1. ~~A medias: fase 4 #5 `t-barra-lateral-045`~~ → LISTO (28-oct-2026)
+Probado, commiteado y pusheado: ver `ESTADO-BARRA-LATERAL.md`. El `.patch` se borró porque ya está aplicado.
+Desde aquí las pruebas GUI corren **ocultas**, a pedido de Leandro: no abren ventanas ni roban el foco, y las
+capturas se toman solo si él las pide.
 
 ## 2. Sin empezar: fase 4, specs #6 a #20 (`specs/opus-tasks-045/INDICE-045.md`)
 6. t-carpetas-ctk-045
