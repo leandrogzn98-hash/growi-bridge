@@ -38,6 +38,8 @@ raíz y su commit.
 | 32 | t-perfil-sobre-mi | **LISTO** (FALTA: (c) con Hermes 8B solo a medias — rellena el tono con las reglas de estilo; probar con Claude gasta cuota) | `fa5c984`, `ESTADO-PERFIL-SOBRE-MI.md` |
 | 33 | t-politicas-persistentes-030 | **LISTO** (FALTA: aprobación remota por WhatsApp — no existe; pasos dentro de una corrida del CLI no se interceptan) | `f1e313f`, `ESTADO-POLITICAS-PERSISTENTES.md` |
 | 34 | t-prueba-corte | **LISTO** (FALTA: la primera prueba real — la provoca Leandro; propuesta sáb 7-nov-2026 10:00) | `9ae0bd8`, `ESTADO-PRUEBA-CORTE.md` |
+| 35 | t-router-fallbacks | **LISTO** (FALTA: Haiku revisando con llama y ollama caídos, en vivo — gasta cuota; gemini/agy sin sesión en este PC) | `5308ede`, `ESTADO-ROUTER-FALLBACKS.md` |
+| 36 | t-rubrica-revisor-030 | **LISTO** (FALTA: costo y tiempo reales de Haiku — gasta cuota; queda «sin medir») | `7cf360e`, `ESTADO-RUBRICA-REVISOR.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
