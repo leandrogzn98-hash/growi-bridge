@@ -4357,6 +4357,8 @@ def validate_task(data):
     if motor != "api" and eng is None:
         return None, (f"el motor '{motor}' no existe en engines.json "
                       f"(hay: {', '.join(engine_ids())})")
+    if motor in motores_apagados():
+        return None, f"el motor '{motor}' está desactivado (actívalo en Modelos → Motores)"
     permitidos = ((eng or {}).get("modelo") or {}).get("permitidos")
     if motor != "api" and not permitidos:
         if model in ("", "default"):
@@ -4971,6 +4973,14 @@ def engine_ids():
 
 
 def default_motor():
+    """El principal: el que elegiste al apagar el de engines.json, o el de engines.json."""
+    try:
+        s = load_settings()
+        p = s.get("motor_principal")
+        if p and p not in (s.get("motores_off") or []) and p in (load_engines()[0].get("motores") or {}):
+            return str(p)
+    except Exception:
+        pass
     return str(load_engines()[0].get("por_defecto") or "claude")
 
 
@@ -6623,8 +6633,114 @@ def _req_binario(eng):
     return ((d.get("requisitos") or {}).get("binario")) or None
 
 
+# ---- interruptor por motor (t-interruptor-motor). Apagar NO borra ni toca el
+# descriptor de engines.json: el motor se aparta (settings.json «motores_off»).
+# Apagado: engine_status dice «desactivado», asi que no sale en el selector,
+# ni en el router, ni en la cadena de jueces/fallback; una tarea que lo pida
+# se rechaza. El principal no se apaga sin elegir antes quien lo sustituye.
+def motores_apagados():
+    try:
+        return set(load_settings().get("motores_off") or [])
+    except Exception:
+        return set()
+
+
+def _motor_de_modelo(model):
+    m = str(model or "")
+    if m in ("sonnet", "opus", "haiku"):
+        return "claude"
+    if m.startswith("motor:"):
+        return m.split(":", 1)[1]
+    if m.startswith("ollama:"):
+        return "ollama"
+    return None
+
+
+def motor_activar(mid, on, sustituto=None):
+    """(ok, mensaje en palabras normales)."""
+    ids = [m for m in (load_engines()[0].get("motores") or {}) if not m.startswith("_")]
+    if mid not in ids:
+        return False, f"el motor «{mid}» no existe en engines.json"
+    s = load_settings()
+    off = set(s.get("motores_off") or [])
+    avisos = []
+    if not on:
+        principal = default_motor()
+        activos = [m for m in ids if m not in off and m != mid]
+        if mid == principal:
+            if not sustituto or sustituto == mid or sustituto not in activos:
+                return False, (f"«{mid}» es el motor principal: antes de apagarlo elige cuál queda como principal "
+                               f"({', '.join(activos) or 'no hay otro motor activo'}). Nunca dejo la app sin motor "
+                               "principal.")
+            s["motor_principal"] = sustituto
+            avisos.append(f"ahora el principal es «{sustituto}»")
+        off.add(mid)
+        de = s.get("default_engine")
+        if _motor_de_modelo(de) == mid:  # la superficie que lo usaba vuelve a algo sensato
+            s["default_engine"] = "motor:auto"
+            s["motor"] = AUTO
+            avisos.append("el modelo por defecto de Preguntar usaba este motor: vuelve a «Automático»")
+    else:
+        off.discard(mid)
+    s["motores_off"] = sorted(off)
+    save_settings(s)
+    if on:
+        ok, why = engine_status(mid)
+        msg = f"«{mid}» activado: " + ("disponible" if ok else f"no disponible ({why})")
+    else:
+        msg = f"«{mid}» desactivado: ya no sale en el selector, ni en el router, ni en los jueces"
+    if avisos:
+        msg += ". " + "; ".join(avisos)
+    log(f"motores: {msg}")
+    try:
+        _refresh_engine_widgets()
+    except Exception:
+        pass
+    return True, msg
+
+
+def _mot_onoff_ui():
+    W = _widgets
+    mid = _MOT.get("sel")
+    if not mid:
+        return
+    on = mid in motores_apagados()  # apagado -> se enciende
+    sustituto = None
+    if not on and mid == default_motor():
+        from tkinter import simpledialog
+        activos = [m for m in engine_ids() if m != mid]
+        sustituto = simpledialog.askstring(
+            "Motor principal", f"«{mid}» es el motor principal. ¿Cuál queda como principal? ({', '.join(activos)})",
+            parent=_root)
+        if not sustituto:
+            return
+        sustituto = sustituto.strip()
+    ok, msg = motor_activar(mid, on, sustituto)
+    if not ok:
+        messagebox.showwarning("Motor", msg)
+    _mot_pintar_onoff(msg if ok else None)
+    _mot_render()
+
+
+def _mot_pintar_onoff(msg=None):
+    W, k = _widgets, _MOT.get("kit")
+    mid = _MOT.get("sel")
+    if k is None or W.get("mot_onoff") is None or not mid:
+        return
+    apagado = mid in motores_apagados()
+    k.set_label(W["mot_onoff"], text=("Desactivado por ti (el descriptor sigue en engines.json, intacto). "
+                                      if apagado else "Activo. ") + (msg or ""),
+                color="orange_text" if apagado else "muted")
+    try:
+        W["mot_onoff_btn"].configure(text="Activar este motor" if apagado else "Desactivar este motor")
+    except Exception:
+        pass
+
+
 def engine_status(motor_id, autostart=False):
     """(disponible, motivo en palabras normales)."""
+    if motor_id in motores_apagados():
+        return False, "desactivado por ti (Modelos → Motores → Activar este motor)"
     eng = get_engine(motor_id)
     if eng is None:
         return False, f"el motor '{motor_id}' no existe en engines.json"
@@ -6795,6 +6911,8 @@ def _router_available(motor_id):
     """Disponible para elegirlo, sin esperar: un motor que se arranca solo
     (llama) cuenta si esta instalado; preguntarle a un puerto apagado tarda
     2 s en Windows y el runner lo enciende al usarlo."""
+    if motor_id in motores_apagados():
+        return False, "desactivado por ti"
     eng = get_engine(motor_id)
     if eng and eng.get("tipo") == "api_sincrona" and eng.get("servidor"):
         inst, msg = _llama_installed(eng)
@@ -24997,7 +25115,8 @@ def engine_choices():
             lab = API_PROVIDERS[p]["label"]
             out.append((f"{lab} (por internet)", f"api:{p}:{api_model_for(p)}",
                         f"{lab}: otro modelo por internet, con tu clave."))
-    return out
+    off = motores_apagados()
+    return [c for c in out if _motor_de_modelo(c[1]) not in off] if off else out
 
 
 # ---- BYOS visible (t-byos-visible): las suscripciones como suscripciones.
@@ -26496,7 +26615,12 @@ def _build_motores_con(k):
     W["mot_check"] = k.button(r, "Comprobar ahora", _mot_check_ui)
     W["mot_check"].pack(side="left", padx=(10, 0))
     W["mot_ficha"] = k.frame(card)
-    W["mot_ficha"].pack(fill="x", padx=16, pady=(4, 14))
+    W["mot_ficha"].pack(fill="x", padx=16, pady=(4, 6))
+    r = k.row(card, pady=(0, 14))  # t-interruptor-motor: apartar sin borrar el descriptor
+    W["mot_onoff_btn"] = k.button(r, "Desactivar este motor", _mot_onoff_ui)
+    W["mot_onoff_btn"].pack(side="left")
+    W["mot_onoff"] = k.label(r, "", muted=True, wrap=420)
+    W["mot_onoff"].pack(side="left", padx=(10, 0), fill="x", expand=True)
     # ---- Nuevo motor
     card = k.section("Nuevo motor",
                      "Pega el comando del programa con los huecos {prompt} {cwd} {session} {model}. "
@@ -26585,6 +26709,7 @@ def _mot_render():
         return
     mid = _MOT["ids"].get(cb.get())
     _MOT["sel"] = mid
+    _mot_pintar_onoff()
     for ch in box.winfo_children():
         ch.destroy()
     if not mid:

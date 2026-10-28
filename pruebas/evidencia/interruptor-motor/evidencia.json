@@ -1,0 +1,72 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-onoff-2sfkgix_",
+ "antes": {
+  "selector": [
+   "motor:auto",
+   "sonnet",
+   "opus",
+   "haiku",
+   "motor:codex"
+  ],
+  "codex": [
+   true,
+   "binario: C:\\Users\\forte\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js"
+  ]
+ },
+ "a_tras_clic": {
+  "boton": "Activar este motor",
+  "estado": "Desactivado por ti (el descriptor sigue en engines.json, intacto). ",
+  "selector": [
+   "motor:auto",
+   "sonnet",
+   "opus",
+   "haiku",
+   "ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M"
+  ],
+  "engine_status": [
+   false,
+   "desactivado por ti (Modelos → Motores → Activar este motor)"
+  ],
+  "router_disponible": [
+   false,
+   "desactivado por ti"
+  ],
+  "tarea_con_codex": "el motor 'codex' está desactivado (actívalo en Modelos → Motores)",
+  "motores_off": [
+   "codex"
+  ]
+ },
+ "b_engines_json_intacto": true,
+ "b_descriptor_codex_sigue": true,
+ "c_reactivar": {
+  "boton": "Desactivar este motor",
+  "estado": "Activo. ",
+  "en_selector": true
+ },
+ "c_reactivar_sin_binario": [
+  true,
+  "«codex» activado: no disponible (no está instalado: no encuentro 'codex' en el PATH)"
+ ],
+ "d_principal_sin_sustituto": [
+  false,
+  "«claude» es el motor principal: antes de apagarlo elige cuál queda como principal (codex, llama, ollama, meshy, gemini). Nunca dejo la app sin motor principal."
+ ],
+ "d_principal_con_sustituto": [
+  true,
+  "«claude» desactivado: ya no sale en el selector, ni en el router, ni en los jueces. ahora el principal es «codex»; el modelo por defecto de Preguntar usaba este motor: vuelve a «Automático»"
+ ],
+ "d_tras_sustituir": {
+  "principal": "codex",
+  "default_engine": "motor:auto",
+  "claude_en_selector": false
+ },
+ "log": [
+  "2026-10-28T01:01:30-04:00 motores: «codex» desactivado: ya no sale en el selector, ni en el router, ni en los jueces",
+  "2026-10-28T01:01:32-04:00 motores: «codex» activado: disponible",
+  "2026-10-28T01:01:33-04:00 motores: «codex» desactivado: ya no sale en el selector, ni en el router, ni en los jueces",
+  "2026-10-28T01:01:33-04:00 motores: «codex» activado: no disponible (no está instalado: no encuentro 'codex' en el PATH)",
+  "2026-10-28T01:01:33-04:00 motores: «claude» desactivado: ya no sale en el selector, ni en el router, ni en los jueces. ahora el principal es «codex»; el modelo por defecto de Preguntar usaba este motor: vuelve a «Automático»",
+  "2026-10-28T01:01:33-04:00 motores: «claude» activado: disponible"
+ ],
+ "tracebacks_en_log": 0
+}
