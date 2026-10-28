@@ -14,7 +14,8 @@ import sys
 import time
 from pathlib import Path
 
-sys.stdout.reconfigure(encoding="utf-8")  # Bridge lee la salida en UTF-8
+if hasattr(sys.stdout, "reconfigure"):
+    getattr(sys.stdout, "reconfigure")(encoding="utf-8")  # Bridge lee la salida en UTF-8
 
 aqui = Path(__file__).resolve().parent
 carpetas = [Path.home() / "Downloads",
