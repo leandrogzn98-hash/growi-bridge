@@ -1,0 +1,172 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-rubrica-b6vuvsdj",
+ "a_real": {
+  "estado": "aprobada",
+  "veredicto": "aprobado",
+  "veredictos": [
+   {
+    "motor": "ollama",
+    "modelo": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+    "estado": "valido",
+    "aprobado": true,
+    "puntuacion": {
+     "completitud": 5,
+     "correccion": 5,
+     "no_regresion": 5,
+     "evidencia": 5
+    },
+    "que_falta_items": [],
+    "costo_usd": 0.0,
+    "segundos": 21.93,
+    "tokens": {
+     "tokens_in": 610,
+     "tokens_out": 115,
+     "modelo_real": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+     "por_modelo": {
+      "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M": {
+       "tokens_in": 610,
+       "tokens_out": 115,
+       "cost_usd": 0.0
+      }
+     },
+     "fuente": "al cerrar"
+    }
+   }
+  ],
+  "cadena_revisor": "llama: no_disponible (sin respuesta de 127.0.0.1:8080 en 2 s) -> ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M: valido"
+ },
+ "d_el_juez_ve_la_obra": "LA OBRA (archivos tocados y su contenido; esto es lo que cuenta, no el parte):\n--- C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-rubrica-b6vuvsdj\\trabajo\\notas.txt (3 líneas)\nSoleado por la mañana.\nNublado a mediodía.\nLluvia de noche.\n\n\nRÚBRICA (puntúa de 1 a 5 cada dimensión):\n- completitud: ¿está hecho TODO lo que pide el encargo y cada criterio? (5 = todo, 1 = casi nada)\n- correccion: ¿lo hecho es correcto, sin errores, y hace lo que dice?\n- no_regresion: ¿no rompió nada que ya estaba ni tocó lo que no debía?\n- evidencia: ¿hay pruebas en los hechos o en la obra (no solo en el parte del mot",
+ "a_rubrica_en_el_prompt": "RÚBRICA (puntúa de 1 a 5 cada dimensión):\n- completitud: ¿está hecho TODO lo que pide el encargo y cada criterio? (5 = todo, 1 = casi nada)\n- correccion: ¿lo hecho es correcto, sin errores, y hace lo que dice?\n- no_regresion: ¿no rompió nada que ya estaba ni tocó lo que no debía?\n- evidencia: ¿hay pruebas en los hechos o en la obra (no solo en el parte del motor)?\nReglas: \"aprobado\" es \"si\" solo si todas valen 3 o más, ningún hecho dice FALLA y no falta nada. Si apruebas, que_falta va vacío. Si ",
+ "b_json_roto": {
+  "estado": "sin_revision",
+  "decision": "sin_revision",
+  "veredicto": "sin_revision",
+  "aprobado": null,
+  "error": "el juez respondió con un JSON que no cumple el esquema: puntuacion.completitud debe ser un entero de 1 a 5 (llegó 9); puntuacion.correccion debe ser un entero de 1 a 5 (llegó None); puntuacion.no_regresion debe ser un entero de 1 a 5 (llegó None); puntuacion.evidencia debe ser un entero de 1 a 5 (ll"
+ },
+ "c_r2_desacuerdo": {
+  "estado": "necesita_decision",
+  "decision": "necesita_decision",
+  "nivel": "R2",
+  "veredicto": "necesita_decision",
+  "motivo": "los dos jueces no coinciden",
+  "segundo_juez": {
+   "llamado": true,
+   "motivo": "un check determinista falló",
+   "por_que_no": null,
+   "motor": "claude",
+   "modelo": "haiku",
+   "estado": "valido",
+   "costo_usd": null,
+   "segundos": 0.15,
+   "tokens": null,
+   "errores": []
+  },
+  "veredictos": [
+   {
+    "rol": "juez 1",
+    "motor": "claude",
+    "modelo": "hermes-simulado",
+    "aprobado": true
+   },
+   {
+    "rol": "juez 2",
+    "motor": "claude",
+    "modelo": "haiku",
+    "aprobado": false
+   }
+  ]
+ },
+ "c_r0_sin_haiku": {
+  "nivel": "R0",
+  "segundo_juez": {
+   "llamado": false,
+   "motivo": null,
+   "por_que_no": "tarea R0: nunca se gasta el segundo juez"
+  }
+ },
+ "e_etiqueta": [
+  true,
+  "Apuntado: tú dices «rechazado»; la revisión había dicho «aprobado» (corrección). Casos: 3; la próxima revisión de la rúbrica toca en 27 casos."
+ ],
+ "e_calibracion": {
+  "casos": 3,
+  "total": {
+   "casos": 3,
+   "etiquetados_por_leandro": 1,
+   "correcciones": 1,
+   "acuerdo_implicito": 0.667,
+   "acuerdo_juez1_vs_leandro": {
+    "n": 1,
+    "acuerdo": 0.0
+   },
+   "acuerdo_juez2_vs_leandro": {
+    "n": 0,
+    "acuerdo": null
+   },
+   "acuerdo_decision_vs_leandro": {
+    "n": 1,
+    "acuerdo": 0.0
+   },
+   "desde_rev_id": 1,
+   "hasta_rev_id": 4
+  },
+  "propuesta": "El revisor aprueba cosas que tú rechazas (1 de 1 desacuerdos). Propuesta: subir el umbral de 3 a 4 o pedir más en «evidencia» (engines.json → revision.rubrica). No se cambia solo."
+ },
+ "f_costos": {
+  "claude:hermes-simulado": {
+   "n": 2,
+   "medidas": 0,
+   "costo_medio": null,
+   "segundos_medio": 0.2,
+   "tokens_medio": null
+  },
+  "claude:haiku": {
+   "n": 1,
+   "medidas": 0,
+   "costo_medio": null,
+   "segundos_medio": 0.1,
+   "tokens_medio": null
+  },
+  "ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M": {
+   "n": 1,
+   "medidas": 1,
+   "costo_medio": 0.0,
+   "segundos_medio": 21.9,
+   "tokens_medio": 725
+  },
+  "claude:roto": {
+   "n": 1,
+   "medidas": 0,
+   "costo_medio": null,
+   "segundos_medio": 0.2,
+   "tokens_medio": null
+  }
+ },
+ "vista": {
+  "calib": "3 caso(s); 1 etiquetado(s) por ti; 1 corrección(es). Acuerdo de la decisión contigo: 0% (1); del primer juez: 0% (1). Próxima revisión de la rúbrica en 27 caso(s).",
+  "propuesta": "El revisor aprueba cosas que tú rechazas (1 de 1 desacuerdos). Propuesta: subir el umbral de 3 a 4 o pedir más en «evidencia» (engines.json → revision.rubrica). No se cambia solo.",
+  "costos": [
+   "Local Hermes 3 directo $0: sin medir (todavía no ha revisado nada)",
+   "Ollama · Hermes 3 8B (local $0): 1 revisión(es); costo medio $0.0000; tiempo medio 21.9 s; ~725 tokens",
+   "Claude (haiku): 1 revisión(es); costo medio sin medir; tiempo medio 0.1 s",
+   "Claude (hermes-simulado): 2 revisión(es); costo medio sin medir; tiempo medio 0.2 s",
+   "Claude (roto): 1 revisión(es); costo medio sin medir; tiempo medio 0.2 s"
+  ]
+ },
+ "log": [
+  "2026-10-28T04:07:24-04:00 runner [t-rub-real]: revisión por la cadena: llama: no_disponible (sin respuesta de 127.0.0.1:8080 en 2 s) -> ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M: valido",
+  "2026-10-28T04:07:24-04:00 runner [t-rub-real]: revisión (ollama): aprobada",
+  "2026-10-28T04:07:24-04:00 runner [t-rub-real]: aprobada: Aprobada por la revisión (ollama). Comprobado en archivos: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-rubrica-b6vuvsdj\\trabajo\\notas.txt existe (3 líneas, 6",
+  "2026-10-28T04:07:27-04:00 runner [t-rub-roto]: revisión: claude devolvió un JSON que no cumple el esquema: puntuacion.completitud debe ser un entero de 1 a 5 (llegó 9); puntuacion.correccion debe ser un entero de 1 a 5 (llegó None); puntuacion.no_regresion debe ser un entero de 1 a 5 (llegó None); puntuaci",
+  "2026-10-28T04:07:27-04:00 runner [t-rub-roto]: revisión por la cadena: claude:roto: invalido",
+  "2026-10-28T04:07:27-04:00 runner [t-rub-roto]: revisión (claude): sin revisión",
+  "2026-10-28T04:07:27-04:00 runner [t-rub-roto]: sin revisión: Terminó, pero no se pudo revisar (el juez respondió con un JSON que no cumple el esquema: puntuacion.completitud debe ser un entero de 1 a 5 (llegó 9); puntuaci",
+  "2026-10-28T04:07:30-04:00 runner [t-rub-r2]: revisión por la cadena: claude:hermes-simulado: valido",
+  "2026-10-28T04:07:30-04:00 runner [t-rub-r2]: segundo juez claude (haiku): valido, 0.15 s, costo None",
+  "2026-10-28T04:07:30-04:00 runner [t-rub-r2]: revisión (claude): no aprobada",
+  "2026-10-28T04:07:33-04:00 runner [t-rub-r0]: revisión por la cadena: claude:hermes-simulado: valido",
+  "2026-10-28T04:07:33-04:00 runner [t-rub-r0]: revisión (claude): no aprobada"
+ ],
+ "tracebacks_en_log": 0
+}

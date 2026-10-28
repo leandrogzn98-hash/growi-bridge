@@ -11456,6 +11456,9 @@ def review_task(task, result):
                 f" (pero {', '.join(bad)} no existe: no cuenta)" if bad else ""))
     rev["evidencia"] = verified + rev["evidencia"]
     rev["revisado_at"] = _now_iso()
+    # el veredicto en tres palabras (t-rubrica-revisor-030): aprobado / rechazado / necesita_decision
+    rev["veredicto"] = {"aprobado": "aprobado", "no_aprobado": "rechazado"}.get(rev.get("decision"),
+                                                                              rev.get("decision"))
     try:
         rev["calibracion_id"] = calib_registrar(task, rev)
     except Exception as e:
@@ -28160,6 +28163,154 @@ def _skb_aprobar(carpeta, nombre):
     _skb_refrescar(reindexar=True)
 
 
+# ---- el revisor, a la vista (t-rubrica-revisor-030): la rúbrica fija, la
+# calibración contra Leandro (informe; nada cambia solo) y el costo y el
+# tiempo MEDIDOS de cada juez (de las revisiones guardadas; sin dato = «sin
+# medir», nunca un número inventado).
+def revisor_costos():
+    """{(motor, modelo): {"n", "medidas", "costo_medio", "segundos_medio", "tokens_medio"}} de *.revision.json."""
+    por = {}
+    for f in RESULTS.glob("*.revision.json"):
+        try:
+            rv = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for v in (rv.get("veredictos") or []) + (rv.get("jueces_intentados") or []):
+            if not isinstance(v, dict) or v.get("estado") in (None, "omitido", "no_disponible"):
+                continue
+            k = (v.get("motor"), v.get("modelo"))
+            x = por.setdefault(k, {"n": 0, "costos": [], "segundos": [], "tokens": []})
+            x["n"] += 1
+            if isinstance(v.get("costo_usd"), (int, float)):
+                x["costos"].append(float(v["costo_usd"]))
+            if isinstance(v.get("segundos"), (int, float)):
+                x["segundos"].append(float(v["segundos"]))
+            t = v.get("tokens") or {}
+            if isinstance(t, dict) and (t.get("tokens_in") or t.get("tokens_out")):
+                x["tokens"].append(int(t.get("tokens_in") or 0) + int(t.get("tokens_out") or 0))
+    out = {}
+    for k, x in por.items():
+        out[k] = {"n": x["n"], "medidas": len(x["costos"]),
+                  "costo_medio": round(sum(x["costos"]) / len(x["costos"]), 5) if x["costos"] else None,
+                  "segundos_medio": round(sum(x["segundos"]) / len(x["segundos"]), 1) if x["segundos"] else None,
+                  "tokens_medio": round(sum(x["tokens"]) / len(x["tokens"])) if x["tokens"] else None}
+    return out
+
+
+def calib_propuesta(res):
+    """Una propuesta en palabras (para que la decida Leandro; no se aplica sola)."""
+    tot = res.get("total") or {}
+    dec = tot.get("acuerdo_decision_vs_leandro") or {}
+    if not dec.get("n"):
+        return ("Todavía no has corregido ninguna revisión: no hay con qué comparar. Corrige las que no te "
+                "convenzan desde Ctrl+K («Corregir la revisión: yo la apruebo / la rechazo»).")
+    des = res.get("desacuerdos") or []
+    aprobo_mal = sum(1 for d in des if d["decision"] == "aprobado")
+    rechazo_mal = len(des) - aprobo_mal
+    u = res.get("umbral_actual")
+    if dec["acuerdo"] is not None and dec["acuerdo"] >= 0.8:
+        return f"El revisor coincide contigo el {dec['acuerdo']:.0%} de las veces ({dec['n']} etiquetadas): no hace falta tocar nada."
+    if aprobo_mal > rechazo_mal:
+        return (f"El revisor aprueba cosas que tú rechazas ({aprobo_mal} de {len(des)} desacuerdos). Propuesta: subir "
+                f"el umbral de {u} a {min(5, (u or 3) + 1)} o pedir más en «evidencia» (engines.json → "
+                "revision.rubrica). No se cambia solo.")
+    return (f"El revisor rechaza cosas que tú apruebas ({rechazo_mal} de {len(des)} desacuerdos). Propuesta: bajar el "
+            f"umbral de {u} a {max(1, (u or 3) - 1)} o aclarar los criterios de las tareas. No se cambia solo.")
+
+
+_REVUI = {"top": None}
+
+
+def revisor_ui():
+    top = _REVUI.get("top")
+    if top is not None:
+        try:
+            top.deiconify()
+            top.lift()
+            _revisor_render()
+            return top
+        except tk.TclError:
+            pass
+    top = tk.Toplevel(_root)
+    top.title("Revisor")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(720)}x{S(640)}")
+    page = _scrollable(top)
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(page)
+        except Exception as e:
+            log(f"revisor: CustomTkinter no disponible ({type(e).__name__}: {e}); ventana clásica")
+    k = k or _KitTk(page)
+    _REVUI.update(top=top, kit=k)
+    c = k.section("Rúbrica (la misma para todas las revisiones)",
+                  "Primero los checks deterministas (puerta dura: si uno falla no hay aprobación). Luego el juez "
+                  "puntúa de 1 a 5 y responde un JSON validado; si no valida, la revisión queda «sin revisión», "
+                  "nunca aprobada. El juez solo evalúa: no ejecuta nada ni aprueba acciones.")
+    _REVUI["rubrica"] = k.label(c, "", wrap=640)
+    _REVUI["rubrica"].pack(anchor="w", padx=16, pady=(2, 12))
+    c = k.section("Calibración contra ti", f"Cada {CALIB_BLOQUE} casos se mira la tasa de acuerdo y se propone un "
+                                           "ajuste; tú decides. Nada cambia solo.")
+    _REVUI["calib"] = k.label(c, "", wrap=640)
+    _REVUI["calib"].pack(anchor="w", padx=16, pady=(2, 4))
+    _REVUI["prop"] = k.label(c, "", wrap=640, color="blue")
+    _REVUI["prop"].pack(anchor="w", padx=16, pady=(2, 12))
+    c = k.section("Costo y tiempo por revisión (medidos)", "De las revisiones guardadas: lo que cada juez costó y "
+                                                           "tardó de verdad. Sin medidas: «sin medir».")
+    _REVUI["costos"] = k.frame(c)
+    _REVUI["costos"].pack(fill="x", padx=16, pady=(2, 12))
+    _revisor_render()
+    return top
+
+
+def _revisor_render():
+    k = _REVUI["kit"]
+    u = _umbral_rubrica()
+    k.set_label(_REVUI["rubrica"], text=("completitud · corrección · no-regresión · evidencia, de 1 a 5. Aprobada "
+                                         f"solo si todas llegan a {u} (umbral), ningún check falla y no falta nada; cada "
+                                         "debilidad viene con su arreglo concreto. Segundo juez (Haiku) solo si un check "
+                                         "falló o la tarea es R2/R3, nunca en R0; si no coinciden, decides tú."))
+    res = calib_resumen(escribir=False)
+    tot = res.get("total") or {}
+    a1 = (tot.get("acuerdo_juez1_vs_leandro") or {})
+    ad = (tot.get("acuerdo_decision_vs_leandro") or {})
+    k.set_label(_REVUI["calib"], text=(
+        f"{res['casos']} caso(s); {tot.get('etiquetados_por_leandro', 0)} etiquetado(s) por ti; "
+        f"{tot.get('correcciones', 0)} corrección(es). Acuerdo de la decisión contigo: "
+        + (f"{ad['acuerdo']:.0%} ({ad['n']})" if ad.get("acuerdo") is not None else "sin etiquetas")
+        + "; del primer juez: " + (f"{a1['acuerdo']:.0%} ({a1['n']})" if a1.get("acuerdo") is not None else "sin etiquetas")
+        + (". Toca revisar la rúbrica." if res.get("toca_revisar") else
+           f". Próxima revisión de la rúbrica en {res['proxima_revision_en']} caso(s).")))
+    k.set_label(_REVUI["prop"], text=calib_propuesta(res))
+    box = _REVUI["costos"]
+    for ch in box.winfo_children():
+        ch.destroy()
+    filas = revisor_costos()
+    jueces = [(x.get("motor"), x.get("modelo")) for x in (_rev_cfg().get("orden") or []) if isinstance(x, dict)]
+    sj = _rev_cfg().get("segundo_juez")
+    if isinstance(sj, dict):
+        jueces.append((sj.get("motor"), sj.get("modelo")))
+    vistos = set()
+    for mid, mod in jueces + list(filas):
+        if (mid, mod) in vistos:
+            continue
+        vistos.add((mid, mod))
+        k2 = (mid, mod) if (mid, mod) in filas else next((kk for kk in filas if kk[0] == mid and mod is None), None)
+        x = filas.get(k2) if k2 else None
+        if k2:
+            vistos.add(k2)  # «ollama» y «ollama:<modelo>» son la misma fila
+        nombre = _nombre_motor(mid) + (f" ({mod})" if mod else "")
+        if not x or not x["n"]:
+            txt = f"{nombre}: sin medir (todavía no ha revisado nada)"
+        else:
+            txt = (f"{nombre}: {x['n']} revisión(es); costo medio "
+                   + (f"${x['costo_medio']:.4f}" if x["costo_medio"] is not None else "sin medir")
+                   + "; tiempo medio " + (f"{x['segundos_medio']:.1f} s" if x["segundos_medio"] is not None else "sin medir")
+                   + (f"; ~{x['tokens_medio']} tokens" if x["tokens_medio"] else ""))
+        k.label(box, txt, wrap=640).pack(anchor="w", pady=1)
+
+
 # ---------------------------------------------------------------- prueba de corte (t-prueba-corte)
 # No es codigo de resiliencia: es el procedimiento para MEDIRLA. El protocolo
 # esta en PROTOCOLO-PRUEBA-CORTE.md; aqui va su resumen, el checklist de
@@ -38132,6 +38283,9 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("revisor", "Revisor: rúbrica, calibración y costo por revisión",
+          "revisor rubrica calibracion acuerdo juez haiku hermes costo revision umbral",
+          lambda: (show_window(), revisor_ui())),
         C("prueba_corte", "Prueba de corte de luz (protocolo, checklist y registro)",
           "corte luz apagon resiliencia prueba breaker desenchufar registro protocolo",
           lambda: (show_window(), prueba_corte_ui())),
