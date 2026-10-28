@@ -1,0 +1,85 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mascota-solape-tfyn6gmp",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 15.14,
+ "pantalla": [
+  1920,
+  1080
+ ],
+ "mascota_rect": [
+  1772,
+  932,
+  1900,
+  1060
+ ],
+ "b_posiciones": {
+  "arriba": {
+   "y_cerrar": 160,
+   "toca_la_mascota": false,
+   "mascota_apartada": false,
+   "llamadas": [],
+   "cerrar_tapado": false
+  },
+  "medio": {
+   "y_cerrar": 540,
+   "toca_la_mascota": false,
+   "mascota_apartada": false,
+   "llamadas": [],
+   "cerrar_tapado": false
+  },
+  "abajo": {
+   "y_cerrar": 940,
+   "toca_la_mascota": true,
+   "mascota_apartada": true,
+   "llamadas": [
+    "withdraw"
+   ],
+   "cerrar_tapado": false
+  },
+  "hallazgo": {
+   "y_cerrar": 980,
+   "toca_la_mascota": true,
+   "mascota_apartada": true,
+   "llamadas": [],
+   "cerrar_tapado": false
+  }
+ },
+ "b_pulsable_en_todas": true,
+ "d_cerrar": {
+  "seleccion": [],
+  "mascota_visible": true,
+  "llamadas": [
+   "deiconify",
+   "attributes('-topmost', True)"
+  ]
+ },
+ "d_reabrir": {
+  "mascota_visible": false,
+  "llamadas": [
+   "withdraw"
+  ]
+ },
+ "c_mascota": {
+  "ajuste_mascot_antes": false,
+  "ajuste_mascot_despues": false,
+  "visible_fuera_del_detalle": true,
+  "veces_apartada": 2
+ },
+ "c_apagada": {
+  "paso_sin_ventana": false,
+  "estado": {
+   "apartada": false,
+   "rect": null,
+   "veces": 2,
+   "ultimo": "2026-10-28T17:18:48-04:00"
+  }
+ },
+ "log": [
+  "mascota: apartada mientras tapa el ✕ del detalle de Tareas (vuelve sola)",
+  "mascota: de vuelta en su sitio",
+  "mascota: apartada mientras tapa el ✕ del detalle de Tareas (vuelve sola)",
+  "mascota: de vuelta en su sitio"
+ ],
+ "tracebacks_en_log": 0
+}

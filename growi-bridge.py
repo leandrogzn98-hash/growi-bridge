@@ -27567,6 +27567,7 @@ def _tdet_construir(tabt):
             _tdet_con(k, holder)
             _TDET.update(kit=k, ctk=True, ms=round((time.perf_counter() - t0) * 1000))
             log(f"tareas: detalle con CustomTkinter ({_TDET['ms']} ms)")
+            holder.after(1500, lambda: _mascota_solape_loop(holder))  # la mascota no tapa el ✕ (t-mascota-solape-045)
             return
         except Exception as e:
             log(f"tareas: detalle sin CustomTkinter ({type(e).__name__}: {e}); se usa el clásico")
@@ -27579,6 +27580,7 @@ def _tdet_construir(tabt):
     _tdet_con(k, holder)
     _TDET.update(kit=k, ctk=False, ms=round((time.perf_counter() - t0) * 1000))
     log(f"tareas: detalle clásico (tkinter) ({_TDET['ms']} ms)")
+    holder.after(1500, lambda: _mascota_solape_loop(holder))  # la mascota no tapa el ✕ (t-mascota-solape-045)
 
 
 def _tdet_con(k, holder):
@@ -27729,6 +27731,76 @@ def _tdet_cerrar():
     _tdet_pintar(None)
     if tree is not None:
         tree.focus_set()
+
+
+# ---- La mascota no tapa el cierre del detalle (t-mascota-solape-045, P1 de escritorio). La mascota es otra ventana
+# (encima de todo, en su esquina): según dónde esté la ventana y el scroll, podía quedar justo sobre el ✕ del
+# detalle de Tareas. Vía elegida, la que menos la toca: mientras el detalle está abierto y su ✕ cae debajo de la
+# mascota, la ventana de la mascota se aparta (withdraw) y vuelve sola (deiconify) en cuanto deja de taparlo o se
+# cierra el detalle. Su posición, sus estados, su ajuste y su interruptor no cambian: no se llama a hide_mascot ni
+# se toca settings.json. Se mira cada 250 ms (solo cuesta unos winfo_*).
+_SOLAPE: dict = {"apartada": False, "rect": None, "veces": 0, "ultimo": None}
+SOLAPE_MS = 250
+
+
+def rects_se_tocan(a, b, margen=0):
+    """¿Se pisan dos rectángulos (x0, y0, x1, y1) en pantalla? margen: aire alrededor de a."""
+    if not a or not b:
+        return False
+    return not (a[2] + margen <= b[0] or b[2] <= a[0] - margen or a[3] + margen <= b[1] or b[3] <= a[1] - margen)
+
+
+def _rect_pantalla(w):
+    x, y = w.winfo_rootx(), w.winfo_rooty()
+    return (x, y, x + w.winfo_width(), y + w.winfo_height())
+
+
+def _detalle_abierto():
+    """El detalle de Tareas está a la vista con una tarea elegida (su ✕ se puede pulsar)."""
+    cer = _TDET.get("cerrar")
+    if cer is None or _widgets.get("pagina_actual") != "tareas" or _root is None:
+        return False
+    try:
+        if _root.state() in ("iconic", "withdrawn") or not _TDET["cuerpo"].winfo_manager():
+            return False
+        return bool(cer.winfo_ismapped())
+    except tk.TclError:
+        return False
+
+
+def mascota_solape_paso():
+    """Un paso del vigilante: aparta o devuelve la ventana de la mascota. Devuelve True si quedó apartada."""
+    win = _mascot.get("win")
+    if win is None:  # la apagaste (interruptor): nada que apartar ni devolver
+        _SOLAPE.update(apartada=False, rect=None)
+        return False
+    try:
+        if not _SOLAPE["apartada"]:
+            _SOLAPE["rect"] = _rect_pantalla(win)  # dónde está (apartada no se puede medir)
+        tapa = _detalle_abierto() and rects_se_tocan(_rect_pantalla(_TDET["cerrar"]), _SOLAPE["rect"], margen=S(6))
+        if tapa and not _SOLAPE["apartada"]:
+            win.withdraw()
+            _SOLAPE.update(apartada=True, veces=_SOLAPE["veces"] + 1, ultimo=_now_iso())
+            log("mascota: apartada mientras tapa el ✕ del detalle de Tareas (vuelve sola)")
+        elif not tapa and _SOLAPE["apartada"]:
+            win.deiconify()
+            win.attributes("-topmost", True)
+            _SOLAPE["apartada"] = False
+            log("mascota: de vuelta en su sitio")
+    except tk.TclError:
+        _SOLAPE["apartada"] = False
+    return _SOLAPE["apartada"]
+
+
+def _mascota_solape_loop(w):
+    try:
+        mascota_solape_paso()
+    except Exception as e:
+        log(f"mascota: el vigilante del ✕ falló ({type(e).__name__}: {e})")
+    try:
+        w.after(SOLAPE_MS, lambda: _mascota_solape_loop(w))
+    except tk.TclError:
+        pass  # la ventana se cerró
 
 
 # columnas de la tabla: (id, título, ancho base a 100 %, se estira, prioridad: la más baja se esconde antes)
