@@ -1,0 +1,44 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tokens-rgvxih10",
+ "tema": {
+  "id": "claro",
+  "fuente_en_uso": "Segoe UI",
+  "escala": 1.0,
+  "tokens": {
+   "bg": "#FFFFFF",
+   "sidebar": "#F5F5F7",
+   "card": "#F5F5F7",
+   "line": "#E5E5EA",
+   "text": "#1D1D1F",
+   "muted": "#5F5F63",
+   "blue": "#0066CC",
+   "orange": "#FF9500",
+   "red": "#C81E1E",
+   "green": "#34C759"
+  },
+  "acento": "#0066cc",
+  "boton_primario_fondo": "#0066cc"
+ },
+ "c_rojo_ff6363_fuera_de_boton": [],
+ "c_rojo_ff6363_en_botones": [],
+ "d_filas": {
+  "rowheight_estilo_px": 34,
+  "alto_fila_medido_px": 34,
+  "a_100_pct": 34.0,
+  "estado_fila_0": "● en curso"
+ },
+ "e_ids_monoespaciada": {
+  "fuente_tabla_tareas": "Consolas 10",
+  "id_fila_0": "t-ajustar-logo-0428"
+ },
+ "a_pixeles": {
+  "ventana": "#FFFFFF",
+  "tarjeta": "#F5F5F7",
+  "borde_tarjeta": "#E5E5EA",
+  "barra_lateral": "#F5F5F7"
+ },
+ "log": [
+  "2026-10-28T07:13:28-04:00 temas: Claro (claro.json, modo claro)"
+ ],
+ "tracebacks_en_log": 0
+}

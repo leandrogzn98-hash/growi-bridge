@@ -1,0 +1,8 @@
+# Estado de la fase 4: 0.4.5, rediseño de interfaz (en curso)
+
+Se sigue el orden de `specs/opus-tasks-045/INDICE-045.md`. Cada spec terminado tiene su `ESTADO-*.md` en la raíz
+y su commit. El 150 % de DPI es simulado (`GROWI_BRIDGE_DPI=144`), como en el piloto.
+
+| # | Spec | Estado | Commit / motivo |
+|---|---|---|---|
+| 1 | t-tokens-raycast-045 | **LISTO**. Texto `#F5F5F6` y error `#E64C51`, por la tabla de colores y el contraste AA. FALTA: fuente por columna y color por celda, que ttk no permite | `ESTADO-TOKENS-RAYCAST.md` |

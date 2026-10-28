@@ -177,6 +177,10 @@ THEME = {
 }
 # Titulo de cada tarjeta: formato oracion, sin mayusculas sostenidas.
 SECTION_FONT = (FONT, 11, "bold")
+# Densidad 0.4.5 (t-tokens-raycast-045): filas de lista de 34 px a 100 % (32-36);
+# los IDs de tarea en monoespaciada.
+FILA_PX = 34
+MONO = "Consolas"
 
 # Escala de pantalla (DPI de la ventana / 96): 1.0 a 100 %, 1.25 a 125 %,
 # 1.5 a 150 %. La fija _dpi_scaling() al crear la ventana. Toda medida fija
@@ -21253,6 +21257,32 @@ def tema_resolver(modo=None, s=None):
     return "claro", ((por + "; ") if por else "") + f"no hay ningún tema {tipo} que se pueda usar"
 
 
+def fuente_instalada(familia):
+    """¿Windows tiene esa familia? (registro de fuentes del sistema y del usuario; sin Tk todavía)."""
+    if familia.lower() in ("segoe ui", "consolas"):
+        return True
+    try:
+        import winreg
+    except ImportError:
+        return False
+    clave = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+    for raiz in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            with winreg.OpenKey(raiz, clave) as k:
+                i = 0
+                while True:
+                    try:
+                        nombre = winreg.EnumValue(k, i)[0]
+                    except OSError:
+                        break
+                    if re.match(re.escape(familia) + r"(\s|\(|$)", nombre, re.I):
+                        return True
+                    i += 1
+        except OSError:
+            continue
+    return False
+
+
 def _tema_poner(t):
     """Deja `t` como tema actual (THEME, tabla de colores, oscuro o no)."""
     THEME.update(t["tokens"])
@@ -21391,7 +21421,12 @@ def _theme_init():
         t, por = tema_alto_contraste(), "Windows tiene un tema de contraste"
         _TEMA["alto_contraste"] = True
     _tema_poner(t)
-    globals()["FONT"] = t["fuente"]["familia"]
+    fam = t["fuente"]["familia"]
+    if not fuente_instalada(fam):
+        log(f"temas: la fuente {fam} no está instalada en este PC: se usa Segoe UI")
+        fam = "Segoe UI"
+    _TEMA["fuente_en_uso"] = fam
+    globals()["FONT"] = fam
     globals()["SECTION_FONT"] = (FONT, t["fuente"]["seccion"], "bold")
     log(f"temas: {t['nombre']} ({t['archivo']}, modo {tema_modo()}{', ' + por if por else ''})")
     orig_init = tk.BaseWidget.__init__
@@ -21456,7 +21491,7 @@ def _theme_styles(style):
     style.configure("TButton", background=_C("#FFFFFF"), foreground=T["text"],
                     borderwidth=1, relief="solid", padding=(S(12), S(6)), font=(FONT, 10))
     style.map("TButton", background=[("active", _C("#F5F5F7"))])
-    style.configure("Accent.TButton", background=T["blue"], foreground=_tema_fijo("on_accent"),
+    style.configure("Accent.TButton", background=_tema_fijo("accent"), foreground=_tema_fijo("on_accent"),
                     borderwidth=0, padding=(S(12), S(6)), font=big)
     style.map("Accent.TButton", background=[("disabled", _C("#E8E8ED")),
                                             ("active", _tema_fijo("accent_hover"))],
@@ -21475,7 +21510,7 @@ def _theme_styles(style):
               foreground=[("readonly", T["text"])])
     style.configure("Treeview", background=_C("#FFFFFF"), foreground=T["text"],
                     fieldbackground=_C("#FFFFFF"), borderwidth=0, font=(FONT, 10),
-                    rowheight=S(24))
+                    rowheight=S(FILA_PX))
     style.configure("Treeview.Heading", background=_C("#F5F5F7"), foreground=T["muted"],
                     font=(FONT, -S(14), "bold"))
     style.configure("TCheckbutton", background=T["bg"], foreground=T["text"], font=(FONT, 10))
@@ -26840,7 +26875,7 @@ def _refresh_tasks_ui():
             _tasks_rows[iid] = r
             mod = r.get("modelo")
             tree.insert("", "end", iid=iid, tags=(r["estado"],), values=(
-                r["id"], _estado_txt(r),
+                r["id"], "● " + _estado_txt(r),
                 _motor_modelo(_motor_txt(r["motor"], r["fam"]), mod),
                 f"{r['ronda']}/{MAX_ROUNDS}" if r["ronda"] is not None else "—",
                 _fmt_secs(r.get("dur")),
@@ -29465,7 +29500,8 @@ def _add_rule():
 
 
 def _card(parent, title, expl=None):
-    card = tk.Frame(parent, bg=THEME["card"])
+    card = tk.Frame(parent, bg=THEME["card"], highlightthickness=1, highlightbackground=THEME["line"],
+                    highlightcolor=THEME["line"])
     card.pack(fill="x", padx=20, pady=8)
     tk.Label(card, text=title, font=SECTION_FONT, bg=THEME["card"],
              fg=THEME["text"]).pack(anchor="w", padx=16, pady=(12, 2))
@@ -35365,7 +35401,7 @@ def _build_resources_page(tab):
     style = ttk.Style()
     style.configure("Res.Treeview", background=_C("#FFFFFF"), fieldbackground=_C("#FFFFFF"),
                     foreground=THEME["text"], borderwidth=0, font=(FONT, 10),
-                    rowheight=S(28))
+                    rowheight=S(FILA_PX))
     style.map("Res.Treeview", background=[("selected", _C("#DCEBFF"))],
               foreground=[("selected", THEME["text"])])
     tbox = tk.Frame(card, bg="#FFFFFF")
@@ -38751,8 +38787,8 @@ def _asis_check(kit, parent, text, on, enabled=True):
     if isinstance(kit, _KitCtk):
         var = kit.ctk.BooleanVar(value=on)
         w = kit.ctk.CTkCheckBox(parent, text=text, variable=var, font=kit.F(13), corner_radius=6,
-                                border_width=2, checkbox_width=20, checkbox_height=20, fg_color=kit.accent,
-                                hover_color=kit.accent_hover, text_color=THEME["text"],
+                                border_width=2, checkbox_width=20, checkbox_height=20, fg_color=THEME["blue"],
+                                hover_color=THEME["blue"], text_color=THEME["text"],
                                 text_color_disabled=THEME["muted"], state="normal" if enabled else "disabled")
     else:
         var = tk.BooleanVar(value=on)
@@ -40014,7 +40050,7 @@ def _build_ajustes_ctk(tab_aj):
     def _radio(parent, k, lab, expl):
         ctk.CTkRadioButton(parent, text=lab, value=k, variable=_widgets["guardrail_var"],
                            command=lambda: _on_guardrail(k), font=F(14, "semibold"),
-                           text_color=T["text"], fg_color=accent, hover_color=accent_hover,
+                           text_color=T["text"], fg_color=T["blue"], hover_color=T["blue"],
                            border_color=T["muted"], radiobutton_width=18,
                            radiobutton_height=18, border_width_unchecked=2,
                            border_width_checked=5).pack(anchor="w")
@@ -41019,7 +41055,7 @@ def build_gui():
               selectforeground=[("readonly", THEME["text"])])
     style.configure("Treeview", background="#FFFFFF", foreground=THEME["text"],
                     fieldbackground="#FFFFFF", borderwidth=0, font=(FONT, 10),
-                    rowheight=S(24))
+                    rowheight=S(FILA_PX))
     style.configure("Treeview.Heading", background="#F5F5F7",
                     foreground=THEME["muted"], font=(FONT, 10, "bold"))
     style.configure("TCheckbutton", background=THEME["bg"], foreground=THEME["text"],
@@ -41496,8 +41532,8 @@ def build_gui():
              "corrige hasta 3 veces; si aun asi no queda, te pide que decidas tú.",
              font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
              wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 10))
-    _widgets["tasks_summary"] = tk.Label(tabt, text="", font=(FONT, 11, "bold"),
-                                         bg=THEME["bg"], fg=THEME["text"])
+    _widgets["tasks_summary"] = tk.Label(tabt, text="", font=(FONT, 11, "bold"), wraplength=S(660),
+                                         justify="left", bg=THEME["bg"], fg=THEME["text"])
     _widgets["tasks_summary"].pack(anchor="w", padx=20, pady=(0, 6))
     try:
         _agentes_build(tabt)  # quién trabaja en cada hueco (t-agentes-paralelos-030)
@@ -41505,9 +41541,10 @@ def build_gui():
         log(f"agentes: no se pudo dibujar la vista ({type(e).__name__}: {e})")
     _build_spend_card(tabt)
     _widgets["approvals_box"] = tk.Frame(tabt, bg=THEME["card"])
+    ttk.Style().configure("Tareas.Treeview", font=(MONO, 10), rowheight=S(FILA_PX))
     tree = ttk.Treeview(tabt, columns=("tarea", "estado", "motor", "ronda", "tiempo", "tokens",
                                        "costo", "revision"),
-                        show="headings", height=9, selectmode="browse")
+                        show="headings", height=9, selectmode="browse", style="Tareas.Treeview")
     for _col, _txt, _w, _st in (("tarea", "Tarea", 145, False), ("estado", "Estado", 95, False),
                                 ("motor", "Motor / modelo", 175, False), ("ronda", "Ronda", 58, False),
                                 ("tiempo", "Tiempo", 62, False),

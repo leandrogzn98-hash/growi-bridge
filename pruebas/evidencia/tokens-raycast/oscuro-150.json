@@ -1,0 +1,87 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tokens-ada6wfb3",
+ "tema": {
+  "id": "oscuro-raycast",
+  "fuente_en_uso": "Inter",
+  "escala": 1.5,
+  "tokens": {
+   "bg": "#0F0F0F",
+   "sidebar": "#141416",
+   "card": "#1A1A1C",
+   "line": "#2C2C2E",
+   "text": "#F5F5F6",
+   "muted": "#9A9AA0",
+   "blue": "#0A84FF",
+   "orange": "#FA5102",
+   "red": "#E64C51",
+   "green": "#34C759"
+  },
+  "acento": "#ff6363",
+  "boton_primario_fondo": "#ff6363"
+ },
+ "c_rojo_ff6363_fuera_de_boton": [],
+ "c_rojo_ff6363_en_botones": [
+  "ajustes: Exportar mis conversaciones",
+  "ajustes: Guardar",
+  "apis: Descargar",
+  "apis: Generar…",
+  "apis: Guardar",
+  "apis: Instalar",
+  "apis: Pedir cosecha",
+  "apis: Probar",
+  "carpetas: Descargar",
+  "carpetas: Generar…",
+  "carpetas: Instalar",
+  "carpetas: Pedir cosecha",
+  "carpetas: Probar",
+  "carpetas: Validar skills",
+  "estado: Descargar",
+  "estado: Exportar mis conversaciones",
+  "estado: Generar…",
+  "estado: Instalar",
+  "estado: Pedir cosecha",
+  "estado: Probar",
+  "estado: Validar skills",
+  "modelos: Descargar",
+  "modelos: Generar…",
+  "modelos: Instalar",
+  "modelos: Pedir cosecha",
+  "modelos: Probar",
+  "pantalla: Descargar",
+  "pantalla: Generar…",
+  "pantalla: Instalar",
+  "pantalla: Pedir cosecha",
+  "pantalla: Probar",
+  "recursos: Exportar mis conversaciones",
+  "registro: Exportar mis conversaciones",
+  "registro: Guardar",
+  "skills: Descargar",
+  "skills: Generar…",
+  "skills: Instalar",
+  "skills: Pedir cosecha",
+  "skills: Probar",
+  "skills: Validar skills",
+  "tareas: Exportar mis conversaciones",
+  "tareas: Pedir cosecha"
+ ],
+ "d_filas": {
+  "rowheight_estilo_px": 51,
+  "alto_fila_medido_px": 51,
+  "a_100_pct": 34.0,
+  "estado_fila_0": "● en curso"
+ },
+ "e_ids_monoespaciada": {
+  "fuente_tabla_tareas": "Consolas 10",
+  "id_fila_0": "t-ajustar-logo-0428"
+ },
+ "a_pixeles": {
+  "ventana": "#0F0F0F",
+  "tarjeta": "#1A1A1C",
+  "borde_tarjeta": "#2C2C2E",
+  "barra_lateral": "#141416"
+ },
+ "log": [
+  "2026-10-28T07:06:35-04:00 temas: Oscuro Raycast (oscuro-raycast.json, modo oscuro)"
+ ],
+ "tracebacks_en_log": 0
+}
