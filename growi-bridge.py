@@ -21605,6 +21605,8 @@ def _theme_styles(style):
                     rowheight=S(FILA_PX))
     style.configure("Treeview.Heading", background=_C("#F5F5F7"), foreground=T["muted"],
                     font=(FONT, -S(14), "bold"))
+    style.map("Tareas.Treeview", background=[("selected", "#222224" if _THEME_STATE.get("dark") else _C("#DCEBFF"))],
+              foreground=[("selected", T["text"])])
     style.configure("TCheckbutton", background=T["bg"], foreground=T["text"], font=(FONT, 10))
     style.configure("Res.Treeview", background=_C("#FFFFFF"), fieldbackground=_C("#FFFFFF"),
                     foreground=T["text"])
@@ -22460,7 +22462,7 @@ def start_availability(only=None, done=None):
             if done:
                 _ui_call(done)
     threading.Thread(target=_run, daemon=True).start()
-    _render_avail()
+    _ui_call(_render_avail)  # se llama también desde el hilo del mapa: Tk solo en el de la ventana
     return True
 
 
@@ -26266,6 +26268,7 @@ def _motor_txt(motor, fam=None):
         return f"Auto → {auto_label(el)}"
     return MOTOR_CORTO.get(motor, motor)
 _tasks_rows = {}
+TAREAS_MAX_FILAS = 300  # el contador de cada píldora cuadra con las filas que se ven
 _approvals_fp = [None]
 
 
@@ -26488,7 +26491,7 @@ def _apply_live_to_tree():
     if not iid:
         return
     v = _live_values(lv, corto=True)
-    if not tree.exists(iid) and lv.get("estado") != "terminado":
+    if not tree.exists(iid) and lv.get("estado") != "terminado" and _T45["filtro"] in ("todos", "en_curso"):
         # La tarea en curso sin fila todavia (no tiene resultado): su fila
         # «Trabajando…» arriba, nunca una lista quieta mientras trabaja.
         tree.insert("", 0, iid=iid, tags=("en_curso",), values=(
@@ -26644,6 +26647,7 @@ def _build_live_card(tab, before=None):
 
 def _refresh_live_ui():
     try:
+        _tareas045_fijada()  # la tarea fijada: tiempo y coste vivos, y se quita al terminar
         _apply_live_to_tree()
         _render_day_models()
     except Exception as e:
@@ -26970,7 +26974,7 @@ def _render_approvals(rows):
     if not waiting:
         box.pack_forget()
         return
-    box.pack(fill="x", padx=20, pady=(0, 8), before=_widgets["tasks_tree"])
+    box.pack(fill="x", padx=20, pady=(0, 8), before=_T45.get("fijada_card") or _widgets["tasks_tree"])
     tk.Label(box, text="Esperan tu aprobación", font=SECTION_FONT,
              bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=16, pady=(12, 2))
     for r in waiting:
@@ -27026,6 +27030,177 @@ def _render_approvals(rows):
     tk.Frame(box, bg=THEME["card"], height=S(8)).pack()
 
 
+# ---- Tareas 0.4.5 (t-tareas-estadisticas-045): encima de la tabla, la fila de
+# 3 estadísticas (En curso / Aprobadas hoy / Gasto de hoy), la tarea en curso
+# fijada («trabajando ahora», fuera de la tabla: no se va al desplazar) y las
+# píldoras de filtro con su contador real. Superficie nueva: CustomTkinter con
+# la clásica de respaldo. Números de la cola y de day_by_model (la misma fuente
+# que el consumo vivo); nada inventado: sin dato, «sin dato».
+TFILTROS = (("todos", "Todos", None, None), ("en_curso", "En curso", ("en_curso", "revisando"), "blue"),
+            ("aprobada", "Aprobadas", ("aprobada",), "green_text"),
+            ("necesita_decision", "Necesita decisión", ("necesita_decision",), "orange_text"),
+            ("sin_revision", "Sin revisión", ("sin_revision",), "muted"),
+            ("fallida", "Fallidas", ("fallida",), "red"))
+TFILTROS_EXPL = ("Necesita decisión: tras 3 rondas no quedó bien, o su aprobación venció o se denegó; decides tú "
+                 "(no se reintenta sola).  Sin revisión: terminó pero el revisor no pudo revisarla; no cuenta "
+                 "como aprobada.")
+_T45: dict = {"kit": None, "filtro": "todos", "pills": {}, "stats": {}, "fijada": None, "cuentas": {}}
+
+
+def tareas_filtrar(rows, filtro):
+    est = next((e for k, _l, e, _c in TFILTROS if k == filtro), None)
+    return list(rows) if not est else [r for r in rows if r["estado"] in est]
+
+
+def tareas_cuentas(rows):
+    return {k: len(tareas_filtrar(rows, k)) for k, _l, _e, _c in TFILTROS}
+
+
+def tareas_estadisticas(rows):
+    """En curso / Aprobadas hoy / Gasto de hoy, de la cola y del día (sin inventar)."""
+    hoy = datetime.now().astimezone().date().isoformat()
+    lv = _live_active()
+    en_curso = {r["id"] for r in rows if r["estado"] in ("en_curso", "revisando")}
+    if lv and lv.get("estado") != "terminado":
+        en_curso.add(lv.get("raiz") or lv.get("task_id"))
+    aprob = sum(1 for r in rows if r["estado"] == "aprobada" and str(r.get("t") or "").startswith(hoy))
+    try:
+        data = day_by_model()
+        real = sum(b["cost"] for k, b in data.items() if k[0] == "real")
+        equiv = sum(b["cost"] for k, b in data.items() if k[0] == "equiv")
+        gasto = f"${real:.2f}", f"real · ${equiv:.2f} equivalente Max · local $0"
+    except Exception as e:
+        gasto = "sin dato", f"no se pudo leer el gasto ({type(e).__name__})"
+    return {"en_curso": len(en_curso), "aprobadas_hoy": aprob, "gasto": gasto}
+
+
+def tarea_fijada(rows):
+    """La que corre ahora (runner-live.json); si no, otra en curso de la cola; si no, None."""
+    lv = _live_active()
+    if lv and lv.get("estado") != "terminado":
+        v = _live_values(lv, corto=True)
+        return {"id": lv.get("raiz") or lv.get("task_id"), "motor": v["motor"], "tiempo": v["tiempo"],
+                "costo": v["costo"], "fuente": "en vivo"}
+    for r in rows:
+        if r["estado"] in ("en_curso", "revisando"):
+            return {"id": r["id"], "motor": _motor_txt(r["motor"], r["fam"]), "tiempo": _fmt_secs(r.get("dur")),
+                    "costo": _cost_cell(r), "fuente": "cola"}
+    return None
+
+
+def _tareas045_build_stats(tabt):
+    """La fila de 3 estadísticas, arriba de la página (debajo del resumen)."""
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(tabt)
+        except Exception as e:
+            log(f"tareas: CustomTkinter no disponible ({type(e).__name__}: {e}); estadísticas clásicas")
+    k = k or _KitTk(tabt)
+    ctk_on = isinstance(k, _KitCtk)
+    _T45.update(kit=k, ctk=ctk_on)
+    fila = k.frame(tabt)
+    fila.pack(fill="x", padx=20, pady=(4, 6))
+    for i, (key, titulo) in enumerate((("en_curso", "En curso"), ("aprobadas_hoy", "Aprobadas hoy"),
+                                       ("gasto", "Gasto de hoy"))):
+        c = k.card(fila)
+        c.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 6, 0))
+        fila.grid_columnconfigure(i, weight=1, uniform="t45")
+        k.label(c, titulo, muted=True).pack(anchor="w", padx=14, pady=(10, 0))
+        num = k.label(c, "…", bold=True)
+        if ctk_on:
+            num.configure(font=k.F(24, "semibold"))
+        else:
+            num.config(font=(FONT, 18, "bold"))
+        num.pack(anchor="w", padx=14)
+        sub = k.label(c, "", muted=True, wrap=200 if ctk_on else S(200))  # CTk ya escala
+        sub.pack(anchor="w", padx=14, pady=(0, 10))
+        _T45["stats"][key] = (num, sub)
+
+
+def _tareas045_build_lista(tabt):
+    """Justo encima de la tabla: la tarea fijada y las píldoras de filtro."""
+    k = _T45.get("kit")
+    if k is None:
+        return
+    fij = k.card(tabt)
+    fij.pack(fill="x", padx=20, pady=(0, 6))
+    _T45["fijada"] = (k.label(fij, "", bold=True), k.label(fij, "", muted=True, wrap=640 if _T45["ctk"] else S(640)))
+    _T45["fijada"][0].pack(anchor="w", padx=14, pady=(10, 0))
+    _T45["fijada"][1].pack(anchor="w", padx=14, pady=(0, 10))
+    _T45["fijada_card"] = fij
+    pills = k.frame(tabt)
+    pills.pack(fill="x", padx=20, pady=(2, 0))
+    for key, lab, _e, _c in TFILTROS:
+        _T45["pills"][key] = k.button(pills, lab, lambda kk=key: tareas_poner_filtro(kk))
+
+    def acomodar(_e=None):  # las píldoras pasan a otra fila si no caben (ventana estrecha o 150 %)
+        ancho, x, fila, col = pills.winfo_width(), 0, 0, 0
+        for b in _T45["pills"].values():
+            w = b.winfo_reqwidth() + S(6)
+            if x and x + w > ancho:
+                fila, col, x = fila + 1, 0, 0
+            b.grid(row=fila, column=col, padx=(0, 6), pady=(0, 6), sticky="w")
+            x, col = x + w, col + 1
+    pills.bind("<Configure>", acomodar, add="+")
+    _T45["acomodar"] = acomodar
+    acomodar()
+    ex = k.label(tabt, TFILTROS_EXPL, muted=True, wrap=640 if _T45["ctk"] else S(640))
+    ex.pack(anchor="w", padx=20, pady=(4, 2))
+    _T45["expl"] = ex
+
+
+def tareas_poner_filtro(key):
+    _T45["filtro"] = key
+    _tasks_fp[0] = None  # repinta la tabla ya
+    _refresh_tasks_ui()
+
+
+def _tareas045_pintar(rows):
+    k = _T45.get("kit")
+    if k is None:
+        return
+    st = tareas_estadisticas(rows)
+    vals = {"en_curso": (str(st["en_curso"]), "corriendo ahora" if st["en_curso"] else "ninguna corriendo"),
+            "aprobadas_hoy": (str(st["aprobadas_hoy"]), "revisadas y aprobadas hoy"),
+            "gasto": st["gasto"]}
+    for key, (num, sub) in _T45["stats"].items():
+        k.set_label(num, text=vals[key][0])
+        k.set_label(sub, text=vals[key][1])
+    cuentas = tareas_cuentas(rows)
+    _T45["cuentas"] = cuentas
+    for key, lab, _e, col in TFILTROS:
+        b = _T45["pills"][key]
+        txt = f"{lab}  {cuentas[key]}"
+        activo = key == _T45["filtro"]
+        if _T45["ctk"]:
+            tinte = THEME[col] if col else THEME["text"]
+            b.configure(text=txt, text_color=tinte, border_width=2 if activo else 0, border_color=tinte,
+                        fg_color=_mezcla(THEME["card"], tinte, 0.14 if activo else 0.06) if col
+                        else _tema_fijo("seg_sel" if activo else "seg_bg"))
+        else:
+            b.config(text=("● " if activo else "") + txt)
+    if _T45.get("acomodar"):
+        _T45["acomodar"]()  # los contadores cambian el ancho de cada píldora
+    _tareas045_fijada(rows)
+
+
+def _tareas045_fijada(rows=None):
+    k = _T45.get("kit")
+    if k is None or not _T45.get("fijada"):
+        return
+    rows = rows if rows is not None else list(_tasks_rows.values())
+    f = tarea_fijada(rows)
+    t1, t2 = _T45["fijada"]
+    if f:
+        k.set_label(t1, text=f"● Trabajando ahora: {f['id']}", color="blue")
+        k.set_label(t2, text=f"{f['motor']} · lleva {f['tiempo']} · {f['costo']} ({f['fuente']})")
+    else:
+        k.set_label(t1, text="Ninguna tarea corriendo ahora.", color="muted")
+        k.set_label(t2, text="Cuando el runner empiece una, se fija aquí con su motor, su tiempo y su coste.")
+    _T45["fijada_dato"] = f
+
+
 def _refresh_tasks_ui():
     """Pagina Tareas: estado, motor, ronda, costo acumulado y revision de
     cada tarea. Solo re-dibuja si algo cambio."""
@@ -27039,7 +27214,7 @@ def _refresh_tasks_ui():
         files = list(RESULTS.glob("*.json"))
         fp = (len(files), max((f.stat().st_mtime for f in files), default=0),
               tuple(sorted(p.name for p in TASKS.glob("*.task.json"))),
-              tuple(sorted(p.name for p in WAITING.glob("*.task.json"))), _ESP["filtro"])
+              tuple(sorted(p.name for p in WAITING.glob("*.task.json"))), _ESP["filtro"], _T45["filtro"])
         if fp == _tasks_fp[0]:
             return
         _tasks_fp[0] = fp
@@ -27055,7 +27230,9 @@ def _refresh_tasks_ui():
         _pa = proyecto_activo()
         if _pa is not None:  # t-proyectos: solo las del proyecto activo (las de otros no se mezclan)
             vista = [r for r in vista if (r.get("fam") or {}).get("proyecto") == _pa["nombre"]]
-        for r in vista[:40]:
+        base = vista
+        vista = tareas_filtrar(vista, _T45["filtro"])  # píldora de filtro (t-tareas-estadisticas-045)
+        for r in vista[:TAREAS_MAX_FILAS]:
             iid = r["id"]
             _tasks_rows[iid] = r
             mod = r.get("modelo")
@@ -27070,6 +27247,7 @@ def _refresh_tasks_ui():
                 _rev_summary(r)))
         if keep and keep in _tasks_rows:
             tree.selection_set(keep)
+        _tareas045_pintar(base)
         _apply_live_to_tree()  # la fila en curso, con los numeros del vivo
         _show_task_detail()
         _render_approvals(rows)
@@ -41735,17 +41913,25 @@ def build_gui():
                                          justify="left", bg=THEME["bg"], fg=THEME["text"])
     _widgets["tasks_summary"].pack(anchor="w", padx=20, pady=(0, 6))
     try:
+        _tareas045_build_stats(tabt)  # En curso / Aprobadas hoy / Gasto de hoy (t-tareas-estadisticas-045)
+    except Exception as e:
+        log(f"tareas: no se pudo dibujar la fila de estadísticas ({type(e).__name__}: {e})")
+    try:
         _agentes_build(tabt)  # quién trabaja en cada hueco (t-agentes-paralelos-030)
     except Exception as e:
         log(f"agentes: no se pudo dibujar la vista ({type(e).__name__}: {e})")
     _build_spend_card(tabt)
     _widgets["approvals_box"] = tk.Frame(tabt, bg=THEME["card"])
     ttk.Style().configure("Tareas.Treeview", font=(MONO, 10), rowheight=S(FILA_PX))
+    try:
+        _tareas045_build_lista(tabt)
+    except Exception as e:
+        log(f"tareas: no se pudo dibujar la tarea fijada y los filtros ({type(e).__name__}: {e})")
     tree = ttk.Treeview(tabt, columns=("tarea", "estado", "motor", "ronda", "tiempo", "tokens",
                                        "costo", "revision"),
                         show="headings", height=9, selectmode="browse", style="Tareas.Treeview")
-    for _col, _txt, _w, _st in (("tarea", "Tarea", 145, False), ("estado", "Estado", 95, False),
-                                ("motor", "Motor / modelo", 175, False), ("ronda", "Ronda", 58, False),
+    for _col, _txt, _w, _st in (("tarea", "Tarea", 145, False), ("estado", "Estado", 130, False),
+                                ("motor", "Motor / modelo", 150, False), ("ronda", "Ronda", 58, False),
                                 ("tiempo", "Tiempo", 62, False),
                                 ("tokens", "Tokens ent. / sal.", 125, False),
                                 ("costo", "Costo", 95, False), ("revision", "Revisión", 140, True)):

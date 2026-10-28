@@ -1,0 +1,111 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tstats-h3zv7h03",
+ "c_estadisticas": {
+  "pantalla": {
+   "en_curso": [
+    "3",
+    "corriendo ahora"
+   ],
+   "aprobadas_hoy": [
+    "11",
+    "revisadas y aprobadas hoy"
+   ],
+   "gasto": [
+    "$0.00",
+    "real · $0.40 equivalente Max · local $0"
+   ]
+  },
+  "esperado": {
+   "en_curso": 3,
+   "aprobadas_hoy": 11,
+   "gasto_real_day_by_model": 0,
+   "gasto_equiv_day_by_model": 0.4
+  }
+ },
+ "a_fijada": {
+  "titulo": "● Trabajando ahora: t-corriendo-01",
+  "detalle": "Claude Opus 5.5 · lleva 1:15 · ~$0.12 eq. (en vivo)",
+  "filas_en_tabla": 54,
+  "ultima_fila_visible": true,
+  "fijada_visible": true
+ },
+ "d_pildoras": {
+  "todos": {
+   "contador": 54,
+   "filas": 54,
+   "texto": "Todos  54",
+   "estados_vistos": [
+    "Trabajando… (trabajando)",
+    "● aprobada",
+    "● en curso",
+    "● esperando aprobación",
+    "● fallida",
+    "● necesita decisión",
+    "● pendiente",
+    "● revisando",
+    "● sin revisión"
+   ]
+  },
+  "en_curso": {
+   "contador": 3,
+   "filas": 3,
+   "texto": "En curso  3",
+   "estados_vistos": [
+    "Trabajando… (trabajando)",
+    "● en curso",
+    "● revisando"
+   ]
+  },
+  "aprobada": {
+   "contador": 21,
+   "filas": 21,
+   "texto": "Aprobadas  21",
+   "estados_vistos": [
+    "● aprobada"
+   ]
+  },
+  "necesita_decision": {
+   "contador": 5,
+   "filas": 5,
+   "texto": "Necesita decisión  5",
+   "estados_vistos": [
+    "● necesita decisión"
+   ]
+  },
+  "sin_revision": {
+   "contador": 5,
+   "filas": 5,
+   "texto": "Sin revisión  5",
+   "estados_vistos": [
+    "● sin revisión"
+   ]
+  },
+  "fallida": {
+   "contador": 10,
+   "filas": 10,
+   "texto": "Fallidas  10",
+   "estados_vistos": [
+    "● fallida"
+   ]
+  }
+ },
+ "e_explicacion": "Necesita decisión: tras 3 rondas no quedó bien, o su aprobación venció o se denegó; decides tú (no se reintenta sola).  Sin revisión: terminó pero el revisor no pudo revisarla; no cuenta como aprobada.",
+ "fila_seleccionada_fondo": [
+  [
+   "selected",
+   "#222224"
+  ]
+ ],
+ "b_tras_terminar": {
+  "titulo": "● Trabajando ahora: t-corriendo-02",
+  "detalle": "Claude · lleva — · — (cola)",
+  "en_curso": "2"
+ },
+ "b_sin_ninguna": {
+  "titulo": "Ninguna tarea corriendo ahora.",
+  "detalle": "Cuando el runner empiece una, se fija aquí con su motor, su tiempo y su coste.",
+  "en_curso": "0"
+ },
+ "log": [],
+ "tracebacks_en_log": 0
+}
