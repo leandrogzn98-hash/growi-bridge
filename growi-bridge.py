@@ -20635,10 +20635,12 @@ def _palette_sections(q):
         seen = fav_ids | {c["id"] for c in freq}
         rest = [c for c in _PALETTE_CMDS if c["id"] not in seen]
         cmdia = [c for c in rest if c.get("cmdia")]  # comandos de IA: su propia seccion
+        scripts = [c for c in rest if c.get("cmdscr")]  # scripts de comandos\: la suya
+        rest = [c for c in rest if not c.get("cmdscr")]
         asis = [c for c in rest if c.get("asis")]  # asistentes (perfiles): su propia seccion
         rest = [c for c in rest if not c.get("cmdia") and not c.get("asis")]
         return [("Favoritos", fav), ("Frecuentes", freq), ("Asistentes", asis), ("Comandos de IA", cmdia),
-                ("Todas las acciones", rest)]
+                ("Mis comandos", scripts), ("Todas las acciones", rest)]
     scored = []
     for c in _PALETTE_CMDS:
         total = 0.0
@@ -20707,6 +20709,7 @@ def _open_palette():
     """Paleta de comandos estilo Raycast (Ctrl+K). Nunca hay dos: si ya
     esta abierta, la trae al frente."""
     cmdia_paleta_sync()  # comandos de IA: relee comandos-ia.json solo si cambio
+    comandos_paleta_sync()  # scripts de comandos\ activos (t-comandos-script)
     asis_paleta_sync()  # asistentes: relee asistentes\*.md solo si cambio
     if _root is None or not _PALETTE_CMDS:
         return
@@ -32348,6 +32351,9 @@ def _build_ajustes_ctk(tab_aj):
     r, der = side_row(at, "Automatizaciones", "Recordatorios y chequeos programados (salud, cuota, cola, "
                                               "resumen). Avisan como mucho una vez al día; cada uno se apaga en un clic.")
     button(der, "Abrir", automations_ui).pack()
+    r, der = side_row(at, "Mis comandos", "Tus scripts .py, .bat y .ps1 de la carpeta comandos: salen en la "
+                                          "paleta; cada uno se activa o desactiva aquí.")
+    button(der, "Abrir", comandos_ui).pack()
     _atajos_construir(_atajos_kit_ctk(ctk, row, text_block, F, wrap_to, seg_bg, seg_hover,
                                       accent, accent_hover), at)
     log(f"ajustes: atajos con CustomTkinter ({(time.perf_counter() - _t_at) * 1000:.0f} ms)")
@@ -32783,6 +32789,327 @@ def automations_ui():
     ent.bind("<Return>", lambda _e: guardar())
     _widgets["auto_pintar"], _widgets["auto_guardar"] = pintar, guardar
     pintar()
+    return top
+
+
+# ---- comandos de script (t-comandos-script): scripts del usuario en
+# comandos\ con cabecera @growi.* (patron Raycast Script Commands). Sin
+# sandbox (Windows no lo tiene, Raycast tampoco): no se promete aislamiento.
+# Nada se descarga ni se instala; un script con la marca «descargado de
+# internet» (Zone.Identifier) no se ejecuta hasta que lo revises.
+COMANDOS_DIR = Path(os.environ.get("GROWI_BRIDGE_COMANDOS") or (APP_DIR / "comandos"))
+COMANDOS_EXT = (".py", ".bat", ".cmd", ".ps1")
+COMANDOS_MODOS = ("silencioso", "ventana", "lista")
+_CMDS = {"lista": [], "at": None}
+# Lo delicado que se busca en el codigo (ademas de lo que declare @growi.pide).
+_CMD_DELICADO = {
+    "borrar": re.compile(r"\b(del|erase|rd|rmdir)\s+/|Remove-Item|os\.remove|os\.unlink|shutil\.rmtree|"
+                         r"\.unlink\(|rmtree\(", re.I),
+    "red": re.compile(r"Invoke-WebRequest|Invoke-RestMethod|\bcurl\b|\bwget\b|urllib|requests\.|http\.client|"
+                      r"socket\.|bitsadmin|Start-BitsTransfer", re.I),
+    "gastar": re.compile(r"\b(stripe|paypal|checkout|purchase|comprar|pagar)\b", re.I),
+}
+COMANDOS_LISTA_FORMATO = ('{"items": [{"titulo": "texto", "subtitulo": "texto opcional", '
+                          '"accion": {"tipo": "abrir" | "copiar", "valor": "ruta, URL o texto"}}]}')
+
+
+def _cmd_cabecera(path):
+    """Lee las primeras 40 lineas: # @growi.clave valor (.py/.ps1) o
+    :: @growi.clave valor / REM @growi.clave valor (.bat/.cmd)."""
+    cab = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for i, linea in enumerate(fh):
+                if i > 40:
+                    break
+                m = re.match(r"^\s*(?:#|::|REM)\s*@growi\.([a-z0-9_]+)\s+(.+?)\s*$", linea, re.I)
+                if m:
+                    cab[m.group(1).lower()] = m.group(2)
+    except OSError:
+        pass
+    return cab
+
+
+def _cmd_de_internet(path):
+    """True si Windows marco el archivo como descargado (Zone.Identifier, ZoneId>=3)."""
+    try:
+        with open(f"{path}:Zone.Identifier", encoding="utf-8", errors="replace") as fh:
+            m = re.search(r"ZoneId=(\d+)", fh.read())
+            return bool(m and int(m.group(1)) >= 3)
+    except OSError:
+        return False
+
+
+def comandos_descubrir():
+    """Al arrancar y con «Actualizar»: los scripts de comandos\\ con su cabecera."""
+    out = []
+    try:
+        archivos = sorted(p for p in COMANDOS_DIR.iterdir() if p.suffix.lower() in COMANDOS_EXT and p.is_file())
+    except OSError:
+        archivos = []
+    off = set(load_settings().get("comandos_off") or [])
+    for p in archivos:
+        cab = _cmd_cabecera(p)
+        problemas = []
+        if not cab.get("titulo"):
+            problemas.append("falta @growi.titulo")
+        if cab.get("modo") not in COMANDOS_MODOS:
+            problemas.append(f"@growi.modo debe ser {' / '.join(COMANDOS_MODOS)}")
+        txt = p.read_text(encoding="utf-8", errors="replace")
+        detectado = sorted(k for k, rx in _CMD_DELICADO.items() if rx.search(txt))
+        declarado = sorted({x.strip().lower() for x in (cab.get("pide") or "").split(",") if x.strip()})
+        import hashlib
+        out.append({"archivo": p.name, "ruta": str(p), "titulo": cab.get("titulo") or p.stem,
+                    "modo": cab.get("modo"), "descripcion": cab.get("descripcion") or "",
+                    "icono": cab.get("icono") or "", "paquete": cab.get("paquete") or "",
+                    "autor": cab.get("autor") or "sin autor en la cabecera",
+                    "argumentos": [cab[k] for k in ("argumento1", "argumento2", "argumento3") if cab.get(k)],
+                    "atajo": cab.get("atajo"), "pide": sorted(set(detectado) | set(declarado)),
+                    "pide_detectado": detectado, "activo": p.name not in off, "problemas": problemas,
+                    "de_internet": _cmd_de_internet(p), "hash": hashlib.sha256(txt.encode("utf-8")).hexdigest()[:16]})
+    _CMDS.update(lista=out, at=_now_iso())
+    log(f"comandos: {len(out)} script(s) en {COMANDOS_DIR}" + (f" ({sum(1 for c in out if not c['activo'])} "
+                                                              "desactivado(s))" if out else ""))
+    return out
+
+
+def comando_activar(archivo, on):
+    s = load_settings()
+    off = set(s.get("comandos_off") or [])
+    (off.discard if on else off.add)(archivo)
+    s["comandos_off"] = sorted(off)
+    save_settings(s)
+    for c in _CMDS["lista"]:
+        if c["archivo"] == archivo:
+            c["activo"] = on
+    log(f"comandos: {archivo} {'activado' if on else 'desactivado'}")
+
+
+def comandos_paleta_sync():
+    """Los comandos activos y sin problemas, como acciones de la paleta."""
+    if _CMDS["at"] is None:
+        comandos_descubrir()
+    _PALETTE_CMDS[:] = [c for c in _PALETTE_CMDS if not c.get("cmdscr")]
+    for c in _CMDS["lista"]:
+        if c["activo"] and not c["problemas"] and not c["de_internet"]:
+            _PALETTE_CMDS.append({"id": f"cmdscr:{c['archivo']}", "label": c["titulo"], "cmdscr": True,
+                                  "keys": f"{c['descripcion']} {c['paquete']} script comando",
+                                  "fn": lambda c=c: comando_ejecutar(c)})
+
+
+def _cmd_permiso(c):
+    """La primera vez que un script pide algo delicado: el texto completo y
+    la decision, que se recuerda por comando (y se vuelve a preguntar si el
+    script cambia). True si se puede ejecutar."""
+    if not c["pide"]:
+        return True
+    dec = (load_settings().get("comandos_permisos") or {}).get(c["archivo"]) or {}
+    if dec.get("hash") == c["hash"]:
+        return bool(dec.get("permitido"))
+    top = tk.Toplevel(_root)
+    top.title(f"El comando «{c['titulo']}» pide algo delicado")
+    top.configure(bg=THEME["bg"])
+    top.attributes("-topmost", True)
+    tk.Label(top, text=(f"«{c['titulo']}» ({c['archivo']}) pide: {', '.join(c['pide'])}.\n"
+                        f"Autor: {c['autor']}. Sale de: {c['ruta']}.\n"
+                        "Un script es código tuyo: puede borrar, usar la red o gastar. No hay aislamiento. "
+                        "Este es su texto completo:"), justify="left", wraplength=S(620), bg=THEME["bg"],
+             fg=THEME["text"], font=(FONT, 10)).pack(anchor="w", padx=16, pady=(14, 6))
+    txt = tk.Text(top, height=18, width=90, font=("Consolas", 9), wrap="none")
+    txt.insert("1.0", Path(c["ruta"]).read_text(encoding="utf-8", errors="replace"))
+    txt.configure(state="disabled")
+    txt.pack(fill="both", expand=True, padx=16)
+    res = {"ok": False}
+    fila = tk.Frame(top, bg=THEME["bg"])
+    fila.pack(fill="x", padx=16, pady=12)
+
+    def decidir(ok):
+        res["ok"] = ok
+        s = load_settings()
+        s.setdefault("comandos_permisos", {})[c["archivo"]] = {"hash": c["hash"], "permitido": ok, "at": _now_iso()}
+        save_settings(s)
+        log(f"comandos: {c['archivo']} pide {', '.join(c['pide'])}: {'permitido' if ok else 'no permitido'} "
+            "(se recuerda hasta que el script cambie)")
+        top.destroy()
+    ttk.Button(fila, text="Permitir este comando", style="Accent.TButton", command=lambda: decidir(True)).pack(
+        side="left")
+    ttk.Button(fila, text="No", command=lambda: decidir(False)).pack(side="left", padx=(8, 0))
+    _widgets["cmd_permiso_top"] = top
+    top.grab_set()
+    top.wait_window()
+    return res["ok"]
+
+
+def _ps_bloqueado(salida):
+    return bool(re.search(r"running scripts is disabled|execution of scripts is disabled|"
+                          r"ejecuci[oó]n de scripts est[aá] deshabilitada|no est[aá] firmado digitalmente|"
+                          r"is not digitally signed|PSSecurityException|UnauthorizedAccess", salida, re.I))
+
+
+def _cmd_argv(c, bypass=False):
+    p = c["ruta"]
+    ext = Path(p).suffix.lower()
+    if ext == ".py":
+        return [sys.executable.replace("pythonw.exe", "python.exe"), p]
+    if ext in (".bat", ".cmd"):
+        return ["cmd", "/c", p]
+    return ["powershell", "-NoProfile"] + (["-ExecutionPolicy", "Bypass"] if bypass else []) + ["-File", p]
+
+
+def comando_ejecutar(c, args=None, bypass=False, espera=False):
+    """Corre el script segun su modo. espera=True: sin hilo (pruebas)."""
+    if c.get("de_internet"):
+        messagebox.showwarning("Comando no ejecutado", f"«{c['titulo']}» lleva la marca de descargado de internet. "
+                                                       "Bridge no ejecuta scripts descargados sin revisar: léelo y, si "
+                                                       f"te fías, quita la marca (Unblock-File \"{c['ruta']}\").")
+        log(f"comandos: {c['archivo']} no se ejecuta: marca de descargado de internet")
+        return None
+    if not _cmd_permiso(c):
+        return None
+    if args is None:
+        args = []
+        from tkinter import simpledialog
+        for ph in c["argumentos"]:
+            v = simpledialog.askstring(c["titulo"], ph, parent=_root)
+            if v is None:
+                return None
+            args.append(v)
+
+    def correr():
+        argv = _cmd_argv(c, bypass) + list(args)
+        t0 = time.time()
+        try:
+            r = subprocess.run(argv, cwd=str(COMANDOS_DIR), capture_output=True, text=True, timeout=300,
+                               encoding="utf-8", errors="replace", **({} if c["modo"] == "ventana" else _oculto()))
+            out = {"rc": r.returncode, "stdout": r.stdout, "stderr": r.stderr, "s": round(time.time() - t0, 1)}
+        except (OSError, subprocess.TimeoutExpired) as e:
+            out = {"rc": None, "stdout": "", "stderr": f"{type(e).__name__}: {e}", "s": round(time.time() - t0, 1)}
+        out["bloqueado_ps"] = Path(c["ruta"]).suffix.lower() == ".ps1" and _ps_bloqueado(out["stdout"] + out["stderr"])
+        out["argv"] = argv
+        log(f"comandos: {c['archivo']} ({c['modo']}) -> salida {out['rc']} en {out['s']} s"
+            + (" [ExecutionPolicy lo bloquea]" if out["bloqueado_ps"] else "")
+            + (" [con -ExecutionPolicy Bypass]" if bypass else ""))
+        return out
+    if espera:
+        out = correr()
+        _cmd_mostrar(c, out)
+        return out
+    con_carga(f"comando {c['archivo']}", correr, lambda out: _cmd_mostrar(c, out))
+    return True
+
+
+def _cmd_mostrar(c, out):
+    _CMDS["ultimo"] = {"archivo": c["archivo"], **{k: out.get(k) for k in ("rc", "s", "bloqueado_ps")}}
+    if out.get("bloqueado_ps"):
+        return _cmd_aviso_ps(c, out)
+    if c["modo"] == "silencioso":
+        toast(("✓ " if out["rc"] == 0 else "✗ ") + c["titulo"])
+        return None
+    if c["modo"] == "lista":
+        try:
+            d = json.loads(out["stdout"])
+            items = d["items"] if isinstance(d, dict) else None
+            assert isinstance(items, list) and all(isinstance(x, dict) and x.get("titulo") for x in items)
+        except Exception:
+            return _cmd_ventana(c, out, aviso=f"El modo lista espera esta salida JSON: {COMANDOS_LISTA_FORMATO}")
+        return _cmd_lista(c, items)
+    return _cmd_ventana(c, out)
+
+
+def _cmd_ventana(c, out, aviso=None):
+    top = tk.Toplevel(_root)
+    top.title(c["titulo"])
+    top.configure(bg=THEME["bg"])
+    if aviso:
+        tk.Label(top, text=aviso, fg=THEME["orange_text"], bg=THEME["bg"], wraplength=S(600), justify="left",
+                 font=(FONT, 10)).pack(anchor="w", padx=16, pady=(12, 4))
+    txt = tk.Text(top, height=20, width=90, font=("Consolas", 9))
+    txt.insert("1.0", (out.get("stdout") or "") + (("\n--- stderr ---\n" + out["stderr"]) if out.get("stderr") else "")
+               + f"\n--- salida {out.get('rc')} en {out.get('s')} s ---")
+    txt.configure(state="disabled")
+    txt.pack(fill="both", expand=True, padx=16, pady=12)
+    _widgets["cmd_ventana"] = top
+    return top
+
+
+def _cmd_aviso_ps(c, out):
+    top = _cmd_ventana(c, out, aviso=(
+        "PowerShell no deja ejecutar este .ps1 (ExecutionPolicy). Para desbloquear solo esta carpeta: "
+        f"Get-ChildItem \"{COMANDOS_DIR}\" -Filter *.ps1 | Unblock-File  (si vino de otro PC) o, para tu usuario, "
+        "Set-ExecutionPolicy -Scope CurrentUser RemoteSigned. O ejecútalo esta vez con -ExecutionPolicy Bypass "
+        "(a la vista, solo este archivo):"))
+    ttk.Button(top, text="Ejecutar con -ExecutionPolicy Bypass -File", style="Accent.TButton",
+               command=lambda: (top.destroy(), comando_ejecutar(c, args=[], bypass=True))).pack(pady=(0, 12))
+    log(f"comandos: {c['archivo']}: ExecutionPolicy lo bloquea; se muestra cómo desbloquearlo")
+    return top
+
+
+def _cmd_lista(c, items):
+    top = tk.Toplevel(_root)
+    top.title(c["titulo"])
+    top.configure(bg=THEME["bg"])
+    lb = tk.Listbox(top, width=80, height=min(20, max(4, len(items))), font=(FONT, 10), activestyle="none")
+    for it in items:
+        lb.insert("end", it["titulo"] + (f"  —  {it['subtitulo']}" if it.get("subtitulo") else ""))
+    lb.pack(fill="both", expand=True, padx=16, pady=12)
+
+    def elegir(_e=None):
+        sel = lb.curselection()
+        if not sel:
+            return
+        acc = items[sel[0]].get("accion") or {}
+        if acc.get("tipo") == "copiar":
+            _root.clipboard_clear()
+            _root.clipboard_append(str(acc.get("valor") or ""))
+            toast("Copiado")
+        elif acc.get("tipo") == "abrir" and acc.get("valor"):
+            try:
+                os.startfile(str(acc["valor"]))
+            except OSError as e:
+                messagebox.showerror(c["titulo"], f"No se pudo abrir: {e}")
+        top.destroy()
+    lb.bind("<Return>", elegir)
+    lb.bind("<Double-Button-1>", elegir)
+    lb.focus_set()
+    if items:
+        lb.selection_set(0)
+    top._elegir = elegir  # lo mismo que Intro y el doble clic
+    _widgets["cmd_lista"] = (top, lb, items)
+    return top
+
+
+def comandos_ui():
+    """Mis comandos: lo que hay en comandos\\, autor, de donde sale, lo que
+    pide, y su interruptor. «Actualizar» vuelve a leer la carpeta."""
+    top = tk.Toplevel(_root)
+    top.title("Mis comandos")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(720)}x{S(560)}")
+    body = _scrollable(top)
+    k = _KitTk(body)
+    card = k.section("Mis comandos", f"Scripts .py, .bat y .ps1 de {COMANDOS_DIR} con cabecera @growi.titulo y "
+                                     "@growi.modo. Salen en la paleta (Ctrl+K). Bridge no descarga ni instala "
+                                     "scripts y no los aísla: son código tuyo.")
+    r = k.row(card)
+    k.button(r, "Actualizar", lambda: (comandos_descubrir(), top.destroy(), comandos_ui())).pack(side="left")
+    k.button(r, "Abrir la carpeta", lambda: (COMANDOS_DIR.mkdir(exist_ok=True), open_folder(COMANDOS_DIR))).pack(
+        side="left", padx=(8, 0))
+    filas = {}
+    for c in comandos_descubrir():
+        f = k.row(card)
+        k.label(f, f"{c['titulo']}  ·  {c['archivo']}  ·  modo {c['modo'] or '¿?'}", bold=True, wrap=600).pack(
+            anchor="w")
+        k.label(f, f"{c['descripcion'] or 'sin descripción'}. Autor: {c['autor']}. Sale de: {c['ruta']}."
+                   + (f" Pide: {', '.join(c['pide'])}." if c["pide"] else "")
+                   + (" DESCARGADO DE INTERNET: no se ejecuta hasta quitarle la marca." if c["de_internet"] else "")
+                   + (f" No sale en la paleta: {'; '.join(c['problemas'])}." if c["problemas"] else ""),
+                muted=True, wrap=600).pack(anchor="w")
+        b = k.button(f, "Desactivar" if c["activo"] else "Activar", None)
+        b.configure(command=lambda c=c, b=b: (comando_activar(c["archivo"], not c["activo"]),
+                                              b.configure(text="Desactivar" if c["activo"] else "Activar")))
+        b.pack(anchor="w", pady=(4, 0))
+        filas[c["archivo"]] = b
+    _widgets["cmds_top"], _widgets["cmds_botones"] = top, filas
     return top
 
 
@@ -33560,6 +33887,8 @@ def build_gui():
         C("probar_proxy", "Probar el proxy", "proxy probar conectar vps eeuu salida",
           lambda: (show_window(), _show_page("estado"),
                    proxy_test_ui(_widgets["px_test_btn"], _widgets["px_result"]))),
+        C("mis_comandos", "Mis comandos (scripts)", "scripts comandos carpeta activar desactivar bat ps1 py",
+          lambda: (show_window(), comandos_ui())),
         C("gasto", "Ver el gasto", "gasto dinero costo cuota max equivalente local",
           lambda: _open_ctx(("gasto",))),
         C("exportar", "Exportar mis conversaciones", "exportar respaldo copia conversaciones chats baneo",
@@ -33948,6 +34277,7 @@ def main():
     # y gasto (cada 5 min); la configuracion inicial solo la primera vez.
     threading.Thread(target=_availability_loop, daemon=True).start()
     threading.Thread(target=_spend_loop, daemon=True).start()
+    threading.Thread(target=comandos_descubrir, daemon=True).start()  # scripts de la carpeta comandos
     if LANE == "a":  # el carril B no avisa ni programa nada
         threading.Thread(target=_auto_loop, daemon=True).start()
     # Salida estable: IP de salida + comparación + Avast + vigía del túnel

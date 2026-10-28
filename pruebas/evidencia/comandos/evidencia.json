@@ -1,0 +1,216 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cmds-59v5aw0z",
+ "descubiertos": [
+  {
+   "archivo": "abrir-resultados.bat",
+   "titulo": "Abrir la carpeta de resultados",
+   "modo": "silencioso",
+   "descripcion": "Abre share\\outbox de Growi Bridge (lo que dejan las tareas) en el Explorador",
+   "autor": "Plantilla de Growi Bridge (copiala y cambiala)",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "archivos-recientes.py",
+   "titulo": "Archivos recientes",
+   "modo": "lista",
+   "descripcion": "Los 15 archivos más nuevos de Descargas y de los resultados de Growi; Enter abre el elegido",
+   "autor": "Plantilla de Growi Bridge (copiala y cambiala)",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "prueba-delicada.py",
+   "titulo": "Prueba delicada",
+   "modo": "silencioso",
+   "descripcion": "",
+   "autor": "prueba",
+   "pide": [
+    "borrar"
+   ],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "prueba-descargada.bat",
+   "titulo": "Prueba descargada",
+   "modo": "silencioso",
+   "descripcion": "",
+   "autor": "sin autor en la cabecera",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": true
+  },
+  {
+   "archivo": "prueba-lista.py",
+   "titulo": "Prueba lista",
+   "modo": "lista",
+   "descripcion": "",
+   "autor": "sin autor en la cabecera",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "prueba-ps.ps1",
+   "titulo": "Prueba PowerShell",
+   "modo": "ventana",
+   "descripcion": "",
+   "autor": "sin autor en la cabecera",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "prueba-silencioso.bat",
+   "titulo": "Prueba silenciosa",
+   "modo": "silencioso",
+   "descripcion": "Deja una marca",
+   "autor": "prueba",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "prueba-ventana.py",
+   "titulo": "Prueba ventana",
+   "modo": "ventana",
+   "descripcion": "Escribe un saludo",
+   "autor": "sin autor en la cabecera",
+   "pide": [],
+   "activo": true,
+   "problemas": [],
+   "de_internet": false
+  },
+  {
+   "archivo": "sin-cabecera.bat",
+   "titulo": "sin-cabecera",
+   "modo": null,
+   "descripcion": "",
+   "autor": "sin autor en la cabecera",
+   "pide": [],
+   "activo": true,
+   "problemas": [
+    "falta @growi.titulo",
+    "@growi.modo debe ser silencioso / ventana / lista"
+   ],
+   "de_internet": false
+  }
+ ],
+ "a_paleta_seccion_mis_comandos": [
+  "Abrir la carpeta de resultados",
+  "Archivos recientes",
+  "Prueba delicada",
+  "Prueba lista",
+  "Prueba PowerShell",
+  "Prueba silenciosa",
+  "Prueba ventana"
+ ],
+ "a_descargado_fuera_de_la_paleta": true,
+ "a_paleta_buscar_prueba": [
+  "Prueba lista",
+  "Prueba ventana",
+  "Prueba delicada",
+  "Prueba PowerShell",
+  "Prueba silenciosa",
+  "Growi (activo)",
+  "Usar Guionista Summit",
+  "Usar Contable"
+ ],
+ "b_silencioso": {
+  "rc": 0,
+  "marca_creada": true,
+  "toast": [
+   "✓ Prueba silenciosa"
+  ]
+ },
+ "b_ventana": {
+  "rc": 0,
+  "stdout": "hola desde la ventana",
+  "ventana": "Prueba ventana"
+ },
+ "b_lista": {
+  "items": [
+   "uno",
+   "dos"
+  ]
+ },
+ "b_lista_enter_copia": "valor-dos",
+ "e_plantilla_archivos_recientes": {
+  "rc": 0,
+  "items": 15,
+  "primero": "runner-status.json  —  outbox · 28/10 00:19"
+ },
+ "e_plantilla_abrir_resultados": {
+  "rc": 0,
+  "carpeta_existe": true
+ },
+ "d_delicado": {
+  "titulo": "El comando «Prueba delicada» pide algo delicado",
+  "texto_completo_mostrado": "# @growi.titulo Prueba delicada\n# @growi.modo silencioso\n# @growi.autor prueba\nimport os\nopen('borrame.txt', 'w').close()\nos.remove('borrame.txt')",
+  "rc_primera": 0,
+  "segunda_vez_pregunto": false,
+  "rc_segunda": 0,
+  "decision_guardada": {
+   "hash": "3a8e95ef67175645",
+   "permitido": true,
+   "at": "2026-10-28T00:20:45-04:00"
+  }
+ },
+ "descargado_aviso": "«Prueba descargada» lleva la marca de descargado de internet. Bridge no ejecuta scripts descargados sin revisar: léelo y, si te fías, quita la marca (Unblock-File \"C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cmds-59v5aw0z\\app\\comandos\\prueba-descargada.bat\").",
+ "descargado_resultado": null,
+ "f_ps1_bloqueado": {
+  "bloqueado": true,
+  "salida": "No se puede cargar el archivo C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cmds-59v5aw0z\\app\\comandos\\prueba-ps.ps1 \nporque la ejecuci�n de scripts est� deshabilitada en este sistema. Para obtener m�s informaci�n, consulta el tema \nabout_Execution_Policies en https:/go.microsoft.com/fwlink/?LinkID",
+  "aviso": [
+   "PowerShell no deja ejecutar este .ps1 (ExecutionPolicy). Para desbloquear solo esta carpeta: Get-ChildItem \"C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cmds-59v5aw0z\\app\\comandos\" -Filter *.ps1 | Unblock-File  (si vino de otro PC) o, para tu usuario, Set-ExecutionPolicy -Scope CurrentUser RemoteSigned. O ejecútalo esta vez con -ExecutionPolicy Bypass (a la vista, solo este archivo):"
+  ]
+ },
+ "f_boton": "Ejecutar con -ExecutionPolicy Bypass -File",
+ "f_con_bypass": {
+  "rc": 0,
+  "stdout": "hola desde ps1",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-ExecutionPolicy",
+   "Bypass",
+   "-File",
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cmds-59v5aw0z\\app\\comandos\\prueba-ps.ps1"
+  ]
+ },
+ "c_texto_boton_tras_clic": "Activar",
+ "c_tras_desactivar": {
+  "en_paleta": false,
+  "archivo_sigue": true,
+  "settings_comandos_off": [
+   "prueba-ventana.py"
+  ]
+ },
+ "log": [
+  "2026-10-28T00:20:41-04:00 comandos: prueba-silencioso.bat (silencioso) -> salida 0 en 0.1 s",
+  "2026-10-28T00:20:41-04:00 comandos: prueba-ventana.py (ventana) -> salida 0 en 0.1 s",
+  "2026-10-28T00:20:42-04:00 comandos: prueba-lista.py (lista) -> salida 0 en 0.1 s",
+  "2026-10-28T00:20:43-04:00 comandos: archivos-recientes.py (lista) -> salida 0 en 0.4 s",
+  "2026-10-28T00:20:44-04:00 comandos: abrir-resultados.bat (silencioso) -> salida 0 en 0.5 s",
+  "2026-10-28T00:20:45-04:00 comandos: prueba-delicada.py pide borrar: permitido (se recuerda hasta que el script cambie)",
+  "2026-10-28T00:20:46-04:00 comandos: prueba-delicada.py (silencioso) -> salida 0 en 0.1 s",
+  "2026-10-28T00:20:46-04:00 comandos: prueba-delicada.py (silencioso) -> salida 0 en 0.1 s",
+  "2026-10-28T00:20:46-04:00 comandos: prueba-descargada.bat no se ejecuta: marca de descargado de internet",
+  "2026-10-28T00:20:46-04:00 comandos: prueba-ps.ps1 (ventana) -> salida 1 en 0.6 s [ExecutionPolicy lo bloquea]",
+  "2026-10-28T00:20:46-04:00 comandos: prueba-ps.ps1: ExecutionPolicy lo bloquea; se muestra cómo desbloquearlo",
+  "2026-10-28T00:20:47-04:00 comandos: prueba-ps.ps1 (ventana) -> salida 0 en 0.5 s [con -ExecutionPolicy Bypass]",
+  "2026-10-28T00:20:47-04:00 comandos: 9 script(s) en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cmds-59v5aw0z\\app\\comandos (0 desactivado(s))",
+  "2026-10-28T00:20:49-04:00 comandos: prueba-ventana.py desactivado"
+ ],
+ "tracebacks_en_log": 0
+}
