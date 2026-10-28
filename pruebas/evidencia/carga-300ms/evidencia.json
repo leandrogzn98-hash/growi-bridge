@@ -1,0 +1,104 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carga-zylndwgs",
+ "a_registro": [
+  [
+   "prueba 100 ms",
+   373,
+   "carga"
+  ],
+  [
+   "prueba 600 ms",
+   1389,
+   "carga+detalle"
+  ]
+ ],
+ "a_que_se_mostro": [
+  [
+   100,
+   "mostrar"
+  ],
+  [
+   600,
+   "mostrar"
+  ],
+  [
+   1500,
+   "mostrar"
+  ],
+  [
+   600,
+   "detalle"
+  ],
+  [
+   1500,
+   "detalle"
+  ]
+ ],
+ "b_a_150ms_esqueleto": false,
+ "b_a_650ms_esqueleto": false,
+ "b_debug": {
+  "hijos": [
+   "CTkFrame",
+   "Frame"
+  ],
+  "lib": 0,
+  "installed": [
+   {
+    "name": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+    "id": "6d12e750a204",
+    "size": "4.9 GB",
+    "size_gb": 4.9,
+    "modified": "hace 8 días"
+   }
+  ],
+  "carga": [
+   "nada",
+   true
+  ]
+ },
+ "b_a_1350ms_texto": [],
+ "b_al_llegar_la_lista_sin_esqueleto": true,
+ "b2_skills_150ms_esqueleto": false,
+ "b2_skills_650ms_esqueleto": true,
+ "b2_skills_tras_repintar_esqueleto": true,
+ "b2_skills_1250ms_estado": "Leyendo la carpeta de skills…",
+ "b2_skills_al_llegar_sin_esqueleto": true,
+ "b2_registro_skills": [
+  [
+   "lista de skills",
+   1363,
+   "carga+detalle"
+  ]
+ ],
+ "c_boton_a_550ms": {
+  "texto": "⠸ Buscando…",
+  "estado": "disabled"
+ },
+ "c_boton_al_final": {
+  "texto": "Buscar actualizaciones",
+  "estado": "normal"
+ },
+ "c_busquedas_lanzadas_con_2_clics": 1,
+ "d_progreso": "126.0 de 609.0 MB (20.7 %) · 10.8 MB/s · faltan 45 s",
+ "d_progreso_sin_velocidad_aun": "1.0 de 609.0 MB (0.2 %) · midiendo la velocidad…",
+ "e_fila": [
+  "t-prueba-trabajando",
+  "Trabajando… (corriendo)",
+  "claude (sonnet)",
+  "—",
+  "42 s",
+  "1.2k / 300",
+  "~$0.01",
+  "—"
+ ],
+ "log": [
+  "2026-10-28T00:10:05-04:00 carga: lista de modelos: 20535 ms -> carga+detalle",
+  "2026-10-28T00:10:22-04:00 carga: prueba 100 ms: 373 ms -> carga",
+  "2026-10-28T00:10:23-04:00 carga: prueba 600 ms: 1389 ms -> carga+detalle",
+  "2026-10-28T00:10:27-04:00 carga: prueba 1500 ms: 4735 ms -> carga+detalle",
+  "2026-10-28T00:10:29-04:00 carga: lista de modelos: 5129 ms -> nada",
+  "2026-10-28T00:10:41-04:00 carga: lista de skills: 1363 ms -> carga+detalle",
+  "2026-10-28T00:10:46-04:00 carga: buscar actualizaciones: 2378 ms -> carga+detalle"
+ ],
+ "tracebacks_en_log": 0
+}

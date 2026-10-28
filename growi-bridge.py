@@ -15706,6 +15706,142 @@ def save_proxy_from_ui():
     messagebox.showinfo("Proxy", "Configuración guardada. Ya puedes encender el proxy.")
 
 
+# ---- estados de carga (t-carga-300ms): la regla de los 300 ms en UN sitio.
+# Menos de 300 ms: nada (un spinner que parpadea es peor que nada). Más de
+# 300 ms: estado de carga (esqueleto en listas, spinner en botones). Más de
+# 1 s: el estado dice qué está pasando. Todo lo que espera pasa por Carga.
+CARGA_MS, CARGA_DETALLE_MS = 300, 1000
+_CARGA_REG = deque(maxlen=200)  # (nombre, ms, patron): para medir y para las pruebas
+
+
+class Carga:
+    def __init__(self, nombre, mostrar=None, detalle=None, ocultar=None, texto=None, widget=None):
+        self.nombre, self.t0, self.patron = nombre, time.perf_counter(), "nada"
+        self._mostrar, self._detalle, self._ocultar, self.texto = mostrar, detalle, ocultar, texto
+        self._w = widget or _root
+        self._jobs = []
+        self.hecha = False
+        try:
+            if mostrar:
+                self._jobs.append(self._w.after(CARGA_MS, self._paso_mostrar))
+            if detalle:
+                self._jobs.append(self._w.after(CARGA_DETALLE_MS, self._paso_detalle))
+        except Exception:
+            pass
+
+    def _paso_mostrar(self):
+        if not self.hecha:
+            self.patron = "carga"
+            try:
+                self._mostrar()
+            except Exception as e:
+                log(f"carga: {self.nombre}: no se pudo mostrar ({type(e).__name__}: {e})")
+
+    def _paso_detalle(self):
+        if not self.hecha:
+            self.patron = "carga+detalle"
+            try:
+                self._detalle(self.texto)
+            except Exception as e:
+                log(f"carga: {self.nombre}: no se pudo detallar ({type(e).__name__}: {e})")
+
+    def fin(self):
+        if self.hecha:
+            return
+        self.hecha = True
+        for j in self._jobs:
+            try:
+                self._w.after_cancel(j)
+            except Exception:
+                pass
+        if self.patron != "nada" and self._ocultar:
+            try:
+                self._ocultar()
+            except Exception:
+                pass
+        ms = round((time.perf_counter() - self.t0) * 1000)
+        _CARGA_REG.append((self.nombre, ms, self.patron))
+        if ms >= CARGA_MS:
+            log(f"carga: {self.nombre}: {ms} ms -> {self.patron}")
+
+
+def con_carga(nombre, trabajo, al_terminar, **kw):
+    """Corre trabajo() en un hilo con su Carga; al_terminar(resultado) en la ventana."""
+    c = Carga(nombre, **kw)
+
+    def _hilo():
+        try:
+            r = trabajo()
+        except Exception as e:
+            r = e
+        _ui_call(lambda: (c.fin(), al_terminar(r)))
+    threading.Thread(target=_hilo, daemon=True).start()
+    return c
+
+
+def boton_largo(btn, nombre, trabajo, al_terminar, texto="Trabajando"):
+    """Spinner en el boton: se desactiva AL MOMENTO (feedback < 200 ms y no se
+    puede pulsar dos veces); a los 300 ms gira; a 1 s dice que hace."""
+    if getattr(btn, "_ocupado", False):
+        return None
+    btn._ocupado = True
+    original = btn.cget("text")
+    btn.configure(state="disabled")
+    giro = {"i": 0, "job": None, "txt": texto}
+
+    def _girar():
+        try:
+            btn.configure(text=f"{_SPIN[giro['i'] % len(_SPIN)]} {giro['txt']}…")
+            giro["i"] += 1
+            giro["job"] = btn.after(100, _girar)
+        except Exception:
+            pass
+
+    def _ocultar():
+        if giro["job"]:
+            btn.after_cancel(giro["job"])
+
+    def _fin(r):
+        btn._ocupado = False
+        try:
+            btn.configure(text=original, state="normal")
+        except Exception:
+            pass
+        al_terminar(r)
+    return con_carga(nombre, trabajo, _fin, mostrar=_girar, ocultar=_ocultar, widget=btn,
+                     detalle=lambda t: giro.__setitem__("txt", t), texto=texto)
+
+
+def esqueleto(parent, filas=4, alto=34, bg=None):
+    """Filas grises con la geometria de una lista (no un spinner a pantalla
+    completa). Devuelve el marco: quien carga lo quita al llegar los datos."""
+    gris = _tema_fijo("seg_bg") or "#E8E8ED"
+    f = tk.Frame(parent, bg=bg or THEME["card"])
+    for i in range(filas):
+        r = tk.Frame(f, bg=bg or THEME["card"], height=S(alto))
+        r.pack(fill="x", padx=16, pady=(6, 0))
+        r.pack_propagate(False)
+        tk.Frame(r, bg=gris, height=S(12), width=S(220 - 30 * (i % 3))).pack(anchor="w", pady=(2, 4))
+        tk.Frame(r, bg=gris, height=S(9), width=S(340 - 40 * (i % 2))).pack(anchor="w")
+    f._esqueleto = True
+    return f
+
+
+def check_updates_boton(btn):
+    """«Buscar actualizaciones» con spinner y sin doble clic."""
+    def _fin(remote):
+        if isinstance(remote, Exception):
+            log(f"actualizaciones: no se pudo comprobar ({type(remote).__name__})")
+            return
+        state["update_checked"] = True
+        if remote:
+            state["update_available"] = remote
+            log(f"actualizaciones: hay una nueva version v{remote}")
+        else:
+            log("actualizaciones: estás en la última versión")
+    return boton_largo(btn, "buscar actualizaciones", check_update_available, _fin, texto="Buscando")
+
+
 def check_updates_ui():
     def _run():
         remote = check_update_available()
@@ -21175,13 +21311,23 @@ def _apply_live_to_tree():
     if tree is None or not lv:
         return
     iid = lv.get("raiz") or lv.get("task_id")
-    if not iid or not tree.exists(iid):
+    if not iid:
         return
     v = _live_values(lv, corto=True)
+    if not tree.exists(iid) and lv.get("estado") != "terminado":
+        # La tarea en curso sin fila todavia (no tiene resultado): su fila
+        # «Trabajando…» arriba, nunca una lista quieta mientras trabaja.
+        tree.insert("", 0, iid=iid, tags=("en_curso",), values=(
+            iid, "Trabajando…", v["motor"], "—", v["tiempo"], v["tokens"], v["costo"], "—"))
+        return
+    if not tree.exists(iid):
+        return
     cur = list(tree.item(iid, "values"))
     if len(cur) < 8:
         return
     cur[1], cur[2], cur[4], cur[5], cur[6] = v["estado"], v["motor"], v["tiempo"], v["tokens"], v["costo"]
+    if lv.get("estado") != "terminado":
+        cur[1] = f"Trabajando… ({v['estado']})"  # la fila en curso lo dice, no una lista quieta
     if v["revision"] != "—":
         cur[7] = v["revision"]
     tree.item(iid, values=cur, tags=("en_curso" if lv.get("estado") != "terminado" else
@@ -23231,8 +23377,23 @@ def request_models_list(force=False):
     threading.Thread(target=_run, daemon=True).start()
 
 
+def _mdl_esqueleto(box, texto=None):
+    if not box.winfo_exists() or _mdl["installed"] is not None:
+        return
+    for ch in box.winfo_children():
+        if getattr(ch, "_esqueleto", False) or getattr(ch, "_esq_txt", False):
+            ch.destroy()
+    if texto:
+        lb = tk.Label(box, text=texto, font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"])
+        lb._esq_txt = True
+        lb.pack(anchor="w", padx=16, pady=(6, 0))
+    esqueleto(box, filas=3).pack(fill="x")
+
+
 def _apply_models_list(ok, out, err):
     _mdl["list_req"] = None
+    if _mdl.get("carga") is not None:
+        _mdl["carga"].fin()
     if ok:
         _mdl["installed"] = parse_ollama_list(out)
         _mdl["list_err"] = ""
@@ -23512,7 +23673,13 @@ def _render_models():
     for e in lib:
         _lib_fila_instalado(k, box, e, catalog, specs, free)
     if installed is None and not lib:
-        k.label(box, "Leyendo tus modelos…", muted=True).pack(anchor="w", padx=16, pady=6)
+        # Regla de los 300 ms: el esqueleto solo si la lista tarda; a 1 s, qué pasa.
+        c = _mdl.get("carga")
+        if c is None or c.hecha:
+            _mdl["carga"] = Carga("lista de modelos", mostrar=lambda: _mdl_esqueleto(box),
+                                  detalle=lambda t: _mdl_esqueleto(box, t), texto="Leyendo tus modelos (Ollama)…")
+        elif c.patron != "nada":  # el repintado de cada segundo lo borro: se vuelve a poner
+            _mdl_esqueleto(box, c.texto if c.patron == "carga+detalle" else None)
     elif not installed and lib:
         pass  # sin Ollama (o vacio): lo del librero ya esta arriba
     elif not installed and "no está instalado" in (_mdl["list_err"] or ""):
@@ -24616,7 +24783,20 @@ def _skb_render():
             ch.destroy()
     est = _SKX["estado"]
     if est == "carga" or _SKX["at"] is None:
-        k.set_label(W["skb_estado"], "Leyendo la carpeta de skills…", color="blue")
+        k.set_label(W["skb_estado"], "", color="blue")  # nada en los primeros 300 ms
+        c = _SKV.get("carga")
+        if c is None or c.hecha:
+            _SKV["carga"] = Carga("lista de skills", mostrar=lambda: lista.winfo_exists() and esqueleto(
+                lista, filas=4).pack(fill="x"), detalle=lambda t: k.set_label(W["skb_estado"], t, color="blue"),
+                texto="Leyendo la carpeta de skills…")
+        elif c.patron != "nada":  # el repintado lo borro: se vuelve a poner
+            esqueleto(lista, filas=4).pack(fill="x")
+            if c.patron == "carga+detalle":
+                k.set_label(W["skb_estado"], c.texto, color="blue")
+    elif _SKV.get("carga") is not None:
+        _SKV["carga"].fin()
+    if est == "carga" or _SKX["at"] is None:
+        pass
     elif est == "sin_carpeta":
         k.set_label(W["skb_estado"], f"Sin conexión con la carpeta de skills: {SKILLS_DIR} no existe o no se "
                                      "puede abrir. Créala (o vuelve a conectar el disco) y pulsa «Volver a leer».",
@@ -32190,9 +32370,13 @@ def _build_ajustes_ctk(tab_aj):
     brow.pack(anchor="w", pady=(10, 0))
     for i, (txt, cmd) in enumerate((("Abrir Inbox", lambda: open_folder(INBOX)),
                                     ("Abrir Outbox", lambda: open_folder(OUTBOX)),
-                                    ("Buscar actualizaciones", check_updates_ui),
+                                    ("Buscar actualizaciones", None),
                                     ("Salir", quit_app))):
-        button(brow, txt, cmd).pack(side="left", padx=(0 if i == 0 else 8, 0))
+        _b = button(brow, txt, cmd)
+        _b.pack(side="left", padx=(0 if i == 0 else 8, 0))
+        if cmd is None:  # spinner en el boton y sin doble clic (t-carga-300ms)
+            _b.configure(command=lambda b=_b: check_updates_boton(b))
+            _widgets["aj_buscar_act"] = _b
     _widgets["update_label"] = _Label(r, text="", font=F(13), text_color=T["green_text"],
                                       anchor="w", height=1)
     _widgets["update_label"].pack(anchor="w", pady=(8, 0))
