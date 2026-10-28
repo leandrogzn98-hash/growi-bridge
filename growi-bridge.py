@@ -21152,6 +21152,10 @@ def quit_app():
         atajos_salir()  # UnregisterHotKey de cada atajo global: quedan libres
     except Exception:
         pass
+    try:  # lo pendiente del día, al historial de gasto (t-historial-gasto-045)
+        gasto_historial_actualizar([datetime.now().astimezone().date().isoformat()], "al cerrar")
+    except Exception:
+        pass
     try:
         lib_shutdown()  # descarga en pausa con fsync; el .part se conserva
     except Exception:
@@ -24213,6 +24217,164 @@ def _render_spend():
                                        str(b["local"]), str(b["n"])))
 
 
+# ---- Historial de gasto por día (t-historial-gasto-045, pedido de Leandro 27 oct 2026). share\gasto-historial.json:
+# una fila por día (la fecha de los registros, hora de Caracas) con real, equivalente Max, local (tareas, $0) y
+# tareas. Las cifras salen de los MISMOS registros y con las MISMAS reglas que «Real hoy / Equivalente Max hoy /
+# Local» (spend_summary: .result.json y .revision.json, por finished_at / revisado_at): la fila de hoy y los «hoy»
+# siempre cuadran, y los «hoy» no cambian. Nunca se reescribe borrando días: solo se pone o se sube la fila de
+# cada día (si sus registros desaparecen, el día se queda como estaba). La siembra son los días que se pueden
+# verificar contra los registros que hay; lo que no, no se siembra.
+GASTO_HIST_FILE = SHARE / "gasto-historial.json"
+_GH_LOCK = threading.Lock()
+
+
+def gasto_por_dia():
+    """{dia: {real, equiv, local, n, real_sin_precio, archivos}} de los registros de la app, con las reglas de
+    spend_summary (la misma fuente que los «hoy»)."""
+    plan = _claude_plan()
+    out = {}
+    for pattern in ("*.result.json", "*.revision.json"):
+        for f in RESULTS.glob(pattern):
+            try:
+                d = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(d, dict) or d.get("ollama_action"):
+                continue
+            dia = str(d.get("finished_at") or d.get("revisado_at") or "")[:10]
+            if len(dia) != 10:
+                continue
+            kind = _money_kind(d, plan)
+            cost = d.get("cost_usd") if isinstance(d.get("cost_usd"), (int, float)) else None
+            x = out.setdefault(dia, {"real": 0.0, "equiv": 0.0, "local": 0, "n": 0, "real_sin_precio": 0,
+                                     "archivos": 0})
+            x["archivos"] += 1
+            if pattern == "*.result.json":
+                x["n"] += 1
+            if kind == "local":
+                if pattern == "*.result.json":
+                    x["local"] += 1
+            elif kind in ("real", "equiv") and cost is not None:
+                x[kind] += cost
+            elif kind == "real":
+                x["real_sin_precio"] += 1
+    for x in out.values():
+        x["real"], x["equiv"] = round(x["real"], 4), round(x["equiv"], 4)
+    return out
+
+
+def gasto_historial_leer():
+    """(dias {fecha: fila}, error). Sin archivo: {} (no hay historial)."""
+    try:
+        d = json.loads(GASTO_HIST_FILE.read_text(encoding="utf-8"))
+        dias = d.get("dias") if isinstance(d, dict) else None
+        return (dias if isinstance(dias, dict) else {}), None
+    except FileNotFoundError:
+        return {}, None
+    except (OSError, ValueError) as e:
+        return {}, f"{GASTO_HIST_FILE.name} no se pudo leer ({type(e).__name__})"
+
+
+def gasto_historial_actualizar(dias=None, motivo="actualización"):
+    """Pone o sube la fila de cada día (todos los que tengan registros si dias es None) con lo que dicen los
+    registros. Nunca borra un día ni baja una cifra. Devuelve las filas cambiadas."""
+    calc = gasto_por_dia()
+    objetivo = list(calc) if dias is None else [d for d in dias if d in calc]
+    with _GH_LOCK:
+        hist, err = gasto_historial_leer()
+        if err:  # archivo dañado: no se pisa (se perdería el historial); se avisa y no se escribe
+            log(f"gasto: historial: {err}; no lo toco")
+            return {}
+        cambios = {}
+        for dia in objetivo:
+            n = calc[dia]
+            v = hist.get(dia) or {}
+            fila = {k: max(n[k], v.get(k) or 0) for k in ("real", "equiv", "local", "n", "real_sin_precio")}
+            if {k: v.get(k) for k in fila} != fila:
+                fila.update(fuente=f"registros de la app ({n['archivos']} archivos)", actualizado=_now_iso())
+                hist[dia] = fila
+                cambios[dia] = fila
+        if cambios:
+            GASTO_HIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = GASTO_HIST_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"_que_es": "Gasto por día de Growi Bridge (t-historial-gasto-045). Real = "
+                                                  "dinero pagado con tu clave; equivalente Max = lo que costaría por "
+                                                  "API lo hecho con Max (NO se cobra aparte); local = tareas en tu PC "
+                                                  "($0).", "dias": dict(sorted(hist.items()))},
+                                      ensure_ascii=False, indent=1), encoding="utf-8")
+            os.replace(tmp, GASTO_HIST_FILE)
+            log(f"gasto: historial ({motivo}): {', '.join(sorted(cambios))} " + f"({len(hist)} días en total)")
+    return cambios
+
+
+def gasto_acumulado(hist=None):
+    """Total acumulado = la suma de las filas del historial, y desde qué día."""
+    hist = gasto_historial_leer()[0] if hist is None else hist
+    if not hist:
+        return None
+    tot = {k: sum((f.get(k) or 0) for f in hist.values()) for k in ("real", "equiv", "local", "n")}
+    tot["desde"] = min(hist)
+    tot["dias"] = len(hist)
+    return tot
+
+
+def _gh_en_fondo(dias=None, motivo="actualización"):
+    def _run():
+        try:
+            if gasto_historial_actualizar(dias, motivo):
+                _ui_call(_render_gasto_historial)
+        except Exception as e:
+            log(f"gasto: historial: {type(e).__name__}: {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _build_gasto_historial(card):
+    """Total acumulado y la tabla por día (ttk.Treeview, clásico), dentro de la tarjeta Gasto, debajo de los «hoy»."""
+    T = THEME
+    _widgets["gh_total"] = tk.Label(card, text="", font=(FONT, 10, "bold"), bg=T["card"], fg=T["text"],
+                                    justify="left", anchor="w", wraplength=S(620))
+    _widgets["gh_total"].pack(anchor="w", fill="x", padx=16, pady=(6, 2))
+    tk.Label(card, text="Por día (lo más reciente primero)", font=(FONT, 9), bg=T["card"], fg=T["muted"]).pack(
+        anchor="w", padx=16)
+    tree = ttk.Treeview(card, columns=("dia", "real", "equiv", "local", "n"), show="headings", height=6,
+                        selectmode="browse")
+    for col, txt, wd, st in (("dia", "Día", 110, True), ("real", "Real", 80, False),
+                             ("equiv", "Equivalente Max", 130, False), ("local", "Local ($0)", 90, False),
+                             ("n", "Tareas", 70, False)):
+        tree.heading(col, text=txt, anchor="w")
+        tree.column(col, width=S(wd), minwidth=S(50), stretch=st, anchor="w")
+    tree.pack(fill="x", padx=16, pady=(2, 8))
+    _widgets["gh_tree"] = tree
+    _render_gasto_historial()
+
+
+def _render_gasto_historial():
+    tree, lab = _widgets.get("gh_tree"), _widgets.get("gh_total")
+    if tree is None or lab is None:
+        return
+    hist, err = gasto_historial_leer()
+    for it in tree.get_children():
+        tree.delete(it)
+    if err:
+        lab.config(text=f"Total acumulado: sin datos ({err}).")
+        tree.insert("", "end", values=("sin datos", "", "", "", ""))
+        return
+    tot = gasto_acumulado(hist)
+    if not tot:
+        lab.config(text="Total acumulado: sin datos (todavía no hay ningún día registrado).")
+        tree.insert("", "end", values=("sin datos", "", "", "", ""))
+        return
+    d0 = tot["desde"]
+    lab.config(text=(f"Total acumulado desde {d0[8:10]}/{d0[5:7]}/{d0[:4]} ({tot['dias']} días): "
+                     f"real ${tot['real']:.2f} · equivalente Max ${tot['equiv']:.2f} (no se cobra aparte: va en tu "
+                     f"Max) · local {tot['local']} tareas ($0)"))
+    for dia in sorted(hist, reverse=True):
+        f = hist[dia]
+        tree.insert("", "end", iid=dia, values=(f"{dia[8:10]}/{dia[5:7]}/{dia[:4]}", f"${(f.get('real') or 0):.2f}",
+                                                f"${(f.get('equiv') or 0):.2f}", str(f.get("local") or 0),
+                                                str(f.get("n") or 0)))
+
+
 def _build_spend_card(tab):
     card = _card(tab, "Gasto",
                  "Tres dineros que nunca se mezclan: lo que pagas de verdad con tu clave, lo que "
@@ -24233,6 +24395,11 @@ def _build_spend_card(tab):
         _widgets[key + "_sub"] = tk.Label(cell, text="", font=(FONT, 9), bg=THEME["bg"],
                                           fg=THEME["muted"], wraplength=S(250), justify="left")
         _widgets[key + "_sub"].pack(anchor="w")
+    try:  # Total acumulado + historial por día (t-historial-gasto-045); los «hoy» de arriba no cambian
+        _build_gasto_historial(card)
+        _gh_en_fondo(None, "arranque: días verificables en los registros")
+    except Exception as e:
+        log(f"gasto: no se pudo dibujar el historial ({type(e).__name__}: {e})")
     seg = tk.Frame(card, bg=THEME["card"])
     seg.pack(fill="x", padx=16, pady=(6, 2))
     _widgets["sp_view"] = tk.StringVar(value="tarea")
@@ -28368,6 +28535,8 @@ def _refresh_tasks_ui():
               _T45.get("busca", ""))
         if fp == _tasks_fp[0]:
             return
+        if _tasks_fp[0] is not None and fp[:2] != _tasks_fp[0][:2]:  # resultados nuevos: la fila de hoy del historial
+            _gh_en_fondo([datetime.now().astimezone().date().isoformat()], "resultado nuevo")
         _tasks_fp[0] = fp
         rows, today_total, total = _task_rows()
         sel = tree.selection()

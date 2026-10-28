@@ -1,0 +1,124 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-historial-gasto-z_qhfqrk",
+ "variante": "reinicio",
+ "dpi": "100",
+ "build_gui_s": 14.35,
+ "json": {
+  "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-historial-gasto-z_qhfqrk\\share\\gasto-historial.json",
+  "error": null,
+  "dias": {
+   "2026-10-26": {
+    "real": 0.0,
+    "equiv": 0.65,
+    "local": 0,
+    "n": 2,
+    "real_sin_precio": 0,
+    "fuente": "registros de la app (2 archivos)",
+    "actualizado": "2026-10-28T17:25:45-04:00"
+   },
+   "2026-10-27": {
+    "real": 0.0,
+    "equiv": 1.1,
+    "local": 1,
+    "n": 2,
+    "real_sin_precio": 0,
+    "fuente": "registros de la app (2 archivos)",
+    "actualizado": "2026-10-28T17:25:45-04:00"
+   },
+   "2026-10-28": {
+    "real": 0.0,
+    "equiv": 0.35,
+    "local": 0,
+    "n": 2,
+    "real_sin_precio": 0,
+    "fuente": "registros de la app (2 archivos)",
+    "actualizado": "2026-10-28T17:27:00-04:00"
+   }
+  }
+ },
+ "d_verificado": {
+  "2026-10-28": {
+   "real": true,
+   "equiv": false,
+   "local": true,
+   "n": false
+  }
+ },
+ "b_total": {
+  "pantalla": "Total acumulado desde 26/10/2026 (3 días): real $0.00 · equivalente Max $2.10 (no se cobra aparte: va en tu Max) · local 1 tareas ($0)",
+  "acumulado": {
+   "real": 0,
+   "equiv": 2.1,
+   "local": 1,
+   "n": 6,
+   "desde": "2026-10-26",
+   "dias": 3
+  },
+  "suma_filas": {
+   "real": 0,
+   "equiv": 2.1,
+   "local": 1,
+   "n": 6
+  },
+  "cuadra": true
+ },
+ "c_tabla": [
+  [
+   "28/10/2026",
+   "$0.00",
+   "$0.35",
+   "0",
+   "2"
+  ],
+  [
+   "27/10/2026",
+   "$0.00",
+   "$1.10",
+   "1",
+   "2"
+  ],
+  [
+   "26/10/2026",
+   "$0.00",
+   "$0.65",
+   "0",
+   "2"
+  ]
+ ],
+ "e_hoy": {
+  "pantalla": {
+   "sp_real": "$0.00",
+   "sp_equiv": "$0.02",
+   "sp_local": "$0",
+   "sp_local_sub": "0 tareas hoy en tu PC"
+  },
+  "spend_summary_hoy": {
+   "real": 0.0,
+   "equiv": 0.02,
+   "local": 0,
+   "real_sin_precio": 0
+  },
+  "fila_de_hoy": {
+   "real": 0.0,
+   "equiv": 0.35,
+   "local": 0,
+   "n": 2,
+   "real_sin_precio": 0,
+   "fuente": "registros de la app (2 archivos)",
+   "actualizado": "2026-10-28T17:27:00-04:00"
+  },
+  "cuadra": false
+ },
+ "a_sobrevive": {
+  "dias_del_historial": [
+   "2026-10-26",
+   "2026-10-27",
+   "2026-10-28"
+  ],
+  "dias_con_registros_ahora": [
+   "2026-10-28"
+  ],
+  "anteriores_siguen": true
+ },
+ "tracebacks_en_log": 0
+}

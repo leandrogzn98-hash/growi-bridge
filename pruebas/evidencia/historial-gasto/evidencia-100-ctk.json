@@ -1,0 +1,138 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-historial-gasto-7fc931pv",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 14.83,
+ "json": {
+  "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-historial-gasto-7fc931pv\\share\\gasto-historial.json",
+  "error": null,
+  "dias": {
+   "2026-10-26": {
+    "real": 0.0,
+    "equiv": 0.65,
+    "local": 0,
+    "n": 2,
+    "real_sin_precio": 0,
+    "fuente": "registros de la app (2 archivos)",
+    "actualizado": "2026-10-28T17:25:45-04:00"
+   },
+   "2026-10-27": {
+    "real": 0.0,
+    "equiv": 1.1,
+    "local": 1,
+    "n": 2,
+    "real_sin_precio": 0,
+    "fuente": "registros de la app (2 archivos)",
+    "actualizado": "2026-10-28T17:25:45-04:00"
+   },
+   "2026-10-28": {
+    "real": 0.0,
+    "equiv": 0.05,
+    "local": 0,
+    "n": 1,
+    "real_sin_precio": 0,
+    "fuente": "registros de la app (1 archivos)",
+    "actualizado": "2026-10-28T17:25:45-04:00"
+   }
+  }
+ },
+ "d_verificado": {
+  "2026-10-26": {
+   "real": true,
+   "equiv": true,
+   "local": true,
+   "n": true
+  },
+  "2026-10-27": {
+   "real": true,
+   "equiv": true,
+   "local": true,
+   "n": true
+  },
+  "2026-10-28": {
+   "real": true,
+   "equiv": true,
+   "local": true,
+   "n": true
+  }
+ },
+ "b_total": {
+  "pantalla": "Total acumulado desde 26/10/2026 (3 días): real $0.00 · equivalente Max $1.80 (no se cobra aparte: va en tu Max) · local 1 tareas ($0)",
+  "acumulado": {
+   "real": 0,
+   "equiv": 1.8,
+   "local": 1,
+   "n": 5,
+   "desde": "2026-10-26",
+   "dias": 3
+  },
+  "suma_filas": {
+   "real": 0,
+   "equiv": 1.8,
+   "local": 1,
+   "n": 5
+  },
+  "cuadra": true
+ },
+ "c_tabla": [
+  [
+   "28/10/2026",
+   "$0.00",
+   "$0.05",
+   "0",
+   "1"
+  ],
+  [
+   "27/10/2026",
+   "$0.00",
+   "$1.10",
+   "1",
+   "2"
+  ],
+  [
+   "26/10/2026",
+   "$0.00",
+   "$0.65",
+   "0",
+   "2"
+  ]
+ ],
+ "e_hoy": {
+  "pantalla": {
+   "sp_real": "$0.00",
+   "sp_equiv": "$0.05",
+   "sp_local": "$0",
+   "sp_local_sub": "0 tareas hoy en tu PC"
+  },
+  "spend_summary_hoy": {
+   "real": 0.0,
+   "equiv": 0.05,
+   "local": 0,
+   "real_sin_precio": 0
+  },
+  "fila_de_hoy": {
+   "real": 0.0,
+   "equiv": 0.05,
+   "local": 0,
+   "n": 1,
+   "real_sin_precio": 0,
+   "fuente": "registros de la app (1 archivos)",
+   "actualizado": "2026-10-28T17:25:45-04:00"
+  },
+  "cuadra": true
+ },
+ "dia_crece": {
+  "antes": 0.05,
+  "despues": 0.35,
+  "tabla": [
+   [
+    "28/10/2026",
+    "$0.00",
+    "$0.35",
+    "0",
+    "2"
+   ]
+  ]
+ },
+ "tracebacks_en_log": 0
+}

@@ -1,0 +1,60 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-historial-gasto-viy_9ca1",
+ "variante": "real",
+ "dpi": "100",
+ "build_gui_s": 18.73,
+ "registros_copiados": "298",
+ "dias": {
+  "2026-10-24": {
+   "real": 0.0,
+   "equiv": 0.5893,
+   "local": 0,
+   "n": 2,
+   "real_sin_precio": 0,
+   "archivos": 2
+  },
+  "2026-10-25": {
+   "real": 0.0,
+   "equiv": 81.4346,
+   "local": 0,
+   "n": 29,
+   "real_sin_precio": 0,
+   "archivos": 43
+  },
+  "2026-10-26": {
+   "real": 0.0,
+   "equiv": 455.3787,
+   "local": 1,
+   "n": 63,
+   "real_sin_precio": 0,
+   "archivos": 125
+  },
+  "2026-10-27": {
+   "real": 0.0,
+   "equiv": 190.7476,
+   "local": 0,
+   "n": 38,
+   "real_sin_precio": 0,
+   "archivos": 76
+  },
+  "2026-10-28": {
+   "real": 0.0,
+   "equiv": 18.2709,
+   "local": 0,
+   "n": 28,
+   "real_sin_precio": 0,
+   "archivos": 51
+  }
+ },
+ "referencia": {
+  "2026-10-26": {
+   "equiv_esperado": 424.63,
+   "calculado": 455.3787
+  },
+  "2026-10-27": {
+   "equiv_esperado_parcial_07_09": 118.88,
+   "calculado_dia_entero": 190.7476
+  }
+ },
+ "tracebacks_en_log": 0
+}
