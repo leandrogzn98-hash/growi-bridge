@@ -1,0 +1,107 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-brief-2p7wlkqz",
+ "d_sin_calendario": {
+  "fuentes": {
+   "memoria": "2 archivo(s) de la memoria, 4 línea(s) con «William»",
+   "tareas": "1 tarea(s) del runner con «William»",
+   "calendario": "calendario no conectado (pega la dirección secreta iCal de Google Calendar en Ajustes → Datos)",
+   "no_usadas": "captura de pantalla, WhatsApp y llamadas: nunca"
+  },
+  "texto": "Brief: William\nÚltima vez: 2026-10-25 — William confirmó que paga el 1 de noviembre.  [nota diaria del 2026-10-25]\nAcordado:\n  • William confirmó que paga el 1 de noviembre.  [nota diaria del 2026-10-25]\n  • Acordamos 3 anuncios por mes para Aqualine.  [MEMORY.md (sección del 2026-10-20)]\nPendiente:\n  • Pendiente: enviar el guion del anuncio 2.  [MEMORY.md (sección del 2026-10-20)]\nCobro:\n  • Cobrado: $150 por octubre.  [MEMORY.md (sección del 2026-10-20)]\nTareas:\n  • tarea «Escribe el guion del anuncio 2 para William (Aqualine)» — aprobada  [tareas del runner: t-william-guion (2026-10-28)]\nFuentes: memoria: 2 archivo(s) de la memoria, 4 línea(s) con «William»; tareas: 1 tarea(s) del runner con «William»; calendario: calendario no conectado (pega la dirección secreta iCal de Google Calendar en Ajustes → Datos); no_usadas: captura de pantalla, WhatsApp y llamadas: nunca\n(1 dato(s) sin fecha ni fuente no entran)"
+ },
+ "a_tarjeta": {
+  "ultima_vez": {
+   "fecha": "2026-10-25",
+   "origen": "nota diaria del 2026-10-25",
+   "texto": "William confirmó que paga el 1 de noviembre."
+  },
+  "acordado": [
+   {
+    "texto": "William confirmó que paga el 1 de noviembre.",
+    "origen": "nota diaria del 2026-10-25",
+    "fecha": "2026-10-25"
+   },
+   {
+    "texto": "Acordamos 3 anuncios por mes para Aqualine.",
+    "origen": "MEMORY.md (sección del 2026-10-20)",
+    "fecha": "2026-10-20"
+   }
+  ],
+  "pendiente": [
+   {
+    "texto": "Pendiente: enviar el guion del anuncio 2.",
+    "origen": "MEMORY.md (sección del 2026-10-20)",
+    "fecha": "2026-10-20"
+   }
+  ],
+  "cobro": [
+   {
+    "texto": "Cobrado: $150 por octubre.",
+    "origen": "MEMORY.md (sección del 2026-10-20)",
+    "fecha": "2026-10-20"
+   }
+  ],
+  "tareas": [
+   {
+    "texto": "tarea «Escribe el guion del anuncio 2 para William (Aqualine)» — aprobada",
+    "origen": "tareas del runner: t-william-guion (2026-10-28)",
+    "fecha": "2026-10-28"
+   }
+  ],
+  "sin_origen": 1
+ },
+ "b_todos_con_origen": true,
+ "b_el_dato_sin_fecha_no_entra": true,
+ "paleta": [
+  [
+   "Brief de reunión",
+   [
+    "Brief para la reunión con William (30 s, con su origen)"
+   ]
+  ]
+ ],
+ "c_30_min_antes": {
+  "eventos_en_la_ventana": [
+   [
+    "Llamada con William (Aqualine)",
+    [
+     "William"
+    ],
+    "2026-10-28T06:17:03-04:00"
+   ],
+   [
+    "Bloque de foco",
+    [],
+    "2026-10-28T06:17:03-04:00"
+   ]
+  ],
+  "briefs": [
+   "brief-20261028-0617-william.txt"
+  ],
+  "error": null,
+  "contenido": "Evento: Llamada con William (Aqualine) a las 06:17\n\nBrief: William\nÚltima vez: 2026-10-25 — William confirmó que paga el 1 de noviembre.  [nota diaria del 2026-10-25]\nAcordado:\n  • William confirmó que paga el 1 de noviembre.  [nota diaria del 2026-10-25]\n  • Acordamos 3 anuncios por mes para Aqualine.  [MEMORY.md (sección del 2026-10-20)]\nPendiente:\n  • Pendiente: enviar el guion del anuncio 2.  [MEMORY.md (sección del 2026-10-20)]\nCobro:\n  • Cobrado: $150 por octubre.  [MEMORY.md (sección del 2026-10-20)]\nTareas:\n  • tarea «Escribe el guion del anuncio 2 para William (Aqualine)» — aprobada  [tareas del runner: t-william-guion (2026-10-28)]\nCalendario:\n  • Llamada con William (Aqualine)  [calendario de Google (2026-10-28 06:17)]\nFuentes: memoria: 2 archivo(s) de la memoria, 4 línea(s) con «William»; tareas: 1 tarea(s) del runner con «William»; calendario: 1 evento(s) con William (±60/14 días); no_usadas: captura de pantalla, WhatsApp y llamadas: nunca\n(1 dato(s) sin fecha ni fuente no entran)\n"
+ },
+ "c_segunda_vuelta_no_repite": [],
+ "con_calendario": {
+  "fuentes": {
+   "memoria": "2 archivo(s) de la memoria, 4 línea(s) con «William»",
+   "tareas": "1 tarea(s) del runner con «William»",
+   "calendario": "1 evento(s) con William (±60/14 días)",
+   "no_usadas": "captura de pantalla, WhatsApp y llamadas: nunca"
+  },
+  "calendario": [
+   {
+    "texto": "Llamada con William (Aqualine)",
+    "origen": "calendario de Google (2026-10-28 06:17)",
+    "fecha": "2026-10-28"
+   }
+  ]
+ },
+ "log": [
+  "2026-10-28T05:47:03-04:00 brief: «William»: 2 acordado, 1 pendiente, 1 cobro; 1 dato(s) sin origen no entran; calendario: calendario no conectado (pega la dirección secreta iCal de Google Calendar en Ajustes → Datos)",
+  "2026-10-28T05:47:03-04:00 brief: «William»: 2 acordado, 1 pendiente, 1 cobro; 1 dato(s) sin origen no entran; calendario: 1 evento(s) con William (±60/14 días)",
+  "2026-10-28T05:47:03-04:00 brief: 30 min antes de «Llamada con William (Aqualine)» (06:17) con William: brief-20261028-0617-william.txt",
+  "2026-10-28T05:47:03-04:00 brief: «William»: 2 acordado, 1 pendiente, 1 cobro; 1 dato(s) sin origen no entran; calendario: 1 evento(s) con William (±60/14 días)"
+ ],
+ "tracebacks_en_log": 0
+}

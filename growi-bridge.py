@@ -24866,6 +24866,11 @@ def _palette_sections(q):
     mq = _MEM_QUE_SE_RE.match(q or "")
     if mq and mq.group("q").strip():  # «qué sé de X»: busca en la memoria (t-memoria-buscable)
         return [("Memoria: lo que sé de «" + mq.group("q").strip()[:40] + "»", _mem_paleta_items(mq.group("q").strip()))]
+    mb = _BRIEF_RE.match(q or "") if str(q or "").strip().lower().startswith("brief") else None
+    if mb and len(mb.group("p").strip()) >= 2:  # «brief para la reunión con X» (t-brief-reunion)
+        quien = mb.group("p").strip()
+        return [("Brief de reunión", [{"id": "_brief", "label": f"Brief para la reunión con {quien} (30 s, con su origen)",
+                                        "fn": lambda quien=quien: brief_ui(quien)}])]
     calc = _calc_item(q)
     if calc is not None:  # una cuenta (solo cifras y + - * / %): su resultado es el primer item
         return [("Calculadora", [calc])]
@@ -29859,6 +29864,236 @@ def _corte_sin_prueba():
     ok, msg = resiliencia_registrar("sin prueba")
     _CORTE["kit"].set_label(_CORTE["msg"], text=("Guardado: " + msg) if ok else msg, color="green_text" if ok else "red")
     _corte_render()
+
+
+# ---------------------------------------------------------------- brief de reunión (t-brief-reunion)
+# «Brief para la reunión con X»: qué se habló la última vez, qué se acordó, qué
+# quedó pendiente y cuánto se cobró, en una tarjeta de 30 segundos. SOLO con
+# fuentes que el usuario controla: la memoria (MEMORY.md y notas diarias), las
+# tareas del runner y su calendario de Google (la dirección secreta iCal que él
+# pega en Ajustes: solo lectura). Cada dato lleva su origen (fecha y fuente); lo
+# que no tiene origen no entra. Nunca captura de pantalla, ni chats, ni llamadas.
+# Automático: 30 min antes de un evento con persona; sin persona, nada.
+BRIEF_LOG = OUTBOX / "briefs"
+_BRIEF_RE = re.compile(r"^\s*brief\s+(?:para\s+(?:la\s+)?(?:reuni[oó]n|llamada|cita)\s+con|con|de|para)?\s*(?P<p>.+?)\s*$",
+                       re.I)
+_BRIEF_CLASES = (
+    ("acordado", re.compile(r"\b(acord|quedamos|qued[oó] en|acuerdo|aprob|confirm|cerramos|se decidi)", re.I)),
+    ("pendiente", re.compile(r"\b(pendiente|falta|por hacer|hay que|tengo que|debo|enviar|mandar|revisar|todo:)", re.I)),
+    ("cobro", re.compile(r"(\$\s?\d|\d+\s?(?:usd|d[oó]lares|bs)\b|\bcobr|\bpag[oóa]|\bfactur|\bprecio|\btarifa)", re.I)),
+)
+_BRIEF: dict = {"avisados": set()}
+
+
+def _brief_clase(texto):
+    for k, rx in _BRIEF_CLASES:
+        if rx.search(texto):
+            return k
+    return "hablado"
+
+
+def calendario_eventos(desde=None, hasta=None):
+    """(eventos, error). Lee el iCal SECRETO del usuario (settings «calendario_ics»: URL o ruta). Sin él: error."""
+    src = str(load_settings().get("calendario_ics") or "").strip()
+    if not src:
+        return [], "calendario no conectado (pega la dirección secreta iCal de Google Calendar en Ajustes → Datos)"
+    try:
+        if re.match(r"^https?://", src):
+            req = urllib.request.Request(src, headers={"User-Agent": "GrowiBridge"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                raw = r.read().decode("utf-8", "replace")
+        else:
+            raw = Path(src).read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        return [], f"no pude leer el calendario ({_net_reason(e) if not isinstance(e, OSError) else e})"
+    lineas = []
+    for x in raw.replace("\r\n", "\n").split("\n"):  # desplegar las líneas partidas del iCal
+        if x.startswith((" ", "\t")) and lineas:
+            lineas[-1] += x[1:]
+        else:
+            lineas.append(x)
+    evs, ev = [], None
+    for x in lineas:
+        if x == "BEGIN:VEVENT":
+            ev = {"personas": []}
+        elif x == "END:VEVENT" and ev is not None:
+            if ev.get("inicio"):
+                evs.append(ev)
+            ev = None
+        elif ev is not None and ":" in x:
+            k, v = x.split(":", 1)
+            nombre = k.split(";")[0]
+            if nombre == "SUMMARY":
+                ev["titulo"] = v.replace("\\,", ",").strip()
+            elif nombre == "DTSTART":
+                try:
+                    if len(v) == 8:
+                        ev["inicio"] = datetime.strptime(v, "%Y%m%d").astimezone()
+                    elif v.endswith("Z"):
+                        ev["inicio"] = datetime.strptime(v, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc).astimezone()
+                    else:
+                        ev["inicio"] = datetime.strptime(v[:15], "%Y%m%dT%H%M%S").astimezone()
+                except ValueError:
+                    pass
+            elif nombre == "ATTENDEE":
+                m = re.search(r"CN=([^;:]+)", k)
+                ev["personas"].append((m.group(1) if m else v.replace("mailto:", "")).strip('"'))
+            elif nombre == "UID":
+                ev["uid"] = v
+    for evt in evs:  # «Llamada con William» también cuenta como persona
+        m = re.search(r"\bcon\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)", evt.get("titulo") or "")
+        if m and m.group(1) not in evt["personas"]:
+            evt["personas"].append(m.group(1))
+    if desde or hasta:
+        evs = [e for e in evs if (not desde or e["inicio"] >= desde) and (not hasta or e["inicio"] <= hasta)]
+    return sorted(evs, key=lambda e: e["inicio"]), None
+
+
+def _brief_origen(h):
+    return h["origen"] if h["fecha"] in h["origen"] else f"{h['origen']} ({h['fecha']})"
+
+
+def brief_generar(persona):
+    """La tarjeta: {persona, ultima_vez, acordado, pendiente, cobro, fuentes, sin_origen}. Cada item con su origen."""
+    persona = str(persona or "").strip()
+    out = {"persona": persona, "generado": _now_iso(), "ultima_vez": None, "acordado": [], "pendiente": [],
+           "cobro": [], "hablado": [], "sin_origen": 0, "fuentes": {}}
+    hits, med = mem_buscar_ordenado(persona, mostrar=60)
+    out["fuentes"]["memoria"] = f"{med['archivos']} archivo(s) de la memoria, {len(hits)} línea(s) con «{persona}»"
+    con_fecha = []
+    for h in hits:
+        if not h.get("fecha"):
+            out["sin_origen"] += 1  # un dato sin origen (fecha y fuente) no entra
+            continue
+        item = {"texto": h["texto"].lstrip("-* ").strip(), "origen": _brief_origen(h), "fecha": h["fecha"]}
+        con_fecha.append(item)
+        out[_brief_clase(item["texto"])].append(item)
+    # lo que se habló en la misma sección de la nota/memoria aunque no repita el nombre: misma fecha y archivo
+    for h in hits:
+        if h.get("fecha"):
+            try:
+                lineas = Path(h["ruta"]).read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for x in lineas[h["linea"]:h["linea"] + 8]:
+                if x.lstrip().startswith("#"):
+                    break
+                t = x.lstrip("-* ").strip()
+                if t and not any(t == i["texto"] for k in ("acordado", "pendiente", "cobro", "hablado") for i in out[k]):
+                    out[_brief_clase(t)].append({"texto": t, "origen": _brief_origen(h), "fecha": h["fecha"]})
+    if con_fecha:
+        u = max(con_fecha, key=lambda i: i["fecha"])
+        out["ultima_vez"] = {"fecha": u["fecha"], "origen": u["origen"], "texto": u["texto"]}
+    tareas = []
+    for f in RESULTS.glob("*.orquestacion.json"):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if persona and _norm(persona) in _norm(d.get("encargo") or ""):
+            tareas.append({"texto": f"tarea «{(d.get('encargo') or '')[:80]}» — {d.get('estado')}",
+                           "origen": f"tareas del runner: {d.get('raiz')} ({str(d.get('actualizado') or '')[:10]})",
+                           "fecha": str(d.get("actualizado") or "")[:10]})
+    out["tareas"] = sorted(tareas, key=lambda t: t["fecha"], reverse=True)[:5]
+    out["fuentes"]["tareas"] = f"{len(tareas)} tarea(s) del runner con «{persona}»"
+    evs, err = calendario_eventos(desde=datetime.now().astimezone() - timedelta(days=60),
+                                  hasta=datetime.now().astimezone() + timedelta(days=14))
+    mios = [e for e in evs if any(_norm(persona) in _norm(p) for p in e["personas"])]
+    out["fuentes"]["calendario"] = err or f"{len(mios)} evento(s) con {persona} (±60/14 días)"
+    out["calendario"] = [{"texto": e.get("titulo"), "origen": f"calendario de Google ({e['inicio']:%Y-%m-%d %H:%M})",
+                          "fecha": e["inicio"].strftime("%Y-%m-%d")} for e in mios][-3:]
+    out["fuentes"]["no_usadas"] = "captura de pantalla, WhatsApp y llamadas: nunca"
+    for k in ("acordado", "pendiente", "cobro", "hablado"):
+        out[k] = sorted(out[k], key=lambda i: i["fecha"], reverse=True)[:5]
+    log(f"brief: «{persona}»: {len(out['acordado'])} acordado, {len(out['pendiente'])} pendiente, "
+        f"{len(out['cobro'])} cobro; {out['sin_origen']} dato(s) sin origen no entran; calendario: "
+        f"{out['fuentes']['calendario']}")
+    return out
+
+
+def brief_texto(b):
+    """La tarjeta en texto (legible en 30 s)."""
+    def bloque(tit, items):
+        return [f"{tit}:"] + ([f"  • {i['texto'][:140]}  [{i['origen']}]" for i in items] or ["  (nada con origen)"])
+    lineas = [f"Brief: {b['persona']}"]
+    u = b.get("ultima_vez")
+    lineas.append(f"Última vez: {u['fecha']} — {u['texto'][:120]}  [{u['origen']}]" if u else "Última vez: sin dato con fecha")
+    lineas += bloque("Acordado", b["acordado"]) + bloque("Pendiente", b["pendiente"]) + bloque("Cobro", b["cobro"])
+    if b.get("tareas"):
+        lineas += bloque("Tareas", b["tareas"])
+    if b.get("calendario"):
+        lineas += bloque("Calendario", b["calendario"])
+    lineas.append("Fuentes: " + "; ".join(f"{k}: {v}" for k, v in b["fuentes"].items()))
+    if b["sin_origen"]:
+        lineas.append(f"({b['sin_origen']} dato(s) sin fecha ni fuente no entran)")
+    return "\n".join(lineas)
+
+
+def brief_ui(persona):
+    b = brief_generar(persona)
+    top = tk.Toplevel(_root)
+    top.title(f"Brief: {persona}")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(620)}x{S(520)}")
+    page = _scrollable(top)
+    k = _KitTk(page)
+    c = k.section(f"Brief: {persona}", "Solo de tu memoria, tus tareas y tu calendario. Cada dato con su origen.")
+    for linea in brief_texto(b).splitlines()[1:]:
+        k.label(c, linea, wrap=560, muted=linea.startswith(("Fuentes", "(")),
+                bold=linea.endswith(":") or linea.startswith("Última")).pack(anchor="w", padx=16, pady=1)
+    return top
+
+
+def brief_vigia_paso(ahora=None):
+    """Una vuelta del vigía: los eventos con persona que empiezan dentro de 25-35 min → su brief (una vez)."""
+    ahora = ahora or datetime.now().astimezone()
+    evs, err = calendario_eventos(desde=ahora + timedelta(minutes=25), hasta=ahora + timedelta(minutes=35))
+    if err:
+        return [], err
+    hechos = []
+    for e in evs:
+        clave = e.get("uid") or f"{e.get('titulo')}@{e['inicio']:%Y%m%d%H%M}"
+        if clave in _BRIEF["avisados"]:
+            continue
+        if not e["personas"]:
+            continue  # sin persona: nada de briefs sorpresa
+        _BRIEF["avisados"].add(clave)
+        b = brief_generar(e["personas"][0])
+        BRIEF_LOG.mkdir(parents=True, exist_ok=True)
+        p = BRIEF_LOG / f"brief-{e['inicio']:%Y%m%d-%H%M}-{_proy_slug(e['personas'][0])}.txt"
+        p.write_text(f"Evento: {e.get('titulo')} a las {e['inicio']:%H:%M}\n\n" + brief_texto(b) + "\n", encoding="utf-8")
+        log(f"brief: 30 min antes de «{e.get('titulo')}» ({e['inicio']:%H:%M}) con {e['personas'][0]}: {p.name}")
+        try:
+            toast(f"Brief para {e['personas'][0]} ({e['inicio']:%H:%M})")
+        except Exception:
+            pass
+        hechos.append(str(p))
+    return hechos, None
+
+
+def brief_vigia():
+    while True:
+        try:
+            brief_vigia_paso()
+        except Exception as e:
+            log(f"brief: vigía ({type(e).__name__}: {e})")
+        time.sleep(300)
+
+
+def calendario_conectar_ui():
+    """Pega la dirección secreta iCal de Google Calendar (solo lectura; nada de OAuth ni de leer correos)."""
+    from tkinter import simpledialog
+    actual = str(load_settings().get("calendario_ics") or "")
+    url = simpledialog.askstring("Calendario", "Google Calendar → Configuración → tu calendario → «Dirección secreta "
+                                               "en formato iCal». Pégala aquí (vacío = desconectar):", initialvalue=actual)
+    if url is None:
+        return
+    s = load_settings()
+    s["calendario_ics"] = url.strip()
+    save_settings(s)
+    evs, err = calendario_eventos()
+    messagebox.showinfo("Calendario", err or f"Conectado: {len(evs)} evento(s) leídos (solo lectura).")
+    log("brief: calendario " + ("desconectado" if not url.strip() else f"conectado ({len(evs)} eventos)" if not err else err))
 
 
 # ---------------------------------------------------------------- historial del portapapeles (t-portapapeles)
@@ -39155,6 +39390,10 @@ def _build_ajustes_ctk(tab_aj):
         pp_activo(), _pp_switch_ui)
     r, der = side_row(dr, "Lo copiado guardado", "Verlo todo, borrar uno («no guardar nunca esto») o borrarlo todo.")
     button(der, "Ver…", pp_ui).pack()
+    r, der = side_row(dr, "Calendario (para los briefs de reunión)", "La dirección secreta iCal de Google Calendar: "
+                                                                    "solo lectura, para el brief 30 min antes de una "
+                                                                    "reunión con alguien.")
+    button(der, "Conectar…", calendario_conectar_ui).pack()
     r, der = side_row(dr, "Exportar configuración", "Tus ajustes y carpetas en un archivo .json (sin "
                                                     "claves, proxy ni secreto) para reinstalar sin repetir "
                                                     "la configuración inicial.")
@@ -40762,6 +41001,7 @@ def build_gui():
     root.bind_all("<KeyPress>", _atajo_tecla_tk, add="+")
     root.bind_all("<Alt-KeyPress>", _atajo_tecla_tk, add="+")
     pp_iniciar()  # historial del portapapeles: solo mira si está encendido en Ajustes (t-portapapeles)
+    threading.Thread(target=brief_vigia, daemon=True, name="brief").start()  # 30 min antes (t-brief-reunion)
     try:
         teclado_init(root)  # Alt+0..9, «?», flechas, Esc y un solo anillo de foco (t-teclado-foco)
     except Exception as e:
