@@ -24203,6 +24203,11 @@ def _render_avail():
             frase = r["frase"]
         tk.Label(row, text=ic, font=(FONT, 12, "bold"), bg=cbg, fg=THEME[col], width=2).pack(
             side="left", anchor="n")
+        if r and r.get("accion"):
+            act, lab = r["accion"]
+            style = "Accent.TButton" if act == "usar" and r["estado"] == "ok" else "TButton"
+            ttk.Button(row, text=lab, style=style,
+                       command=lambda i=rid, a=act: _avail_action(i, a)).pack(side="right", anchor="n")
         left = tk.Frame(row, bg=cbg)
         left.pack(side="left", fill="x", expand=True)
         top = tk.Frame(left, bg=cbg)
@@ -24212,15 +24217,11 @@ def _render_avail():
         if r and r.get("ms"):
             tk.Label(top, text=f"{r['ms']} ms" + (f", {r['ruta']}" if r.get("ruta") else ""),
                      font=(FONT, 9), bg="#E8E8ED", fg=THEME["text"], padx=S(6)).pack(side="left", padx=8)
-        tk.Label(left, text=frase, font=(FONT, 10), bg=cbg, fg=THEME["text"], wraplength=S(470),
-                 justify="left", anchor="w").pack(fill="x", anchor="w")
-        tk.Label(left, text="Cómo lo sé: " + fila.get("como", ""), font=(FONT, 9), bg=cbg,
-                 fg=THEME["muted"], wraplength=S(470), justify="left", anchor="w").pack(fill="x", anchor="w")
-        if r and r.get("accion"):
-            act, lab = r["accion"]
-            style = "Accent.TButton" if act == "usar" and r["estado"] == "ok" else "TButton"
-            ttk.Button(row, text=lab, style=style,
-                       command=lambda i=rid, a=act: _avail_action(i, a)).pack(side="right", anchor="n")
+        for txt, fnt, fg in ((frase, (FONT, 10), THEME["text"]),
+                             ("Cómo lo sé: " + fila.get("como", ""), (FONT, 9), THEME["muted"])):
+            lb = tk.Label(left, text=txt, font=fnt, bg=cbg, fg=fg, wraplength=S(470), justify="left", anchor="w")
+            lb.pack(fill="x", anchor="w")
+            _wrap_al_ancho(lb, left, S(470))
         tk.Frame(box, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
     when = _widgets.get("av_when")
     if when is not None:
@@ -24250,10 +24251,84 @@ def _recheck_ui():
         _spin_avail()
 
 
+# ---- «Ver el mapa» (t-estado-mapa-045): lleva a Estado, baja hasta la tarjeta
+# del mapa (a su posición real de ese momento, no a un ancla fija) y la resalta
+# ~3 s (borde de 2 px en el token «en curso» y fondo un punto más elevado) o
+# hasta el siguiente clic o tecla; luego la deja exactamente como estaba.
+_MAPA_RES: dict = {"orig": None, "after": None, "bind": None}
+MAPA_RESALTE_MS = 3000
+
+
+def _mezcla(c1, c2, t):
+    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#%02X%02X%02X" % tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def ver_mapa():
+    card = _widgets.get("mapa_card")
+    if card is None:
+        return
+    _widgets["show_page"]("estado")
+    _root.update_idletasks()  # la página ya está puesta antes de medir dónde cae la tarjeta
+    _scroll_a(card, margen=12)
+    _mapa_resaltar(card)
+    log("estado: «Ver el mapa» → mapa de disponibilidad visible y resaltado")
+
+
+def _mapa_resaltar(card):
+    _mapa_quitar_resalte()
+    base = THEME["card"]
+    elevado = _mezcla(base, "#FFFFFF" if _THEME_STATE.get("dark") else THEME["blue"], 0.06)
+    orig = [(card, {"highlightthickness": card.cget("highlightthickness"),
+                    "highlightbackground": card.cget("highlightbackground"),
+                    "highlightcolor": card.cget("highlightcolor")})]
+    pila = [card]
+    while pila:
+        w = pila.pop()
+        pila.extend(w.winfo_children())
+        try:
+            if str(w.cget("bg")).upper() == base.upper():
+                orig.append((w, {"bg": w.cget("bg")}))
+                w.config(bg=elevado)
+        except (tk.TclError, ValueError):
+            pass
+    card.config(highlightthickness=S(2), highlightbackground=THEME["blue"], highlightcolor=THEME["blue"])
+    _MAPA_RES["orig"] = orig
+    _MAPA_RES["after"] = _root.after(MAPA_RESALTE_MS, _mapa_quitar_resalte)
+    # la siguiente interacción del usuario también lo quita (no el mismo clic que lo abrió)
+    _MAPA_RES["desde"] = time.time() + 0.3
+    if not _MAPA_RES["bind"]:
+        _root.bind_all("<Button>", _mapa_interaccion, add="+")
+        _root.bind_all("<Key>", _mapa_interaccion, add="+")
+        _MAPA_RES["bind"] = True
+
+
+def _mapa_interaccion(_e=None):
+    if _MAPA_RES["orig"] and time.time() > _MAPA_RES.get("desde", 0):
+        _mapa_quitar_resalte()
+
+
+def _mapa_quitar_resalte():
+    if _MAPA_RES["after"]:
+        try:
+            _root.after_cancel(_MAPA_RES["after"])
+        except (tk.TclError, ValueError):
+            pass
+        _MAPA_RES["after"] = None
+    for w, cfg in _MAPA_RES["orig"] or []:
+        try:
+            w.config(**cfg)
+        except tk.TclError:
+            pass
+    _MAPA_RES["orig"] = None
+
+
 def _build_avail_card(tab):
     card = _card(tab, "Mapa de disponibilidad",
                  "Qué responde desde aquí, comprobado de verdad por la app (con y sin el proxy). "
                  "Si algo falla, te digo la ruta que sí anda.")
+    _widgets["mapa_card"] = card
     head = tk.Frame(card, bg=THEME["card"])
     head.pack(fill="x", padx=16, pady=(0, 4))
     _widgets["av_when"] = tk.Label(head, text="", font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"])
@@ -29609,6 +29684,16 @@ def _add_rule():
     _render_rules()
 
 
+def _wrap_al_ancho(lbl, cont, maximo, margen=0):
+    """El texto corta al ancho real del contenedor (como mucho `maximo`): a ventana mínima no se sale."""
+    def ajustar(e):
+        try:
+            lbl.config(wraplength=max(S(120), min(maximo, e.width - margen)))
+        except tk.TclError:
+            pass
+    cont.bind("<Configure>", ajustar, add="+")
+
+
 def _card(parent, title, expl=None):
     card = tk.Frame(parent, bg=THEME["card"], highlightthickness=1, highlightbackground=THEME["line"],
                     highlightcolor=THEME["line"])
@@ -29616,8 +29701,10 @@ def _card(parent, title, expl=None):
     tk.Label(card, text=title, font=SECTION_FONT, bg=THEME["card"],
              fg=THEME["text"]).pack(anchor="w", padx=16, pady=(12, 2))
     if expl:
-        tk.Label(card, text=expl, font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
-                 wraplength=S(600), justify="left").pack(anchor="w", padx=16, pady=(0, 6))
+        lb = tk.Label(card, text=expl, font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
+                      wraplength=S(600), justify="left")
+        lb.pack(anchor="w", padx=16, pady=(0, 6))
+        _wrap_al_ancho(lb, card, S(600), margen=S(36))
     return card
 
 
@@ -41225,9 +41312,10 @@ def build_gui():
     _widgets["cloud_banner_txt"] = tk.Label(cloud, text="", font=(FONT, 10, "bold"),
                                             bg=THEME["card"], fg=THEME["text"], anchor="w",
                                             justify="left", wraplength=S(520))
-    _widgets["cloud_banner_txt"].pack(side="left", fill="x", expand=True, padx=12, pady=8)
-    ttk.Button(cloud, text="Ver el mapa", command=lambda: _widgets["show_page"]("estado")).pack(
+    ttk.Button(cloud, text="Ver el mapa", command=ver_mapa).pack(
         side="right", padx=12)
+    _widgets["cloud_banner_txt"].pack(side="left", fill="x", expand=True, padx=12, pady=8)
+    _wrap_al_ancho(_widgets["cloud_banner_txt"], cloud, S(520), margen=S(150))
     _widgets["cloud_banner"] = cloud
     pages = {}
     for name in ("estado", "carpetas", "skills", "pantalla", "apis", "modelos",
