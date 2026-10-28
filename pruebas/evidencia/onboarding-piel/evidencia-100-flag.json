@@ -1,0 +1,205 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-onboarding-piel-ih26g37f",
+ "variante": "flag",
+ "dpi": "100",
+ "build_gui_s": 2.06,
+ "piel": "tk",
+ "log_piel": [
+  "configuración inicial: pantalla clásica (tkinter)"
+ ],
+ "b_clave_invalida": [
+  "configuración inicial: clave de Anthropic «principal»: no se guardó: la clave está vacía, es muy corta o tiene espacios dentro"
+ ],
+ "b_recorrido": [
+  {
+   "paso": 1,
+   "kicker": "Paso 1 de 4",
+   "titulo": "¿Quién te ayuda?",
+   "sub": "Elige tu asistente principal: es el que te responde en la pa",
+   "siguiente": "Siguiente",
+   "saltar": "Saltar por ahora",
+   "atras": "disabled",
+   "puntos": [
+    "#0A84FF",
+    "#2C2C2E",
+    "#2C2C2E",
+    "#2C2C2E"
+   ],
+   "controles": {
+    "Radiobutton": [
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     }
+    ]
+   }
+  },
+  {
+   "paso": 2,
+   "kicker": "Paso 2 de 4",
+   "titulo": "Conectar",
+   "sub": "Inicia sesión o pon tu clave, y conecta la salida a internet",
+   "siguiente": "Siguiente",
+   "saltar": "Lo haré más tarde",
+   "atras": "normal",
+   "puntos": [
+    "#0A84FF",
+    "#0A84FF",
+    "#2C2C2E",
+    "#2C2C2E"
+   ],
+   "controles": {
+    "Entry": [
+     {
+      "takefocus": "ttk::takefocus",
+      "espacio": null
+     }
+    ],
+    "Button": [
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "ttk::takefocus",
+      "espacio": null
+     }
+    ]
+   },
+   "hay_campo_clave": true
+  },
+  {
+   "paso": 3,
+   "kicker": "Paso 3 de 4",
+   "titulo": "Tus carpetas",
+   "sub": "Elige qué carpetas puede ver tu asistente y qué puede hacer ",
+   "siguiente": "Siguiente",
+   "saltar": "Saltar por ahora",
+   "atras": "normal",
+   "puntos": [
+    "#0A84FF",
+    "#0A84FF",
+    "#0A84FF",
+    "#2C2C2E"
+   ],
+   "controles": {
+    "Checkbutton": [
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     }
+    ],
+    "Button": [
+     {
+      "takefocus": "ttk::takefocus",
+      "espacio": null
+     }
+    ],
+    "Radiobutton": [
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     },
+     {
+      "takefocus": "",
+      "espacio": null
+     }
+    ]
+   },
+   "carpetas": [
+    "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-onboarding-piel-ih26g37f\\share\\inbox",
+    "C:\\Users\\forte",
+    "C:\\Users\\forte\\Documents"
+   ]
+  },
+  {
+   "paso": 4,
+   "kicker": "Paso 4 de 4",
+   "titulo": "Comprobación",
+   "sub": "Pruebo de verdad que todo anda. Luego, a hablar.",
+   "siguiente": "Empezar a hablar",
+   "saltar": "Saltar por ahora",
+   "atras": "normal",
+   "puntos": [
+    "#0A84FF",
+    "#0A84FF",
+    "#0A84FF",
+    "#0A84FF"
+   ],
+   "controles": {
+    "Button": [
+     {
+      "takefocus": "ttk::takefocus",
+      "espacio": null
+     },
+     {
+      "takefocus": "ttk::takefocus",
+      "espacio": null
+     },
+     {
+      "takefocus": "ttk::takefocus",
+      "espacio": null
+     }
+    ]
+   },
+   "comprobaciones": {
+    "proxy": [
+     "✓",
+     "Conectado — sales por EEUU. (1463 ms)"
+    ],
+    "motor": [
+     "✓",
+     "Claude Code 2.1.312 listo, con sesión Max."
+    ],
+    "carpetas": [
+     "✓",
+     "Veo 2 carpeta(s), con «Preguntarme siempre»."
+    ]
+   }
+  }
+ ],
+ "b_fin": {
+  "onboarding_done": true,
+  "assistant": "claude",
+  "pagina": "tareas",
+  "frame_cerrado": true,
+  "ejemplo_en_el_chat": "Mira mi carpeta de Descargas y dime cómo"
+ },
+ "tracebacks_en_log": 0
+}

@@ -1,0 +1,231 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-onboarding-piel-jl2h3kjr",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 11.5,
+ "piel": "ctk",
+ "log_piel": [
+  "configuración inicial: pantalla con CustomTkinter"
+ ],
+ "a_tarjeta": {
+  "tipo": "CTkFrame",
+  "esquinas": 10,
+  "centrada": [
+   "0.5",
+   "0.5",
+   "center"
+  ]
+ },
+ "a_textura_puntos": {
+  "puntos": 1312,
+  "color": "#252525",
+  "fondo": "#0F0F0F"
+ },
+ "b_clave_invalida": [
+  "configuración inicial: clave de Anthropic «principal»: no se guardó: la clave está vacía, es muy corta o tiene espacios dentro"
+ ],
+ "b_recorrido": [
+  {
+   "paso": 1,
+   "kicker": "Paso 1 de 4",
+   "titulo": "¿Quién te ayuda?",
+   "sub": "Elige tu asistente principal: es el que te responde en la pa",
+   "siguiente": "Siguiente",
+   "saltar": "Saltar por ahora",
+   "atras": "disabled",
+   "puntos": [
+    "#0A84FF",
+    "",
+    "",
+    ""
+   ],
+   "controles": {
+    "CTkRadioButton": [
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     }
+    ]
+   }
+  },
+  {
+   "paso": 2,
+   "kicker": "Paso 2 de 4",
+   "titulo": "Conectar",
+   "sub": "Inicia sesión o pon tu clave, y conecta la salida a internet",
+   "siguiente": "Siguiente",
+   "saltar": "Lo haré más tarde",
+   "atras": "normal",
+   "puntos": [
+    "#0A84FF",
+    "#0A84FF",
+    "",
+    ""
+   ],
+   "controles": {
+    "CTkEntry": [
+     {
+      "takefocus": "",
+      "espacio": false
+     }
+    ],
+    "Entry": [
+     {
+      "takefocus": "",
+      "espacio": null
+     }
+    ],
+    "CTkButton": [
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     }
+    ]
+   },
+   "hay_campo_clave": true
+  },
+  {
+   "paso": 3,
+   "kicker": "Paso 3 de 4",
+   "titulo": "Tus carpetas",
+   "sub": "Elige qué carpetas puede ver tu asistente y qué puede hacer ",
+   "siguiente": "Siguiente",
+   "saltar": "Saltar por ahora",
+   "atras": "normal",
+   "puntos": [
+    "#0A84FF",
+    "#0A84FF",
+    "#0A84FF",
+    ""
+   ],
+   "controles": {
+    "CTkCheckBox": [
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     }
+    ],
+    "CTkButton": [
+     {
+      "takefocus": "1",
+      "espacio": true
+     }
+    ],
+    "CTkRadioButton": [
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     }
+    ]
+   },
+   "carpetas": [
+    "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-onboarding-piel-jl2h3kjr\\share\\inbox",
+    "C:\\Users\\forte",
+    "C:\\Users\\forte\\Documents"
+   ]
+  },
+  {
+   "paso": 4,
+   "kicker": "Paso 4 de 4",
+   "titulo": "Comprobación",
+   "sub": "Pruebo de verdad que todo anda. Luego, a hablar.",
+   "siguiente": "Empezar a hablar",
+   "saltar": "Saltar por ahora",
+   "atras": "normal",
+   "puntos": [
+    "#0A84FF",
+    "#0A84FF",
+    "#0A84FF",
+    "#0A84FF"
+   ],
+   "controles": {
+    "CTkButton": [
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     },
+     {
+      "takefocus": "1",
+      "espacio": true
+     }
+    ]
+   },
+   "comprobaciones": {
+    "proxy": [
+     "✓",
+     "Conectado — sales por EEUU. (529 ms)"
+    ],
+    "motor": [
+     "✓",
+     "Claude Code 2.1.312 listo, con sesión Max."
+    ],
+    "carpetas": [
+     "✓",
+     "Veo 2 carpeta(s), con «Preguntarme siempre»."
+    ]
+   }
+  }
+ ],
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "ancho_tarjeta_minima": 680,
+  "texto_max_px": 662,
+  "cabe": true
+ },
+ "b_fin": {
+  "onboarding_done": true,
+  "assistant": "claude",
+  "pagina": "tareas",
+  "frame_cerrado": true,
+  "ejemplo_en_el_chat": "Mira mi carpeta de Descargas y dime cómo"
+ },
+ "tracebacks_en_log": 0
+}

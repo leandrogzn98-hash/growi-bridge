@@ -24924,6 +24924,272 @@ def _ob_preselect(det):
     return "muse"
 
 
+# ---- Configuración inicial en CustomTkinter (t-onboarding-piel-045). Solo cambia la piel: fondo con textura
+# de puntos sutil, una tarjeta centrada (esquinas 10) con los puntos de paso arriba («Paso N de 4»), y los
+# mismos 4 pasos con los mismos textos, el mismo orden y la misma validación (_ob_save_step, _ob_next y las
+# comprobaciones son las de siempre, compartidas). Respaldo: sin CTk, CTk roto al dibujar, piloto_ctk false o
+# GROWI_BRIDGE_CTK=0 -> la pantalla clásica de siempre.
+def _ob_es_ctk(w):
+    return type(w).__module__.startswith("customtkinter")
+
+
+def _ob_cfg(w, **kw):
+    """config() que vale para Tk y para CTk (fg -> text_color)."""
+    if w is None:
+        return
+    if _ob_es_ctk(w):
+        if "fg" in kw:
+            kw["text_color"] = kw.pop("fg")
+        w.configure(**kw)
+    else:
+        w.config(**kw)
+
+
+class _ObCfg:
+    """Envoltorio con .config() para pasar un widget CTk a quien espera uno de Tk (proxy_test_ui)."""
+    def __init__(self, w):
+        self.w = w
+
+    def config(self, **kw):
+        _ob_cfg(self.w, **kw)
+
+
+def _ob_foco(w):
+    try:
+        getattr(w, "_canvas", w).focus_set()
+    except Exception:
+        pass
+
+
+def _ob_color_puntos():
+    """Un gris apenas distinto del fondo: textura sutil en claro y en oscuro."""
+    bg = THEME["bg"]
+    return _lerp_color(bg, "#FFFFFF" if _THEME_STATE.get("dark") else "#000000", 0.09)
+
+
+def _ob_chrome_ctk(root, ov):
+    import customtkinter as ctk
+    _teclado_ctk_patch()
+    k = _KitCtk(ov, global_setup=False)
+    T = THEME
+    fondo = tk.Canvas(ov, bg=T["bg"], highlightthickness=0, bd=0)
+    fondo.place(relx=0, rely=0, relwidth=1, relheight=1)
+    punto = _ob_color_puntos()
+
+    def _puntos(e=None):
+        fondo.delete("all")
+        paso, r = S(22), max(1, S(1))
+        ancho, alto = (e.width, e.height) if e is not None else (fondo.winfo_width(), fondo.winfo_height())
+        for x in range(paso // 2, ancho, paso):
+            for y in range(paso // 2, alto, paso):
+                fondo.create_oval(x - r, y - r, x + r, y + r, fill=punto, outline="")
+    fondo.bind("<Configure>", _puntos)
+    ancho = min(S(680), max(S(480), root.winfo_width() - S(40)))
+    cont = tk.Frame(ov, bg=T["bg"])  # CTk no admite width en place(): lo lleva un Frame de Tk
+    cont.place(relx=0.5, rely=0.5, anchor="center", width=ancho, relheight=0.94)
+    card = ctk.CTkFrame(cont, fg_color=T["card"], corner_radius=10, border_width=1, border_color=T["line"])
+    card.pack(fill="both", expand=True)
+    head = k.frame(card)
+    head.pack(fill="x", padx=24, pady=(20, 0))
+    pasos = tk.Canvas(head, width=S(4 * 18), height=S(12), bg=T["card"], highlightthickness=0, bd=0)
+    pasos.pack(side="left")
+    kicker = k.label(head, "", muted=True, wrap=0)
+    kicker.pack(side="left", padx=(10, 0))
+    title = ctk.CTkLabel(card, text="", font=k.F(22, "bold"), text_color=T["text"], anchor="w", justify="left",
+                         height=1)
+    title.pack(anchor="w", fill="x", padx=24, pady=(10, 0))
+    sub = k.label(card, "", muted=True, wrap=600)
+    sub.pack(anchor="w", fill="x", padx=24, pady=(2, 10))
+    foot = k.frame(card)
+    foot.pack(side="bottom", fill="x", padx=24, pady=(8, 18))
+    tk.Frame(card, bg=T["line"], height=S(1)).pack(side="bottom", fill="x", padx=24)
+    skip = k.button(foot, "Saltar por ahora", lambda: _ob_next(skip=True))
+    skip.pack(side="left")
+    nxt = k.button(foot, "Siguiente", _ob_next, accent=True)
+    nxt.pack(side="right")
+    back = k.button(foot, "Atrás", _ob_back)
+    back.pack(side="right", padx=(0, 8))
+    holder = tk.Frame(card, bg=T["card"])
+    holder.pack(fill="both", expand=True, padx=(16, 6), pady=(0, 4))
+    body = _scrollable(holder)
+    body.configure(bg=T["card"])
+    body.master.configure(bg=T["card"])  # el canvas del scroll, del color de la tarjeta
+    _OB.update(col=card, prog=pasos, kicker=kicker, title=title, sub=sub, skip=skip, next=nxt, back=back,
+               body=body, kit=k, fondo=fondo, cont=cont)
+
+
+def _ob_pasos_ctk(step):
+    c = _OB["prog"]
+    c.delete("all")
+    d, g = S(10), S(18)
+    for i in range(4):
+        x = i * g + 1
+        if i <= step:
+            c.create_oval(x, 1, x + d, 1 + d, fill=THEME["blue"], outline=THEME["blue"])
+        else:
+            c.create_oval(x, 1, x + d, 1 + d, fill="", outline=THEME["muted"], width=max(1, S(1)))
+
+
+def _ob_seccion(k, body, pady=(0, 8)):
+    import customtkinter as ctk
+    sec = ctk.CTkFrame(body, fg_color=THEME["card"], corner_radius=10, border_width=1, border_color=THEME["line"])
+    sec.pack(fill="x", pady=pady, padx=(0, 6))
+    return sec
+
+
+def _ob_titulo(k, parent, text):
+    import customtkinter as ctk
+    ctk.CTkLabel(parent, text=text, font=k.F(15, "semibold"), text_color=THEME["text"], anchor="w",
+                 height=1).pack(anchor="w", padx=16, pady=(12, 2))
+
+
+def _ob_body_ctk(step):
+    import customtkinter as ctk
+    k, body, T = _OB["kit"], _OB["body"], THEME
+    det = _OB.get("det")
+    radio_kw = dict(font=k.F(14, "semibold"), text_color=T["text"], fg_color=T["blue"], hover_color=T["blue"],
+                    border_color=T["muted"], radiobutton_width=18, radiobutton_height=18,
+                    border_width_unchecked=2, border_width_checked=5)
+    check_kw = dict(font=k.F(13), text_color=T["text"], fg_color=T["blue"], hover_color=T["blue"],
+                    border_color=T["muted"], checkbox_width=18, checkbox_height=18, corner_radius=4,
+                    onvalue=True, offvalue=False)
+    if step == 0:
+        if det is None:
+            k.label(body, "⠋ Buscando lo que ya tienes en este PC…", muted=True).pack(anchor="w", pady=4)
+        else:
+            cli = det["cli"]
+            names = {"claude": "Claude Code", "codex": "Codex", "ollama": "Ollama", "gemini": "Gemini"}
+            found = [f"{names[x]} {v}" for x, v in cli.items() if v]
+            if det.get("ollama_models"):
+                found.append(f"{len(det['ollama_models'])} modelo(s) en tu PC")
+            if det.get("claude_plan"):
+                found.append(f"sesión de Claude ({det['claude_plan'].capitalize()})")
+            k.label(body, "Encontré en este PC: " + (", ".join(found) if found else "nada todavía"),
+                    wrap=600).pack(anchor="w", fill="x", pady=(0, 8))
+        card = _ob_seccion(k, body, pady=(0, 0))
+        for i, (key, name, desc) in enumerate(OB_ASSISTANTS):
+            if i:
+                tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=12)
+            row = k.frame(card)
+            row.pack(fill="x", padx=12, pady=6)
+            ctk.CTkRadioButton(row, text=name, value=key, variable=_OB["choice"], command=_ob_render,
+                               **radio_kw).pack(anchor="w")
+            v = (det or {}).get("cli", {}).get(key) if key in ("claude", "codex") else None
+            extra = f"  ✓ Instalado ({v})" if v else ""
+            k.label(row, desc + extra, muted=True, wrap=540).pack(anchor="w", fill="x", padx=(28, 0))
+            if key == "otro" and _OB["choice"].get() == "otro":
+                for lab_, var_ in (("Cómo se llama el programa", _OB["otro_nombre"]),
+                                   ("Cómo se le pide algo por línea de comandos (p. ej. miia -p \"{prompt}\")",
+                                    _OB["otro_cmd"])):
+                    k.label(row, lab_, muted=True, wrap=520).pack(anchor="w", padx=(28, 0))
+                    ctk.CTkEntry(row, textvariable=var_, width=380, height=30, corner_radius=8, font=k.F(13),
+                                 border_width=1, border_color=T["line"], fg_color=T["field"],
+                                 text_color=T["text"]).pack(anchor="w", padx=(28, 0), pady=(0, 4))
+                ctk.CTkCheckBox(row, text="No lo sé: lo configuro luego (mientras, el modelo local)",
+                                variable=_OB["otro_luego"], **check_kw).pack(anchor="w", padx=(28, 0))
+            if key in ("claude", "codex") and det is not None and not (det.get("cli") or {}).get(key) \
+                    and _OB["choice"].get() == key:
+                k.label(row, "Por instalar: puedes instalarlo luego; mientras, empiezas con el modelo local.",
+                        bold=True, color="orange_text", wrap=520).pack(anchor="w", padx=(28, 0))
+    elif step == 1:
+        ch = _OB["choice"].get()
+        card = _ob_seccion(k, body)
+        _ob_titulo(k, card, "Tu asistente")
+        prov = {"claude": "anthropic", "codex": "openai", "grok": "xai"}.get(ch)
+        _OB["key_entry"] = None
+        if ch in ("muse", "dot"):
+            on = state.get("bridge") == "corriendo"
+            k.label(card, (f"✓ Se conecta por el puente, que está encendido (puerto {BRIDGE_PORT})." if on else
+                           "! El puente está apagado: enciéndelo en Estado para que te alcance."),
+                    color="green_text" if on else "orange_text", wrap=580).pack(anchor="w", fill="x", padx=16,
+                                                                              pady=(0, 12))
+        else:
+            plan = (det or {}).get("claude_plan")
+            if ch == "claude" and plan:
+                k.label(card, f"✓ Ya iniciaste sesión en Claude (plan {plan.capitalize()}).",
+                        color="green_text").pack(anchor="w", padx=16)
+            elif ch in ("claude", "codex"):
+                k.button(card, "Iniciar sesión en el navegador", lambda c=ch: _ob_login(c), accent=True).pack(
+                    anchor="w", padx=16, pady=(0, 4))
+            if prov:
+                r = k.frame(card)
+                r.pack(fill="x", padx=16, pady=(6, 0))
+                k.label(r, "O usa tu clave:", wrap=0).pack(side="left")
+                ent = k.entry(r, width=30, secret=True)
+                ent.pack(side="left", padx=8)
+                if api_key_for(prov):
+                    ent.insert(0, api_key_for(prov))
+                _OB["key_entry"], _OB["key_prov"] = ent, prov
+                ctk.CTkButton(card, text="¿Dónde consigo mi clave?", font=k.F(13), fg_color="transparent",
+                              hover_color=k.seg_hover, text_color=T["blue"], corner_radius=8, height=28, width=0,
+                              command=lambda p=prov: _ob_open_url(OB_KEY_URL.get(p))).pack(anchor="w", padx=10,
+                                                                                         pady=(4, 0))
+            tk.Frame(card, bg=T["card"], height=S(10)).pack()
+        card2 = _ob_seccion(k, body, pady=(0, 0))
+        _ob_titulo(k, card2, "Salida a internet")
+        k.label(card2, "Desde Venezuela, Claude y ChatGPT solo responden por tu proxy. Un clic y lo pruebo con los "
+                       "datos que ya tienes guardados.", muted=True, wrap=580).pack(anchor="w", fill="x", padx=16)
+        k.label(card2, EXPORT_AVISO_PROXY, bold=True, color="orange_text", wrap=580).pack(
+            anchor="w", fill="x", padx=16, pady=(4, 0))
+        r = k.frame(card2)
+        r.pack(fill="x", padx=16, pady=(8, 4))
+        res = k.label(card2, _proxy_result_text() if _AV["rows"].get("proxy") else "", bold=True, wrap=580)
+        btn = k.button(r, "Conectar", lambda: _ob_connect(btn, res), accent=True)
+        btn.pack(side="left")
+        if _AV["rows"].get("proxy"):
+            _ob_cfg(res, fg=_proxy_result_color())
+        res.pack(anchor="w", fill="x", padx=16, pady=(4, 12))
+        _OB["conectar"] = (btn, res)
+    elif step == 2:
+        card = _ob_seccion(k, body)
+        _ob_titulo(k, card, "Qué carpetas ve")
+        current = set(load_folders())
+        folders = (det or {}).get("folders") or list(current)
+        for p in folders + [p for p in _OB["folder_vars"] if p not in folders]:
+            var = _OB["folder_vars"].setdefault(p, tk.BooleanVar(value=p in current))
+            ctk.CTkCheckBox(card, text=p, variable=var, **check_kw).pack(anchor="w", padx=16, pady=2)
+        k.button(card, "Añadir otra carpeta", _ob_add_folder).pack(anchor="w", padx=16, pady=(6, 12))
+        card2 = _ob_seccion(k, body, pady=(0, 0))
+        _ob_titulo(k, card2, "Qué puede hacer en ellas")
+        for key, lab, expl in OB_LEVELS:
+            row = k.frame(card2)
+            row.pack(fill="x", padx=16, pady=3)
+            ctk.CTkRadioButton(row, text=lab, value=key, variable=_OB["level"], **radio_kw).pack(anchor="w")
+            k.label(row, expl, muted=True, wrap=540).pack(anchor="w", fill="x", padx=(28, 0))
+        tk.Frame(card2, bg=T["card"], height=S(10)).pack()
+    else:
+        card = _ob_seccion(k, body)
+        _OB["checks"] = {}
+        for i, (key, lab) in enumerate((("proxy", "Proxy"), ("motor", "Tu asistente"), ("carpetas", "Carpetas"))):
+            if i:
+                tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=16)
+            row = k.frame(card)
+            row.pack(fill="x", padx=16, pady=6)
+            ic = ctk.CTkLabel(row, text="⠋", font=k.F(16, "bold"), text_color=T["muted"], width=26, height=1)
+            ic.pack(side="left", anchor="n")
+            left = k.frame(row)
+            left.pack(side="left", fill="x", expand=True)
+            k.label(left, lab, bold=True, wrap=0).pack(anchor="w")
+            msg = k.label(left, "Probando…", muted=True, wrap=520)
+            msg.pack(anchor="w", fill="x")
+            _OB["checks"][key] = (ic, msg)
+            if key == "proxy":
+                _OB["proxy_botones"] = k.frame(left)
+                k.button(_OB["proxy_botones"], "Reintentar",
+                         lambda: proxy_test_ui(None, None, _OB.get("proxy_done"))).pack(side="left")
+                k.button(_OB["proxy_botones"], "Seguir sin proxy",
+                         lambda: (_ob_pendiente("conectar el proxy cuando responda"),
+                                  _ob_set("proxy", True, "Sigues sin proxy: el modelo local responde. "
+                                                         "Queda pendiente en Estado."))).pack(side="left",
+                                                                                              padx=(8, 0))
+        k.button(card, "Volver a probar", _ob_run_checks).pack(anchor="w", padx=16, pady=10)
+        ex = _ob_seccion(k, body, pady=(0, 0))
+        _ob_titulo(k, ex, "Tu primera prueba")
+        k.label(ex, f"Pulsa «Empezar a hablar» y envía: «{_ob_example()}»", wrap=580).pack(
+            anchor="w", fill="x", padx=16, pady=(0, 12))
+        _ob_run_checks()
+
+
 def open_onboarding(root=None):
     """Pantalla completa sobre la ventana: 4 pasos, «Saltar por ahora» en
     todos. Se guarda todo en settings.json."""
@@ -24947,32 +25213,48 @@ def open_onboarding(root=None):
                otro_luego=tk.BooleanVar(value=False), nota="")
     if _OB["step"]:
         log(f"configuración inicial: sigo donde quedó (paso {_OB['step'] + 1})")
-    col = tk.Frame(ov, bg=bg)
-    col.place(relx=0.5, rely=0, anchor="n", relheight=1, width=min(S(680), max(S(480), root.winfo_width() - S(40))))
-    _OB["col"] = col
-    prog = tk.Canvas(col, height=S(6), bg=bg, highlightthickness=0, bd=0)
-    prog.pack(fill="x", pady=(S(20), 0))
-    _OB["prog"] = prog
-    _OB["kicker"] = tk.Label(col, text="", font=(FONT, 10), bg=bg, fg=T["muted"])
-    _OB["kicker"].pack(anchor="w", pady=(12, 0))
-    _OB["title"] = tk.Label(col, text="", font=(FONT, 22, "bold"), bg=bg, fg=T["text"],
-                            justify="left", anchor="w")
-    _OB["title"].pack(anchor="w", fill="x")
-    _OB["sub"] = tk.Label(col, text="", font=(FONT, 11), bg=bg, fg=T["muted"], justify="left",
-                          anchor="w", wraplength=S(620))
-    _OB["sub"].pack(anchor="w", fill="x", pady=(2, 10))
-    foot = tk.Frame(col, bg=bg)
-    foot.pack(side="bottom", fill="x", pady=(8, S(18)))
-    tk.Frame(col, bg=T["line"], height=S(1)).pack(side="bottom", fill="x")
-    _OB["skip"] = ttk.Button(foot, text="Saltar por ahora", command=lambda: _ob_next(skip=True))
-    _OB["skip"].pack(side="left")
-    _OB["next"] = ttk.Button(foot, text="Siguiente", style="Accent.TButton", command=_ob_next)
-    _OB["next"].pack(side="right")
-    _OB["back"] = ttk.Button(foot, text="Atrás", command=_ob_back)
-    _OB["back"].pack(side="right", padx=(0, 8))
-    body_holder = tk.Frame(col, bg=bg)
-    body_holder.pack(fill="both", expand=True)
-    _OB["body"] = _scrollable(body_holder)
+    piel = None
+    if _ctk_wanted() and not _OB.get("forzar_tk"):
+        try:
+            _ob_chrome_ctk(root, ov)
+            piel = "ctk"
+        except Exception as e:
+            log(f"configuración inicial: CustomTkinter no disponible ({type(e).__name__}: {e}); se usa la clásica")
+            for ch in ov.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    if piel is None:
+        col = tk.Frame(ov, bg=bg)
+        col.place(relx=0.5, rely=0, anchor="n", relheight=1, width=min(S(680), max(S(480), root.winfo_width() - S(40))))
+        _OB["col"] = col
+        prog = tk.Canvas(col, height=S(6), bg=bg, highlightthickness=0, bd=0)
+        prog.pack(fill="x", pady=(S(20), 0))
+        _OB["prog"] = prog
+        _OB["kicker"] = tk.Label(col, text="", font=(FONT, 10), bg=bg, fg=T["muted"])
+        _OB["kicker"].pack(anchor="w", pady=(12, 0))
+        _OB["title"] = tk.Label(col, text="", font=(FONT, 22, "bold"), bg=bg, fg=T["text"],
+                                justify="left", anchor="w")
+        _OB["title"].pack(anchor="w", fill="x")
+        _OB["sub"] = tk.Label(col, text="", font=(FONT, 11), bg=bg, fg=T["muted"], justify="left",
+                              anchor="w", wraplength=S(620))
+        _OB["sub"].pack(anchor="w", fill="x", pady=(2, 10))
+        foot = tk.Frame(col, bg=bg)
+        foot.pack(side="bottom", fill="x", pady=(8, S(18)))
+        tk.Frame(col, bg=T["line"], height=S(1)).pack(side="bottom", fill="x")
+        _OB["skip"] = ttk.Button(foot, text="Saltar por ahora", command=lambda: _ob_next(skip=True))
+        _OB["skip"].pack(side="left")
+        _OB["next"] = ttk.Button(foot, text="Siguiente", style="Accent.TButton", command=_ob_next)
+        _OB["next"].pack(side="right")
+        _OB["back"] = ttk.Button(foot, text="Atrás", command=_ob_back)
+        _OB["back"].pack(side="right", padx=(0, 8))
+        body_holder = tk.Frame(col, bg=bg)
+        body_holder.pack(fill="both", expand=True)
+        _OB["body"] = _scrollable(body_holder)
+        piel = "tk"
+    _OB["piel"] = piel
+    _OB["t0"] = time.perf_counter()
     ov.bind_all("<Escape>", lambda _e: _ob_next(skip=True) if _OB.get("frame") else None, add="+")
     if _OB.get("det") is None:
         def _det():
@@ -24983,7 +25265,9 @@ def open_onboarding(root=None):
     else:
         _OB["choice"].set(_ob_preselect(_OB["det"]))
     _ob_render()
-    _OB["next"].focus_set()
+    _ob_foco(_OB["next"])
+    log("configuración inicial: pantalla " + ("con CustomTkinter" if piel == "ctk" else "clásica (tkinter)")
+        + f" ({(time.perf_counter() - _OB['t0']) * 1000:.0f} ms el primer paso)")
 
 
 def _ob_render():
@@ -24991,15 +25275,18 @@ def _ob_render():
         return
     step = _OB["step"]
     T, bg, cbg = THEME, THEME["bg"], THEME["card"]
-    prog = _OB["prog"]
-    prog.delete("all")
-    prog.update_idletasks()
-    wd = max(prog.winfo_width(), S(400))
-    seg = (wd - S(18)) / 4
-    for i in range(4):
-        x = i * (seg + S(6))
-        prog.create_rectangle(x, 0, x + seg, S(6), fill=T["blue"] if i <= step else _C("#E5E5EA"),
-                              outline="")
+    if _OB.get("piel") == "ctk":
+        _ob_pasos_ctk(step)
+    else:
+        prog = _OB["prog"]
+        prog.delete("all")
+        prog.update_idletasks()
+        wd = max(prog.winfo_width(), S(400))
+        seg = (wd - S(18)) / 4
+        for i in range(4):
+            x = i * (seg + S(6))
+            prog.create_rectangle(x, 0, x + seg, S(6), fill=T["blue"] if i <= step else _C("#E5E5EA"),
+                                  outline="")
     titles = ("¿Quién te ayuda?", "Conectar", "Tus carpetas", "Comprobación")
     subs = ("Elige tu asistente principal: es el que te responde en la paleta (Ctrl+K) y en el chat. "
             "Los demás quedan como ayudantes para tareas concretas.",
@@ -25007,16 +25294,26 @@ def _ob_render():
             "ahora, lo haces más tarde: nada se bloquea.",
             "Elige qué carpetas puede ver tu asistente y qué puede hacer en ellas.",
             "Pruebo de verdad que todo anda. Luego, a hablar.")
-    _OB["kicker"].config(text=f"Paso {step + 1} de 4")
-    _OB["title"].config(text=titles[step])
-    _OB["sub"].config(text=subs[step], fg=T["muted"])
-    _OB["back"].config(state="normal" if step else "disabled")
-    _OB["next"].config(text="Empezar a hablar" if step == 3 else "Siguiente")
+    _ob_cfg(_OB["kicker"], text=f"Paso {step + 1} de 4")
+    _ob_cfg(_OB["title"], text=titles[step])
+    _ob_cfg(_OB["sub"], text=subs[step], fg=T["muted"])
+    _ob_cfg(_OB["back"], state="normal" if step else "disabled")
+    _ob_cfg(_OB["next"], text="Empezar a hablar" if step == 3 else "Siguiente")
     if _OB.get("nota") and _OB.get("sub") is not None:
-        _OB["sub"].config(text=_OB["nota"])
-    _OB["skip"].config(text="Lo haré más tarde" if step == 1 else "Saltar por ahora")
+        _ob_cfg(_OB["sub"], text=_OB["nota"])
+    _ob_cfg(_OB["skip"], text="Lo haré más tarde" if step == 1 else "Saltar por ahora")
     body = _OB["body"]
     _clear(body)
+    if _OB.get("piel") == "ctk":
+        try:
+            _ob_body_ctk(step)
+            return
+        except Exception as e:  # CTk roto al dibujar: la pantalla clásica, desde el mismo paso
+            log(f"configuración inicial: CustomTkinter falló al dibujar ({type(e).__name__}: {e}); "
+                "se usa la clásica")
+            _OB["forzar_tk"] = True
+            open_onboarding()
+            return
     det = _OB.get("det")
     if step == 0:
         if det is None:
@@ -25210,8 +25507,8 @@ def _ob_connect(btn, res):
         p = _AV["rows"].get("proxy") or {}
         if p.get("estado") == "ok" and not state.get("proxy_on"):
             set_proxy_mode("vps")
-        res.config(text=_proxy_result_text(), fg=_proxy_result_color())
-    proxy_test_ui(btn, res, done)
+        _ob_cfg(res, text=_proxy_result_text(), fg=_proxy_result_color())
+    proxy_test_ui(_ObCfg(btn), _ObCfg(res), done)
 
 
 def _ob_add_folder():
@@ -25359,16 +25656,16 @@ def _ob_set(k, ok, text):
     if ic is None:
         return
     try:
-        ic.config(text="✓" if ok else "✗", fg=THEME["green_text"] if ok else THEME["red"])
-        msg.config(text=text, fg=THEME["text"])
+        _ob_cfg(ic, text="✓" if ok else "✗", fg=THEME["green_text"] if ok else THEME["red"])
+        _ob_cfg(msg, text=text, fg=THEME["text"])
     except Exception:
         pass
 
 
 def _ob_run_checks():
     for k, (ic, msg) in (_OB.get("checks") or {}).items():
-        ic.config(text="⠋", fg=THEME["muted"])
-        msg.config(text="Probando…", fg=THEME["muted"])
+        _ob_cfg(ic, text="⠋", fg=THEME["muted"])
+        _ob_cfg(msg, text="Probando…", fg=THEME["muted"])
 
     def _proxy_done():
         p = _AV["rows"].get("proxy") or {}
