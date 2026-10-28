@@ -1,0 +1,17 @@
+{
+  "id": "t-diag-carril-b-navegador",
+  "model": "sonnet",
+  "timeout_min": 30,
+  "prompt": "Growi Bridge es una app de escritorio Windows (Python/tkinter) en C:\\Users\\forte\\growi-bridge\\ (growi-bridge.py + runner + engines.json + share\\inbox\\ / share\\outbox\\). Hay DOS carriles: carril A (puente 8787, app principal) y carril B (puente 8788 originalmente, app de pruebas en C:\\Users\\forte\\growi-bridge-lane2\\). Ademas existe browser-server.py (en share\\inbox\\growi-bridge-browser\\) que sirve /poll y /result SOLO en 127.0.0.1:8788 para la extension de Chrome (Growi Bridge Browser, id abooohjmpggblaghehhajgkpndalppcm). PROBLEMA: desde las 15:53 del 26 oct 2026 el carril B no responde ni en 8788 ni en 8789, y la extension dice que el servidor responde 404 en /poll (el icono de la mascota SI se ve bien). El task t-browser-server-puerto-020 (enviado 14:46) debia mover el carril B a 8789 y arrancar browser-server.py en 8788, pero su ESTADO (ESTADO-SERVIDOR-NAVEGADOR-8788.md) nunca llego a la VM y no hay archivo de revisiones suyo en el outbox. No se sabe si se movio el carril B, si browser-server.py corre, o si el fix fallo. TU TRABAJO ES SOLO DIAGNOSTICO, no arregles nada todavia: (1) busca en el PC el resultado y el ESTADO de t-browser-server-puerto-020 (share\\outbox\\ y runner-results\\) y resume que hizo y que dijo; (2) netstat -ano en 8787, 8788 y 8789: que proceso escucha en cada puerto (PID y nombre); (3) comprueba si browser-server.py esta corriendo (tasklist) y si el carril B responde en 8789 (GET /ping); (4) prueba /poll en 127.0.0.1:8788 con el secreto del puente (esta en C:\\Users\\forte\\growi-bridge\\secret.txt, leelo solo para la prueba, NUNCA lo escribas en ningun archivo, log ni ESTADO) y sin el: anota el codigo HTTP de cada una; (5) revisa si existe la tarea programada GrowiBridgeBrowserServer o similar y si el carril B tiene tarea programada (GrowiBridgeLane2). Escribe share\\outbox\\ESTADO-DIAG-NAVEGADOR.md con: DIAGNOSTICO (una linea por punto: que hay en cada puerto, si browser-server corre, si el carril B vive y donde), CAUSA MAS PROBABLE del 404, y QUE HAY QUE HACER (pasos concretos, sin ejecutarlos). NO toques el carril A (8787) ni su runner, NO toques la extension ni sus archivos, NO toques el secreto salvo leerlo para la prueba, NO reinicies el PC, NO muevas puertos, NO modifiques ningun archivo salvo el ESTADO. Si algo no se puede comprobar, escribelo como FALTA con el motivo, no lo inventes.",
+  "criterios": [
+    "ESTADO-DIAG-NAVEGADOR.md existe en share\\outbox\\ con DIAGNOSTICO, CAUSA MAS PROBABLE y QUE HAY QUE HACER; cada punto verificado con evidencia (salida de netstat, codigo HTTP o PID)",
+    "El resultado del task t-browser-server-puerto-020 esta resumido (que hizo, que dijo su ESTADO o revision, o FALTA si no hay rastro en el PC)",
+    "netstat de 8787, 8788 y 8789 con proceso y PID por puerto, o FALTA con el motivo si no se pudo",
+    "/poll probado en 127.0.0.1:8788 con secreto y sin secreto, con el codigo HTTP de cada uno; el secreto no aparece en ningun archivo, log ni ESTADO",
+    "Estado de browser-server.py (corre o no, PID) y del carril B (responde en 8789 o no) comprobados en vivo, no asumidos",
+    "No se toco el carril A, ni la extension, ni se reinicio el PC, ni se movio ningun puerto"
+  ],
+  "allowed_tools": "Read,Write,Bash,Glob,Grep",
+  "permission_mode": "acceptEdits",
+  "cwd": "C:\\Users\\forte\\growi-bridge\\share\\inbox"
+}

@@ -1,0 +1,106 @@
+{
+  "detenido": "t-temas-oscuro-sistema sin resultado claro",
+  "fase": "fase-a",
+  "reanudado": "2026-10-26 21:38 (PC encendido en casa 21:35, puente vivo 21:38; t-descargador-gguf verificada OK por revision r2, $29.21 en 3 rondas)",
+  "historial": [
+    {
+      "id": "t-motor-generico",
+      "enviado": "2026-10-26 01:13"
+    },
+    {
+      "id": "t-guardrail-visible",
+      "enviado": "2026-10-26 01:58"
+    },
+    {
+      "id": "t-vencimiento-aprobacion-030",
+      "enviado": "2026-10-26 03:13"
+    },
+    {
+      "id": "t-checkpoint-ronda-030",
+      "enviado": "2026-10-26 03:58"
+    },
+    {
+      "id": "t-criterios-tipados-030",
+      "enviado": "2026-10-26 05:13"
+    },
+    {
+      "id": "t-gateway-unificado",
+      "enviado": "2026-10-26 06:13"
+    },
+    {
+      "id": "t-skills-nativas",
+      "enviado": "2026-10-26 07:28"
+    },
+    {
+      "id": "t-skills-semilla",
+      "enviado": "2026-10-26 09:58"
+    },
+    {
+      "id": "t-memoria-pc",
+      "enviado": "2026-10-26 10:13"
+    },
+    {
+      "id": "t-credenciales-keyring",
+      "enviado": "2026-10-26 12:28"
+    },
+    {
+      "id": "t-motor-gemini-agy",
+      "enviado": "2026-10-26 13:28"
+    },
+    {
+      "id": "t-codex-verificar",
+      "enviado": "2026-10-26 14:43"
+    },
+    {
+      "id": "t-semaforo-vram-v2",
+      "enviado": "2026-10-26 15:28"
+    },
+    {
+      "id": "t-descargador-gguf",
+      "enviado": "2026-10-26 16:13"
+    },
+    {
+      "id": "t-router-llama-server",
+      "enviado": "2026-10-26 21:58"
+    },
+    {
+      "id": "t-ciclo-vida-llama",
+      "enviado": "2026-10-26 22:43"
+    },
+    {
+      "id": "t-ollama-decidir",
+      "enviado": "2026-10-26 23:28"
+    },
+    {
+      "id": "t-saldo-tripo",
+      "enviado": "2026-10-26 23:58"
+    },
+    {
+      "id": "t-exportar-chats",
+      "enviado": "2026-10-27 00:43"
+    },
+    {
+      "id": "t-ip-estable",
+      "enviado": "2026-10-27 01:43"
+    },
+    {
+      "id": "t-atajos-personalizables",
+      "enviado": "2026-10-27 02:43"
+    },
+    {
+      "id": "t-comandos-ia-guardados",
+      "enviado": "2026-10-27 10:43"
+    },
+    {
+      "id": "t-asistentes-perfiles",
+      "enviado": "2026-10-27 11:28"
+    },
+    {
+      "id": "t-temas-oscuro-sistema",
+      "enviado": "2026-10-27 12:13"
+    }
+  ],
+  "ultimo_enviado": "t-temas-oscuro-sistema",
+  "ultimo_verificado": "t-asistentes-perfiles",
+  "aceptado_por_leandro": "2026-10-26 09:49 (verificado por función, sin clic real; revisor pedía clic real en Aprobar/Editar)"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "t-watchdog-actualizar",
+  "model": "sonnet",
+  "timeout_min": 30,
+  "prompt": "Growi Bridge es una app de escritorio Windows (Python/tkinter) en C:\\Users\\forte\\growi-bridge\\ (growi-bridge.py + runner + engines.json + share\\inbox\\ / share\\outbox\\). PROBLEMA: la tarea programada GrowiBridgeWatchdog (cada 3 min) abre una ventana CMD visible cada vez que corre: parpadea en pantalla y ROBA EL FOCO mientras Leandro escribe (teclea mirando el teclado y lo que escribe no se escribe). Ademas el watchdog instalado NO es la version probada del gateway: t-gateway-unificado dejo como FALTA documentada que watchdog.ps1 no se actualizo (la version probada esta en share\\inbox\\growi-bridge-app\\watchdog-gateway.ps1). TU TRABAJO: (1) lee ESTADO-CHECKPOINT-RONDA.md (tiene el comando exacto para que la tarea corra oculta) y ESTADO-GATEWAY-UNIFICADO.md (lo que cambia el watchdog-gateway.ps1); (2) haz copias .bak de watchdog.ps1 y de watchdog-gateway.ps1 antes de tocar nada; (3) instala watchdog-gateway.ps1 como watchdog y actualiza la tarea GrowiBridgeWatchdog para que se ejecute oculta (pythonw.exe + lanzar-oculto.pyw, sin ventana de consola), manteniendo su programacion cada 3 min; (4) verifica que ya NO hay parpadeo: muestrea 10 minutos buscando ventanas CMD del vigilante (si aparece una, es FALLO y lo documentas); (5) verifica que el vigilante sigue cumpliendo su funcion: si el puente se cae, lo relanza (prueba controlada cerrando solo el puente y viendo que vuelve; si no se puede probar sin romper nada, FALTA explicita con el motivo). Escribe share\\outbox\\ESTADO-WATCHDOG.md con lo hecho, rutas y md5, evidencia del muestreo sin parpadeo, y COMO VOLVER ATRAS (comando schtasks para restaurar la tarea anterior). NO toques la configuracion del carril B (8789), ni el runner, ni VERSION, ni el secreto; NO reinicies el PC; NO cambies la logica de comprobacion del vigilante (solo como se ejecuta y que version del script corre). MANUAL: este spec se envia a mano solo con OK de Leandro.",
+  "criterios": [
+    "watchdog-gateway.ps1 instalado como watchdog (ruta y md5 documentados en el ESTADO; backup .bak del anterior hecho antes de tocar nada)",
+    "Tarea GrowiBridgeWatchdog actualizada para ejecutarse oculta (pythonw.exe + lanzar-oculto.pyw); la tarea sigue existiendo y programada cada 3 min",
+    "Sin parpadeo de consola: muestreo de 10 minutos sin ventanas CMD visibles del vigilante, con evidencia; si aparece una, FALLO documentado",
+    "El vigilante sigue cumpliendo su funcion: si el puente se cae, lo relanza (prueba controlada o FALTA explicita con el motivo si no se pudo probar)",
+    "No se toco la configuracion del carril B, ni el runner, ni VERSION, ni el secreto, ni se reinicio el PC",
+    "ESTADO-WATCHDOG.md en share\\outbox\\ con lo hecho, evidencia y como volver atras"
+  ],
+  "allowed_tools": "Read,Write,Bash,Glob,Grep",
+  "permission_mode": "acceptEdits",
+  "cwd": "C:\\Users\\forte\\growi-bridge\\share\\inbox"
+}

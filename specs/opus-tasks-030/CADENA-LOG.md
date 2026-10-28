@@ -1,0 +1,183 @@
+# Cadena automática Fase A 0.3.0 — log
+
+- 2026-10-25 22:11 Cadena creada por Growi a pedido de Leandro («avanza automáticamente»). El script `cadena-030.py` corre cada 15 min por cron, solo cuando el estado dice fase-a. Antes de eso no envía nada.
+- 2026-10-25 22:28 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-25 22:43 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-25 22:58 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-25 23:13 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-25 23:28 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-25 23:43 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-25 23:58 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-26 00:13 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-26 00:28 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-26 00:43 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-26 00:58 Fase actual: espera-release (no es fase-a): no hago nada.
+- 2026-10-26 01:13 ENVIADO t-motor-generico (posición 1 de 28).
+- 2026-10-26 01:28 Runner ocupado con {'id': 't-motor-generico', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 01:43 Runner ocupado con {'id': 't-motor-generico', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 01:58 t-motor-generico verificado OK (costo $13.418584800000001).
+- 2026-10-26 01:58 ENVIADO t-guardrail-visible (posición 2 de 28).
+- 2026-10-26 02:13 Runner ocupado con {'id': 't-guardrail-visible', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 02:28 Runner ocupado con {'id': 't-guardrail-visible', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 02:43 Runner ocupado con {'id': 't-guardrail-visible', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 02:58 Runner ocupado con {'id': 't-guardrail-visible', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 03:13 t-guardrail-visible verificado OK (costo $3.0211157999999996).
+- 2026-10-26 03:13 ENVIADO t-vencimiento-aprobacion-030 (posición 3 de 28).
+- 2026-10-26 03:28 Runner ocupado con {'id': 't-vencimiento-aprobacion-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 03:43 Runner ocupado con {'id': 't-vencimiento-aprobacion-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 03:58 t-vencimiento-aprobacion-030 verificado OK (costo $8.074587799999998).
+- 2026-10-26 03:58 ENVIADO t-checkpoint-ronda-030 (posición 4 de 28).
+- 2026-10-26 04:13 Runner ocupado con {'id': 't-checkpoint-ronda-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 04:28 Runner ocupado con {'id': 't-checkpoint-ronda-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 04:43 Runner ocupado con {'id': 't-checkpoint-ronda-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 04:58 Runner ocupado con {'id': 't-checkpoint-ronda-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 05:13 t-checkpoint-ronda-030 verificado OK (costo $2.9739217999999994).
+- 2026-10-26 05:13 ENVIADO t-criterios-tipados-030 (posición 5 de 28).
+- 2026-10-26 05:28 Runner ocupado con {'id': 't-criterios-tipados-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 05:43 Runner ocupado con {'id': 't-criterios-tipados-030', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 05:58 Runner ocupado con {'id': 't-criterios-tipados-030-r1', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 06:13 t-criterios-tipados-030 verificado OK (costo $12.5687214).
+- 2026-10-26 06:13 ENVIADO t-gateway-unificado (posición 6 de 28).
+- 2026-10-26 06:28 Runner ocupado con {'id': 't-gateway-unificado', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 06:43 Runner ocupado con {'id': 't-gateway-unificado', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 06:58 Runner ocupado con {'id': 't-gateway-unificado', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 07:13 Runner ocupado con {'id': 't-gateway-unificado', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'revisando'}: no hago nada.
+- 2026-10-26 07:28 t-gateway-unificado verificado OK (costo $16.913303800000005).
+- 2026-10-26 07:28 ENVIADO t-skills-nativas (posición 7 de 28).
+- 2026-10-26 07:32 CADENA APARCADA a mano (pausa-apagado): Leandro apaga el PC a las 08:25. No se envía nada hasta que el PC vuelva; volver a fase-a a mano.
+- 2026-10-26 07:43 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 07:58 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 08:13 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 08:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 08:43 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 08:58 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 09:13 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 09:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 09:43 Runner ocupado con {'id': 't-fix-icono-extension-ruta-020-r1', 'motor': 'claude', 'modelo': 'sonnet', 'modelo_real': 'claude-sonnet-5-5', 'estado': 'revisando'}: no hago nada.
+- 2026-10-26 09:49 t-skills-nativas ACEPTADO por Leandro (verificado por función, sin clic real). La cadena sigue con #7.
+- 2026-10-26 09:58 ENVIADO t-skills-semilla (posición 8 de 28).
+- 2026-10-26 10:13 t-skills-semilla verificado OK (costo $5.578286800000002).
+- 2026-10-26 10:13 ENVIADO t-memoria-pc (posición 9 de 28).
+- 2026-10-26 10:28 Runner ocupado con {'id': 't-memoria-pc', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 10:43 Runner ocupado con {'id': 't-memoria-pc', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 10:58 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-26 11:13 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-26 11:28 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-26 11:43 Runner ocupado con {'id': 't-memoria-pc', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 11:58 Runner ocupado con {'id': 't-memoria-pc-r1', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 12:13 Runner ocupado con {'id': 't-memoria-pc-r3', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 12:28 t-memoria-pc verificado OK (costo $5.731885999999998).
+- 2026-10-26 12:28 ENVIADO t-credenciales-keyring (posición 10 de 28).
+- 2026-10-26 12:43 Runner ocupado con {'id': 't-credenciales-keyring', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 12:58 Runner ocupado con {'id': 't-credenciales-keyring', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 13:13 Runner ocupado con {'id': 't-credenciales-keyring-r1', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 13:28 t-credenciales-keyring verificado OK (costo $10.238597400000002).
+- 2026-10-26 13:28 ENVIADO t-motor-gemini-agy (posición 11 de 28).
+- 2026-10-26 13:43 Runner ocupado con {'id': 't-motor-gemini-agy', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 13:58 Runner ocupado con {'id': 't-motor-gemini-agy', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 14:13 Runner ocupado con {'id': 't-motor-gemini-agy-r3', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': None, 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 14:28 Runner ocupado con {'id': 't-motor-gemini-agy-r3', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 14:43 t-motor-gemini-agy verificado OK (costo $7.125372999999999).
+- 2026-10-26 14:43 ENVIADO t-codex-verificar (posición 12 de 28).
+- 2026-10-26 14:58 Runner ocupado con {'id': 't-codex-verificar-r3', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': None, 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 15:13 Runner ocupado con {'id': 't-browser-server-puerto-020-r2', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'revisando'}: no hago nada.
+- 2026-10-26 15:28 t-codex-verificar verificado OK (costo $2.9041321999999994).
+- 2026-10-26 15:28 ENVIADO t-semaforo-vram-v2 (posición 13 de 28).
+- 2026-10-26 15:43 Runner ocupado con {'id': 't-semaforo-vram-v2', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 15:58 Runner ocupado con {'id': 't-semaforo-vram-v2', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 16:13 t-semaforo-vram-v2 verificado OK (costo $7.993432999999996).
+- 2026-10-26 16:13 ENVIADO t-descargador-gguf (posición 14 de 28).
+- 2026-10-26 16:28 Runner ocupado con {'id': 't-descargador-gguf', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 16:43 Runner ocupado con {'id': 't-descargador-gguf', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 16:58 Runner ocupado con {'id': 't-descargador-gguf', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 17:13 Runner ocupado con {'id': 't-descargador-gguf', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'revisando'}: no hago nada.
+- 2026-10-26 17:27 Cadena aparcada a mano por Growi (pausa-apagado): Leandro apaga el PC para irse a casa. Runner libre (t-descargador-gguf terminado, sin verificar aún). Se reanuda a mano al volver el PC.
+- 2026-10-26 17:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 17:43 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 17:58 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 18:13 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 18:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 18:43 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 18:58 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 19:13 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 19:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 19:43 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 19:58 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 20:13 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 20:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 20:43 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 20:58 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 21:13 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 21:28 Fase actual: pausa-apagado (no es fase-a): no hago nada.
+- 2026-10-26 21:38 Cadena reanudada a mano por Growi (fase-a): PC encendido en casa 21:35, puente vivo 21:38. t-descargador-gguf verificada OK (revision r2 aprobada, Ollama; costo 29.21 en 3 rondas). Siguiente tick envia #15 t-router-llama-server.
+- 2026-10-26 21:43 Runner ocupado con {'id': 't-diag-carril-b-navegador', 'motor': 'claude', 'modelo': 'sonnet', 'modelo_real': 'claude-sonnet-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 21:58 ENVIADO t-router-llama-server (posición 15 de 28).
+- 2026-10-26 22:13 Runner ocupado con {'id': 't-router-llama-server', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 22:28 Runner ocupado con {'id': 't-router-llama-server-r1', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'revisando'}: no hago nada.
+- 2026-10-26 22:43 t-router-llama-server verificado OK (costo $5.743490400000001).
+- 2026-10-26 22:43 ENVIADO t-ciclo-vida-llama (posición 16 de 28).
+- 2026-10-26 22:58 Runner ocupado con {'id': 't-ciclo-vida-llama', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 23:13 Runner ocupado con {'id': 't-ciclo-vida-llama', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 23:28 t-ciclo-vida-llama verificado OK (costo $7.6752291999999995).
+- 2026-10-26 23:28 ENVIADO t-ollama-decidir (posición 17 de 28).
+- 2026-10-26 23:43 Runner ocupado con {'id': 't-ollama-decidir', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-26 23:58 t-ollama-decidir verificado OK (costo $4.254958400000001).
+- 2026-10-26 23:58 ENVIADO t-saldo-tripo (posición 18 de 28).
+- 2026-10-27 00:13 Runner ocupado con {'id': 't-saldo-tripo', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 00:28 Runner ocupado con {'id': 't-saldo-tripo-r2', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 00:43 t-saldo-tripo verificado OK (costo $7.034835200000003).
+- 2026-10-27 00:43 ENVIADO t-exportar-chats (posición 19 de 28).
+- 2026-10-27 00:58 Runner ocupado con {'id': 't-exportar-chats', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 01:13 Runner ocupado con {'id': 't-exportar-chats-r2', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': None, 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 01:28 Runner ocupado con {'id': 't-exportar-chats-r3', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 01:43 t-exportar-chats verificado OK (costo $6.812097399999998).
+- 2026-10-27 01:43 ENVIADO t-ip-estable (posición 20 de 28).
+- 2026-10-27 01:58 Runner ocupado con {'id': 't-ip-estable', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 02:13 Runner ocupado con {'id': 't-ip-estable-r1', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 02:28 Runner ocupado con {'id': 't-ip-estable-r3', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 02:43 t-ip-estable verificado OK (costo $4.972653200000001).
+- 2026-10-27 02:43 ENVIADO t-atajos-personalizables (posición 21 de 28).
+- 2026-10-27 02:58 Runner ocupado con {'id': 't-atajos-personalizables', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 03:13 Runner ocupado con {'id': 't-atajos-personalizables', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 03:28 Runner ocupado (t-atajos-personalizables-r2.task.json en proceso): no hago nada.
+- 2026-10-27 03:43 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 03:58 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 04:13 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 04:28 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 04:59 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 05:13 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 05:28 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 05:43 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 05:58 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 06:13 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 06:28 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 06:44 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 07:15 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 07:28 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 07:43 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 07:58 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 08:13 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 08:28 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 08:43 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 08:58 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 09:13 Error en la corrida (Remote end closed connection without response): no envío nada.
+- 2026-10-27 09:28 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 09:43 El puente no responde al estado del runner (HTTP 401): no hago nada.
+- 2026-10-27 09:58 Runner ocupado con {'id': 't-copiar-carril-b-8789', 'motor': 'claude', 'modelo': 'sonnet', 'modelo_real': 'claude-sonnet-5-5', 'estado': 'revisando'}: no hago nada.
+- 2026-10-27 10:13 Runner ocupado con {'id': 't-watchdog-actualizar', 'motor': 'claude', 'modelo': 'sonnet', 'modelo_real': 'claude-sonnet-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 10:28 Runner ocupado con {'id': 't-watchdog-actualizar-r1', 'motor': 'claude', 'modelo': 'sonnet', 'modelo_real': None, 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 10:43 t-atajos-personalizables verificado OK (costo $10.6462758).
+- 2026-10-27 10:43 ENVIADO t-comandos-ia-guardados (posición 22 de 28).
+- 2026-10-27 10:58 Runner ocupado con {'id': 't-comandos-ia-guardados', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 11:13 Runner ocupado con {'id': 't-comandos-ia-guardados', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 11:28 t-comandos-ia-guardados verificado OK (costo $10.210777400000005).
+- 2026-10-27 11:28 ENVIADO t-asistentes-perfiles (posición 23 de 28).
+- 2026-10-27 11:43 Runner ocupado con {'id': 't-asistentes-perfiles', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 11:58 Runner ocupado con {'id': 't-asistentes-perfiles', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 12:13 t-asistentes-perfiles verificado OK (costo $11.791611800000002).
+- 2026-10-27 12:13 ENVIADO t-temas-oscuro-sistema (posición 24 de 28).
+- 2026-10-27 12:28 Runner ocupado con {'id': 't-temas-oscuro-sistema', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 12:43 Runner ocupado con {'id': 't-temas-oscuro-sistema', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 12:58 Runner ocupado con {'id': 't-temas-oscuro-sistema', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 13:13 Runner ocupado con {'id': 't-temas-oscuro-sistema', 'motor': 'claude', 'modelo': 'opus', 'modelo_real': 'claude-opus-5-5', 'estado': 'en curso'}: no hago nada.
+- 2026-10-27 13:28 DETENIDO: t-temas-oscuro-sistema no está en done/ ni en proceso y no tiene resultado claro. Revisar a mano.
