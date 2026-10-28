@@ -14,6 +14,7 @@ raíz y su commit.
 | 07 | t-carga-300ms | **LISTO** (FALTA: esqueleto en Tareas, Carpetas y Registro, que hoy cargan en síncrono y no esperan) | `24cdec9`, `ESTADO-CARGA-300MS.md` |
 | 08 | t-catalogo-030 | **SALTADO (bloqueo)** | Pide leer en Hugging Face los tamaños y sha256 reales, descargar ~10 GB (Qwen2.5-Coder-7B, Gemma 3 4B, Qwen3-Embedding) y hacer la carga de prueba en llama-server. La GPU está ocupada por el Ollama del usuario (4,2 de 6 GB) y descargar a la carpeta de la app instalada no está permitido. **También quedan bloqueados los que dependen de él:** 12 t-embeddings-8081, 14 t-evaluar-hermes4 y 41 t-vision-gemma3-4b |
 | 09 | t-comandos-script | **LISTO** | `2fc2345` + `c1735fc` (arreglo de mypy que marcó el gate), `ESTADO-COMANDOS-SCRIPT.md` |
+| 10 | t-dag-fases-030 | **LISTO** | `3f40082`, `ESTADO-DAG-FASES.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
