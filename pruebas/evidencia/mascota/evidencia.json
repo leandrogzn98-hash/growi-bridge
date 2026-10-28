@@ -1,0 +1,89 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mascota-7t55zomk",
+ "reposo": null,
+ "a_proxy_caido": {
+  "estado": "proxy_caido",
+  "fila_proxy": "El proxy no responde: rechaza la conexión. La ruta que sí anda: el modelo local.",
+  "toasts_de_proxy": [
+   "Se cayó el proxy. Trabajo con el modelo local."
+  ]
+ },
+ "b5_descansar": null,
+ "a_sin_internet": {
+  "estado": "sin_internet",
+  "toasts_nuevos": [
+   "Se cayó el proxy. Trabajo con el modelo local."
+  ]
+ },
+ "a_esperando": {
+  "en_espera": [
+   "t-borrar"
+  ],
+  "estado": "esperando"
+ },
+ "a_fallo": {
+  "estado_justo_despues": "fallo"
+ },
+ "b4_fallo_vuelve_al_reposo": null,
+ "b1_mismo_fallo_otra_vez": false,
+ "b2_c_clic": {
+  "cajitas_abiertas": 0,
+  "saludo_at": true
+ },
+ "b3_decir_dos_veces": [
+  "¡Listo!",
+  null,
+  "Hecho.",
+  null
+ ],
+ "mem_b_primera_y_segunda": [
+  "primera tarea del día",
+  null
+ ],
+ "b6_menu": [
+  "Escribirle a Growi",
+  "Abrir Growi Bridge",
+  "Buscar acciones",
+  "Descansar 1 hora",
+  "¿Te molestó la mascota?",
+  "Ocultar la mascota"
+ ],
+ "c_validacion_registro": "{\"at\": \"2026-10-28T01:19:18-04:00\", \"molesto\": false, \"inicio_prueba\": \"2026-10-28T01:17:09-04:00\"}",
+ "toasts": [
+  "Se cayó el proxy. Trabajo con el modelo local.",
+  "¡Listo!",
+  "Hecho."
+ ],
+ "log": [
+  "2026-10-28T01:17:09-04:00 mascota: Growi está en la esquina inferior derecha",
+  "2026-10-28T01:19:06-04:00 mascota: postura proxy_caido",
+  "2026-10-28T01:19:07-04:00 mascota: descansa 1 h (sin estados ni celebraciones)",
+  "2026-10-28T01:19:07-04:00 mascota: postura sin_internet",
+  "2026-10-28T01:19:08-04:00 mascota: postura esperando",
+  "2026-10-28T01:19:13-04:00 mascota: baja la cabeza una vez (t-falla); el reporte vive en la fila de la tarea",
+  "2026-10-28T01:19:13-04:00 mascota: postura fallo",
+  "2026-10-28T01:19:15-04:00 mascota: postura reposo",
+  "2026-10-28T01:19:17-04:00 mascota: clic → saludo (sin abrir la cajita)",
+  "2026-10-28T01:19:18-04:00 mascota: se calla (ya dijo «¡Listo!»)",
+  "2026-10-28T01:19:18-04:00 mascota: se calla (ya dijo «¡Listo!»)",
+  "2026-10-28T01:19:18-04:00 mascota: celebra (primera tarea del día)",
+  "2026-10-28T01:19:18-04:00 mascota: tarea aprobada; no es la primera del día: no se celebra",
+  "2026-10-28T01:19:18-04:00 mascota: validación: no molestó"
+ ],
+ "tracebacks_en_log": 0,
+ "memoria_en_disco": {
+  "validacion_desde": "2026-10-28T01:17:09-04:00",
+  "descansar_hasta": 0,
+  "ultimo_dicho": "¡Listo!",
+  "ultimo_dicho_variante": "Hecho.",
+  "ultimo_dicho_at": "2026-10-28T01:19:18-04:00",
+  "dias_con_tarea": [
+   "2026-10-28"
+  ],
+  "ultimo_celebrado": "primera:2026-10-28"
+ },
+ "mem_d_tras_reiniciar": {
+  "celebra_otra_vez": null,
+  "decir_lo_mismo": null
+ }
+}

@@ -24,3 +24,6 @@ cred-ayudante/
 gate-calidad/
 # ...salvo el de Claude Code del proyecto (hooks del gate de calidad)
 !.claude/settings.json
+# Memoria minima de la mascota (datos locales de cada PC)
+mascota-memoria.json
+mascota-validacion.jsonl

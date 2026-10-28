@@ -13098,6 +13098,8 @@ def _after_run(task, result):
     _write_result(result)
     _family_update(raiz, estado=estado, reporte=reporte)
     log(f"runner [{raiz}]: {ESTADOS[estado]}: {reporte[:160]}")
+    if estado == "fallida":
+        mascota_evento("fallo", raiz)  # baja la cabeza una vez; el reporte vive en la fila
     dag_fase_terminada(task, estado)  # si es fase de un plan con grafo: avanza el plan
 
 
@@ -16596,6 +16598,219 @@ def _mascot_sets():
     return sets
 
 
+# ---- mascota: 4 estados + reglas anti-molestia + memoria minima
+# (t-lote-mascota-040 = t-mascota-estados + t-mascota-memoria-minima).
+# Cada estado es UN fotograma de postura que se queda hasta que el estado
+# cambia (nada de animaciones largas ni sonido). Las posturas se derivan de
+# los fotogramas reales (idle-01) con PIL: el arte definitivo es otra tarea.
+# Las 6 reglas (numeradas): (1) max. una intervencion por evento; (2) nunca
+# un pop-up no pedido: reacciona, no interrumpe; (3) nunca dos veces seguidas
+# lo mismo (memoria); (4) lo malo no se celebra ni se dramatiza; (5) todo
+# estado tiene salida («Descansar») y toda animacion termina sola; (6) la
+# mascota no es el sistema de notificaciones: los botones viven en la pagina.
+MASCOTA_MEM = APP_DIR / "mascota-memoria.json"
+MASCOTA_VALIDACION = APP_DIR / "mascota-validacion.jsonl"
+_MASC = {"posturas": None, "fallo_hasta": 0.0, "eventos": {}, "estado_visto": None, "saludo_at": 0.0}
+
+
+def _masc_mem():
+    try:
+        d = json.loads(MASCOTA_MEM.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _masc_mem_set(**kw):
+    d = _masc_mem()
+    d.update(kw)
+    try:
+        MASCOTA_MEM.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError as e:
+        log(f"mascota: no se pudo guardar su memoria ({e})")
+    return d
+
+
+def mascota_posturas_pil():
+    """{estado: PIL.Image} derivadas de idle-01 (256 px, fondo magenta)."""
+    from PIL import Image, ImageDraw
+    base = Image.open(MASCOT_DIR / "idle-01.png").convert("RGB")
+    W_, H_ = base.size
+    mag = (255, 0, 255)
+
+    def lienzo():
+        return Image.new("RGB", (W_, H_), mag)
+
+    def sin_fondo(im):
+        a = Image.new("L", im.size, 0)
+        px, pa = im.load(), a.load()
+        for y in range(im.size[1]):
+            for x in range(im.size[0]):
+                r, g, b = px[x, y][:3]
+                pa[x, y] = 0 if (r > 200 and b > 200 and g < 80) else 255
+        return a
+
+    out = {}
+    # proxy caido: impermeable amarillo (el jersey negro se vuelve amarillo) y algo encogida
+    imp = base.copy()
+    px = imp.load()
+    for y in range(int(H_ * 0.33), int(H_ * 0.80)):
+        for x in range(W_):
+            r, g, b = px[x, y]
+            if r < 70 and g < 70 and b < 70:
+                k = (r + g + b) / 210
+                px[x, y] = (int(235 * (0.75 + k)), int(190 * (0.75 + k)), int(40 * (0.75 + k)))
+    peq = imp.resize((int(W_ * 0.88), int(H_ * 0.88)))
+    c = lienzo()
+    c.paste(peq, ((W_ - peq.size[0]) // 2, H_ - peq.size[1]), sin_fondo(peq))
+    out["proxy_caido"] = c
+    # sin internet: dormida de lado, con una manta
+    lado = base.rotate(90, expand=True, fillcolor=mag).resize((int(W_ * 0.78), int(H_ * 0.78)))
+    c = lienzo()
+    c.paste(lado, ((W_ - lado.size[0]) // 2, H_ - lado.size[1] - 4), sin_fondo(lado))
+    d = ImageDraw.Draw(c)
+    # la manta tapa el cuerpo (a la derecha); la cabeza (a la izquierda) queda fuera
+    d.rounded_rectangle((int(W_ * 0.40), int(H_ * 0.50), int(W_ * 0.94), int(H_ * 0.97)), radius=22,
+                        fill=(70, 110, 170))
+    d.rectangle((int(W_ * 0.40), int(H_ * 0.50), int(W_ * 0.94), int(H_ * 0.56)), fill=(95, 135, 195))
+    try:
+        from PIL import ImageFont
+        fuentes = [ImageFont.truetype("segoeuib.ttf", t) for t in (26, 34, 42)]
+    except Exception:
+        fuentes = [None, None, None]
+    for (x, y), f in zip(((0.30, 0.34), (0.40, 0.22), (0.52, 0.08)), fuentes):
+        d.text((int(W_ * x), int(H_ * y)), "z", fill=(110, 110, 150), font=f)
+    out["sin_internet"] = c
+    # esperando aprobacion: «te toca a ti», una mano levantada (distintivo) y sin palabras
+    c = base.copy()
+    d = ImageDraw.Draw(c)
+    cx, cy, rr = int(W_ * 0.82), int(H_ * 0.18), int(W_ * 0.12)
+    d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), fill=(255, 255, 255), outline=(0, 122, 255), width=4)
+    d.rectangle((cx - 10, cy - 4, cx + 10, cy + 16), fill=(240, 205, 170))  # palma
+    for i, dx in enumerate((-9, -3, 3, 9)):
+        d.rectangle((cx + dx - 2, cy - 18 + abs(dx) // 2, cx + dx + 2, cy - 2), fill=(240, 205, 170))
+    out["esperando"] = c
+    # tarea fallida: baja la cabeza (se inclina hacia delante), una vez
+    baja = base.resize((W_, int(H_ * 0.93))).rotate(-7, center=(W_ // 2, int(H_ * 0.93)), fillcolor=mag)
+    c = lienzo()
+    c.paste(baja, (0, H_ - baja.size[1]), sin_fondo(baja))
+    out["fallo"] = c
+    return out
+
+
+def _masc_postura(nombre):
+    """PhotoImage de la postura (en caché)."""
+    if _MASC["posturas"] is None:
+        try:
+            from PIL import ImageTk
+            _MASC["posturas"] = {k: ImageTk.PhotoImage(v.resize((MASCOT_SIZE, MASCOT_SIZE)))
+                                 for k, v in mascota_posturas_pil().items()}
+        except Exception as e:
+            log(f"mascota: no se pudieron preparar las posturas ({type(e).__name__}: {e})")
+            _MASC["posturas"] = {}
+    return _MASC["posturas"].get(nombre)
+
+
+def mascota_estado():
+    """El estado que manda ahora (o None = reposo normal). Prioridad: el
+    fallo (un momento), sin internet, proxy caido, esperando aprobacion."""
+    if _masc_mem().get("descansar_hasta", 0) > time.time():
+        return None  # regla 5: «Descansar» apaga los estados
+    if time.time() < _MASC["fallo_hasta"]:
+        return "fallo"
+    rows = _AV.get("rows") or {}
+    if (rows.get("internet") or {}).get("estado") == "falla":
+        return "sin_internet"
+    if (rows.get("proxy") or {}).get("estado") == "falla" or _IPX.get("proxy_caido"):
+        return "proxy_caido"
+    if ((_ESP.get("dato") or {}).get("n") or 0) > 0:  # tareas retenidas esperando tu aprobación
+        return "esperando"
+    return None
+
+
+def mascota_evento(tipo, clave=None):
+    """Un evento -> como mucho UNA intervencion (regla 1). tipo: 'fallo'."""
+    k = f"{tipo}:{clave}"
+    if k in _MASC["eventos"]:
+        return False
+    _MASC["eventos"][k] = time.time()
+    if tipo == "fallo":
+        _MASC["fallo_hasta"] = time.time() + 2.5  # baja la cabeza una vez y vuelve al reposo
+        log(f"mascota: baja la cabeza una vez ({clave}); el reporte vive en la fila de la tarea")
+    return True
+
+
+def mascota_decir(texto, variante=None):
+    """Regla 3: nunca dos veces seguidas lo mismo. Si lo ultimo dicho es
+    igual, usa la variante corta o se calla. Lo dicho queda en disco."""
+    mem = _masc_mem()
+    if mem.get("ultimo_dicho") == texto:
+        if not variante or mem.get("ultimo_dicho_variante") == variante:
+            log(f"mascota: se calla (ya dijo «{texto[:40]}»)")
+            return None
+        texto_final = variante
+        _masc_mem_set(ultimo_dicho_variante=variante, ultimo_dicho_at=_now_iso())
+    else:
+        texto_final = texto
+        _masc_mem_set(ultimo_dicho=texto, ultimo_dicho_variante=None, ultimo_dicho_at=_now_iso())
+    toast(texto_final)
+    return texto_final
+
+
+def mascota_tarea_aprobada():
+    """Solo la primera tarea del dia se celebra; los hitos reales (7 dias
+    seguidos, 100 tareas) una vez, pequeños, en el aviso de la tarea."""
+    mem = _masc_mem()
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    n = int(load_settings().get("aprobadas_total") or 0)
+    dias = sorted(set(mem.get("dias_con_tarea") or []) | {hoy})[-30:]
+    racha, d0 = 1, datetime.now().date()
+    while (d0 - timedelta(days=racha)).isoformat() in dias:
+        racha += 1
+    hitos = set(mem.get("hitos") or [])
+    nuevo = None
+    if racha >= 7 and "racha7" not in hitos:
+        nuevo = ("racha7", "7 días seguidos usando Bridge")
+    elif n >= 100 and n % 100 == 0 and f"tareas{n}" not in hitos:
+        nuevo = (f"tareas{n}", f"{n} tareas aprobadas")
+    _masc_mem_set(dias_con_tarea=dias)
+    if mem.get("ultimo_celebrado") == f"primera:{hoy}" and not nuevo:
+        log("mascota: tarea aprobada; no es la primera del día: no se celebra")
+        return None
+    if nuevo:
+        _masc_mem_set(hitos=sorted(hitos | {nuevo[0]}), ultimo_celebrado=f"hito:{nuevo[0]}")
+        motivo = nuevo[1]
+    else:
+        _masc_mem_set(ultimo_celebrado=f"primera:{hoy}")
+        motivo = "primera tarea del día"
+    try:
+        _mascot_play("wave")
+    except Exception:
+        pass
+    log(f"mascota: celebra ({motivo})")
+    return motivo
+
+
+def mascota_descansar(horas=1):
+    _masc_mem_set(descansar_hasta=time.time() + horas * 3600)
+    log(f"mascota: descansa {horas} h (sin estados ni celebraciones)")
+
+
+def mascota_validacion_ui():
+    """«¿Te molestó alguna vez?»: la respuesta queda en mascota-validacion.jsonl."""
+    r = messagebox.askyesnocancel("La mascota", "Esta semana, ¿la mascota te molestó alguna vez?\n\n"
+                                                "Sí = se recortan sus estados. No = se quedan.")
+    if r is None:
+        return
+    try:
+        with open(MASCOTA_VALIDACION, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": _now_iso(), "molesto": bool(r),
+                                 "inicio_prueba": _masc_mem().get("validacion_desde")}, ensure_ascii=False) + "\n")
+    except OSError as e:
+        log(f"mascota: no se pudo guardar la respuesta ({e})")
+    log(f"mascota: validación: {'SÍ molestó: recortar estados' if r else 'no molestó'}")
+
+
 def _mascot_play(name):
     """Reproduce un juego de animacion una vez (saludo, celebracion)."""
     frames = _mascot_sets().get(name) or []
@@ -16660,7 +16875,16 @@ def _mascot_loop():
     win = _mascot["win"]
     if win is None:
         return
-    if not _mascot["animating"]:
+    est = None if _mascot["animating"] else mascota_estado()
+    if est != _MASC["estado_visto"]:
+        _MASC["estado_visto"] = est
+        log(f"mascota: postura {est or 'reposo'}")
+    if est and _masc_postura(est) is not None:
+        try:  # un fotograma de postura que se queda hasta que el estado cambia
+            _mascot["label"].config(image=_masc_postura(est))
+        except Exception:
+            pass
+    elif not _mascot["animating"]:
         # Ya no saluda por cada tarea: solo celebra los hitos (ver
         # _celebrate_milestone, que lo llama al aprobarse una tarea).
         _mascot["last_tasks"] = state["tasks_done"]
@@ -16771,6 +16995,8 @@ def show_mascot():
     label.bind("<ButtonRelease-1>", _release)
     label.bind("<Button-3>", _mascot_menu)
     log("mascota: Growi está en la esquina inferior derecha")
+    if not _masc_mem().get("validacion_desde"):  # la semana de prueba de los estados empieza hoy
+        _masc_mem_set(validacion_desde=_now_iso())
     _mascot["last_tasks"] = state["tasks_done"]
     _root.after(120, _mascot_loop)
     _root.after(700, lambda: _mascot_play("wave"))  # saludo al arrancar
@@ -16786,6 +17012,8 @@ def _mascot_menu(event):
                      accelerator=_atajo_compacto(atajo_actual("abrir_paleta", "paleta")),
                      command=lambda: (show_window(), _open_palette()))
     menu.add_separator()
+    menu.add_command(label="Descansar 1 hora", command=mascota_descansar)
+    menu.add_command(label="¿Te molestó la mascota?", command=mascota_validacion_ui)
     menu.add_command(label="Ocultar la mascota", command=toggle_mascot)
     try:
         menu.tk_popup(event.x_root, event.y_root)
@@ -16798,8 +17026,14 @@ def on_mascot_click():
     label = _mascot["label"]
     if win is None or label is None or _mascot["animating"]:
         return
+    # Clic = saludo corto, no la cajita (regla 2: reacciona, no interrumpe).
+    # Si acaba de saludar, nada. La cajita: clic derecho → «Escribirle a Growi».
+    if time.time() - _MASC["saludo_at"] < 30:
+        log("mascota: clic; acaba de saludar: nada")
+        return
+    _MASC["saludo_at"] = time.time()
     _mascot_play("wave")
-    open_prompt_box()
+    log("mascota: clic → saludo (sin abrir la cajita)")
 
 def _big_file_dialog(name, size_mb):
     """Pregunta si de verdad se quiere copiar un archivo grande (>200 MB).
@@ -19020,7 +19254,7 @@ def _ipx_proxy_caido(motivo):
         causa = _ipx_causa_caida("proxy")
         tunel_registrar(f"proxy VPS ({pc.get('host')}:{pc.get('port')})", causa, motivo)
         log(f"salida: proxy caído ({motivo}); paso a modo local (modelo local) con aviso")
-        toast("Proxy caído: paso a modo local", ("estado",))
+        toast("Se cayó el proxy. Trabajo con el modelo local.", ("estado",))
     _ui_call(_after_availability)
 
 
@@ -21346,12 +21580,7 @@ def _celebrate_milestone():
     n = int(s.get("aprobadas_total") or 0) + 1
     s["aprobadas_total"] = n
     save_settings(s)
-    if n in MILESTONES or (n > 100 and n % 100 == 0):
-        log(f"mascota: hito, {n} tareas aprobadas")
-        try:
-            _mascot_play("wave")
-        except Exception:
-            pass
+    mascota_tarea_aprobada()  # primera del día o hito real, una vez (memoria en disco)
 
 
 def _dpi_awareness():
