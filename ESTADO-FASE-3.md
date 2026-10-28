@@ -19,7 +19,10 @@ raíz y su commit.
 | 12 | t-embeddings-8081 | **SALTADO (depende del 08)** | Necesita Qwen3-Embedding instalado por t-catalogo-030 y la GPU libre |
 | 13 | t-estimado-gasto-030 | **LISTO** (FALTA: aplicar el umbral por plan) | `7d6d1c5`, `ESTADO-ESTIMADO-GASTO.md` |
 | 14 | t-evaluar-hermes4 | **SALTADO (depende del 08 + GPU)** | Pide A/B con 10 tareas en local con Hermes 4 descargado; la GPU está ocupada y el catálogo (08) no se pudo instalar |
+| 15 | t-gasto-pronostico | **LISTO** (FALTA P2: ahorro por usar local) | `566fbaa`, `ESTADO-GASTO-PRONOSTICO.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
 construye sobre lo que sí existe en el código.
+
+**Observación (arranque):** la app tarda 11-13 s en abrir el puente (lo ve el smoke del gate). Compilar `growi-bridge.py` en una carpeta nueva tarda ~9 s, pero un lanzador con `.pyc` en caché **no** bajó el tiempo medido en la app real, así que se descartó. Queda para un fix aparte: perfilar `build_gui` (antes se vio `_gw_poll_loop` y la carga de imágenes).
