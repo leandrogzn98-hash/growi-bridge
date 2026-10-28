@@ -4464,6 +4464,9 @@ def validate_task(data):
         "memoria": data.get("memoria", True) is not False,
         "herramienta": data.get("herramienta") if isinstance(data.get("herramienta"), dict) else None,
         "dag": data.get("dag") if isinstance(data.get("dag"), dict) else None,
+        "presupuesto_max_usd": (float(data["presupuesto_max_usd"]) if isinstance(data.get("presupuesto_max_usd"),
+                                                                                  (int, float))
+                                and data["presupuesto_max_usd"] > 0 else None),
         "enrutado": enrutado,
         "asistente": asis["id"] if asis else None,
         "lane": LANE if LANE == "b" else (data.get("lane") or None),
@@ -7039,6 +7042,10 @@ def _build_cli_cmd(task, motor_id, eng, prompt, abilities=True):
             cmd.append(str(_fill(part, vars_)))
     if not placed:
         cmd += opc
+    pres = task.get("presupuesto_max_usd")
+    if motor_id == "claude" and isinstance(pres, (int, float)) and pres > 0 and "-p" in cmd:
+        # Tope nativo de Claude Code (solo con -p); los demas motores los corta el runner por acumulado.
+        cmd += ["--max-budget-usd", f"{pres:.2f}"]
     return cmd
 
 
@@ -8995,6 +9002,225 @@ def vence_segundos(nivel, tabla=None):
     return int(max(60, min(7 * 86400, h * 3600))), False
 
 
+# ---- estimado de gasto ANTES de ejecutar (t-estimado-gasto-030). Los tres
+# dineros nunca se mezclan: $ real (API) / $ equivalente Max (sesion de
+# suscripcion: no es dinero real) / $0 local. La cuota restante de Max no
+# tiene API publica: el estimado NO sabe si la tarea cabe en tu ventana y lo
+# dice; nunca hay cuenta atras inventada.
+UMBRAL_TAREA_DEF, UMBRAL_PLAN_DEF = 1.0, 5.0
+RESERVA_SALIDA = {"respuesta corta": 800, "código": 6000, "documento largo": 12000}
+LLAMADAS_POR_TAREA = 6  # un agente hace 5-10 llamadas; las siguientes leen de caché
+REVISION_TOKENS = 3000
+BREAKER_FALLOS, BREAKER_PAUSA_S = 3, 600
+_BREAKER = {"seguidos": 0, "pausado": False, "desde": None, "motivo": None}
+_ETIQUETA_EQUIV = "$ equivalente Max, no dinero real"
+
+
+def umbrales_gasto():
+    s = load_settings()
+    def _f(k, d):
+        try:
+            v = float(s.get(k))
+            return v if v > 0 else d
+        except (TypeError, ValueError):
+            return d
+    return _f("umbral_tarea_usd", UMBRAL_TAREA_DEF), _f("umbral_plan_usd", UMBRAL_PLAN_DEF)
+
+
+def _tipo_tarea(task):
+    p = str(task.get("prompt") or "")
+    if es_tarea_de_codigo(task):
+        return "código"
+    if len(p) > 1500 or re.search(r"\b(informe|documento|manual|art[ií]culo|propuesta|reporte)\b", p, re.I):
+        return "documento largo"
+    return "respuesta corta"
+
+
+def _precio(modelo):
+    pm = ((load_engines()[0].get("precios") or {}).get("por_millon") or {})
+    m = str(modelo or "").lower()
+    for k, v in pm.items():
+        if m and (m == k.lower() or m in k.lower()):
+            return k, v
+    return None, None
+
+
+def _dinero(task):
+    motor = task.get("motor") or default_motor()
+    modelo = str(task.get("modelo") or "")
+    if motor in ("llama", "ollama") or modelo.startswith("ollama:"):
+        return "local"
+    if motor == "api" or modelo.startswith("api:"):
+        return "real"
+    if motor == "claude":
+        return "real" if _claude_plan() == "api" else "equiv"
+    return "equiv" if motor == "codex" else "otro"
+
+
+def _historico_costes(motor, tipo=None, n_max=300):
+    """Costos reales (cost_usd) de los .result.json de ese motor (y tipo, si
+    el .task.json archivado deja saberlo). Nunca una tabla inventada."""
+    out = []
+    for f in sorted(RESULTS.glob("*.result.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:n_max]:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        c = d.get("cost_usd")
+        if not isinstance(c, (int, float)) or c <= 0 or (d.get("motor") or "") != motor:
+            continue
+        if tipo:
+            tf = DONE / f"{d.get('id')}.task.json"
+            try:
+                if tf.exists() and _tipo_tarea(json.loads(tf.read_text(encoding="utf-8"))) != tipo:
+                    continue
+            except (OSError, ValueError):
+                pass
+        out.append(float(c))
+    return out
+
+
+def estimar_gasto(task):
+    """Antes de ejecutar: entrada contada del prompt real, reserva de salida
+    por tipo, revision y peor caso (3 rondas), en los tres dineros."""
+    motor = task.get("motor") or default_motor()
+    eng = get_engine(motor) or {}
+    try:
+        prompt = prompt_de_tarea(task)
+    except Exception:
+        prompt = str(task.get("prompt") or "")
+    n_in, como = _contar_tokens(eng, prompt) if eng else (len(prompt) // 3 + 1, "estimado (3 caracteres por token)")
+    tipo = _tipo_tarea(task)
+    salida = RESERVA_SALIDA[tipo]
+    modelo = task.get("modelo") or (eng.get("modelo") or {}).get("por_defecto") or ("sonnet" if motor == "claude" else "")
+    clave, p = _precio(modelo)
+    dinero = _dinero(task)
+    e = {"tokens_entrada": n_in, "como_se_conto": como, "tipo": tipo, "reserva_salida": salida, "motor": motor,
+         "modelo": clave or modelo or None, "dinero": dinero, "llamadas_supuestas": LLAMADAS_POR_TAREA}
+    if dinero == "local":
+        una = rev = 0.0
+    elif p:
+        una = (n_in * p["entrada"] + n_in * (LLAMADAS_POR_TAREA - 1) * p.get("cache_lectura", p["entrada"])
+               + salida * p["salida"]) / 1e6
+        _kh, ph = _precio("haiku")
+        rev = ((n_in + salida + REVISION_TOKENS) * ph["entrada"] + 800 * ph["salida"]) / 1e6 if ph else 0.0
+    else:
+        una = rev = None
+    e.update(una_ronda=una, revision=rev, revision_nota="1 ronda con Hermes local ($0) y, si hace falta, Haiku",
+             peor_caso=None if una is None else round(3 * (una + (rev or 0)), 4))
+    hist = _historico_costes(motor, tipo) or _historico_costes(motor)
+    if len(hist) >= 5:
+        s = sorted(hist)
+        e["historico"] = {"n": len(s), "medio": round(sum(s) / len(s), 4), "p10": round(s[len(s) // 10], 4),
+                          "p90": round(s[min(len(s) - 1, len(s) * 9 // 10)], 4)}
+        e["calibrado"] = True
+    else:
+        e["historico"] = {"n": len(hist)}
+        e["calibrado"] = False
+    e["rango"] = (None if una is None else
+                  [round(e["historico"]["p10"], 2), round(max(e["historico"]["p90"], e["peor_caso"]), 2)]
+                  if e["calibrado"] else [round(una * 0.5, 2), round(e["peor_caso"], 2)])
+    def _tres(v):
+        if v is None:
+            return "sin precio para este modelo (no se inventa)"
+        real = v if dinero == "real" else 0.0
+        eq = v if dinero in ("equiv", "otro") else 0.0
+        return f"${real:.2f} real · ${eq:.2f} equivalente Max · $0 local"
+    e["texto"] = (f"Estimado ({tipo}, {motor}{' ' + str(e['modelo']) if e['modelo'] else ''}): entrada {n_in} tokens "
+                  f"({como}), reserva de salida {salida} tokens. Una ronda: {_tres(una)}. Revisión: {_tres(rev)} "
+                  f"({e['revision_nota']}). Peor caso, 3 rondas: {_tres(e['peor_caso'])}."
+                  + (f" Rango real de tus tareas parecidas: ${e['rango'][0]:.2f}–${e['rango'][1]:.2f} "
+                     f"({e['historico']['n']} resultados)." if e["calibrado"] and e["rango"] else
+                     f" Sin histórico: estimado grueso, rango ${e['rango'][0]:.2f}–${e['rango'][1]:.2f}."
+                     if e["rango"] else "")
+                  + (f" ({_ETIQUETA_EQUIV}.)" if dinero == "equiv" else "")
+                  + (" No sé si cabe en lo que te queda de Max: Anthropic no publica la cuota."
+                     if dinero == "equiv" and motor == "claude" else ""))
+    return e
+
+
+def _gasto_pide_aprobacion(task, level):
+    """Si el peor caso pasa del umbral, la tarea pide aprobación aunque el
+    nivel sea «solo lo delicado» (con «Hazlo sin preguntar», no)."""
+    if level == "nunca" or task.get("ollama_action"):
+        return None, None
+    est = estimar_gasto(task)
+    tarea, _plan = umbrales_gasto()
+    pc = est.get("peor_caso")
+    if pc is not None and pc > tarea:
+        return {"nivel": "R2", "tipo": "gasto_estimado", "nombre": f"gasto estimado alto (peor caso ${pc:.2f} > "
+                                                                    f"umbral ${tarea:.2f})",
+                "origen": "runner", "palabras": [f"${pc:.2f}", f"umbral ${tarea:.2f}"]}, est
+    return None, est
+
+
+def _tope_superado(task, result):
+    """(gastado, tope) si la familia (con reintentos y rondas) pasó del
+    presupuesto_max_usd de la tarea, o si Claude cortó por --max-budget-usd."""
+    tope = task.get("presupuesto_max_usd")
+    if not isinstance(tope, (int, float)) or tope <= 0:
+        return None
+    fam = load_family(task["raiz"]) or {}
+    gastado = float(fam.get("costo_usd") or 0)
+    corte = re.search(r"budget|presupuesto", f"{result.get('error') or ''} {result.get('result') or ''}", re.I)
+    return (gastado, float(tope)) if gastado >= tope or (corte and result.get("status") != "ok") else None
+
+
+def breaker_apuntar(result, transitorio):
+    """3 fallos transitorios seguidos -> pausa (minimo 10 min) y aviso. Solo
+    se reanuda a mano (breaker_reset)."""
+    if result.get("status") == "ok":
+        _BREAKER["seguidos"] = 0
+        return
+    if not transitorio:
+        return
+    _BREAKER["seguidos"] += 1
+    if _BREAKER["seguidos"] >= BREAKER_FALLOS and not _BREAKER["pausado"]:
+        _BREAKER.update(pausado=True, desde=time.time(),
+                        motivo=f"{BREAKER_FALLOS} fallos transitorios seguidos (el último: "
+                               f"{str(result.get('error') or result.get('status'))[:120]})")
+        log(f"runner: circuit breaker: {_BREAKER['motivo']}; la cola se pausa (reanudar a mano)")
+        _ui_call(lambda: toast("Cola en pausa: 3 fallos seguidos", ("tareas",)))
+
+
+def breaker_reset(origen="a mano"):
+    if not _BREAKER["pausado"]:
+        return False, "La cola no estaba en pausa."
+    falta = BREAKER_PAUSA_S - (time.time() - (_BREAKER["desde"] or 0))
+    if falta > 0 and origen != "prueba":
+        return False, f"La pausa mínima es de 10 min: faltan {int(falta // 60) + 1} min."
+    _BREAKER.update(pausado=False, seguidos=0, desde=None, motivo=None)
+    log(f"runner: circuit breaker reiniciado ({origen}); la cola sigue")
+    return True, "La cola sigue."
+
+
+def breaker_reset_ui():
+    ok, msg = breaker_reset()
+    messagebox.showinfo("Reanudar la cola", msg)
+
+
+def costo_por_tarea_completada():
+    """Por motor: todo lo gastado (con reintentos, rondas fallidas y
+    revisiones, que suman en la tarea padre) / tareas que terminaron bien."""
+    por = {}
+    for f in RESULTS.glob("*.orquestacion.json"):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(d, dict) or not d.get("raiz"):
+            continue
+        m = str(d.get("motor") or "?")
+        x = por.setdefault(m, {"gastado": 0.0, "completadas": 0, "familias": 0})
+        x["gastado"] += float(d.get("costo_usd") or 0)
+        x["familias"] += 1
+        x["completadas"] += 1 if d.get("estado") in ("aprobada", "sin_revision") else 0
+    for x in por.values():
+        x["por_completada"] = round(x["gastado"] / x["completadas"], 4) if x["completadas"] else None
+        x["gastado"] = round(x["gastado"], 4)
+    return por
+
+
 def _approval_needed(task):
     """None si puede correr; si no, {"nivel", "acciones", "motivo", ...}."""
     tabla, _err = cargar_riesgos()
@@ -9004,6 +9230,11 @@ def _approval_needed(task):
     pol = (tabla or {}).get("politicas") or {}
     need = [a for a in cls["acciones"] if a["nivel"] != "R0" and _rango(a["nivel"]) >= desde
             and not (a["nivel"] == "R1" and pol.get(a["tipo"]) == "permitir")]
+    gasto, est = _gasto_pide_aprobacion(task, level)  # t-estimado-gasto-030
+    if est is not None:
+        task["_estimado"] = est
+    if gasto:
+        need.append(gasto)
     if not need:
         return None
     ap = _APPROVED.get(task["raiz"]) or {"tipos": set(), "pases": []}
@@ -9018,8 +9249,10 @@ def _approval_needed(task):
                 "vale una vez")
             return None
     nivel = max((a["nivel"] for a in pend), key=_rango)
-    return {"nivel": nivel, "acciones": pend, "motivo": motivo_riesgo(pend),
-            "nivel_tarea": cls["nivel"], "tabla": cls["tabla"], "permisos": level}
+    return {"nivel": nivel, "acciones": pend, "motivo": motivo_riesgo(pend) + (
+                f". {est['texto']}" if est else ""),
+            "nivel_tarea": cls["nivel"], "tabla": cls["tabla"], "permisos": level,
+            "estimado": est}
 
 
 def _apr_evento(ev, row, **kw):
@@ -12657,7 +12890,13 @@ def _after_run(task, result):
     _family_update(raiz, sumar_costo=None if ya_sumado else result.get("cost_usd"), ultimo_resultado=task["id"],
                    session_id=result.get("session_id"), en_curso=None)
     rev = None
-    if result["status"] != "ok":
+    tope = _tope_superado(task, result)
+    if tope:  # tope de gasto (con reintentos y rondas): se para y decides tu
+        estado, reporte = "necesita_decision", (
+            f"Parada por el tope de gasto: lleva ${tope[0]:.2f} de ${tope[1]:.2f} (con reintentos, rondas y "
+            "revisiones). No sigue gastando: decide tú si subes el tope o la cierras.")
+        log(f"runner [{task['id']}]: tope de gasto: ${tope[0]:.2f} de ${tope[1]:.2f}; queda en necesita_decision")
+    elif result["status"] != "ok":
         motivo = result.get("error") or result["status"]
         estado, reporte = "fallida", _honest_report("fallida", task, None, None, motivo)
     elif not task.get("revisar", True):
@@ -14083,6 +14322,9 @@ def _process_one_impl(task_file):
     is_model = bool(task.get("ollama_action"))
     if not is_model:
         need = _approval_needed(task)
+        if task.get("_estimado"):  # el estimado queda a la vista ANTES de ejecutar
+            _family_update(task["raiz"], estimado=task["_estimado"]["texto"])
+            log(f"runner [{task['id']}]: {task['_estimado']['texto'][:300]}")
         if need:
             est, dest = _park_for_approval(task_file, task, need)
             cola_set(cid, estado=est, archivo=str(dest))
@@ -14224,6 +14466,7 @@ def _process_one_impl(task_file):
         state["tasks_done"] += 1
         state["last_result"] = f"{task['id']}: {result['status']} ({result['duration_s']}s)"
         reintentos = row.get("reintentos") or 0
+        breaker_apuntar(result, result.get("status") != "ok" and _es_transitorio(result))
         if (result.get("status") != "ok" and not _RUN.get("stop") and reintentos < MAX_RETRIES
                 and _es_transitorio(result)):
             try:
@@ -14450,6 +14693,9 @@ def runner_loop(stop_event):
                 last_archive = now
             if aprobaciones_vencer():  # cada vuelta de la cola: ninguna espera es infinita
                 runner_heartbeat()
+            if _BREAKER["pausado"]:  # circuit breaker: la cola espera a que la reanudes
+                stop_event.wait(5)
+                continue
             espera = cola_en_espera()
             candidates = []
             for p in TASKS.glob("*.task.json"):
@@ -22292,7 +22538,14 @@ def _refresh_tasks_ui():
                      + (f" {waiting} esperan tu aprobación." if waiting else "")
                      + (f" En cola: {cola['pendiente']}." if cola["pendiente"] else "")
                      + (f" Próximo reintento a las {cola['proximo_reintento'][11:19]}."
-                        if cola["proximo_reintento"] else ""))
+                        if cola["proximo_reintento"] else "")
+                     + (" Costo por tarea completada (con reintentos, rondas y revisiones): " + ", ".join(
+                         f"{m} ${x['por_completada']:.2f} ({x['completadas']} de {x['familias']})"
+                         for m, x in sorted(_cpc.items()) if x["por_completada"] is not None) + "."
+                        if (_cpc := costo_por_tarea_completada()) and any(
+                            x["por_completada"] is not None for x in _cpc.values()) else "")
+                     + (f" ⚠ Cola en pausa: {_BREAKER['motivo']}. Reanúdala desde la paleta (Ctrl+K)."
+                        if _BREAKER["pausado"] else ""))
         if w.get("nav_count_tareas") is not None:
             w["nav_count_tareas"].config(text=str(len(rows)))
     except Exception as e:
@@ -32749,6 +33002,31 @@ def _build_ajustes_ctk(tab_aj):
     for _k, _lab, _expl in GUARDRAIL_LEVELS:
         if _k != "nunca":  # «Hazlo sin preguntar» vive en la zona peligrosa
             _radio(row(gr), _k, _lab, _expl)
+    r, der = side_row(gr, "Pedir permiso si puede costar mucho",
+                      "Si el peor caso estimado de una tarea (3 rondas) pasa de este dinero, te pregunto antes aunque "
+                      "solo pregunte lo delicado. Se guarda al salir del campo.")
+    _ut, _up = umbrales_gasto()
+    for _k, _lab, _v in (("umbral_tarea_usd", "por tarea $", _ut), ("umbral_plan_usd", "por plan $", _up)):
+        _Label(der, text=_lab, font=F(13), text_color=T["muted"]).pack(side="left", padx=(8, 2))
+        _e = ctk.CTkEntry(der, width=56, font=F(13))
+        _e.insert(0, f"{_v:g}")
+        _e.pack(side="left")
+
+        def _guardar_umbral(_ev=None, k=_k, e=_e):
+            try:
+                v = float(e.get().replace(",", "."))
+                assert v > 0
+            except (ValueError, AssertionError):
+                e.delete(0, "end")
+                e.insert(0, f"{dict(zip(('umbral_tarea_usd', 'umbral_plan_usd'), umbrales_gasto()))[k]:g}")
+                return
+            s_ = load_settings()
+            s_[k] = v
+            save_settings(s_)
+            log(f"ajustes: {k} = {v}")
+        _e.bind("<FocusOut>", _guardar_umbral, add=True)
+        _e.bind("<Return>", _guardar_umbral, add=True)
+        _widgets[f"aj_{_k}"] = _e
     r, der = side_row(gr, "Carpetas", "Dónde puede leer y escribir Growi (la lista se edita en Carpetas).")
     button(der, "Editar", lambda: _widgets["show_page"]("carpetas")).pack()
     r, der = side_row(gr, "Exportar mis conversaciones", "La ruta oficial de Claude, paso a paso; "
@@ -34300,6 +34578,8 @@ def build_gui():
                    proxy_test_ui(_widgets["px_test_btn"], _widgets["px_result"]))),
         C("mis_comandos", "Mis comandos (scripts)", "scripts comandos carpeta activar desactivar bat ps1 py",
           lambda: (show_window(), comandos_ui())),
+        C("reanudar_cola", "Reanudar la cola (tras 3 fallos seguidos)", "circuit breaker pausa cola reanudar fallos",
+          breaker_reset_ui),
         C("gasto", "Ver el gasto", "gasto dinero costo cuota max equivalente local",
           lambda: _open_ctx(("gasto",))),
         C("exportar", "Exportar mis conversaciones", "exportar respaldo copia conversaciones chats baneo",

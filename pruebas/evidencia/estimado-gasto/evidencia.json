@@ -1,0 +1,102 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gasto-m0z1txem",
+ "a_estimado_corta": {
+  "tokens_entrada": 1028,
+  "como_se_conto": "estimado (3 caracteres por token)",
+  "tipo": "respuesta corta",
+  "reserva_salida": 800,
+  "una_ronda": 0.01057,
+  "revision": 0.0008828,
+  "peor_caso": 0.0344,
+  "dinero": "equiv",
+  "calibrado": false,
+  "rango": [
+   0.01,
+   0.03
+  ],
+  "texto": "Estimado (respuesta corta, claude claude-sonnet-5-5): entrada 1028 tokens (estimado (3 caracteres por token)), reserva de salida 800 tokens. Una ronda: $0.00 real · $0.01 equivalente Max · $0 local. Revisión: $0.00 real · $0.00 equivalente Max · $0 local (1 ronda con Hermes local ($0) y, si hace falta, Haiku). Peor caso, 3 rondas: $0.00 real · $0.03 equivalente Max · $0 local. Sin histórico: estimado grueso, rango $0.01–$0.03. ($ equivalente Max, no dinero real.) No sé si cabe en lo que te queda de Max: Anthropic no publica la cuota."
+ },
+ "b_corta": {
+  "estado": "sin_revision",
+  "estimado_guardado_antes": "Estimado (respuesta corta, claude claude-sonnet-5-5): entrada 1028 tokens (estimado (3 caracteres por token)), reserva de salida 800 tokens. Una ronda: $0.00 real · $0.01 equivalente Max · $0 local. Revisión: $0.00 real · $0.00 equivalente Max · $0 local (1 ronda con Hermes local ($0) y, si hace falta, Haiku). Peor caso, 3 rondas: $0.00 real · $0.03 equivalente Max · $0 local. Sin histórico: estimado grueso, rango $0.01–$0.03. ($ equivalente Max, no dinero real.) No sé si cabe en lo que te queda de Max: Anthropic no publica la cuota.",
+  "esperando": false
+ },
+ "b_grande": {
+  "aparcada_esperando_aprobacion": true,
+  "accion": [
+   {
+    "nivel": "R2",
+    "tipo": "gasto_estimado",
+    "nombre": "gasto estimado alto (peor caso $1.20 > umbral $1.00)",
+    "origen": "runner",
+    "palabras": [
+     "$1.20",
+     "umbral $1.00"
+    ]
+   }
+  ],
+  "motivo_en_la_tarjeta": "gasto estimado alto (peor caso $1.20 > umbral $1.00) (R2, runner: «$1.20», «umbral $1.00»). Estimado (documento largo, claude claude-opus-5-5): entrada 31150 tokens (estimado (3 caracteres por token)), reserva de salida 12000 tokens. Una ronda: $0.00 real · $0.40 equivalente Max · $0 local. Revisión: $0.00 real · $0.01 equivalente Max · $0 local (1 ronda con Hermes local ($0) y, si hace falta, Haiku). Peor caso, 3 rondas: $0.00 real · $1.20 equivalente Max · $0 local. Sin histórico: estimado grueso, rango $0.20–$1.20. ($ equivalente Max, no dinero real.) No sé si cabe en lo que te queda de Max: Anthropic no publica la cuota."
+ },
+ "c_tope": {
+  "estado": "necesita_decision",
+  "reporte": "Parada por el tope de gasto: lleva $0.08 de $0.05 (con reintentos, rondas y revisiones). No sigue gastando: decide tú si subes el tope o la cierras.",
+  "costo_familia": 0.08
+ },
+ "c_comando_claude": [
+  "C:\\Users\\forte\\.local\\bin\\claude.EXE",
+  "-p",
+  "hola",
+  "--output-format",
+  "json",
+  "--max-budget-usd",
+  "0.50"
+ ],
+ "c_breaker_tras_3_fallos": {
+  "seguidos": 3,
+  "pausado": true,
+  "desde": 1793162572.6573584,
+  "motivo": "3 fallos transitorios seguidos (el último: connection reset by peer)"
+ },
+ "c_en_pausa_no_corrio": true,
+ "c_reset_antes_de_10_min": [
+  false,
+  "La pausa mínima es de 10 min: faltan 10 min."
+ ],
+ "c_reset": [
+  true,
+  "La cola sigue."
+ ],
+ "c_tras_reset_corrio": true,
+ "d_costo_por_tarea_completada": {
+  "claude": {
+   "gastado": 0.54,
+   "completadas": 2,
+   "familias": 5,
+   "por_completada": 0.27
+  }
+ },
+ "e_calibrado": {
+  "calibrado": true,
+  "historico": {
+   "n": 9,
+   "medio": 0.26,
+   "p10": 0.08,
+   "p90": 0.52
+  },
+  "rango": [
+   0.08,
+   0.52
+  ],
+  "texto": "Estimado (respuesta corta, claude claude-sonnet-5-5): entrada 1028 tokens (estimado (3 caracteres por token)), reserva de salida 800 tokens. Una ronda: $0.00 real · $0.01 equivalente Max · $0 local. Revisión: $0.00 real · $0.00 equivalente Max · $0 local (1 ronda con Hermes local ($0) y, si hace falta, Haiku). Peor caso, 3 rondas: $0.00 real · $0.03 equivalente Max · $0 local. Rango real de tus tareas parecidas: $0.08–$0.52 (9 resultados). ($ equivalente Max, no dinero real.) No sé si cabe en lo que te queda de Max: Anthropic no publica la cuota."
+ },
+ "log": [
+  "2026-10-28T00:42:52-04:00 runner [c-tope]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gasto-m0z1txem\\trabajo (timeout 5 min)",
+  "2026-10-28T00:42:52-04:00 runner [c-tope]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 25444",
+  "2026-10-28T00:42:52-04:00 runner [c-tope]: terminado: ok duracion=0.3s costo=0.08",
+  "2026-10-28T00:42:52-04:00 runner [c-tope]: tope de gasto: $0.08 de $0.05; queda en necesita_decision",
+  "2026-10-28T00:42:52-04:00 runner [c-tope]: necesita decisión: Parada por el tope de gasto: lleva $0.08 de $0.05 (con reintentos, rondas y revisiones). No sigue gastando: decide tú si subes el tope o la cierras.",
+  "2026-10-28T00:42:52-04:00 runner: circuit breaker: 3 fallos transitorios seguidos (el último: connection reset by peer); la cola se pausa (reanudar a mano)",
+  "2026-10-28T00:43:04-04:00 runner: circuit breaker reiniciado (prueba); la cola sigue",
+  "2026-10-28T00:43:05-04:00 runner [c-en-pausa]: Estimado (respuesta corta, claude claude-sonnet-5-5): entrada 1144 tokens (estimado (3 caracteres por token)), reserva de salida 800 tokens. Una ronda: $0.00 real · $0.01 equivalente Max · $0 local. Revisión: $0.00 real · $0.00 equivalente Max · $0 local (1 ronda con Hermes local ($0) y, si hace fal"
+ ]
+}
