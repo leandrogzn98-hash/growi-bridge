@@ -42,6 +42,9 @@ raíz y su commit.
 | 36 | t-rubrica-revisor-030 | **LISTO** (FALTA: costo y tiempo reales de Haiku — gasta cuota; queda «sin medir») | `7cf360e`, `ESTADO-RUBRICA-REVISOR.md` |
 | 37 | t-spike-whatsapp | **PARCIAL** (recomendación, datos de registro y procedimiento LISTOS; FALTA la prueba en vivo — instalación no autorizada y sin número de pruebas; el personal NO se vinculó) | `1dc19b9`, `ESTADO-SPIKE-WHATSAPP.md`, `SPIKE-WHATSAPP.md` |
 | 38 | t-teclado-foco | **LISTO** (FALTA: captura en tema oscuro) | `677a848`, `ESTADO-TECLADO-FOCO.md` |
+| 39 | t-transcribe-whisper | **PARCIAL** (herramienta, ficha, progreso, cancelación y PARCIAL LISTOS; FALTA la transcripción real — faster-whisper sin instalar, instalación no autorizada; el modelo small 461 MB ya está en el PC) | `7c7867d`, `ESTADO-TRANSCRIBE-WHISPER.md` |
+| 40 | t-verificar-groq-gemini | **PARCIAL** (sondeo real sin clave: Groq directo 403 desde VE, por proxy 401, Gemini directo llega; FALTAN las llamadas con clave — credenciales no autorizadas) | `bc2eab6`, `ESTADO-VERIFICAR-GROQ-GEMINI.md` |
+| 42 | t-voz-elevenlabs | **PARCIAL** (BYOK, contador, aprobación, aviso 80 % y salida LISTOS; FALTA la narración real — sin clave) | `e71327a`, `ESTADO-VOZ-ELEVENLABS.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
