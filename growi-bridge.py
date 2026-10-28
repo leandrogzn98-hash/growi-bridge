@@ -27244,14 +27244,269 @@ def _estado_txt(r):
     return ESTADOS_UI.get(r["estado"], r["estado"])
 
 
+# ---- Tareas: detalle debajo de la tabla (t-tareas-detalle-045). Panel fijo (no modal) con la tarea elegida:
+# id en monoespaciada, estado (punto + texto), motor, ronda, tiempo, tokens, coste y revisión; la línea de
+# tiempo de verificación (un renglón por paso real: hora + ✓/✗, con «N pasaron, M fallaron»; «sin datos» si la
+# tarea no tiene); «Abrir resultados» (acento), «Volver a la cola» (el foco a la lista), «Volver a encolar» (lo
+# que antes hacía el botón) y el cierre ✕ con su sitio reservado. CustomTkinter con la versión clásica de respaldo
+# (el mismo código, kit _KitCtk / _KitTk). Y la tabla adapta sus columnas al ancho (a 150 % ya no se sale).
+_TDET: dict = {"kit": None, "ctk": False, "campos": {}, "ms": None}
+TDET_CAMPOS = (("tarea", "Tarea"), ("estado", "Estado"), ("motor", "Motor"), ("ronda", "Ronda"),
+               ("tiempo", "Tiempo"), ("tokens", "Tokens"), ("costo", "Coste"), ("revision", "Revisión"))
+_TDET_COLOR = {"aprobada": "green_text", "fallida": "red", "necesita_decision": "orange_text",
+               "esperando_aprobacion": "orange_text", "en_curso": "blue", "revisando": "blue",
+               "esperando_reintento": "orange_text", "en_cuarentena": "orange_text"}
+
+
+def tarea_verificacion(row):
+    """Pasos REALES de verificación de la tarea: [(hora 'HH:MM' o None, ok, texto)], de su última revisión
+    (el .revision.json, con su hora; si no está, el resumen de la familia, sin hora). [] = sin datos."""
+    rv = (row or {}).get("rev") or {}
+    hora, checks, jueces = None, rv.get("checks") or [], rv.get("veredictos") or []
+    rid = rv.get("id")
+    if rid:
+        try:
+            d = json.loads((RESULTS / f"{rid}.revision.json").read_text(encoding="utf-8"))
+            hora = str(d.get("revisado_at") or "")[11:16] or None
+            checks = d.get("checks_deterministas") or checks
+            jueces = d.get("veredictos") or jueces
+        except (OSError, ValueError):
+            pass
+    pasos = [(hora, c.get("resultado") == "pasa", "Comprobado por código: " + str(c.get("criterio") or "")
+              + (f" ({'; '.join(c.get('detalle') or [])[:140]})" if c.get("detalle") else ""))
+             for c in checks if isinstance(c, dict)]
+    pasos += [(hora, bool(v.get("aprobado")), f"Juez {v.get('motor') or v.get('nombre') or ''}: "
+               + ("aprueba" if v.get("aprobado") else "no aprueba")
+               + (f" ({v.get('puntuacion')}/5)" if v.get("puntuacion") is not None else ""))
+              for v in jueces if isinstance(v, dict) and v.get("aprobado") is not None]
+    return pasos
+
+
+def tarea_resultados(row):
+    """El archivo de resultados real de la tarea (el .result.json de su última ronda), o None."""
+    if not row:
+        return None
+    fam = row.get("fam") or {}
+    for tid in dict.fromkeys(x for x in (fam.get("ultimo_resultado"), *reversed(fam.get("tareas") or []), row["id"])
+                             if x):
+        f = RESULTS / f"{tid}.result.json"
+        if f.is_file():
+            return f
+    return None
+
+
+def _tdet_construir(tabt):
+    holder = tk.Frame(tabt, bg=THEME["bg"])
+    holder.pack(fill="x", padx=20, pady=(4, 8))
+    t0 = time.perf_counter()
+    if _ctk_wanted():
+        try:
+            _teclado_ctk_patch()
+            k = _KitCtk(holder, global_setup=False)
+            _tdet_con(k, holder)
+            _TDET.update(kit=k, ctk=True, ms=round((time.perf_counter() - t0) * 1000))
+            log(f"tareas: detalle con CustomTkinter ({_TDET['ms']} ms)")
+            return
+        except Exception as e:
+            log(f"tareas: detalle sin CustomTkinter ({type(e).__name__}: {e}); se usa el clásico")
+            for ch in holder.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    k = _KitTk(holder)
+    _tdet_con(k, holder)
+    _TDET.update(kit=k, ctk=False, ms=round((time.perf_counter() - t0) * 1000))
+    log(f"tareas: detalle clásico (tkinter) ({_TDET['ms']} ms)")
+
+
+def _tdet_con(k, holder):
+    ctk_on = isinstance(k, _KitCtk)
+    card = k.card(holder)
+    card.pack(fill="x")
+    _TDET["card"] = card
+    head = k.frame(card)
+    head.pack(fill="x", padx=16, pady=(12, 2))
+    # El cierre va primero (a la derecha) con su hueco fijo: nada lo empuja fuera ni lo tapa el texto.
+    cierre_hueco = k.frame(head)
+    cierre_hueco.pack(side="right")
+    cerrar = k.button(cierre_hueco, "✕", _tdet_cerrar)
+    if ctk_on:
+        cerrar.configure(width=32)
+    cerrar.pack(padx=(8, 0))
+    k.title(head, "Detalle").pack(side="left")
+    _TDET["cerrar"] = cerrar
+    _TDET["vacio"] = k.label(card, "Elige una tarea de la lista para ver su revisión y su reporte.", muted=True)
+    _TDET["vacio"].pack(anchor="w", fill="x", padx=16, pady=(0, 12))
+    cuerpo = k.frame(card)
+    _TDET["cuerpo"] = cuerpo
+    grid = k.frame(cuerpo)
+    grid.pack(fill="x", padx=16, pady=(2, 6))
+    for i, (key, lab) in enumerate(TDET_CAMPOS):
+        f, c = divmod(i, 2)
+        k.label(grid, lab, muted=True, wrap=0).grid(row=f, column=c * 2, sticky="nw", padx=(0, 10), pady=2)
+        if key == "tarea":
+            v = (k.ctk.CTkLabel(grid, text="", font=k.ctk.CTkFont(family=MONO, size=13), anchor="w",
+                                text_color=THEME["text"], height=1) if ctk_on else
+                 tk.Label(grid, text="", font=(MONO, 10), bg=THEME["card"], fg=THEME["text"], anchor="w"))
+        else:
+            v = k.label(grid, "", wrap=230)
+        v.grid(row=f, column=c * 2 + 1, sticky="nw", padx=(0, 24), pady=2)
+        _TDET["campos"][key] = v
+    grid.grid_columnconfigure(1, weight=1)
+    grid.grid_columnconfigure(3, weight=1)
+    k.label(cuerpo, "Verificación", bold=True).pack(anchor="w", padx=16, pady=(6, 0))
+    _TDET["resumen"] = k.label(cuerpo, "", muted=True)
+    _TDET["resumen"].pack(anchor="w", fill="x", padx=16)
+    _TDET["linea"] = k.frame(cuerpo)
+    _TDET["linea"].pack(fill="x", padx=16, pady=(2, 6))
+    _TDET["aviso"] = k.label(cuerpo, "", muted=True)
+    _TDET["aviso"].pack(anchor="w", fill="x", padx=16)
+    btns = k.frame(cuerpo)
+    btns.pack(anchor="w", fill="x", padx=16, pady=(4, 8))
+    _TDET["abrir"] = k.button(btns, "Abrir resultados", _tdet_abrir, accent=True)
+    _TDET["abrir"].pack(side="left", padx=(0, 8))
+    _TDET["volver"] = k.button(btns, "Volver a la cola", _tdet_volver)
+    _TDET["volver"].pack(side="left", padx=(0, 8))
+    _TDET["reencolar"] = k.button(btns, "Volver a encolar", _requeue_ui)
+    _TDET["reencolar"].pack(side="left")
+    # Todo lo demás de la revisión (encargo, criterios, jueces, reintentos, aprobación…), como antes.
+    _widgets["tasks_detail"] = k.label(cuerpo, "", muted=True, wrap=640)
+    _widgets["tasks_detail"].pack(fill="x", padx=16, pady=(0, 12))
+
+
+def _tdet_pintar(row):
+    k = _TDET.get("kit")
+    if k is None:
+        return
+    if not row:
+        _TDET["cuerpo"].pack_forget()
+        _TDET["vacio"].pack(anchor="w", fill="x", padx=16, pady=(0, 12))
+        k.set_label(_widgets["tasks_detail"], text="")
+        return
+    _TDET["vacio"].pack_forget()
+    _TDET["cuerpo"].pack(fill="x")
+    c = _TDET["campos"]
+    rv = row.get("rev") or {}
+    k.set_label(c["tarea"], text=row["id"])
+    k.set_label(c["estado"], text="● " + _estado_txt(row), color=_TDET_COLOR.get(row["estado"], "text"))
+    k.set_label(c["motor"], text=_motor_modelo(_motor_txt(row["motor"], row["fam"]), row.get("modelo")))
+    k.set_label(c["ronda"], text=f"{row['ronda']}/{MAX_ROUNDS}" if row["ronda"] is not None else "—")
+    k.set_label(c["tiempo"], text=_fmt_secs(row.get("dur")))
+    k.set_label(c["tokens"], text=(f"{_fmt_tok(row['tin'])} / {_fmt_tok(row['tout'])}"
+                                   if row.get("tin") is not None or row.get("tout") is not None else "—"))
+    k.set_label(c["costo"], text=_cost_cell(row))
+    k.set_label(c["revision"], text=_rev_summary(row))
+    linea = _TDET["linea"]
+    for ch in linea.winfo_children():
+        ch.destroy()
+    pasos = tarea_verificacion(row)
+    if not pasos:
+        k.set_label(_TDET["resumen"], text="Sin datos: esta tarea no tiene pasos de verificación registrados.")
+    else:
+        ok = sum(1 for _h, o, _t in pasos if o)
+        k.set_label(_TDET["resumen"], text=f"{ok} pasaron, {len(pasos) - ok} fallaron"
+                    + ("" if pasos[0][0] else " (sin hora: la revisión no la guardó)"))
+        for hora, o, txt in pasos:
+            r = k.frame(linea)
+            r.pack(fill="x", pady=1)
+            hl = (k.ctk.CTkLabel(r, text=hora or "—", font=k.ctk.CTkFont(family=MONO, size=12), width=48,
+                                 anchor="w", text_color=THEME["muted"], height=1) if isinstance(k, _KitCtk) else
+                  tk.Label(r, text=hora or "—", font=(MONO, 9), width=6, anchor="w", bg=THEME["card"],
+                           fg=THEME["muted"]))
+            hl.pack(side="left", anchor="n")
+            k.label(r, "✓" if o else "✗", bold=True, wrap=0, color="green_text" if o else "red").pack(
+                side="left", anchor="n", padx=(0, 8))
+            k.label(r, txt, wrap=520).pack(side="left", fill="x", expand=True, anchor="w")
+    k.set_label(_TDET["aviso"], text="" if tarea_resultados(row) else
+                "Esta tarea todavía no tiene resultados: «Abrir resultados» no tiene nada que abrir.")
+    k.set_label(_widgets["tasks_detail"], text=_task_detail_text(row))
+    _TDET["rv_id"] = rv.get("id")
+
+
+def _tdet_fila():
+    tree = _widgets.get("tasks_tree")
+    sel = tree.selection() if tree is not None else ()
+    return _tasks_rows.get(sel[0]) if sel else None
+
+
+def _tdet_abrir():
+    row = _tdet_fila()
+    f = tarea_resultados(row)
+    k = _TDET.get("kit")
+    if f is None:
+        if k is not None:
+            k.set_label(_TDET["aviso"], text=("Elige primero una tarea de la lista." if row is None else
+                                              f"{row['id']} todavía no tiene resultados: no hay nada que abrir."),
+                        color="orange_text")
+        return
+    open_folder(f)
+    log(f"tareas: abiertos los resultados de {row['id']} ({f.name})")
+
+
+def _tdet_volver():
+    """«Volver a la cola»: el foco vuelve a la lista, en la fila elegida."""
+    tree = _widgets.get("tasks_tree")
+    if tree is None:
+        return
+    tree.focus_set()
+    sel = tree.selection()
+    if sel:
+        tree.focus(sel[0])
+        tree.see(sel[0])
+    try:
+        _scroll_a(tree, margen=48)
+    except Exception:
+        pass
+
+
+def _tdet_cerrar():
+    """✕: cierra el detalle (quita la selección) y deja el foco en la lista."""
+    tree = _widgets.get("tasks_tree")
+    if tree is not None and tree.selection():
+        tree.selection_remove(*tree.selection())
+    _tdet_pintar(None)
+    if tree is not None:
+        tree.focus_set()
+
+
+# columnas de la tabla: (id, título, ancho base a 100 %, se estira, prioridad: la más baja se esconde antes)
+TAREAS_COLS = (("tarea", "Tarea", 145, False, 9), ("estado", "Estado", 150, False, 8),
+               ("motor", "Motor / modelo", 150, True, 5), ("ronda", "Ronda", 58, False, 3),
+               ("tiempo", "Tiempo", 62, False, 2), ("tokens", "Tokens ent. / sal.", 125, False, 1),
+               ("costo", "Costo", 95, False, 7), ("revision", "Revisión", 140, True, 4))
+
+
+def tareas_columnas_para(ancho, anchos=None):
+    """Las columnas que caben en `ancho` px, quitando primero las que también enseña el detalle
+    (tokens, tiempo, ronda, revisión, motor). Tarea, estado y costo no se quitan nunca.
+    anchos: {columna: px} reales (si no, el ancho base escalado)."""
+    anchos = anchos or {}
+    vis = [c for c in TAREAS_COLS]
+    while sum(anchos.get(c[0], S(c[2])) for c in vis) > ancho:
+        quitables = [c for c in vis if c[4] <= 5]
+        if not quitables:
+            break
+        vis.remove(min(quitables, key=lambda c: c[4]))
+    return [c[0] for c in vis]
+
+
+def _tareas_columnas_ajustar(e):
+    tree = e.widget
+    try:
+        cols = tareas_columnas_para(e.width, {c[0]: _TDET.get("ancho_" + c[0], S(c[2])) for c in TAREAS_COLS})
+        if tuple(cols) != tuple(tree.cget("displaycolumns")):
+            tree.configure(displaycolumns=cols)
+    except tk.TclError:
+        pass
+
+
 def _show_task_detail(_e=None):
-    tree, lbl = _widgets.get("tasks_tree"), _widgets.get("tasks_detail")
-    if tree is None or lbl is None:
+    tree = _widgets.get("tasks_tree")
+    if tree is None or _TDET.get("kit") is None:
         return
     sel = tree.selection()
-    row = _tasks_rows.get(sel[0]) if sel else None
-    lbl.config(text=_task_detail_text(row) if row else
-               "Elige una tarea de la lista para ver su revisión y su reporte.")
+    _tdet_pintar(_tasks_rows.get(sel[0]) if sel else None)
 
 
 def _requeue_ui():
@@ -42759,13 +43014,18 @@ def build_gui():
     tree = ttk.Treeview(tabt, columns=("tarea", "estado", "motor", "ronda", "tiempo", "tokens",
                                        "costo", "revision"),
                         show="headings", height=9, selectmode="browse", style="Tareas.Treeview")
-    for _col, _txt, _w, _st in (("tarea", "Tarea", 145, False), ("estado", "Estado", 130, False),
-                                ("motor", "Motor / modelo", 150, False), ("ronda", "Ronda", 58, False),
-                                ("tiempo", "Tiempo", 62, False),
-                                ("tokens", "Tokens ent. / sal.", 125, False),
-                                ("costo", "Costo", 95, False), ("revision", "Revisión", 140, True)):
+    for _col, _txt, _w, _st, _pri in TAREAS_COLS:
         tree.heading(_col, text=_txt, anchor="w")
         tree.column(_col, width=S(_w), minwidth=S(40), stretch=_st, anchor="w")
+    try:  # «● necesita decisión» entero en Estado, con la fuente monoespaciada a este DPI
+        import tkinter.font as _tkf
+        _need = _tkf.Font(font=(MONO, 10)).measure("● necesita decisión") + S(16)
+        if _need > S(150):
+            tree.column("estado", width=_need)
+            _TDET["ancho_estado"] = _need
+    except Exception:
+        pass
+    tree.bind("<Configure>", _tareas_columnas_ajustar, add="+")  # a 150 % la tabla ya no se sale de la ventana
     tree.tag_configure("aprobada", foreground=THEME["green_text"])
     tree.tag_configure("fallida", foreground=THEME["red"])
     tree.tag_configure("necesita_decision", foreground=THEME["orange_text"])
@@ -42783,19 +43043,7 @@ def build_gui():
                                      fg=THEME["muted"], wraplength=S(640), justify="left")
     _widgets["live_line"].pack(anchor="w", padx=20, pady=(0, 4))
     _build_live_card(tabt)
-    det = tk.Frame(tabt, bg=THEME["card"])
-    det.pack(fill="x", padx=20, pady=(4, 8))
-    tk.Label(det, text="Detalle", font=SECTION_FONT,
-             bg=THEME["card"], fg=THEME["text"]).pack(anchor="w", padx=16, pady=(12, 2))
-    _widgets["tasks_detail"] = tk.Label(det, text="", font=(FONT, 9), bg=THEME["card"],
-                                        fg=THEME["text"], wraplength=S(640), justify="left",
-                                        anchor="w")
-    _widgets["tasks_detail"].pack(fill="x", padx=16, pady=(0, 6))
-    det_btns = tk.Frame(det, bg=THEME["card"])
-    det_btns.pack(anchor="w", padx=16, pady=(0, 12))
-    ttk.Button(det_btns, text="Abrir resultados",
-               command=lambda: open_folder(RESULTS)).pack(side="left", padx=(0, 8))
-    ttk.Button(det_btns, text="Volver a la cola", command=_requeue_ui).pack(side="left")
+    _tdet_construir(tabt)  # detalle debajo de la tabla (t-tareas-detalle-045)
     ask = tk.Frame(tabt, bg=THEME["card"])
     ask.pack(fill="x", padx=20, pady=8)
     tk.Label(ask, text="Pedirle algo", font=SECTION_FONT,

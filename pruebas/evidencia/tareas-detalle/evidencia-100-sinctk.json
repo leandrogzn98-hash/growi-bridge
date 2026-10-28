@@ -1,0 +1,124 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tareas-detalle-6v0ukaee",
+ "variante": "sinctk",
+ "dpi": "100",
+ "build_gui_s": 2.09,
+ "kit": "_KitTk",
+ "card": "Frame",
+ "vacio_al_inicio": {
+  "texto": "Elige una tarea de la lista para ver su revisión y su reporte.",
+  "cuerpo_oculto": true
+ },
+ "a_tarea_a": {
+  "campos": {
+   "tarea": "t-detalle-a",
+   "estado": "● necesita decisión",
+   "motor": "Claude",
+   "ronda": "2/3",
+   "tiempo": "1:35",
+   "tokens": "12.0 k / 3.4 k",
+   "costo": "$0.42 eq.",
+   "revision": "No: falta el archivo plan.md"
+  },
+  "resumen": "2 pasaron, 1 fallaron",
+  "linea": [
+   [
+    "10:42",
+    "✓",
+    "Comprobado por código: el comando pytest sale con 0 (pytest: salió con exit 0 en 3 s)"
+   ],
+   [
+    "10:42",
+    "✗",
+    "Comprobado por código: existe plan.md (plan.md no existe)"
+   ],
+   [
+    "10:42",
+    "✓",
+    "Juez claude: aprueba (4/5)"
+   ]
+  ],
+  "aviso": "",
+  "tarea_mono": "Consolas 10"
+ },
+ "a_tarea_b": {
+  "campos": {
+   "tarea": "t-detalle-b",
+   "estado": "● pendiente",
+   "motor": "Ollama",
+   "ronda": "0/3",
+   "tiempo": "—",
+   "tokens": "—",
+   "costo": "$0 local",
+   "revision": "—"
+  },
+  "resumen": "Sin datos: esta tarea no tiene pasos de verificación registrados.",
+  "linea": [],
+  "aviso": "Esta tarea todavía no tiene resultados: «Abrir resultados» no tiene nada que abrir.",
+  "tarea_mono": "Consolas 10"
+ },
+ "c_b": {
+  "abiertos": [],
+  "aviso": "Esta tarea todavía no tiene resultados: «Abrir resultados» no tiene nada que abrir."
+ },
+ "c_a": {
+  "abiertos": [
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tareas-detalle-6v0ukaee\\share\\outbox\\runner-results\\t-detalle-a-r2.result.json"
+  ],
+  "esperado": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tareas-detalle-6v0ukaee\\share\\outbox\\runner-results\\t-detalle-a-r2.result.json"
+ },
+ "c_acento": "Accent.TButton",
+ "d_volver": {
+  "focus_set_en_lista": 1,
+  "fila_con_foco": "t-detalle-a"
+ },
+ "e_cerrar": {
+  "texto": "✕",
+  "en_cabecera": true,
+  "lado": "right",
+  "seleccion": [],
+  "cuerpo_oculto": true,
+  "focus_set_en_lista": 1
+ },
+ "foco": {
+  "Abrir resultados": "Button",
+  "Volver a la cola": "Button",
+  "Volver a encolar": "Button",
+  "✕": "Button"
+ },
+ "tabla": {
+  "minsize_ancho": 820,
+  "contenido": 534,
+  "columnas_visibles": [
+   "tarea",
+   "estado",
+   "costo"
+  ],
+  "suma_anchos": 390,
+  "cabe": true,
+  "estado_ancho": 150,
+  "estado_necesita": 145,
+  "estado_cabe": true,
+  "ancho_completo_100": [
+   "tarea",
+   "estado",
+   "motor",
+   "ronda",
+   "tiempo",
+   "tokens",
+   "costo",
+   "revision"
+  ],
+  "ancha": [
+   "tarea",
+   "estado",
+   "motor",
+   "ronda",
+   "tiempo",
+   "tokens",
+   "costo",
+   "revision"
+  ]
+ },
+ "tracebacks_en_log": 0
+}
