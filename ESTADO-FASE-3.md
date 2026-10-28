@@ -17,6 +17,8 @@ raíz y su commit.
 | 10 | t-dag-fases-030 | **LISTO** | `3f40082`, `ESTADO-DAG-FASES.md` |
 | 11 | t-detector-avast | **LISTO** (lo que faltaba tras t-ip-estable: Tailscale en «Starting…» y las caídas consultables) | `567ed68`, `ESTADO-DETECTOR-AVAST.md` |
 | 12 | t-embeddings-8081 | **SALTADO (depende del 08)** | Necesita Qwen3-Embedding instalado por t-catalogo-030 y la GPU libre |
+| 13 | t-estimado-gasto-030 | **LISTO** (FALTA: aplicar el umbral por plan) | `7d6d1c5`, `ESTADO-ESTIMADO-GASTO.md` |
+| 14 | t-evaluar-hermes4 | **SALTADO (depende del 08 + GPU)** | Pide A/B con 10 tareas en local con Hermes 4 descargado; la GPU está ocupada y el catálogo (08) no se pudo instalar |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
