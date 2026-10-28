@@ -1,0 +1,89 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-banner-pk97iqf7",
+ "a_opus_un_fallo_suelto": {
+  "probe": {
+   "estado": "nube",
+   "motor": "claude",
+   "modelo": "claude-opus-5-5",
+   "fuente": "última ejecución t-prueba-banner",
+   "fallo_red": false
+  },
+  "banner_visible": false,
+  "texto": "",
+  "raya": "#E5E5EA",
+  "nube_fallos": 1,
+  "conn_state_del_mapa": "local"
+ },
+ "b_local": {
+  "probe": {
+   "estado": "local",
+   "motor": "llama",
+   "modelo": "hermes-3-8b-q4_k_m",
+   "fuente": "última ejecución t-prueba-banner",
+   "fallo_red": false
+  },
+  "banner_visible": true,
+  "texto": "Trabajando con el modelo local hermes-3-8b-q4_k_m (última ejecución t-prueba-banner).",
+  "raya": "#0066CC",
+  "nube_fallos": 1,
+  "conn_state_del_mapa": "local"
+ },
+ "c1_nube_fallo_red": {
+  "probe": {
+   "estado": "nube",
+   "motor": "claude",
+   "modelo": "claude-opus-5-5",
+   "fuente": "última ejecución t-prueba-banner",
+   "fallo_red": true
+  },
+  "banner_visible": true,
+  "texto": "Sin conexión con la nube: el runner no alcanza claude-opus-5-5 (su última ejecución falló por red).",
+  "raya": "#FF9500",
+  "nube_fallos": 1,
+  "conn_state_del_mapa": "local"
+ },
+ "c2_sondeo_falla_dos_veces": {
+  "probe": {
+   "estado": "nube",
+   "motor": "claude",
+   "modelo": "claude-opus-5-5",
+   "fuente": "última ejecución t-prueba-banner",
+   "fallo_red": false
+  },
+  "banner_visible": true,
+  "texto": "Sin conexión con la nube: el runner no alcanza claude-opus-5-5 (el sondeo de la nube falló dos veces seguidas).",
+  "raya": "#FF9500",
+  "nube_fallos": 3,
+  "conn_state_del_mapa": "local"
+ },
+ "d_nube_vuelve": {
+  "probe": {
+   "estado": "nube",
+   "motor": "claude",
+   "modelo": "claude-opus-5-5",
+   "fuente": "última ejecución t-prueba-banner",
+   "fallo_red": false
+  },
+  "banner_visible": false,
+  "texto": "",
+  "raya": "#FF9500",
+  "nube_fallos": 0,
+  "conn_state_del_mapa": "conectado"
+ },
+ "e_archivo_roto": {
+  "estado": "ilegible",
+  "motivo": "runner-status.json: JSONDecodeError"
+ },
+ "e_sin_latido": {
+  "probe": {
+   "estado": "ilegible",
+   "motivo": "el runner no da señales desde hace 0 min"
+  },
+  "banner_visible": true,
+  "texto": "No se pudo leer el estado del runner (el runner no da señales desde hace 0 min).",
+  "raya": "#E5E5EA",
+  "nube_fallos": 0,
+  "conn_state_del_mapa": "conectado"
+ },
+ "tracebacks_en_log": 0
+}

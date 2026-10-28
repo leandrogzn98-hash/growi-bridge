@@ -9870,6 +9870,7 @@ def _run_task_motor(task):
 
 def _write_result(result):
     RESULTS.mkdir(parents=True, exist_ok=True)
+    _ultima_ejecucion_set(result)
     if isinstance(result, dict):
         result.setdefault("run_id", result.get("raiz") or result.get("id"))
         if _CTX.get(str(result.get("id"))):
@@ -17575,6 +17576,92 @@ def _process_one_impl(task_file):
     return True
 
 
+# ---- banner de la nube fiel al runner (t-estado-banner-nube-045). El banner
+# «Sin conexión con la nube» lo decidía conn_state(), que solo mira el sondeo
+# del mapa (fila «claude»: estado + ruta directa o por proxy). Un sondeo lento
+# o una ruta por proxy sin «proxy_on» bastaban para alarmar aunque el runner
+# siguiera en Opus. Ahora el banner lee runner-status.json (la tarea en curso o
+# la última ejecución: motor y modelo reales) y solo alarma si el runner NO
+# alcanza la nube de verdad: su última ejecución en la nube falló por red, o el
+# sondeo falló dos veces seguidas (la segunda es una comprobación a los 20 s).
+_ULTIMA: dict = {"d": None, "leida": False}
+NUBE_ERROR_RED = re.compile(r"(?i)connect|conexi[oó]n|timed? ?out|tiempo de espera|getaddrinfo|network|"
+                            r"unreachable|ECONN|proxy|SSL|\b50[234]\b|overloaded|no se pudo alcanzar")
+PROBE_VIEJO_S = 180  # runner-status.json sin latido en 3 min: no se puede leer el estado
+
+
+def _motor_es_local(motor, modelo=""):
+    return str(motor or "") in ("llama", "ollama") or str(modelo or "").startswith("ollama:")
+
+
+def _ultima_ejecucion_set(result):
+    if not isinstance(result, dict) or not result.get("motor") or "(herramienta)" in str(result.get("motor")):
+        return
+    uso = result.get("uso") if isinstance(result.get("uso"), dict) else {}
+    _ULTIMA["d"] = {"tarea": result.get("id"), "motor": result.get("motor"),
+                    "modelo": uso.get("modelo_real") or result.get("modelo_real") or result.get("modelo"),
+                    "status": result.get("status"), "error": str(result.get("error") or "")[:200],
+                    "at": result.get("finished_at") or _now_iso()}
+
+
+def _ultima_ejecucion():
+    """La última ejecución del runner (al arrancar, la del result.json más reciente: una sola vez)."""
+    if _ULTIMA["d"] is None and not _ULTIMA["leida"]:
+        _ULTIMA["leida"] = True
+        try:
+            fs = sorted(RESULTS.glob("*.result.json"), key=lambda f: f.stat().st_mtime)
+            for f in reversed(fs[-20:]):
+                d = json.loads(f.read_text(encoding="utf-8"))
+                if isinstance(d, dict) and d.get("motor") and "(herramienta)" not in str(d.get("motor")):
+                    _ultima_ejecucion_set(d)
+                    break
+        except (OSError, ValueError):
+            pass
+    return _ULTIMA["d"]
+
+
+def runner_modelo_probe():
+    """Qué modelo usa el runner AHORA, leído de runner-status.json (la misma fuente que el panel):
+    {estado: nube | local | sin_ejecuciones | ilegible, motor, modelo, fuente, fallo_red, motivo}."""
+    path = OUTBOX / _STATUS_NOMBRE["principal"]
+    try:
+        st = json.loads(path.read_text(encoding="utf-8"))
+        lp = datetime.fromisoformat(str(st.get("last_poll")))
+    except (OSError, ValueError, TypeError) as e:
+        return {"estado": "ilegible", "motivo": f"{path.name}: {type(e).__name__}"}
+    edad = time.time() - lp.timestamp()
+    if edad > PROBE_VIEJO_S:
+        return {"estado": "ilegible", "motivo": f"el runner no da señales desde hace {int(edad // 60)} min"}
+    cur = st.get("current") if isinstance(st.get("current"), dict) else {}
+    ult = st.get("ultima_ejecucion") if isinstance(st.get("ultima_ejecucion"), dict) else {}
+    if cur.get("motor"):
+        motor, modelo, fuente = cur["motor"], cur.get("modelo_real") or cur.get("modelo"), f"tarea en curso {cur.get('id')}"
+    elif ult.get("motor"):
+        motor, modelo, fuente = ult["motor"], ult.get("modelo"), f"última ejecución {ult.get('tarea')}"
+    else:
+        return {"estado": "sin_ejecuciones", "motivo": "el runner aún no ha ejecutado nada"}
+    d = {"estado": "local" if _motor_es_local(motor, modelo) else "nube", "motor": motor,
+         "modelo": modelo or motor, "fuente": fuente, "fallo_red": False}
+    if d["estado"] == "nube" and ult.get("motor") == motor and ult.get("status") not in ("ok", None):
+        d["fallo_red"] = bool(NUBE_ERROR_RED.search(str(ult.get("error") or "")))
+    return d
+
+
+def cloud_banner_decidir(probe, fallos_confirmados):
+    """(mostrar, texto, tipo) con tipo alarma | info | neutro."""
+    e = probe.get("estado")
+    if e == "ilegible":
+        return True, f"No se pudo leer el estado del runner ({probe.get('motivo')}).", "neutro"
+    if e == "local":
+        return True, f"Trabajando con el modelo local {probe.get('modelo')} ({probe.get('fuente')}).", "info"
+    if probe.get("fallo_red") or fallos_confirmados >= 2:
+        que = f" {probe.get('modelo')}" if e == "nube" else ""
+        porque = ("su última ejecución falló por red" if probe.get("fallo_red")
+                  else "el sondeo de la nube falló dos veces seguidas")
+        return True, f"Sin conexión con la nube: el runner no alcanza{que} ({porque}).", "alarma"
+    return False, "", ""
+
+
 def runner_heartbeat():
     """runner-status.json. Lo escribe el bucle cuando esta libre y el hilo de
     pulso cada 60 s mientras una tarea corre: un last_poll viejo ya no
@@ -17607,6 +17694,7 @@ def runner_heartbeat():
                 "cola_pendiente": cola["pendiente"], "proximo_reintento": cola["proximo_reintento"],
                 "cola": cola["cuenta"], "cola_db": str(COLA_DB),
                 "vivo": LIVE_FILE.name, "supervisor": CK_SUPERVISOR_FILE.name,
+                "ultima_ejecucion": _ultima_ejecucion(),
             }
             path = OUTBOX / _STATUS_NOMBRE["principal"]  # el 2.º hueco escribe el suyo (t-agentes-paralelos-030)
             tmp = path.with_suffix(".tmp")
@@ -19636,6 +19724,10 @@ def refresh_ui():
             pass
     if _tick_n[0] % 5 == 0:
         _refresh_live_ui()  # consumo en vivo: cada ~5 s, igual que runner-live.json
+        try:
+            _refresh_cloud_banner()  # el banner sigue al modelo del runner sin reiniciar
+        except Exception:
+            pass
     # Contadores de la barra lateral (Plain) y pagina Tareas, cada 10 s.
     if _tick_n[0] % 10 == 0:
         try:
@@ -22424,6 +22516,14 @@ def _after_availability():
     st = conn_state()
     prev = _AV.get("last_conn")
     _AV["last_conn"] = st
+    if st in ("local", "sin"):
+        _AV["nube_fallos"] = _AV.get("nube_fallos", 0) + 1
+        if _AV["nube_fallos"] == 1:  # un fallo suelto no alarma: se comprueba otra vez a los 20 s
+            t = threading.Timer(20, lambda: start_availability(only=["claude"]))
+            t.daemon = True
+            t.start()
+    elif st == "conectado":
+        _AV["nube_fallos"] = 0
     if st == "local" and prev != "local":
         state["nube_caida"] = True
         log("conexión: sin nube; las preguntas de la app van al modelo local")
@@ -24193,19 +24293,29 @@ def _refresh_conn_widgets():
     lbl = _widgets.get("px_result")
     if lbl is not None and _AV["rows"].get("proxy"):
         lbl.config(text=_proxy_result_text(), fg=_proxy_result_color())
+    _refresh_cloud_banner()
+
+
+def _refresh_cloud_banner():
+    """El banner de la nube según el modelo REAL del runner (t-estado-banner-nube-045)."""
     b = _widgets.get("cloud_banner")
-    if b is not None:
-        down = conn_state() in ("local", "sin")
-        if down and not b.winfo_ismapped():
-            b.pack(fill="x", padx=20, pady=(12, 0))
-        elif not down and b.winfo_ismapped():
-            b.pack_forget()
-            b.master.configure(height=1)
-        if down:
-            _widgets["cloud_banner_txt"].config(
-                text="Sin conexión con la nube: trabajando con el modelo local, calidad menor."
-                if conn_state() == "local" else
-                "Sin conexión: ni la nube ni el modelo local responden. Mira el mapa en Estado.")
+    if b is None:
+        return
+    try:
+        probe = runner_modelo_probe()
+    except Exception as e:  # nunca un banner falso por un fallo del propio probe
+        probe = {"estado": "ilegible", "motivo": type(e).__name__}
+    mostrar, txt, tipo = cloud_banner_decidir(probe, _AV.get("nube_fallos", 0))
+    _AV["banner"] = {"probe": probe, "mostrar": mostrar, "texto": txt, "tipo": tipo}
+    if mostrar and not b.winfo_ismapped():
+        b.pack(fill="x", padx=20, pady=(12, 0))
+    elif not mostrar and b.winfo_ismapped():
+        b.pack_forget()
+        b.master.configure(height=1)
+    if mostrar:
+        _widgets["cloud_banner_txt"].config(text=txt, fg=THEME["text"] if tipo == "alarma" else THEME["muted"])
+        _widgets["cloud_banner_raya"].config(bg={"alarma": THEME["orange"], "info": THEME["blue"]}.get(
+            tipo, THEME["line"]))
 
 
 # ---- cambios de motor (t-panel-estado-gateway): cada vez que algo pasa de
@@ -41110,7 +41220,8 @@ def build_gui():
     ttk.Button(banner, text="Parar", command=_on_stop_click).pack(side="right", padx=12)
     _widgets["banner"] = banner
     cloud = tk.Frame(banner_slot, bg=THEME["card"])
-    tk.Frame(cloud, bg=THEME["orange"], width=S(3)).pack(side="left", fill="y")
+    _widgets["cloud_banner_raya"] = tk.Frame(cloud, bg=THEME["orange"], width=S(3))
+    _widgets["cloud_banner_raya"].pack(side="left", fill="y")
     _widgets["cloud_banner_txt"] = tk.Label(cloud, text="", font=(FONT, 10, "bold"),
                                             bg=THEME["card"], fg=THEME["text"], anchor="w",
                                             justify="left", wraplength=S(520))
