@@ -40,6 +40,8 @@ raíz y su commit.
 | 34 | t-prueba-corte | **LISTO** (FALTA: la primera prueba real — la provoca Leandro; propuesta sáb 7-nov-2026 10:00) | `9ae0bd8`, `ESTADO-PRUEBA-CORTE.md` |
 | 35 | t-router-fallbacks | **LISTO** (FALTA: Haiku revisando con llama y ollama caídos, en vivo — gasta cuota; gemini/agy sin sesión en este PC) | `5308ede`, `ESTADO-ROUTER-FALLBACKS.md` |
 | 36 | t-rubrica-revisor-030 | **LISTO** (FALTA: costo y tiempo reales de Haiku — gasta cuota; queda «sin medir») | `7cf360e`, `ESTADO-RUBRICA-REVISOR.md` |
+| 37 | t-spike-whatsapp | **PARCIAL** (recomendación, datos de registro y procedimiento LISTOS; FALTA la prueba en vivo — instalación no autorizada y sin número de pruebas; el personal NO se vinculó) | `1dc19b9`, `ESTADO-SPIKE-WHATSAPP.md`, `SPIKE-WHATSAPP.md` |
+| 38 | t-teclado-foco | **LISTO** (FALTA: captura en tema oscuro) | `677a848`, `ESTADO-TECLADO-FOCO.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
