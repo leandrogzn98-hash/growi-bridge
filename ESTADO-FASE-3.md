@@ -22,9 +22,13 @@ raíz y su commit.
 | 15 | t-gasto-pronostico | **LISTO** (FALTA P2: ahorro por usar local) | `566fbaa`, `ESTADO-GASTO-PRONOSTICO.md` |
 | 16 | t-interruptor-motor | **LISTO** | `ebed8ec`, `ESTADO-INTERRUPTOR-MOTOR.md` |
 | 17 | t-lote-conectividad-040 | **LISTO** (parte 1 = spec 11; parte 2 = mapa ampliado) | `5e02dcc`, `ESTADO-LOTE-CONECTIVIDAD-040.md`, `ESTADO-MAPA-AMPLIADO.md` |
+| 18 | t-lote-evaluar-modelos-040 | **SALTADO (GPU + modelos)** | Junta t-vision-gemma3-4b y t-evaluar-hermes4: hacen falta Gemma 3 4B + mmproj y Hermes 4 descargados y la GPU libre (la ocupa el Ollama del usuario). Con él quedan también 14 y 41 |
+| 19 | t-lote-mascota-040 | **LISTO** (incluye 21 t-mascota-estados y 22 t-mascota-memoria-minima; FALTA: arte definitivo y la semana de validación) | `13574d1`, `ESTADO-LOTE-MASCOTA-040.md` |
+| 20 | t-mapa-ampliado | **LISTO** (dentro del 17) | `ESTADO-MAPA-AMPLIADO.md` |
+| 21-22 | t-mascota-estados, t-mascota-memoria-minima | **LISTO** (dentro del 19) | `ESTADO-LOTE-MASCOTA-040.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
 construye sobre lo que sí existe en el código.
 
-**Observación (arranque):** la app tarda 11-13 s en abrir el puente (lo ve el smoke del gate). Compilar `growi-bridge.py` en una carpeta nueva tarda ~9 s, pero un lanzador con `.pyc` en caché **no** bajó el tiempo medido en la app real, así que se descartó. Queda para un fix aparte: perfilar `build_gui` (antes se vio `_gw_poll_loop` y la carga de imágenes).
+**Observación (arranque, medida):** `build_gui` tarda **15-16 s con el código de la base** (4a88d34) y 17-18 s ahora. El perfil (cProfile) da **`tema_seccion` → `_KitCtk.option` (CTkOptionMenu) ~11 s** (fase A, temas; `t-temas-oscuro-sistema` sigue a medias en su cadena, por eso no se tocó). Antes se apuntó: la app tarda 11-13 s en abrir el puente (lo ve el smoke del gate). Compilar `growi-bridge.py` en una carpeta nueva tarda ~9 s, pero un lanzador con `.pyc` en caché **no** bajó el tiempo medido en la app real, así que se descartó. Queda para un fix aparte: perfilar `build_gui` (antes se vio `_gw_poll_loop` y la carga de imágenes).
