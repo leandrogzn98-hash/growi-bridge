@@ -36,6 +36,8 @@ raíz y su commit.
 | 30 | t-panel-estado-gateway | **LISTO** (el registro de cambios de motor es en memoria; el router con fallbacks es el spec 35) | `3ef8d12`, `ESTADO-PANEL-ESTADO-GATEWAY.md` |
 | 31 | t-pedir-cosecha | **LISTO** (FALTA: cosecha real — sin TIKTOK_MS_TOKEN y gasta créditos; el lado de la VM es contrato; tarifa de Instagram sin dato) | `197ec62`, `ESTADO-PEDIR-COSECHA.md` |
 | 32 | t-perfil-sobre-mi | **LISTO** (FALTA: (c) con Hermes 8B solo a medias — rellena el tono con las reglas de estilo; probar con Claude gasta cuota) | `fa5c984`, `ESTADO-PERFIL-SOBRE-MI.md` |
+| 33 | t-politicas-persistentes-030 | **LISTO** (FALTA: aprobación remota por WhatsApp — no existe; pasos dentro de una corrida del CLI no se interceptan) | `f1e313f`, `ESTADO-POLITICAS-PERSISTENTES.md` |
+| 34 | t-prueba-corte | **LISTO** (FALTA: la primera prueba real — la provoca Leandro; propuesta sáb 7-nov-2026 10:00) | `9ae0bd8`, `ESTADO-PRUEBA-CORTE.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
