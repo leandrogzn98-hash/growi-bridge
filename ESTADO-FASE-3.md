@@ -21,6 +21,7 @@ raíz y su commit.
 | 14 | t-evaluar-hermes4 | **SALTADO (depende del 08 + GPU)** | Pide A/B con 10 tareas en local con Hermes 4 descargado; la GPU está ocupada y el catálogo (08) no se pudo instalar |
 | 15 | t-gasto-pronostico | **LISTO** (FALTA P2: ahorro por usar local) | `566fbaa`, `ESTADO-GASTO-PRONOSTICO.md` |
 | 16 | t-interruptor-motor | **LISTO** | `ebed8ec`, `ESTADO-INTERRUPTOR-MOTOR.md` |
+| 17 | t-lote-conectividad-040 | **LISTO** (parte 1 = spec 11; parte 2 = mapa ampliado) | `5e02dcc`, `ESTADO-LOTE-CONECTIVIDAD-040.md`, `ESTADO-MAPA-AMPLIADO.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
