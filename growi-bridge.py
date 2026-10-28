@@ -4462,6 +4462,7 @@ def validate_task(data):
         "revisar": ("solo_checks" if str(data.get("revisar")).strip().lower() in ("solo_checks", "solo-checks")
                     else data.get("revisar", True) is not False),
         "memoria": data.get("memoria", True) is not False,
+        "herramienta": data.get("herramienta") if isinstance(data.get("herramienta"), dict) else None,
         "enrutado": enrutado,
         "asistente": asis["id"] if asis else None,
         "lane": LANE if LANE == "b" else (data.get("lane") or None),
@@ -7656,10 +7657,151 @@ def _run_async_engine(task, motor_id, eng, result, prompt):
         result["error"] = f"{name}: {e}"
 
 
+# ---- herramientas del runner (t-blender-herramienta). Una herramienta NO es
+# un motor: no conversa, no sale en el selector de modelos ni en la cadena de
+# fallback. Es un ejecutor que el runner llama cuando la tarea lo pide.
+HERRAMIENTAS_DEF = {
+    "blender": {
+        "nombre": "Blender",
+        "operaciones": {"turntable": "template_turntable.py", "qc": "template_qc_views.py"},
+        "no_hace": ["no genera modelos 3D (eso es Tripo o Meshy)", "no decide el diseño: ejecuta lo que se le pide",
+                    "no sustituye a Tripo"],
+        "timeout_s": 900,
+    },
+}
+_HERR = {}
+_MODELO_3D_RE = re.compile(r"""["']?((?:[A-Za-z]:[\\/]|\.{0,2}[\\/])?[^"'\s<>|]+?\.(?:glb|gltf|obj|fbx|blend))["']?""",
+                           re.I)
+
+
+def _blender_buscar():
+    """Ruta real de blender.exe en ESTE PC (en vivo): PATH, y si no, la
+    instalacion mas nueva en Program Files\\Blender Foundation\\."""
+    exe = shutil.which("blender")
+    if exe:
+        return exe
+    cands = []
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"),
+                 str(HOME_DIR / "AppData" / "Local" / "Programs")):
+        if base:
+            cands += list(Path(base, "Blender Foundation").glob("Blender*/blender.exe"))
+    def _ver(p):
+        return [int(x) for x in re.findall(r"\d+", p.parent.name)] or [0]
+    cands.sort(key=_ver)
+    return str(cands[-1]) if cands else None
+
+
+def _blender_plantilla(nombre):
+    for d in (SKILLS_DIR / "blender", INBOX / "skills-semilla" / "blender", APP_DIR / "skills" / "blender"):
+        if (d / nombre).is_file():
+            return d / nombre
+    return None
+
+
+def herramienta_ficha(hid="blender", fresca=False):
+    """Lo que puede y lo que no, medido ahora (la version la dice el propio
+    blender --version). Sin Blender: «no disponible» con el motivo."""
+    if not fresca and hid in _HERR and time.time() - _HERR[hid]["t"] < 600:
+        return _HERR[hid]["ficha"]
+    d = HERRAMIENTAS_DEF[hid]
+    f = {"id": hid, "nombre": d["nombre"], "es_motor": False, "disponible": False, "ruta": None, "version": None,
+         "operaciones": {}, "no_hace": d["no_hace"], "motivo": None}
+    exe = _blender_buscar()
+    if not exe:
+        f["motivo"] = "no encuentro blender.exe (ni en el PATH ni en Program Files\\Blender Foundation)"
+    else:
+        f["ruta"] = exe
+        try:
+            r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=60,
+                               encoding="utf-8", errors="replace", **_oculto())
+            f["version"] = next((x.strip() for x in r.stdout.splitlines() if x.strip().startswith("Blender")), None)
+            f["disponible"] = r.returncode == 0 and bool(f["version"])
+            if not f["disponible"]:
+                f["motivo"] = f"blender --version salió con {r.returncode}"
+        except (OSError, subprocess.TimeoutExpired) as e:
+            f["motivo"] = f"blender --version falló ({type(e).__name__})"
+    for op, plantilla in d["operaciones"].items():
+        p = _blender_plantilla(plantilla)
+        f["operaciones"][op] = {"plantilla": str(p) if p else None,
+                                "falta": None if p else f"falta {plantilla} en {SKILLS_DIR / 'blender'}"}
+    _HERR[hid] = {"t": time.time(), "ficha": f}
+    log(f"herramientas: {d['nombre']}: " + (f"{f['version']} en {f['ruta']}" if f["disponible"]
+                                            else f"no disponible ({f['motivo']})"))
+    return f
+
+
+def herramienta_de_tarea(task):
+    """{'herramienta','operacion','modelo'} si la tarea pide una tornamesa o un
+    QC de un modelo 3D (campo «herramienta» o la frase del encargo), si no None."""
+    h = task.get("herramienta") if isinstance(task.get("herramienta"), dict) else None
+    texto = str(task.get("prompt") or "")
+    if h:
+        op, modelo = h.get("operacion"), h.get("modelo")
+    else:
+        if re.search(r"\b(tornamesa|turntable)\b", texto, re.I):
+            op = "turntable"
+        elif re.search(r"\b(qc|vistas de control|control de calidad)\b", texto, re.I):
+            op = "qc"
+        else:
+            return None
+        m = _MODELO_3D_RE.search(texto)
+        modelo = m.group(1) if m else None
+    if op not in HERRAMIENTAS_DEF["blender"]["operaciones"]:
+        return None
+    return {"herramienta": "blender", "operacion": op, "modelo": modelo, "salida": (h or {}).get("salida"),
+            "frames": (h or {}).get("frames")}
+
+
+def herramienta_correr(task, pedido):
+    """Corre Blender en segundo plano con la plantilla; deja las imagenes en la
+    carpeta del proyecto (junto al modelo). Resultado como el de un motor, $0."""
+    result = _base_result(task, "blender (herramienta)")
+    t0 = time.time()
+    f = herramienta_ficha()
+    op = pedido["operacion"]
+    modelo = Path(pedido["modelo"] or "")
+    if pedido["modelo"] and not modelo.is_absolute():
+        modelo = Path(task.get("cwd") or INBOX) / modelo
+    plantilla = (f["operaciones"].get(op) or {}).get("plantilla")
+    if not f["disponible"]:
+        result["error"] = f"Blender no disponible: {f['motivo']}"
+    elif not plantilla:
+        result["error"] = f["operaciones"][op]["falta"]
+    elif not pedido["modelo"] or not modelo.is_file():
+        result["error"] = f"no encuentro el modelo 3D ({modelo if pedido['modelo'] else 'el encargo no nombra un .glb/.gltf/.obj/.fbx/.blend'})"
+    else:
+        salida = Path(pedido.get("salida") or modelo.with_name(f"{modelo.stem}_{op}"))
+        salida.mkdir(parents=True, exist_ok=True)
+        args = [f["ruta"], "--background", "--python", plantilla, "--", f"MODEL_PATH={modelo}", f"OUT_DIR={salida}"]
+        if op == "turntable":
+            args.append(f"FRAMES={int(pedido.get('frames') or 24)}")
+        log(f"runner [{task['id']}]: herramienta Blender: {op} de {modelo.name} -> {salida}")
+        try:
+            r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=HERRAMIENTAS_DEF["blender"]["timeout_s"], **_oculto())
+            pngs = sorted(str(p) for p in salida.glob("*.png"))
+            result.update(exit_code=r.returncode, stderr=(r.stderr or "")[-2000:], archivos=pngs)
+            if r.returncode == 0 and pngs:
+                result.update(status="ok", result=f"Blender ({f['version']}) hizo {op} de {modelo.name}: "
+                                                  f"{len(pngs)} imagen(es) en {salida}:\n" +
+                                                  "\n".join(Path(p).name for p in pngs))
+            else:
+                result["error"] = f"Blender salió con {r.returncode} y {len(pngs)} imagen(es): " + \
+                                  (r.stdout or "")[-600:]
+        except subprocess.TimeoutExpired:
+            result["status"], result["error"] = "timeout", f"Blender pasó de {HERRAMIENTAS_DEF['blender']['timeout_s']} s"
+    result.update(cost_usd=0.0, herramienta={"id": "blender", "operacion": op, "version": f.get("version")},
+                  finished_at=_now_iso(), duration_s=round(time.time() - t0, 1))
+    return result
+
+
 def run_engine(task, prompt=None, eng=None):
     """Corre una tarea con su motor, leyendo SOLO su descriptor (eng: un
     descriptor ya traducido que aun no esta en engines.json, para la prueba
     de «Nuevo motor»)."""
+    pedido = herramienta_de_tarea(task) if eng is None else None
+    if pedido:  # tornamesa / QC: lo hace Blender (herramienta), no un motor
+        return herramienta_correr(task, pedido)
     motor_id = task.get("motor") or default_motor()
     result = _base_result(task, motor_id)
     result.update(_auto_fields(task.get("enrutado")))
@@ -31749,6 +31891,21 @@ def _build_ajustes_ctk(tab_aj):
     button(der, "Abrir", lambda: open_folder(MODELS_DIR)).pack()
     r, der = side_row(mm, "Comprobar mi PC", "Qué modelos caben en tu tarjeta gráfica (página Modelos).")
     button(der, "Comprobar", lambda: _widgets["show_page"]("modelos")).pack()
+    r, der = side_row(mm, "Herramienta: Blender (no es un motor)", None)
+    _bl = _Label(r._left, text="Comprobando Blender…", font=F(13), text_color=T["muted"], anchor="w",
+                 justify="left", height=1)
+    _bl.pack(anchor="w", fill="x", pady=(2, 0))
+    wrap_to(_bl, r._left)
+    _widgets["aj_blender"] = _bl
+
+    def _bf_txt():  # en un hilo: blender --version tarda y no debe frenar la ventana
+        f = herramienta_ficha()
+        t = ((f"{f['version']} en {f['ruta']}. Hace tornamesas y QC (vistas frontal, laterales 90°/270°, "
+              "tres-cuartos y trasera) de un modelo 3D cuando una tarea lo pide. " if f["disponible"]
+              else f"No disponible: {f['motivo']}. ") + "No hace: " + "; ".join(f["no_hace"]) + "."
+             + "".join(f" Falta: {o['falta']}." for o in f["operaciones"].values() if o["falta"]))
+        _ui_call(lambda: _bl.winfo_exists() and _bl.configure(text=t))
+    threading.Thread(target=_bf_txt, daemon=True).start()
     r = row(mm)
     _widgets["aj_claves_slot"] = tk.Frame(r, bg=T["bg"])  # aqui dibuja _build_claves las claves
     _widgets["aj_claves_slot"].pack(fill="x")

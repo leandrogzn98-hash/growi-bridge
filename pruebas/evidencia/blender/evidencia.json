@@ -1,0 +1,120 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl",
+ "modelo": "volante.glb",
+ "a_ficha": {
+  "id": "blender",
+  "nombre": "Blender",
+  "es_motor": false,
+  "disponible": true,
+  "ruta": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe",
+  "version": "Blender 5.2.2 LTS",
+  "operaciones": {
+   "turntable": {
+    "plantilla": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\app\\skills\\blender\\template_turntable.py",
+    "falta": null
+   },
+   "qc": {
+    "plantilla": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\app\\skills\\blender\\template_qc_views.py",
+    "falta": null
+   }
+  },
+  "no_hace": [
+   "no genera modelos 3D (eso es Tripo o Meshy)",
+   "no decide el diseño: ejecuta lo que se le pide",
+   "no sustituye a Tripo"
+  ],
+  "motivo": null
+ },
+ "a_no_es_motor": {
+  "motores_en_engines_json": [
+   "claude",
+   "codex",
+   "llama",
+   "ollama",
+   "meshy",
+   "gemini"
+  ],
+  "blender_en_selector": false
+ },
+ "b-tornamesa": {
+  "status": "ok",
+  "motor": "blender (herramienta)",
+  "error": null,
+  "exit_code": 0,
+  "cost_usd": 0.0,
+  "duration_s": 29.1,
+  "herramienta": {
+   "id": "blender",
+   "operacion": "turntable",
+   "version": "Blender 5.2.2 LTS"
+  },
+  "result": "Blender (Blender 5.2.2 LTS) hizo turntable de volante.glb: 8 imagen(es) en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\proyecto\\volante_turntable:\nframe_0001.png\nframe_0002.png\nframe_0003.png\nframe_0004.png\nframe_0005.png\nframe_0006.png\nframe_0007.png\nframe_0008.png",
+  "imagenes": [
+   "frame_0001.png",
+   "frame_0002.png",
+   "frame_0003.png",
+   "frame_0004.png",
+   "frame_0005.png",
+   "frame_0006.png",
+   "frame_0007.png",
+   "frame_0008.png"
+  ],
+  "carpeta_salida": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\proyecto\\volante_turntable"
+ },
+ "c-qc": {
+  "status": "ok",
+  "motor": "blender (herramienta)",
+  "error": null,
+  "exit_code": 0,
+  "cost_usd": 0.0,
+  "duration_s": 20.7,
+  "herramienta": {
+   "id": "blender",
+   "operacion": "qc",
+   "version": "Blender 5.2.2 LTS"
+  },
+  "result": "Blender (Blender 5.2.2 LTS) hizo qc de volante.glb: 5 imagen(es) en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\proyecto\\volante_qc:\nqc_frontal.png\nqc_lateral-derecho.png\nqc_lateral-izquierdo.png\nqc_trasera.png\nqc_tres-cuartos.png",
+  "imagenes": [
+   "qc_frontal.png",
+   "qc_lateral-derecho.png",
+   "qc_lateral-izquierdo.png",
+   "qc_trasera.png",
+   "qc_tres-cuartos.png"
+  ],
+  "carpeta_salida": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\proyecto\\volante_qc"
+ },
+ "d_ficha_sin_blender": {
+  "id": "blender",
+  "nombre": "Blender",
+  "es_motor": false,
+  "disponible": false,
+  "ruta": null,
+  "version": null,
+  "operaciones": {
+   "turntable": {
+    "plantilla": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\app\\skills\\blender\\template_turntable.py",
+    "falta": null
+   },
+   "qc": {
+    "plantilla": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\app\\skills\\blender\\template_qc_views.py",
+    "falta": null
+   }
+  },
+  "no_hace": [
+   "no genera modelos 3D (eso es Tripo o Meshy)",
+   "no decide el diseño: ejecuta lo que se le pide",
+   "no sustituye a Tripo"
+  ],
+  "motivo": "no encuentro blender.exe (ni en el PATH ni en Program Files\\Blender Foundation)"
+ },
+ "d_tarea_sin_blender": {
+  "status": "error",
+  "error": "Blender no disponible: no encuentro blender.exe (ni en el PATH ni en Program Files\\Blender Foundation)"
+ },
+ "log": [
+  "2026-10-27T23:46:42-04:00 herramientas: Blender: Blender 5.2.2 LTS en C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe",
+  "2026-10-27T23:46:49-04:00 runner [b-tornamesa]: herramienta Blender: turntable de volante.glb -> C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\proyecto\\volante_turntable",
+  "2026-10-27T23:47:21-04:00 runner [c-qc]: herramienta Blender: qc de volante.glb -> C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-blender-2qsse1jl\\proyecto\\volante_qc",
+  "2026-10-27T23:47:41-04:00 herramientas: Blender: no disponible (no encuentro blender.exe (ni en el PATH ni en Program Files\\Blender Foundation))"
+ ]
+}
