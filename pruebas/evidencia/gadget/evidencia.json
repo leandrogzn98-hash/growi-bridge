@@ -1,0 +1,91 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gadget-l9byg77z",
+ "a_puertos_reales": [
+  [
+   "COM3",
+   "\\Device\\BthModem2"
+  ],
+  [
+   "COM4",
+   "\\Device\\BthModem1"
+  ],
+  [
+   "COM6",
+   "\\Device\\BthModem3"
+  ],
+  [
+   "COM7",
+   "\\Device\\BthModem0"
+  ]
+ ],
+ "seguridad_sin_elegir": [
+  false,
+  "COM3 no es el puerto elegido en la app: no se abre"
+ ],
+ "c_abierto": "Abierto tcp://127.0.0.1:8830: OK HOLA emulador-gadget 1",
+ "b_conversacion": [
+  [
+   "PING",
+   "Respuesta: OK PONG"
+  ],
+  [
+   "LED ON",
+   "Respuesta: OK LED ON"
+  ],
+  [
+   "MOSTRAR Hola Leandro",
+   "Respuesta: OK MOSTRAR"
+  ],
+  [
+   "ESTADO",
+   "Respuesta: OK ESTADO led=ON pantalla=Hola Leandro"
+  ],
+  [
+   "BAILA",
+   "Respuesta: ERR DESCONOCIDO BAILA"
+  ]
+ ],
+ "d_pedidos_por_serie": {
+  "t-serie-20261028-063352-8b6a": {
+   "estado": "esperando_aprobacion",
+   "aprobacion": "pendiente",
+   "motivo": ""
+  },
+  "t-serie-20261028-063352-ff23": {
+   "estado": "necesita_decision",
+   "aprobacion": "denegada",
+   "motivo": "R3 pedida por canal remoto (serie): denegada al instante; R3 solo se aprueba en la app"
+  }
+ },
+ "c_puerto_registrado_en_settings": "tcp://127.0.0.1:8830",
+ "c_gadget_log": [
+  "2026-10-28T06:33:52-04:00 - ** puerto elegido por el usuario: tcp://127.0.0.1:8830",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 ** abierto a 115200 baudios, timeout 2 s",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 >> HOLA 1",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 << OK HOLA emulador-gadget 1",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 << EVENTO ARRANQUE emulador listo",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 << PEDIR Borra el archivo C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gadget-l9byg77z\\trabajo\\viejo.txt.",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 >> OK ENCOLADO t-serie-20261028-063352-8b6a",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 << PEDIR Borra en masa todo con rm -rf C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-gadget-l9byg77z\\trabajo.",
+  "2026-10-28T06:33:52-04:00 tcp://127.0.0.1:8830 >> OK ENCOLADO t-serie-20261028-063352-ff23",
+  "2026-10-28T06:33:54-04:00 tcp://127.0.0.1:8830 >> PING",
+  "2026-10-28T06:33:54-04:00 tcp://127.0.0.1:8830 << OK PONG",
+  "2026-10-28T06:33:55-04:00 tcp://127.0.0.1:8830 >> LED ON",
+  "2026-10-28T06:33:55-04:00 tcp://127.0.0.1:8830 << OK LED ON",
+  "2026-10-28T06:33:56-04:00 tcp://127.0.0.1:8830 >> MOSTRAR Hola Leandro",
+  "2026-10-28T06:33:56-04:00 tcp://127.0.0.1:8830 << OK MOSTRAR",
+  "2026-10-28T06:33:56-04:00 tcp://127.0.0.1:8830 >> ESTADO",
+  "2026-10-28T06:33:56-04:00 tcp://127.0.0.1:8830 << OK ESTADO led=ON pantalla=Hola Leandro",
+  "2026-10-28T06:33:57-04:00 tcp://127.0.0.1:8830 >> BAILA",
+  "2026-10-28T06:33:57-04:00 tcp://127.0.0.1:8830 << ERR DESCONOCIDO BAILA",
+  "2026-10-28T06:34:07-04:00 tcp://127.0.0.1:8830 ** cerrado"
+ ],
+ "log": [
+  "2026-10-28T06:33:52-04:00 gadget: puerto elegido por el usuario: tcp://127.0.0.1:8830",
+  "2026-10-28T06:33:52-04:00 gadget: abierto tcp://127.0.0.1:8830 (115200 baudios): OK HOLA emulador-gadget 1",
+  "2026-10-28T06:33:52-04:00 gadget: EVENTO ARRANQUE emulador listo",
+  "2026-10-28T06:33:52-04:00 gadget: encargo t-serie-20261028-063352-8b6a pedido por serie (canal serie): pasa por el guardrail",
+  "2026-10-28T06:33:52-04:00 gadget: encargo t-serie-20261028-063352-ff23 pedido por serie (canal serie): pasa por el guardrail"
+ ],
+ "tracebacks_en_log": 0
+}

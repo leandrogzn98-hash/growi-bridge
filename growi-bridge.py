@@ -8821,6 +8821,305 @@ def mcp_ui():
     return top
 
 
+# ---- Puerta USB/serial para un gadget (t-gadget-esp32). SOLO la puerta en
+# software: lista los puertos serie reales del PC (registro de Windows, sin
+# inventar), abre SOLO el que el usuario eligió en la app (baudios y timeout
+# visibles) y habla el protocolo de texto de PROTOCOLO-GADGET.md (propuesta).
+# Sin pyserial: Win32 con ctypes. «tcp://127.0.0.1:<puerto>» es la línea serie
+# del emulador (pruebas/emulador_gadget.py), solo en loopback. Lo que el gadget
+# pide (PEDIR) es un encargo con canal «serie»: pasa por el guardrail (R2 espera
+# aprobación, R3 se deniega). Nada de hardware aquí.
+GADGET_LOG = APP_DIR / "gadget.log"
+GADGET_PROTOCOLO = "1"
+GADGET_BAUDIOS = ("9600", "57600", "115200", "230400")
+_GADGET: dict = {"con": None, "hilo": None, "resp": None, "dispositivo": None}
+
+
+def gadget_puertos():
+    """[(nombre, dispositivo del sistema)] de HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM: los reales, o []."""
+    out = []
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DEVICEMAP\SERIALCOMM") as k:
+            i = 0
+            while True:
+                try:
+                    disp, com, _t = winreg.EnumValue(k, i)
+                except OSError:
+                    break
+                out.append((str(com), str(disp)))
+                i += 1
+    except OSError:
+        pass  # sin la clave: no hay ningún puerto serie
+    return sorted(out, key=lambda x: int(re.sub(r"\D", "", x[0]) or 0))
+
+
+def _gadget_log(direccion, linea):
+    try:
+        with GADGET_LOG.open("a", encoding="utf-8") as f:
+            f.write(f"{_now_iso()} {_GADGET.get('dispositivo') or '-'} {direccion} {linea}\n")
+    except OSError:
+        pass
+
+
+class _SerieWin:
+    """Un COM real con Win32 (CreateFile / SetCommState / ReadFile / WriteFile)."""
+
+    def __init__(self, com, baudios, timeout):
+        import ctypes
+        from ctypes import wintypes
+        self.k = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.ct, self.wt = ctypes, wintypes
+        self.k.CreateFileW.restype = ctypes.c_void_p
+        h = self.k.CreateFileW("\\\\.\\" + com, 0xC0000000, 0, None, 3, 0, None)
+        if h in (None, ctypes.c_void_p(-1).value):
+            raise OSError(f"no se pudo abrir {com} (error {ctypes.get_last_error()})")
+        self.h = h
+
+        class DCB(ctypes.Structure):
+            _fields_ = [("DCBlength", wintypes.DWORD), ("BaudRate", wintypes.DWORD), ("flags", wintypes.DWORD),
+                        ("wReserved", wintypes.WORD), ("XonLim", wintypes.WORD), ("XoffLim", wintypes.WORD),
+                        ("ByteSize", ctypes.c_ubyte), ("Parity", ctypes.c_ubyte), ("StopBits", ctypes.c_ubyte),
+                        ("XonChar", ctypes.c_char), ("XoffChar", ctypes.c_char), ("ErrorChar", ctypes.c_char),
+                        ("EofChar", ctypes.c_char), ("EvtChar", ctypes.c_char), ("wReserved1", wintypes.WORD)]
+        dcb = DCB()
+        dcb.DCBlength = ctypes.sizeof(DCB)
+        hh = ctypes.c_void_p(h)
+        if not (self.k.GetCommState(hh, ctypes.byref(dcb))
+                and self.k.BuildCommDCBW(f"baud={int(baudios)} parity=N data=8 stop=1", ctypes.byref(dcb))
+                and self.k.SetCommState(hh, ctypes.byref(dcb))):
+            self.close()
+            raise OSError(f"{com}: no acepta {baudios} baudios (error {ctypes.get_last_error()})")
+        ms = int(float(timeout) * 1000)
+        to = (wintypes.DWORD * 5)(50, 0, ms, 0, ms)
+        self.k.SetCommTimeouts(hh, ctypes.byref(to))
+
+    def write(self, b):
+        n = self.wt.DWORD()
+        self.k.WriteFile(self.ct.c_void_p(self.h), b, len(b), self.ct.byref(n), None)
+
+    def read(self, n=256):
+        buf = self.ct.create_string_buffer(n)
+        got = self.wt.DWORD()
+        if not self.k.ReadFile(self.ct.c_void_p(self.h), buf, n, self.ct.byref(got), None):
+            raise OSError("lectura del puerto falló")
+        return buf.raw[:got.value]
+
+    def close(self):
+        if getattr(self, "h", None):
+            self.k.CloseHandle(self.ct.c_void_p(self.h))
+            self.h = None
+
+
+class _SerieTcp:
+    """La línea serie del emulador: tcp://127.0.0.1:<puerto> (solo loopback)."""
+
+    def __init__(self, dir_, timeout):
+        host, _sep, puerto = dir_[len("tcp://"):].partition(":")
+        if host not in ("127.0.0.1", "localhost"):
+            raise OSError("el emulador solo se acepta en 127.0.0.1")
+        self.s = socket.create_connection((host, int(puerto)), timeout=float(timeout))
+        self.s.settimeout(float(timeout))
+
+    def write(self, b):
+        self.s.sendall(b)
+
+    def read(self, n=256):
+        try:
+            d = self.s.recv(n)
+        except socket.timeout:
+            return b""
+        if not d:
+            raise OSError("el emulador cerró la línea")
+        return d
+
+    def close(self):
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+
+def gadget_elegir(dispositivo):
+    """El usuario elige el puerto en la app: queda registrado. Solo este se puede abrir."""
+    s = load_settings()
+    s["gadget_puerto"] = str(dispositivo).strip()
+    save_settings(s)
+    log(f"gadget: puerto elegido por el usuario: {s['gadget_puerto']}")
+    _gadget_log("**", f"puerto elegido por el usuario: {s['gadget_puerto']}")
+
+
+def gadget_abrir(dispositivo, baudios=115200, timeout=2.0):
+    """Abre el puerto ELEGIDO (nunca otro) y saluda. (ok, mensaje)."""
+    dispositivo = str(dispositivo).strip()
+    if dispositivo != str(load_settings().get("gadget_puerto") or ""):
+        return False, f"{dispositivo} no es el puerto elegido en la app: no se abre"
+    gadget_cerrar()
+    try:
+        con = _SerieTcp(dispositivo, timeout) if dispositivo.startswith("tcp://") else _SerieWin(dispositivo, baudios,
+                                                                                              timeout)
+    except (OSError, ValueError) as e:
+        log(f"gadget: no se abrió {dispositivo}: {e}")
+        return False, str(e)
+    _GADGET.update(con=con, resp=queue.Queue(), dispositivo=dispositivo, timeout=float(timeout))
+    _gadget_log("**", f"abierto a {baudios} baudios, timeout {timeout} s")
+    h = threading.Thread(target=_gadget_leer, args=(con,), daemon=True, name="gadget")
+    _GADGET["hilo"] = h
+    h.start()
+    r = gadget_enviar(f"HOLA {GADGET_PROTOCOLO}")
+    log(f"gadget: abierto {dispositivo} ({baudios} baudios): {r}")
+    return (r or "").startswith("OK"), r or "el gadget no contestó al HOLA"
+
+
+def gadget_cerrar():
+    con = _GADGET.get("con")
+    _GADGET["con"] = None
+    if con:
+        con.close()
+        _gadget_log("**", "cerrado")
+
+
+def gadget_enviar(linea):
+    """Manda una línea (comando del protocolo) y espera su OK/ERR. Devuelve la respuesta o None."""
+    con = _GADGET.get("con")
+    if not con:
+        return None
+    linea = str(linea).replace("\r", " ").replace("\n", " ").strip()[:240]
+    if not linea:
+        return None  # una línea vacía no se manda
+    while not _GADGET["resp"].empty():
+        _GADGET["resp"].get_nowait()
+    _gadget_log(">>", linea)
+    try:
+        con.write((linea + "\n").encode("utf-8"))
+        return _GADGET["resp"].get(timeout=_GADGET.get("timeout", 2.0) + 1)
+    except (OSError, queue.Empty):
+        return None
+
+
+def _gadget_leer(con):
+    buf = b""
+    while _GADGET.get("con") is con:
+        try:
+            d = con.read(256)
+        except OSError as e:
+            if _GADGET.get("con") is con:
+                log(f"gadget: lectura cortada: {e}")
+                _gadget_log("**", f"lectura cortada: {e}")
+            return
+        buf += d
+        while b"\n" in buf:
+            raw, buf = buf.split(b"\n", 1)
+            linea = raw.decode("utf-8", errors="replace").strip()
+            if linea:
+                _gadget_linea(con, linea)
+
+
+def _gadget_linea(con, linea):
+    _gadget_log("<<", linea)
+    cmd = linea.split(" ", 1)
+    if cmd[0] in ("OK", "ERR"):
+        _GADGET["resp"].put(linea)
+    elif cmd[0] == "PEDIR":  # el gadget pide algo: es un encargo como cualquiera (guardrail)
+        encargo = cmd[1].strip() if len(cmd) > 1 else ""
+        if not encargo:
+            resp = "ERR VACIO"
+        else:
+            tid = "t-serie-" + datetime.now().strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
+            TASKS.mkdir(parents=True, exist_ok=True)
+            (TASKS / f"{tid}.task.json").write_text(json.dumps({
+                "id": tid, "prompt": encargo, "canal": "serie", "cwd": load_folders()[0]}, ensure_ascii=False),
+                encoding="utf-8")
+            log(f"gadget: encargo {tid} pedido por serie (canal serie): pasa por el guardrail")
+            resp = f"OK ENCOLADO {tid}"
+        _gadget_log(">>", resp)
+        try:
+            con.write((resp + "\n").encode("utf-8"))
+        except OSError:
+            pass
+    else:  # EVENTO u otra cosa: solo se registra, no se ejecuta nada
+        log(f"gadget: {linea[:200]}")
+
+
+def gadget_ui():
+    """Elegir el puerto (los reales del PC), abrirlo con baudios y timeout, y conversar."""
+    top = tk.Toplevel(_root)
+    top.title("Gadget (USB/serie)")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(660)}x{S(600)}")
+    page = _scrollable(top)
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(page)
+        except Exception as e:
+            log(f"gadget: CustomTkinter no disponible ({type(e).__name__}: {e}); ventana clásica")
+    k = k or _KitTk(page)
+    puertos = gadget_puertos()
+    c = k.section("Puerto", "Los puertos serie que Windows ve ahora. Solo se abre el que elijas aquí. Para el "
+                            "emulador, escribe tcp://127.0.0.1:<puerto>.")
+    k.label(c, "\n".join(f"{com} — {disp}" for com, disp in puertos) or "Ningún dispositivo.",
+            muted=True).pack(anchor="w", padx=16, pady=(2, 6))
+    r = k.row(c)
+    elegido = load_settings().get("gadget_puerto") or (puertos[0][0] if puertos else "")
+    cb = k.option(r, [p[0] for p in puertos], width=26, editable=True)
+    cb.set(elegido)
+    cb.pack(side="left")
+    bd = k.option(r, list(GADGET_BAUDIOS), width=10)
+    bd.set("115200")
+    bd.pack(side="left", padx=8)
+    to = k.entry(r, width=6)
+    to.insert(0, "2")
+    to.pack(side="left")
+    k.label(r, "s de timeout", muted=True).pack(side="left", padx=(4, 0))
+    est = k.label(c, "Cerrado.", wrap=600)
+    est.pack(anchor="w", padx=16, pady=(4, 4))
+    hist = None
+
+    def pintar():
+        try:
+            lineas = GADGET_LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-14:]
+        except OSError:
+            lineas = []
+        k.set_label(hist, text="\n".join(lineas) or "Sin conversación todavía.")
+
+    def abrir():
+        dispo = cb.get().strip()
+        if not dispo:
+            k.set_label(est, text="Ningún dispositivo que abrir.")
+            return
+        gadget_elegir(dispo)
+        ok, msg = gadget_abrir(dispo, bd.get(), to.get() or "2")
+        k.set_label(est, text=(f"Abierto {dispo}: {msg}" if ok else f"No se abrió {dispo}: {msg}"),
+                    color=None if ok else "red")
+        pintar()
+
+    def cerrar():
+        gadget_cerrar()
+        k.set_label(est, text="Cerrado.")
+        pintar()
+    r2 = k.row(c, pady=(0, 12))
+    k.button(r2, "Elegir y abrir", abrir, accent=True).pack(side="left")
+    k.button(r2, "Cerrar", cerrar).pack(side="left", padx=8)
+    c2 = k.section("Conversación", "Comandos del protocolo (PROTOCOLO-GADGET.md): PING, ESTADO, MOSTRAR <texto>, "
+                                   "LED ON|OFF. Lo que el gadget pide (PEDIR) pasa por el guardrail.")
+    r3 = k.row(c2)
+    ent = k.entry(r3, width=40)
+    ent.pack(side="left")
+
+    def enviar():
+        resp = gadget_enviar(ent.get())
+        k.set_label(est, text=f"Respuesta: {resp}" if resp else "Sin respuesta (¿puerto cerrado?)")
+        pintar()
+    k.button(r3, "Enviar", enviar).pack(side="left", padx=8)
+    hist = k.label(c2, "", muted=True, wrap=600)
+    hist.pack(anchor="w", padx=16, pady=(4, 12))
+    pintar()
+    _GADGET["ui"] = {"top": top, "cb": cb, "bd": bd, "to": to, "ent": ent, "est": est, "hist": hist,
+                     "abrir": abrir, "enviar": enviar}
+    return top
+
+
 def run_engine(task, prompt=None, eng=None):
     """Corre una tarea con su motor, leyendo SOLO su descriptor (eng: un
     descriptor ya traducido que aun no esta en engines.json, para la prueba
@@ -41464,6 +41763,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("gadget", "Gadget: puerto USB/serie",
+          "gadget esp32 usb serie serial com puerto dispositivo", lambda: (show_window(), gadget_ui())),
         C("mcp", "MCP: servidor de Bridge y herramientas externas",
           "mcp model context protocol servidor cliente herramientas deepwiki streamable", lambda: (show_window(), mcp_ui())),
         C("pendientes", "Qué falta por responder (por persona)",
