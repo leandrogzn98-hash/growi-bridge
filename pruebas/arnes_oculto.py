@@ -147,7 +147,8 @@ def correr(nombre, pasos, dpi="100", variante="ctk", settings=None, env=None, pr
                       GROWI_BRIDGE_TOKEN_DIR=str(tmp / "token"), GROWI_BRIDGE_MUTEX=f"Local\\GrowiPrueba{nombre}",
                       GROWI_BRIDGE_PORT=str(puerto), GROWI_BRIDGE_LANE="a",
                       GROWI_BRIDGE_CLAUDE_PROJECTS=str(tmp / "cp"),
-                      GROWI_BRIDGE_DPI="144" if dpi == "150" else "96")
+                      GROWI_BRIDGE_DPI="144" if dpi == "150" else "96",
+                      GROWI_BRIDGE_CRED_BACKEND="dpapi")  # claves en un archivo de la copia, nunca en el almacén real
     if variante == "clasica":
         os.environ["GROWI_BRIDGE_CTK"] = "0"
     os.environ.update(env or {})

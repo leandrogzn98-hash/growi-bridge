@@ -1,0 +1,192 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-apis-tarjetas-yuqv6pzf",
+ "variante": "sinctk",
+ "dpi": "100",
+ "build_gui_s": 2.69,
+ "guardar": [
+  [
+   true,
+   "Guardada. Es la activa de OpenAI."
+  ],
+  [
+   true,
+   "Guardada. Es la activa de Groq."
+  ],
+  [
+   true,
+   "Guardada. Es la activa de Grok (xAI)."
+  ]
+ ],
+ "kit": "_KitTk",
+ "a_tarjetas": {
+  "anthropic": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "openai": {
+   "estado": "sin_probar",
+   "texto": "«prueba» ••••cdef: guardada, sin probar. «Probar» lo comprueba sin gastar.",
+   "accion": "Probar",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "gemini": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "groq": {
+   "estado": "sin_probar",
+   "texto": "«prueba» ••••cdef: guardada, sin probar. «Probar» lo comprueba sin gastar.",
+   "accion": "Probar",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "openrouter": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "xai": {
+   "estado": "sin_activa",
+   "texto": "1 clave(s) guardada(s), ninguna activa: sus motores salen «no disponible» hasta que elijas una con «Usar esta».",
+   "accion": "Ver claves",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "tripo": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "meshy": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "elevenlabs": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  }
+ },
+ "a_todas": true,
+ "b_durante": {
+  "openai": "probando",
+  "groq": "error"
+ },
+ "b_tras_probar": {
+  "anthropic": {
+   "estado": "sin_clave",
+   "texto": "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",
+   "accion": "Poner clave",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "openai": {
+   "estado": "conectada",
+   "texto": "Conectada · «prueba» ••••cdef (28/10 12:26). Clave válida (200). No se gastó nada (solo se pidió la lista de modelos).",
+   "accion": "Probar",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "groq": {
+   "estado": "error",
+   "texto": "Error · «prueba» ••••cdef (28/10 12:26): Clave incorrecta (401): «clave falsa de la prueba». No se gastó nada (solo se pidió la lista de modelos).",
+   "accion": "Probar",
+   "boton": "Button",
+   "card": "Frame"
+  },
+  "xai": {
+   "estado": "sin_activa",
+   "texto": "1 clave(s) guardada(s), ninguna activa: sus motores salen «no disponible» hasta que elijas una con «Usar esta».",
+   "accion": "Ver claves",
+   "boton": "Button",
+   "card": "Frame"
+  }
+ },
+ "b_pruebas_guardadas": {
+  "openai-prueba": {
+   "ok": true,
+   "texto": "Clave válida (200). No se gastó nada (solo se pidió la lista de modelos)."
+  },
+  "groq-prueba": {
+   "ok": false,
+   "texto": "Clave incorrecta (401): «clave falsa de la prueba». No se gastó nada (solo se pidió la lista de modelos)."
+  }
+ },
+ "b_cuadra": true,
+ "b_pedidos_al_servidor_local": [
+  "/v1/models",
+  "/openai/v1/models",
+  "/v1/models"
+ ],
+ "c_poner_clave": {
+  "proveedor_form": "Anthropic",
+  "url_form": "https://api.anthropic.com",
+  "esperado": "https://api.anthropic.com"
+ },
+ "c_probar_de_la_fila": {
+  "texto_fila": "Clave válida (200). No se gastó nada (solo se pidió la lista de modelos).",
+  "tarjeta": "conectada"
+ },
+ "d_foco": {
+  "anthropic": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "openai": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "gemini": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "groq": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "openrouter": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "xai": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "tripo": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "meshy": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  },
+  "elevenlabs": {
+   "ttk": "Button",
+   "takefocus": "ttk::takefocus"
+  }
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 478,
+  "wrap_estado_px": 440,
+  "linea1_pedida": 183,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}

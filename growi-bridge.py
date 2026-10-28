@@ -33565,6 +33565,12 @@ def _claves_abrir(donde="ajustes"):
 
 def _build_claves_con(k, inst):
     inst["kit"] = k
+    if inst.get("donde") == "apis":
+        # Tarjetas de conexión (t-apis-tarjetas-045): una por proveedor, con su estado real y su acción.
+        cx = k.section("Conexiones", "Una tarjeta por proveedor con su estado real: «Conectada» o «Error» es lo "
+                                     "que dio la última «Probar» (sin gastar); sin clave o sin probar, lo dice.")
+        inst["conex"] = k.frame(cx)
+        inst["conex"].pack(fill="x", padx=16, pady=(0, 12))
     card = k.section("Claves", "Una fila por clave, agrupadas por proveedor. Puedes tener varias del mismo "
                                "proveedor (personal, trabajo, respaldo…); solo una está activa por proveedor y "
                                "es la que usan sus motores. De cada clave solo se ven sus 4 últimos caracteres.")
@@ -33615,7 +33621,7 @@ def _build_claves_con(k, inst):
     est.pack(anchor="w", fill="x", padx=16, pady=(2, 4))
     k.label(f, "Por WhatsApp la clave pasa por el chat y por la VM antes de llegar aquí; pegarla en este "
                "formulario es más seguro.", muted=True).pack(anchor="w", fill="x", padx=16, pady=(0, 14))
-    inst.update(f_prov=sel, f_etq=etq, f_url=url, f_key=key, f_tope=tope, f_estado=est, f_guardar=g)
+    inst.update(f_prov=sel, f_etq=etq, f_url=url, f_key=key, f_tope=tope, f_estado=est, f_guardar=g, f_card=f)
     _claves_render()
 
 
@@ -33710,6 +33716,7 @@ def _claves_probar(cuenta):
         return
     _CLV["busy"].add(cuenta)
     _claves_set_estado(cuenta, "Probando la clave… (sin gastar)", "muted")
+    _claves_conexiones_refrescar()
 
     def _run():
         try:
@@ -33720,6 +33727,7 @@ def _claves_probar(cuenta):
         def _done():
             _CLV["busy"].discard(cuenta)
             _claves_set_estado(cuenta, txt, "green_text" if ok else "red")
+            _claves_conexiones_refrescar()
         _ui_call(_done)
 
     threading.Thread(target=_run, daemon=True).start()
@@ -33784,7 +33792,96 @@ def _claves_render():
             log(f"claves: no se pudo dibujar ({type(e).__name__}: {e})")
 
 
+def claves_conexion_estado(prov, lista=None, pr=None):
+    """Estado real de la conexión de un proveedor, para su tarjeta: (clave, texto, color, acción).
+    clave: sin_clave | sin_activa | sin_probar | conectada | error | probando."""
+    lista = cred_lista() if lista is None else lista
+    if pr is None:
+        pr = load_settings().get("credenciales_pruebas")
+        pr = pr if isinstance(pr, dict) else {}
+    cs = [c for c in lista if c["proveedor"] == prov]
+    if not cs:
+        return "sin_clave", "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",             "muted", "Poner clave"
+    act = next((c for c in cs if c["activa"]), None)
+    if act is None:
+        return "sin_activa", (f"{len(cs)} clave(s) guardada(s), ninguna activa: sus motores salen «no disponible» "
+                              "hasta que elijas una con «Usar esta»."), "orange_text", "Ver claves"
+    q = f"«{act['etiqueta']}» ••••{act['ultimos4']}"
+    if act["cuenta"] in _CLV["busy"]:
+        return "probando", f"{q}: probando… (sin gastar)", "muted", "Probar"
+    p = pr.get(act["cuenta"]) if isinstance(pr.get(act["cuenta"]), dict) else None
+    if p is None:
+        return "sin_probar", f"{q}: guardada, sin probar. «Probar» lo comprueba sin gastar.", "muted", "Probar"
+    cuando = str(p.get("at") or "")
+    cuando = f" ({cuando[8:10]}/{cuando[5:7]} {cuando[11:16]})" if len(cuando) >= 16 else ""
+    if p.get("ok"):
+        return "conectada", f"Conectada · {q}{cuando}. {p.get('texto') or ''}".strip(), "green_text", "Probar"
+    return "error", f"Error · {q}{cuando}: {p.get('texto') or 'falló la prueba'}", "red", "Probar"
+
+
+_CONEX_PUNTO = {"sin_clave": "muted", "sin_activa": "orange", "sin_probar": "muted", "probando": "blue",
+                "conectada": "green", "error": "red"}
+
+
+def _claves_conexiones_pintar(k, inst, lista=None, pr=None):
+    box = inst.get("conex")
+    if box is None:
+        return
+    for ch in box.winfo_children():
+        ch.destroy()
+    inst["conex_rows"] = {}
+    for i, prov in enumerate(CRED_ORDER):
+        info = CRED_PROVIDERS[prov]
+        est, txt, col, acc = claves_conexion_estado(prov, lista, pr)
+        tc = k.card(box)
+        tc.pack(fill="x", pady=(0 if i == 0 else 6, 0))
+        l1 = k.frame(tc)
+        l1.pack(fill="x", padx=12, pady=(8, 0))
+        punto = k.label(l1, "●", wrap=0, color=_CONEX_PUNTO[est])
+        punto.pack(side="left")
+        k.label(l1, info["label"], bold=True, wrap=0).pack(side="left", padx=(6, 0))
+        act = cred_activa(prov)
+        if est == "sin_clave":
+            cmd = (lambda p=prov, i2=inst: _claves_poner(i2, p))
+        elif est == "sin_activa":
+            cmd = (lambda i2=inst: _scroll_a(i2["box"], margen=48))
+        else:
+            cmd = (lambda c=act["cuenta"]: _claves_probar(c))
+        bt = k.button(l1, acc, cmd)
+        bt.pack(side="right")
+        if est == "probando":
+            k.set_enabled(bt, False)
+        lab = k.label(tc, txt, wrap=440, color=col if est != "sin_probar" else "muted")
+        lab.pack(anchor="w", fill="x", padx=12, pady=(2, 8))
+        inst["conex_rows"][prov] = {"estado": est, "texto": lab, "punto": punto, "boton": bt, "accion": acc,
+                                    "card": tc}
+
+
+def _claves_conexiones_refrescar():
+    """Solo las tarjetas de conexión (tras «Probar»): no rehace el resto, que puede tener texto a medias."""
+    for inst in _CLV["inst"].values():
+        if inst.get("kit") is not None and inst.get("conex") is not None:
+            try:
+                _claves_conexiones_pintar(inst["kit"], inst)
+            except Exception as e:
+                log(f"claves: no se pudieron pintar las conexiones ({type(e).__name__}: {e})")
+
+
+def _claves_poner(inst, prov):
+    """«Poner clave» de una tarjeta sin clave: el formulario con ese proveedor y el cursor en la clave."""
+    lab = CRED_PROVIDERS[prov]["label"]
+    try:
+        inst["f_prov"].set(lab)
+        _claves_form_prov(inst, lab)
+        if inst.get("f_card") is not None:
+            _scroll_a(inst["f_card"], margen=48)
+        inst["f_key"].focus_set()
+    except Exception as e:
+        log(f"claves: no se pudo preparar el formulario ({type(e).__name__}: {e})")
+
+
 def _claves_render_inst(k, inst, box, lista, gasto, topes, pr):
+    _claves_conexiones_pintar(k, inst, lista, pr)
     for ch in list(box.winfo_children()) + list(inst["apisjson"].winfo_children()):
         ch.destroy()
     inst["rows"] = {}
