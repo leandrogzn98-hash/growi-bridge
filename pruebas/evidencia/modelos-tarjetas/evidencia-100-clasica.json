@@ -1,0 +1,82 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-modelos-tarjetas-zrw_p2se",
+ "variante": "clasica",
+ "dpi": "100",
+ "build_gui_s": 2.93,
+ "a_ctk_por_tarjeta": {
+  "Tu PC": false,
+  "Quién responde": false,
+  "Qué puede hacer": false,
+  "Reglas": false
+ },
+ "a_ms_por_tarjeta": {
+  "Tu PC": 5,
+  "Quién responde": 6,
+  "Qué puede hacer": 1,
+  "Reglas": 3
+ },
+ "a_tipos": {
+  "mdl_specs": "Label",
+  "mdl_specs_detail": "Label",
+  "mdl_check_btn": "Button",
+  "mdl_engine_desc": "Label",
+  "mdl_abilities_box": "Frame",
+  "mdl_rules_box": "Frame",
+  "mdl_rule_entry": "Entry"
+ },
+ "a_tu_pc": {
+  "resumen": "Comprobando tu PC…",
+  "detalle": "Pulsa Comprobar mi PC: mira tu tarjeta de video, memoria y disco para decirte qué modelos caben.",
+  "esperado": "Aún no comprobé tu PC."
+ },
+ "a_habilidades": {
+  "lista": 8,
+  "interruptores": 8,
+  "tipo": [
+   "Canvas"
+  ]
+ },
+ "a_reglas": {
+  "archivo": [
+   {
+    "text": "Responde en español",
+    "on": true
+   },
+   {
+    "text": "No borres nada sin preguntar",
+    "on": false
+   }
+  ],
+  "interruptores": [
+   true,
+   false
+  ],
+  "tipo": [
+   "Canvas"
+  ]
+ },
+ "a_reglas_tras": {
+  "archivo": [
+   {
+    "text": "Responde en español",
+    "on": false
+   },
+   {
+    "text": "No borres nada sin preguntar",
+    "on": false
+   },
+   {
+    "text": "Regla de la prueba",
+    "on": true
+   }
+  ],
+  "filas": 3
+ },
+ "b_combobox_visible": true,
+ "clasica_motor": {
+  "valores": 10,
+  "elegido": "Claude Sonnet",
+  "primero_no_cabecera": "Automático (recomendado)"
+ },
+ "tracebacks_en_log": 0
+}

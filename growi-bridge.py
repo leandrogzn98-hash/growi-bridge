@@ -29133,6 +29133,7 @@ def start_pc_check():
 
 
 def _on_models_open():
+    _mdl4_al_abrir()  # tarjetas de motor, habilidades y reglas: se dibujan al abrir (t-modelos-tarjetas-045)
     try:
         _cadena_render()
     except Exception as e:
@@ -29262,9 +29263,9 @@ def _render_models():
     specs = _mdl["specs"]
     bg = THEME["card"]
     if _mdl["detecting"]:
-        w["mdl_specs"].config(text="Comprobando tu PC…")
+        w["mdl_specs"].configure(text="Comprobando tu PC…")
     else:
-        w["mdl_specs"].config(text=pc_specs_summary(specs))
+        w["mdl_specs"].configure(text=pc_specs_summary(specs))
     detail = "Pulsa Comprobar mi PC: mira tu tarjeta de video, memoria y disco para decirte qué modelos caben."
     if specs:
         cpu = specs.get("cpu") or {}
@@ -29276,8 +29277,8 @@ def _render_models():
                   + (f"Ollama {specs['ollama_version']}." if specs.get("ollama_version")
                      else "Ollama no está instalado (hace falta para los modelos de tu PC; es gratis).")
                   + f" Comprobado el {str(specs.get('detected_at', ''))[:16].replace('T', ' a las ')}.")
-    w["mdl_specs_detail"].config(text=detail)
-    w["mdl_check_btn"].config(state="disabled" if _mdl["detecting"] else "normal")
+    w["mdl_specs_detail"].configure(text=detail)
+    w["mdl_check_btn"].configure(state="disabled" if _mdl["detecting"] else "normal")
 
     catalog = load_catalog()
     installed = _mdl["installed"]
@@ -29940,7 +29941,8 @@ def _update_engine_desc():
     text = choice[2] if choice else ""
     if choice and _mdl["show_ids"]:
         text += f"\nNombre exacto: {choice[1]}"
-    lbl.config(text=text)
+    lbl.configure(text=text)
+    _mdl4_motores_pintar()
 
 
 def _on_engine_pick(_e=None):
@@ -29981,33 +29983,24 @@ def _toggle_ability(key, name, on):
 
 def _render_abilities():
     box = _widgets.get("mdl_abilities_box")
-    if box is None:
+    if box is None or _mdl4_diferir("habilidades"):
         return
     _clear(box)
-    bg = THEME["card"]
-    for a in list_abilities():
-        row = tk.Frame(box, bg=bg)
-        row.pack(fill="x", padx=16, pady=5)
-        left = tk.Frame(row, bg=bg)
-        left.pack(side="left", fill="x", expand=True)
-        tk.Label(left, text=a["name"], font=(FONT, 10, "bold"), bg=bg,
-                 fg=THEME["text"]).pack(anchor="w")
-        tk.Label(left, text=a["desc"], font=(FONT, 9), bg=bg,
-                 fg=THEME["muted"]).pack(anchor="w")
-        make_switch(row, a["on"], lambda on, k=a["key"], n=a["name"]: _toggle_ability(k, n, on),
-                    bg=bg).pack(side="right")
-        tk.Frame(box, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
+    k = getattr(box, "_kit", None) or _KitTk(box)
+    filas = [(a["name"], a["desc"], a["on"], lambda on, ky=a["key"], n=a["name"]: _toggle_ability(ky, n, on))
+             for a in list_abilities()]
     # herramientas de servidores MCP externos, cada una con su interruptor (t-mcp-streamable-http)
-    for cid, nombre, desc, on in mcp_herramientas_conocidas():
-        row = tk.Frame(box, bg=bg)
+    filas += [(f"MCP · {cid}: {nombre}", desc[:110], on,
+               lambda v, c=cid, n=nombre: mcp_herramienta_interruptor(c, n, v))
+              for cid, nombre, desc, on in mcp_herramientas_conocidas()]
+    for nombre, desc, on, cmd in filas:
+        row = k.frame(box)
         row.pack(fill="x", padx=16, pady=5)
-        left = tk.Frame(row, bg=bg)
+        _mdl4_interruptor(k, row, on, cmd).pack(side="right")
+        left = k.frame(row)
         left.pack(side="left", fill="x", expand=True)
-        tk.Label(left, text=f"MCP · {cid}: {nombre}", font=(FONT, 10, "bold"), bg=bg,
-                 fg=THEME["text"]).pack(anchor="w")
-        tk.Label(left, text=desc[:110], font=(FONT, 9), bg=bg, fg=THEME["muted"]).pack(anchor="w")
-        make_switch(row, on, lambda v, c=cid, n=nombre: mcp_herramienta_interruptor(c, n, v),
-                    bg=bg).pack(side="right")
+        k.label(left, nombre, bold=True, wrap=0).pack(anchor="w")
+        k.label(left, desc, muted=True, wrap=480).pack(anchor="w", fill="x")
         tk.Frame(box, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
 
 
@@ -30032,22 +30025,19 @@ def _refresh_channels():
 
 def _render_rules():
     box = _widgets.get("mdl_rules_box")
-    if box is None:
+    if box is None or _mdl4_diferir("reglas"):
         return
     _clear(box)
-    bg = THEME["card"]
+    k = getattr(box, "_kit", None) or _KitTk(box)
     rules = load_rules()
     if not rules:
-        tk.Label(box, text="Sin reglas. Escribe una abajo.", font=(FONT, 10), bg=bg,
-                 fg=THEME["muted"]).pack(anchor="w", padx=16, pady=6)
+        k.label(box, "Sin reglas. Escribe una abajo.", muted=True).pack(anchor="w", padx=16, pady=6)
     for i, r in enumerate(rules):
-        row = tk.Frame(box, bg=bg)
+        row = k.frame(box)
         row.pack(fill="x", padx=16, pady=5)
-        tk.Label(row, text=r["text"], font=(FONT, 10), bg=bg, fg=THEME["text"],
-                 wraplength=S(420), justify="left", anchor="w").pack(
-            side="left", fill="x", expand=True, anchor="w")
-        make_switch(row, r["on"], lambda on, i=i: _toggle_rule(i, on), bg=bg).pack(side="right")
-        ttk.Button(row, text="Quitar", command=lambda i=i: _remove_rule(i)).pack(side="right", padx=8)
+        _mdl4_interruptor(k, row, r["on"], lambda on, i=i: _toggle_rule(i, on)).pack(side="right")
+        k.button(row, "Quitar", lambda i=i: _remove_rule(i)).pack(side="right", padx=8)
+        k.label(row, r["text"], wrap=420).pack(side="left", fill="x", expand=True, anchor="w")
         tk.Frame(box, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
 
 
@@ -34362,6 +34352,224 @@ def _nm_done(mid, res, ok, msg):
             pass
 
 
+# ---- Modelos: las 4 tarjetas en CustomTkinter (t-modelos-tarjetas-045). Tu PC, Quién responde, Qué puede hacer
+# y Reglas, con el mismo contenido y los mismos manejadores (los mismos _widgets["mdl_..."], que ahora se
+# cambian con .configure, válido en Tk y en CTk). En CTk, «Quién responde» es una tarjeta grande por motor:
+# Automático (recomendado) primero, ✓ en el elegido, punto + estado y su coste real («sin datos» si no se
+# conoce). El desplegable de siempre queda como modelo de datos (oculto en CTk; a la vista en la clásica).
+# Respaldo: sin CTk, CTk roto al dibujar, piloto_ctk false o GROWI_BRIDGE_CTK=0 -> la clásica, tarjeta a tarjeta.
+_MDL4: dict = {"ctk": {}, "ms": {}, "motores_box": None, "motores_kit": None, "motores_rows": {}}
+
+
+def _mdl4_construir(tab, nombre, con_kit):
+    holder = tk.Frame(tab, bg=THEME["bg"])
+    holder.pack(fill="x")
+    t0 = time.perf_counter()
+    if _ctk_wanted():
+        try:
+            _teclado_ctk_patch()
+            con_kit(_KitCtk(holder, global_setup=False))
+            _MDL4["ctk"][nombre] = True
+            _MDL4["ms"][nombre] = round((time.perf_counter() - t0) * 1000)
+            return
+        except Exception as e:
+            log(f"modelos: «{nombre}» sin CustomTkinter ({type(e).__name__}: {e}); se usa la clásica")
+            for ch in holder.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    con_kit(_KitTk(holder))
+    _MDL4["ctk"][nombre] = False
+    _MDL4["ms"][nombre] = round((time.perf_counter() - t0) * 1000)
+
+
+def _mdl4_tu_pc(k):
+    card = k.section("Tu PC")
+    row = k.row(card, pady=(4, 2))
+    _widgets["mdl_check_btn"] = k.button(row, "Comprobar mi PC", start_pc_check, accent=True)
+    _widgets["mdl_check_btn"].pack(side="right")
+    _widgets["mdl_specs"] = k.label(row, "", bold=True, wrap=440)
+    _widgets["mdl_specs"].pack(side="left", anchor="w", fill="x", expand=True)
+    _widgets["mdl_specs_detail"] = k.label(card, "", muted=True, wrap=600)
+    _widgets["mdl_specs_detail"].pack(anchor="w", fill="x", padx=16, pady=(2, 14))
+
+
+def _mdl4_quien(k):
+    ctk_on = isinstance(k, _KitCtk)
+    card = k.section("Quién responde", "Elige quién te contesta cuando le pides algo desde la app.")
+    row = k.row(card, pady=(4, 2))
+    # El desplegable de siempre: en la clásica se ve; en CTk es el modelo de datos de las tarjetas.
+    cb = ttk.Combobox(row, width=34, font=(FONT, 10), state="readonly")
+    cb.bind("<<ComboboxSelected>>", _on_engine_pick)
+    _widgets["mdl_engine"] = cb
+
+    def _toggle_ids():
+        _mdl["show_ids"] = not _mdl["show_ids"]
+        _update_engine_desc()
+    if ctk_on:
+        box = k.frame(card)
+        box.pack(fill="x", padx=16, pady=(0, 4))
+        _MDL4.update(motores_box=box, motores_kit=k)
+        k.button(row, "Ver nombre exacto", _toggle_ids).pack(side="left")
+    else:
+        cb.pack(side="left")
+        tk.Button(row, text="Ver nombre exacto", font=(FONT, 9), bg=THEME["card"], fg=THEME["blue"],
+                  activebackground=THEME["card"], activeforeground=THEME["blue"], bd=0, cursor="hand2",
+                  command=_toggle_ids).pack(side="left", padx=10)
+        _MDL4.update(motores_box=None, motores_kit=None)
+    _widgets["mdl_engine_desc"] = k.label(card, "", wrap=600)
+    _widgets["mdl_engine_desc"].pack(anchor="w", fill="x", padx=16, pady=(6, 14))
+
+
+def _mdl4_que_puede(k):
+    card = k.section("Qué puede hacer", "Las habilidades de tu asistente. Si apagas una, deja de usarla en las "
+                                        "tareas.")
+    box = k.frame(card)
+    box.pack(fill="x", pady=(0, 12))
+    box._kit = k
+    _widgets["mdl_abilities_box"] = box
+
+
+def _mdl4_reglas(k):
+    card = k.section("Reglas", "Lo que tu asistente cumple siempre, sin que tengas que repetirlo. Se le dicen al "
+                               "principio de cada tarea.")
+    box = k.frame(card)
+    box.pack(fill="x")
+    box._kit = k
+    _widgets["mdl_rules_box"] = box
+    row = k.row(card, pady=(8, 14))
+    _widgets["mdl_rule_entry"] = k.entry(row, width=48)
+    _widgets["mdl_rule_entry"].pack(side="left", padx=(0, 8))
+    _widgets["mdl_rule_entry"].bind("<Return>", lambda _e: _add_rule())
+    k.button(row, "Añadir regla", _add_rule, accent=True).pack(side="left")
+
+
+def _mdl4_interruptor(k, parent, on, cmd):
+    if isinstance(k, _KitCtk):
+        return _switch_ctk(parent, on, cmd, THEME["card"])
+    return make_switch(parent, on, cmd, bg=THEME["card"])
+
+
+def motor_coste_txt(model):
+    """(texto, hay_dato) del coste de un motor del selector: tarifa de engines.json o gasto medido; si no
+    hay dato real, «sin datos» (nunca un precio inventado)."""
+    m = str(model or "")
+    if m == "motor:auto":
+        return "sin precio fijo: usa el más barato que lo hace bien (mira cada motor)", False
+    if m.startswith("ollama:") or m == "motor:llama":
+        return "$0: corre en tu PC", True
+    precios = load_engines()[0].get("precios") or {}
+    if m in ("sonnet", "opus", "haiku"):
+        p = (precios.get("por_millon") or {}).get((precios.get("alias") or {}).get(m, ""))
+        if isinstance(p, dict) and p.get("entrada") is not None and p.get("salida") is not None:
+            nota = "" if _claude_plan() == "api" else " · con tu plan es equivalente, no dinero"
+            return f"${p['entrada']:g} / ${p['salida']:g} por millón (entrada / salida, de lista){nota}", True
+        return "sin datos", False
+    if m.startswith("api:"):
+        _k, p = _precio(m.split(":", 2)[-1])
+        if isinstance(p, dict) and p.get("entrada") is not None:
+            return f"${p['entrada']:g} / ${p.get('salida', 0):g} por millón (de lista)", True
+        return "sin datos", False
+    mid = _motor_de_modelo(m)
+    x = costo_por_tarea_completada().get(mid or "") if mid else None
+    if x and x.get("por_completada") is not None:
+        return f"${x['por_completada']:.2f} por tarea completada (medido en {x['completadas']})", True
+    return "sin datos", False
+
+
+def motor_estado_txt(model):
+    """(color, texto) del estado de un motor del selector, sin llamadas lentas (no bloquea la ventana)."""
+    m = str(model or "")
+    if m == "motor:auto":
+        return "green", "Elige por ti en cada tarea y te dice quién respondió y por qué"
+    if m.startswith("ollama:"):
+        return "green", "Instalado en tu PC (Ollama)"
+    if m.startswith("api:"):
+        return "green", "Con tu clave de API"
+    mid = _motor_de_modelo(m)
+    eng = get_engine(mid) if mid else None
+    if eng is not None and eng.get("tipo") == "cli_sincrono":
+        ok, why = engine_status(mid)
+        return ("green", "Disponible") if ok else ("red", f"No disponible: {why}")
+    return "green", "Disponible (comprobado al hacer la lista)"
+
+
+def _mdl4_al_abrir():
+    """Lo pendiente de Modelos, al abrirla: dibujar ~120 widgets CTk en el arranque lo alargaba ~2,4 s
+    (Tk recalcula su geometría en cada update_idletasks de build_gui)."""
+    pend, _MDL4["pendiente"] = _MDL4.get("pendiente") or set(), set()
+    for nombre, fn in (("habilidades", _render_abilities), ("reglas", _render_rules),
+                       ("motores", _mdl4_motores_pintar)):
+        if nombre in pend:
+            try:
+                fn()
+            except Exception as e:
+                log(f"modelos: no se pudo dibujar {nombre} ({type(e).__name__}: {e})")
+
+
+def _mdl4_diferir(nombre):
+    """True si Modelos aún no está a la vista: se apunta y se dibuja al abrirla."""
+    if _widgets.get("pagina_actual") == "modelos":
+        return False
+    _MDL4.setdefault("pendiente", set()).add(nombre)
+    return True
+
+
+def _mdl4_motores_pintar():
+    box, k = _MDL4.get("motores_box"), _MDL4.get("motores_kit")
+    cb = _widgets.get("mdl_engine")
+    if box is None or k is None or cb is None:
+        return
+    if _mdl4_diferir("motores"):
+        return
+    for ch in box.winfo_children():
+        ch.destroy()
+    _MDL4["motores_rows"] = {}
+    elegido = cb.get()
+    for label, model, _desc in engine_choices():
+        sel = label == elegido
+        tc = k.card(box)
+        tc.pack(fill="x", pady=(0, 6))
+        if sel:
+            tc.configure(border_color=THEME["blue"], border_width=2)
+        l1 = k.frame(tc)
+        l1.pack(fill="x", padx=12, pady=(10, 0))
+        chk = k.label(l1, "✓" if sel else " ", bold=True, wrap=0, color="blue")
+        chk.configure(width=18)
+        chk.pack(side="left")
+        bt = k.button(l1, "Elegido" if sel else "Elegir", lambda lab=label: _mdl4_elegir(lab))
+        bt.pack(side="right")
+        if sel:
+            k.set_enabled(bt, False)
+            try:  # desactivado: Tab no se para en él
+                bt._canvas.configure(takefocus=0)
+            except Exception:
+                pass
+        k.label(l1, label, bold=True, wrap=0).pack(side="left", padx=(4, 0))
+        col, est = motor_estado_txt(model)
+        l2 = k.frame(tc)
+        l2.pack(fill="x", padx=12, pady=(2, 0))
+        k.label(l2, "●", wrap=0, color=col).pack(side="left", anchor="n")
+        estl = k.label(l2, est, wrap=420)
+        estl.pack(side="left", padx=(6, 0), fill="x", expand=True)
+        coste, hay = motor_coste_txt(model)
+        cl = k.label(tc, "Coste: " + coste, muted=True, wrap=520)
+        cl.pack(anchor="w", fill="x", padx=12, pady=(2, 10))
+        for w in (tc, l1, l2):
+            w.bind("<Button-1>", lambda _e, lab=label: _mdl4_elegir(lab), add=True)
+        _MDL4["motores_rows"][label] = {"model": model, "elegido": sel, "check": chk, "estado": estl,
+                                        "coste": cl, "hay_coste": hay, "boton": bt, "card": tc}
+
+
+def _mdl4_elegir(label):
+    cb = _widgets.get("mdl_engine")
+    if cb is None or label == cb.get():
+        return
+    cb.set(label)
+    _on_engine_pick()
+
+
 def _build_models_page(tab):
     bg, cbg = THEME["bg"], THEME["card"]
     tk.Label(tab, text="Modelos", font=(FONT, 22, "bold"), bg=bg,
@@ -34380,39 +34588,9 @@ def _build_models_page(tab):
     except Exception as e:
         log(f"respaldo: no se pudo dibujar la cadena en Modelos ({type(e).__name__}: {e})")
 
-    # Tu PC (Comprobar mi PC)
-    card = _card(tab, "Tu PC")
-    row = tk.Frame(card, bg=cbg)
-    row.pack(fill="x", padx=16, pady=(0, 2))
-    _widgets["mdl_specs"] = tk.Label(row, text="", font=(FONT, 11, "bold"), bg=cbg,
-                                     fg=THEME["text"], wraplength=S(440), justify="left")
-    _widgets["mdl_specs"].pack(side="left", anchor="w")
-    _widgets["mdl_check_btn"] = ttk.Button(row, text="Comprobar mi PC", style="Accent.TButton",
-                                           command=start_pc_check)
-    _widgets["mdl_check_btn"].pack(side="right")
-    _widgets["mdl_specs_detail"] = tk.Label(card, text="", font=(FONT, 9), bg=cbg,
-                                            fg=THEME["muted"], wraplength=S(600), justify="left")
-    _widgets["mdl_specs_detail"].pack(anchor="w", padx=16, pady=(2, 14))
-
-    # Quien responde
-    card = _card(tab, "Quién responde",
-                 "Elige quién te contesta cuando le pides algo desde la app.")
-    row = tk.Frame(card, bg=cbg)
-    row.pack(fill="x", padx=16)
-    _widgets["mdl_engine"] = ttk.Combobox(row, width=34, font=(FONT, 10), state="readonly")
-    _widgets["mdl_engine"].pack(side="left")
-    _widgets["mdl_engine"].bind("<<ComboboxSelected>>", _on_engine_pick)
-
-    def _toggle_ids():
-        _mdl["show_ids"] = not _mdl["show_ids"]
-        _update_engine_desc()
-
-    tk.Button(row, text="Ver nombre exacto", font=(FONT, 9), bg=cbg, fg=THEME["blue"],
-              activebackground=cbg, activeforeground=THEME["blue"], bd=0, cursor="hand2",
-              command=_toggle_ids).pack(side="left", padx=10)
-    _widgets["mdl_engine_desc"] = tk.Label(card, text="", font=(FONT, 10), bg=cbg,
-                                           fg=THEME["text"], justify="left")
-    _widgets["mdl_engine_desc"].pack(anchor="w", padx=16, pady=(6, 14))
+    # Tu PC y Quién responde (t-modelos-tarjetas-045): CustomTkinter con la clásica de respaldo
+    _mdl4_construir(tab, "Tu PC", _mdl4_tu_pc)
+    _mdl4_construir(tab, "Quién responde", _mdl4_quien)
 
     # Motores (ficha honesta) y Nuevo motor: CustomTkinter con respaldo clasico
     _build_motores(tab)
@@ -34426,11 +34604,8 @@ def _build_models_page(tab):
     _mdl["specs"] = load_pc_specs()
     _build_mdl_cards(tab)
 
-    # Que puede hacer (habilidades)
-    card = _card(tab, "Qué puede hacer",
-                 "Las habilidades de tu asistente. Si apagas una, deja de usarla en las tareas.")
-    _widgets["mdl_abilities_box"] = tk.Frame(card, bg=cbg)
-    _widgets["mdl_abilities_box"].pack(fill="x", pady=(0, 12))
+    # Que puede hacer (habilidades): CTk con respaldo clasico
+    _mdl4_construir(tab, "Qué puede hacer", _mdl4_que_puede)
 
     # Donde te habla (canales, solo lectura)
     card = _card(tab, "Dónde te habla")
@@ -34449,18 +34624,8 @@ def _build_models_page(tab):
         _widgets[f"chan_{key}_state"] = st
     tk.Frame(card, bg=cbg, height=S(8)).pack()
 
-    # Reglas
-    card = _card(tab, "Reglas",
-                 "Lo que tu asistente cumple siempre, sin que tengas que repetirlo. "
-                 "Se le dicen al principio de cada tarea.")
-    _widgets["mdl_rules_box"] = tk.Frame(card, bg=cbg)
-    _widgets["mdl_rules_box"].pack(fill="x")
-    row = tk.Frame(card, bg=cbg)
-    row.pack(fill="x", padx=16, pady=(8, 14))
-    _widgets["mdl_rule_entry"] = ttk.Entry(row, width=48, font=(FONT, 10))
-    _widgets["mdl_rule_entry"].pack(side="left", padx=(0, 8))
-    _widgets["mdl_rule_entry"].bind("<Return>", lambda _e: _add_rule())
-    ttk.Button(row, text="Añadir regla", style="Accent.TButton", command=_add_rule).pack(side="left")
+    # Reglas: CTk con respaldo clasico
+    _mdl4_construir(tab, "Reglas", _mdl4_reglas)
 
     _render_abilities()
     _render_rules()

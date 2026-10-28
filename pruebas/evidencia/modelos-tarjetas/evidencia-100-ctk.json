@@ -1,0 +1,159 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-modelos-tarjetas-sqz120pa",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 13.54,
+ "a_ctk_por_tarjeta": {
+  "Tu PC": true,
+  "Quién responde": true,
+  "Qué puede hacer": true,
+  "Reglas": true
+ },
+ "a_ms_por_tarjeta": {
+  "Tu PC": 15,
+  "Quién responde": 23,
+  "Qué puede hacer": 8,
+  "Reglas": 16
+ },
+ "a_tipos": {
+  "mdl_specs": "CTkLabel",
+  "mdl_specs_detail": "CTkLabel",
+  "mdl_check_btn": "CTkButton",
+  "mdl_engine_desc": "CTkLabel",
+  "mdl_abilities_box": "CTkFrame",
+  "mdl_rules_box": "CTkFrame",
+  "mdl_rule_entry": "CTkEntry"
+ },
+ "a_tu_pc": {
+  "resumen": "RTX 3060 Laptop, 6 GB VRAM, 15 GB RAM y 77 GB libres",
+  "detalle": "Procesador: AMD Ryzen 7 4800H with Radeon Graphics (8 núcleos). VRAM libre al comprobar: 5.9 GB. RAM libre: 3.5 GB. Olla",
+  "esperado": "RTX 3060 Laptop, 6 GB VRAM, 15 GB RAM y 77 GB libres"
+ },
+ "a_habilidades": {
+  "lista": 8,
+  "interruptores": 8,
+  "tipo": [
+   "_SwitchBarra"
+  ]
+ },
+ "a_reglas": {
+  "archivo": [
+   {
+    "text": "Responde en español",
+    "on": true
+   },
+   {
+    "text": "No borres nada sin preguntar",
+    "on": false
+   }
+  ],
+  "interruptores": [
+   true,
+   false
+  ],
+  "tipo": [
+   "_SwitchBarra"
+  ]
+ },
+ "a_reglas_tras": {
+  "archivo": [
+   {
+    "text": "Responde en español",
+    "on": false
+   },
+   {
+    "text": "No borres nada sin preguntar",
+    "on": false
+   },
+   {
+    "text": "Regla de la prueba",
+    "on": true
+   }
+  ],
+  "filas": 3
+ },
+ "b_combobox_visible": false,
+ "b_auto": {
+  "primero": "Automático (recomendado)",
+  "texto_esperado": "Automático (recomendado)",
+  "check": "✓",
+  "elegido": true,
+  "settings_motor": "auto",
+  "otros_con_check": []
+ },
+ "c_coste": {
+  "Automático (recomendado)": {
+   "coste": "Coste: sin precio fijo: usa el más barato que lo hace bien (mira cada motor)",
+   "hay_dato": false,
+   "estado": "Elige por ti en cada tarea y te dice quién respondió y por qué",
+   "card": "CTkFrame",
+   "boton": "CTkButton"
+  },
+  "Claude Sonnet": {
+   "coste": "Coste: $2 / $10 por millón (entrada / salida, de lista) · con tu plan es equivalente, no dinero",
+   "hay_dato": true,
+   "estado": "Disponible",
+   "card": "CTkFrame",
+   "boton": "CTkButton"
+  },
+  "Claude Opus": {
+   "coste": "Coste: $4 / $20 por millón (entrada / salida, de lista) · con tu plan es equivalente, no dinero",
+   "hay_dato": true,
+   "estado": "Disponible",
+   "card": "CTkFrame",
+   "boton": "CTkButton"
+  },
+  "Claude Haiku": {
+   "coste": "Coste: $0.1 / $0.5 por millón (entrada / salida, de lista) · con tu plan es equivalente, no dinero",
+   "hay_dato": true,
+   "estado": "Disponible",
+   "card": "CTkFrame",
+   "boton": "CTkButton"
+  },
+  "Codex (por internet)": {
+   "coste": "Coste: sin datos",
+   "hay_dato": false,
+   "estado": "Disponible",
+   "card": "CTkFrame",
+   "boton": "CTkButton"
+  },
+  "Hermes 3 8B · Ollama (en tu PC) $0": {
+   "coste": "Coste: $0: corre en tu PC",
+   "hay_dato": true,
+   "estado": "Instalado en tu PC (Ollama)",
+   "card": "CTkFrame",
+   "boton": "CTkButton"
+  }
+ },
+ "b_elegir_otro": {
+  "elegido": [
+   "Claude Sonnet"
+  ],
+  "settings": {
+   "motor": null,
+   "default_engine": "sonnet"
+  }
+ },
+ "foco": {
+  "Automático (recomendado)": {
+   "takefocus": "1",
+   "espacio": true
+  },
+  "Claude Sonnet": {
+   "takefocus": "0",
+   "espacio": true
+  },
+  "Claude Opus": {
+   "takefocus": "1",
+   "espacio": true
+  }
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 478,
+  "linea1_max": 291,
+  "estado_max": 450,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}
