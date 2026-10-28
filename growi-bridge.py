@@ -4466,7 +4466,11 @@ def validate_task(data):
         "dag": data.get("dag") if isinstance(data.get("dag"), dict) else None,
         "presupuesto_max_usd": (float(data["presupuesto_max_usd"]) if isinstance(data.get("presupuesto_max_usd"),
                                                                                   (int, float))
-                                and data["presupuesto_max_usd"] > 0 else None),
+                                and data["presupuesto_max_usd"] > 0 else
+                                # «no gastes más de $X en esto» dicho en el encargo
+                                (float(_m.group(1).replace(",", ".")) if (_m := _FRENO_RE.search(
+                                    str(data.get("prompt") or ""))) else None)),
+        "proyecto": str(data["proyecto"])[:60] if data.get("proyecto") else None,
         "enrutado": enrutado,
         "asistente": asis["id"] if asis else None,
         "lane": LANE if LANE == "b" else (data.get("lane") or None),
@@ -6927,6 +6931,7 @@ def _base_result(task, motor_id):
         "motor": motor_id, "modelo": task.get("modelo"),
         "ronda": task.get("ronda", 0), "tarea_padre": task.get("tarea_padre"),
         "raiz": task.get("raiz") or task["id"], "fase": task.get("fase"),
+        "proyecto": _proyecto_nombre(task.get("cwd"), task.get("proyecto")),  # t-gasto-pronostico
     }
 
 
@@ -19765,6 +19770,140 @@ def _spend_loop():
         time.sleep(300)
 
 
+# ---- pronostico e historial de 7 dias por proyecto (t-gasto-pronostico).
+# Siempre sobre lo ACUMULADO: la cuota restante de Max no tiene API publica,
+# asi que nunca hay cuenta atras de reinicio ni «te quedan X».
+_DIAS_SEM = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_PICO = {"avisado": None}
+_FRENO_RE = re.compile(r"no gastes m[aá]s de\s*(?:US)?\$?\s*(\d+(?:[.,]\d+)?)\s*(?:d[oó]lares|usd|\$)?", re.I)
+
+
+def _proyecto_nombre(cwd, declarado=None):
+    if declarado:
+        return str(declarado)[:60]
+    if not cwd:
+        return "general"
+    try:
+        p = Path(cwd)
+        if p.resolve() in (INBOX.resolve(), SHARE.resolve()):
+            return "general"
+        return p.name or str(p)
+    except OSError:
+        return str(cwd)[-40:]
+
+
+def gasto_7dias(ahora=None):
+    """Filas (dia, proyecto, modelo, dinero, costo) de los ultimos 7 dias,
+    leidas de los .result.json reales (con su proyecto: el declarado o la
+    carpeta de trabajo)."""
+    ahora = ahora or datetime.now().astimezone()
+    desde = (ahora - timedelta(days=7)).timestamp()
+    plan = _claude_plan()
+    cwd_of = {}
+    for f in list(DONE.glob("*.task.json"))[-800:]:
+        try:
+            t = json.loads(f.read_text(encoding="utf-8"))
+            cwd_of[str(t.get("id") or f.stem)] = (t.get("cwd"), t.get("proyecto"))
+        except (OSError, ValueError):
+            pass
+    filas = []
+    for f in RESULTS.glob("*.result.json"):
+        try:
+            if f.stat().st_mtime < desde:
+                continue
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        c = d.get("cost_usd")
+        kind = _money_kind(d, plan)
+        if kind == "otro" and not isinstance(c, (int, float)):
+            continue
+        cwd, decl = cwd_of.get(str(d.get("id")), (None, None))
+        proy = d.get("proyecto") or _proyecto_nombre(cwd, decl)
+        ts = _iso_ts(d.get("finished_at") or d.get("started_at")) or f.stat().st_mtime
+        filas.append({"dia": datetime.fromtimestamp(ts).strftime("%Y-%m-%d"), "proyecto": proy,
+                      "modelo": d.get("modelo") or d.get("motor") or "?", "dinero": kind,
+                      "costo": float(c) if isinstance(c, (int, float)) else 0.0, "ts": ts})
+    return filas
+
+
+def gasto_por_proyecto_7d(filas=None):
+    out = {}
+    for r in filas if filas is not None else gasto_7dias():
+        x = out.setdefault(r["proyecto"], {"real": 0.0, "equiv": 0.0, "local": 0, "n": 0, "dias": set(),
+                                           "modelos": set()})
+        if r["dinero"] == "local":
+            x["local"] += 1
+        elif r["dinero"] == "real":
+            x["real"] += r["costo"]
+        else:
+            x["equiv"] += r["costo"]
+        x["n"] += 1
+        x["dias"].add(r["dia"])
+        x["modelos"].add(r["modelo"])
+    return out
+
+
+def pronostico_semana(ahora=None, filas=None):
+    """Una division y una frase: lo acumulado desde el lunes, proyectado a
+    la semana. Con un limite propio (aviso_cuota_semanal_usd) dice si vas
+    bien / justo / cuando te quedarias sin semana; sin el, solo el ritmo."""
+    ahora = ahora or datetime.now().astimezone()
+    lunes = (ahora - timedelta(days=ahora.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    filas = gasto_7dias(ahora) if filas is None else filas
+    acum = sum(r["costo"] for r in filas if r["ts"] >= lunes.timestamp() and r["dinero"] in ("equiv", "real", "otro"))
+    dias = max((ahora - lunes).total_seconds() / 86400, 0.25)
+    ritmo = acum / dias
+    proy = ritmo * 7
+    base = f"sobre tu acumulado de ${acum:.2f} en {dias:.1f} días de 7 (desde el lunes)"
+    lim = load_settings().get("aviso_cuota_semanal_usd")
+    if acum <= 0:
+        frase = "esta semana todavía no hay gasto con suscripción ni API"
+    elif isinstance(lim, (int, float)) and lim > 0:
+        if proy <= 0.8 * lim:
+            frase = f"vas bien: a este ritmo acabarías la semana en ${proy:.2f} de tus ${lim:.2f}"
+        elif proy <= lim:
+            frase = f"vas justo: a este ritmo acabarías la semana en ${proy:.2f} de tus ${lim:.2f}"
+        else:
+            dia_fin = lunes + timedelta(days=lim / ritmo)
+            frase = (f"te vas a quedar sin semana el {_DIAS_SEM[dia_fin.weekday()]}" if dia_fin < lunes +
+                     timedelta(days=7) else "vas justo")
+            frase += f" (a este ritmo, ${proy:.2f} frente a tus ${lim:.2f})"
+    else:
+        frase = (f"a este ritmo acabarías la semana en ${proy:.2f}; sin un límite tuyo "
+                 "(aviso_cuota_semanal_usd) no puedo decir si te alcanza")
+    return {"acumulado": round(acum, 4), "dias": round(dias, 2), "proyectado": round(proy, 4), "frase": frase,
+            "base": base, "texto": f"Pronóstico: {frase} — {base}. Es sobre lo acumulado: Anthropic no publica cuánto "
+                                   "te queda de Max ($ equivalente Max, no dinero real)."}
+
+
+def pico_de_gasto(filas=None, ahora=None):
+    """Hoy >= 2 veces el promedio diario de los 7 dias anteriores -> aviso."""
+    ahora = ahora or datetime.now().astimezone()
+    filas = gasto_7dias(ahora) if filas is None else filas
+    hoy = ahora.strftime("%Y-%m-%d")
+    caro = [r for r in filas if r["dinero"] != "local"]
+    g_hoy = sum(r["costo"] for r in caro if r["dia"] == hoy)
+    antes = [r for r in caro if r["dia"] != hoy]
+    prom = sum(r["costo"] for r in antes) / 7
+    return {"hoy": round(g_hoy, 4), "promedio_7d": round(prom, 4),
+            "pico": g_hoy > 0.05 and prom > 0 and g_hoy >= 2 * prom}
+
+
+def _pronostico_avisar():
+    try:
+        p = pico_de_gasto()
+    except Exception as e:
+        log(f"gasto: pico: {type(e).__name__}: {e}")
+        return None
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    if p["pico"] and _PICO["avisado"] != hoy:
+        _PICO["avisado"] = hoy
+        toast(f"Gasto de hoy: {p['hoy'] / max(p['promedio_7d'], 1e-9):.1f}x tu promedio", ("gasto",))
+        log(f"gasto: PICO: hoy ${p['hoy']:.2f} >= 2 x promedio de 7 días ${p['promedio_7d']:.2f}")
+    return p
+
+
 def spend_lines():
     """Las 3 lineas del tooltip de la bandeja."""
     d = _SP.get("data")
@@ -19802,6 +19941,7 @@ def _after_spend():
                 _SP["warned"].add(key)
                 toast(f"Max al {pct:.0f}%: pasa lo nuevo a local", ("gasto",))
                 break
+    _pronostico_avisar()  # hoy >= 2x el promedio de 7 dias: aviso
     _update_tray_title()
     _render_spend()
     _tray_state[0] = None  # redibujar el numero
@@ -19889,6 +20029,24 @@ def _render_spend():
     w["sp_when"].config(text=("Desactualizado: " if stale else "Actualizado a las ")
                         + datetime.fromtimestamp(_SP["at"]).strftime("%H:%M")
                         + ". Se recalcula cada 5 min.")
+    if w.get("sp_pron") is not None:
+        try:
+            filas = gasto_7dias()
+            w["sp_pron"].config(text=pronostico_semana(filas=filas)["texto"])
+            pk = pico_de_gasto(filas)
+            w["sp_pico"].config(text=(f"⚠ Pico: hoy llevas ${pk['hoy']:.2f}, {pk['hoy'] / pk['promedio_7d']:.1f} veces tu "
+                                      f"promedio diario de 7 días (${pk['promedio_7d']:.2f}). Mira qué tarea se está "
+                                      "desbocando en rondas." if pk["pico"] else ""),
+                                fg=THEME["orange_text"])
+            pp = gasto_por_proyecto_7d(filas)
+            lineas = ["Últimos 7 días por proyecto ($ real · $ equivalente Max · tareas $0 local · tareas · días · modelos):"]
+            for nom, x in sorted(pp.items(), key=lambda kv: -(kv[1]["real"] + kv[1]["equiv"]))[:8]:
+                lineas.append(f"  {nom[:24]:<24} ${x['real']:>6.2f} real · ${x['equiv']:>6.2f} equiv. Max · "
+                              f"{x['local']:>3} local · {x['n']:>3} tareas · {len(x['dias'])} días · "
+                              f"{', '.join(sorted(x['modelos']))[:40]}")
+            w["sp_7d"].config(text="\n".join(lineas) if pp else "Últimos 7 días: sin tareas con gasto todavía.")
+        except Exception as e:
+            log(f"gasto: pronóstico: {type(e).__name__}: {e}")
     tree = w.get("sp_tree")
     if tree is None:
         return
@@ -19941,7 +20099,12 @@ def _build_spend_card(tab):
     tree.pack(fill="x", padx=16, pady=4)
     _widgets["sp_tree"] = tree
     _widgets["sp_when"] = tk.Label(card, text="", font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"])
-    _widgets["sp_when"].pack(anchor="w", padx=16, pady=(0, 12))
+    _widgets["sp_when"].pack(anchor="w", padx=16, pady=(0, 6))
+    # t-gasto-pronostico: pronóstico sobre lo acumulado, pico y 7 días por proyecto
+    for _k, _f in (("sp_pron", (FONT, 10, "bold")), ("sp_pico", (FONT, 10, "bold")), ("sp_7d", ("Consolas", 9))):
+        _widgets[_k] = tk.Label(card, text="", font=_f, bg=THEME["card"], fg=THEME["text"], justify="left",
+                                anchor="w", wraplength=S(620))
+        _widgets[_k].pack(anchor="w", fill="x", padx=16, pady=(0, 4))
     _render_spend()
 
 

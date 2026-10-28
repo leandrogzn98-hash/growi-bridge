@@ -1,0 +1,85 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-pron-x9aqwqeu",
+ "freno_leido_del_encargo": 0.5,
+ "tarea_real": {
+  "proyecto_en_el_resultado": "HAYAI",
+  "costo": 0.9,
+  "estado": "necesita_decision",
+  "reporte": "Parada por el tope de gasto: lleva $0.90 de $0.50 (con reintentos, rondas y revisiones). No sigue gastando: decide tú si subes el tope o la cierras."
+ },
+ "b_por_proyecto_7d": {
+  "Aqualine": {
+   "real": 0.0,
+   "equiv": 1.2,
+   "local": 0,
+   "n": 6,
+   "dias": [
+    "2026-10-22",
+    "2026-10-23",
+    "2026-10-24",
+    "2026-10-25",
+    "2026-10-26",
+    "2026-10-27"
+   ],
+   "modelos": [
+    "sonnet"
+   ]
+  },
+  "Summit Maker": {
+   "real": 0.0,
+   "equiv": 0.6,
+   "local": 6,
+   "n": 12,
+   "dias": [
+    "2026-10-22",
+    "2026-10-23",
+    "2026-10-24",
+    "2026-10-25",
+    "2026-10-26",
+    "2026-10-27"
+   ],
+   "modelos": [
+    "hermes",
+    "sonnet"
+   ]
+  },
+  "HAYAI": {
+   "real": 0.0,
+   "equiv": 0.9,
+   "local": 0,
+   "n": 1,
+   "dias": [
+    "2026-10-28"
+   ],
+   "modelos": [
+    "claude"
+   ]
+  }
+ },
+ "a_pronostico_sin_limite": {
+  "acumulado": 1.5,
+  "dias": 2.03,
+  "proyectado": 5.1644,
+  "frase": "a este ritmo acabarías la semana en $5.16; sin un límite tuyo (aviso_cuota_semanal_usd) no puedo decir si te alcanza",
+  "base": "sobre tu acumulado de $1.50 en 2.0 días de 7 (desde el lunes)",
+  "texto": "Pronóstico: a este ritmo acabarías la semana en $5.16; sin un límite tuyo (aviso_cuota_semanal_usd) no puedo decir si te alcanza — sobre tu acumulado de $1.50 en 2.0 días de 7 (desde el lunes). Es sobre lo acumulado: Anthropic no publica cuánto te queda de Max ($ equivalente Max, no dinero real)."
+ },
+ "a_pronostico_limite_50": "Pronóstico: vas bien: a este ritmo acabarías la semana en $5.16 de tus $50.00 — sobre tu acumulado de $1.50 en 2.0 días de 7 (desde el lunes). Es sobre lo acumulado: Anthropic no publica cuánto te queda de Max ($ equivalente Max, no dinero real).",
+ "a_pronostico_limite_2": "Pronóstico: te vas a quedar sin semana el miércoles (a este ritmo, $5.16 frente a tus $2.00) — sobre tu acumulado de $1.50 en 2.0 días de 7 (desde el lunes). Es sobre lo acumulado: Anthropic no publica cuánto te queda de Max ($ equivalente Max, no dinero real).",
+ "c_pico": {
+  "hoy": 0.9,
+  "promedio_7d": 0.2571,
+  "pico": true
+ },
+ "c_avisos": [
+  "Gasto de hoy: 3.5x tu promedio"
+ ],
+ "d_tarjeta": {
+  "sp_pron": "Pronóstico: te vas a quedar sin semana el miércoles (a este ritmo, $5.16 frente a tus $2.00) — sobre tu acumulado de $1.50 en 2.0 días de 7 (desde el lunes). Es sobre lo acumulado: Anthropic no publica cuánto te queda de Max ($ equivalente Max, no dinero real).",
+  "sp_pico": "⚠ Pico: hoy llevas $0.90, 3.5 veces tu promedio diario de 7 días ($0.26). Mira qué tarea se está desbocando en rondas.",
+  "sp_7d": "Últimos 7 días por proyecto ($ real · $ equivalente Max · tareas $0 local · tareas · días · modelos):\n  Aqualine                 $  0.00 real · $  1.20 equiv. Max ·   0 local ·   6 tareas · 6 días · sonnet\n  HAYAI                    $  0.00 real · $  0.90 equiv. Max ·   0 local ·   1 tareas · 1 días · claude\n  Summit Maker             $  0.00 real · $  0.60 equiv. Max ·   6 local ·  12 tareas · 6 días · hermes, sonnet",
+  "sp_real": "$0.00",
+  "sp_equiv": "$0.90",
+  "sp_local": "$0"
+ }
+}
