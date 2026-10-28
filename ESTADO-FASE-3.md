@@ -61,3 +61,4 @@ construye sobre lo que sí existe en el código.
 | 3 | t-paralelo-seguro-030 | **LISTO** (FALTA: solapamiento descubierto a mitad — sin rastreo de escrituras por proceso) | `8fc3100`, `ESTADO-PARALELO-SEGURO.md` |
 | 4 | t-agentes-paralelos-030 | **LISTO** (FALTA: VRAM por tamaño de modelo — hoy es la regla «nunca dos locales») | `63749a6`, `ESTADO-AGENTES-PARALELOS.md` |
 | 5 | t-proyectos | **LISTO** (FALTA: las carpetas reales de Aqualine / Summit Maker / HAYAI no están en este PC: quedan como FALTA) | `0578a82`, `ESTADO-PROYECTOS.md` |
+| 6 | t-portapapeles | **LISTO** (FALTA: heurística de secretos en frases; editor de apps sensibles) | `6fdd4d3`, `ESTADO-PORTAPAPELES.md` |
