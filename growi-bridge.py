@@ -11093,6 +11093,9 @@ def mem_bloque_prompt(task):
     piezas = [("MEMORY.md", MEMORY_DIR / "MEMORY.md", False, 0.5),
               (f"Nota de hoy ({hoy.isoformat()}.md)", mem_nota(hoy), True, 0.3),
               (f"Nota de ayer ({ayer.isoformat()}.md)", mem_nota(ayer), True, 0.2)]
+    if _tarea_de_grupo(task):  # la memoria larga nunca entra en un contexto de grupo (fugas)
+        piezas = piezas[1:]
+        log(f"memoria [{tid}]: contexto de grupo: MEMORY.md no se carga")
     textos = []
     for titulo, p, fin, cuota in piezas:
         try:
@@ -11805,6 +11808,86 @@ def _mem_sync_loop(stop=None):
         except Exception as e:
             log(f"memoria: sync automática: {type(e).__name__}: {e}")
         time.sleep(20)
+
+
+# ---- memoria buscable (t-memoria-buscable): por palabras + fecha, sin
+# vectores ni IA generativa. Lee los Markdown POR DEMANDA en cada busqueda
+# (nunca carga la memoria entera de antemano). El decaimiento solo ORDENA:
+# lo reciente y lo reforzado arriba, lo viejo abajo pero presente. Nada se
+# borra por viejo.
+_MEM_QUE_SE_RE = re.compile(r"^\s*(?:qu[eé]\s+s[eé]\s+de|que\s+se\s+de|memoria\s*:)\s*(?P<q>.+)$", re.I)
+_MEM_FECHA_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+MEM_MEDIA_VIDA_DIAS = 30
+
+
+def mem_buscar_ordenado(q, mostrar=30):
+    """(resultados, medidas). Cada resultado: texto, archivo, linea, fecha
+    (o None = «sin origen registrado»), origen en palabras, refuerzo, puntos."""
+    t0 = time.perf_counter()
+    toks = [t for t in _norm(q).split() if t]
+    hits, leidos, bytes_ = [], 0, 0
+    if not toks or not MEMORY_DIR.is_dir():
+        return [], {"ms": 0, "archivos": 0, "bytes": 0, "total": 0}
+    hoy = mem_hoy()
+    for p in MEMORY_DIR.rglob("*.md"):
+        try:
+            txt = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        leidos += 1
+        bytes_ += len(txt)
+        m = _MEM_FECHA_RE.match(p.stem)
+        fecha_archivo = m.group(1) if m else None
+        fecha_seccion = None
+        for i, line in enumerate(txt.splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                ms = _MEM_FECHA_RE.search(line)
+                fecha_seccion = ms.group(1) if ms else None
+            n = _norm(line)
+            if all(t in n for t in toks):
+                fecha = fecha_archivo or fecha_seccion
+                origen = (f"nota diaria del {fecha_archivo}" if fecha_archivo else
+                          f"{p.name} (sección del {fecha_seccion})" if fecha_seccion else p.name)
+                hits.append({"texto": line.strip()[:240], "archivo": _mem_rel(p), "ruta": str(p), "linea": i,
+                             "fecha": fecha, "origen": origen if fecha else f"{p.name}: sin origen registrado"})
+    # refuerzo: el mismo hecho mencionado en varios sitios sube
+    claves = [" ".join(sorted(set(_norm(h["texto"]).split()))[:8]) for h in hits]
+    for h, k in zip(hits, claves):
+        h["refuerzo"] = claves.count(k)
+        try:
+            dias = (hoy - datetime.fromisoformat(h["fecha"]).date()).days if h["fecha"] else 365
+        except ValueError:
+            dias = 365
+        h["dias"] = max(dias, 0)
+        h["puntos"] = round(0.5 ** (h["dias"] / MEM_MEDIA_VIDA_DIAS) + 0.25 * (h["refuerzo"] - 1), 4)
+    hits.sort(key=lambda h: -h["puntos"])
+    med = {"ms": round((time.perf_counter() - t0) * 1000, 1), "archivos": leidos, "bytes": bytes_,
+           "total": len(hits)}
+    log(f"memoria: buscar «{q}»: {len(hits)} resultado(s) en {leidos} archivo(s), {bytes_} bytes leídos al momento, "
+        f"{med['ms']} ms")
+    return hits, med
+
+
+def _mem_paleta_items(q):
+    hits, med = mem_buscar_ordenado(q)
+    items = []
+    for h in hits[:12]:
+        cuando = h["fecha"] or "sin fecha"
+        items.append({"id": "_mem_hit", "label": f"{h['texto'][:70]}  ·  {h['origen']} ({cuando})",
+                      "fn": lambda r=h["ruta"]: os.startfile(r)})
+    if len(hits) > 12:
+        items.append({"id": "_mem_mas", "label": f"… y {len(hits) - 12} más (lo viejo sigue abajo, no se borra)",
+                      "fn": lambda: os.startfile(str(MEMORY_DIR))})
+    if not hits:
+        items.append({"id": "_mem_nada", "label": f"No sé nada de «{q}» en la memoria ({med['archivos']} archivos)",
+                      "fn": lambda: os.startfile(str(MEMORY_DIR))})
+    return items
+
+
+def _tarea_de_grupo(task):
+    """Contexto de grupo (canal de grupo o marcada): ahí NO entra MEMORY.md."""
+    c = str(task.get("canal") or "").lower()
+    return bool(task.get("grupo")) or "grupo" in c or "group" in c
 
 
 def mem_buscar(q, maximo=40):
@@ -21852,6 +21935,9 @@ def _palette_sections(q):
                "fn": lambda q=q: mem_comando_ui(q, "paleta")}
     if mem is not None:
         return [("Memoria", [mem] + (asis_mem_filas(q) if mem["label"].startswith("Recordar") else []))]
+    mq = _MEM_QUE_SE_RE.match(q or "")
+    if mq and mq.group("q").strip():  # «qué sé de X»: busca en la memoria (t-memoria-buscable)
+        return [("Memoria: lo que sé de «" + mq.group("q").strip()[:40] + "»", _mem_paleta_items(mq.group("q").strip()))]
     calc = _calc_item(q)
     if calc is not None:  # una cuenta (solo cifras y + - * / %): su resultado es el primer item
         return [("Calculadora", [calc])]

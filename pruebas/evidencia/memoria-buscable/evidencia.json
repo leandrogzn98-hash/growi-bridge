@@ -1,0 +1,115 @@
+{
+ "a_paleta_que_se_de_aqualine": [
+  [
+   "Memoria: lo que sé de «Aqualine»",
+   [
+    "- Aqualine paga a 30 días.  ·  nota diaria del 2026-10-28 (2026-10-28)",
+    "- Aqualine paga a 30 días.  ·  MEMORY.md (sección del 2026-10-18) (2026-10-18)",
+    "- Aqualine pidió el diseño nuevo.  ·  nota diaria del 2026-10-28 (2026-10-28)",
+    "- Aqualine prefiere WhatsApp.  ·  MEMORY.md (sección del 2026-10-18) (2026-10-18)",
+    "- Reunión con Aqualine: precio viejo 120 $.  ·  nota diaria del 2026-08-29 (2026-08-29)",
+    "- Aqualine usa logo azul.  ·  MEMORY.md: sin origen registrado (sin fecha)"
+   ]
+  ]
+ ],
+ "bc_resultados_ordenados": [
+  {
+   "texto": "- Aqualine paga a 30 días.",
+   "origen": "nota diaria del 2026-10-28",
+   "fecha": "2026-10-28",
+   "refuerzo": 2,
+   "dias": 0,
+   "puntos": 1.25
+  },
+  {
+   "texto": "- Aqualine paga a 30 días.",
+   "origen": "MEMORY.md (sección del 2026-10-18)",
+   "fecha": "2026-10-18",
+   "refuerzo": 2,
+   "dias": 10,
+   "puntos": 1.0437
+  },
+  {
+   "texto": "- Aqualine pidió el diseño nuevo.",
+   "origen": "nota diaria del 2026-10-28",
+   "fecha": "2026-10-28",
+   "refuerzo": 1,
+   "dias": 0,
+   "puntos": 1.0
+  },
+  {
+   "texto": "- Aqualine prefiere WhatsApp.",
+   "origen": "MEMORY.md (sección del 2026-10-18)",
+   "fecha": "2026-10-18",
+   "refuerzo": 1,
+   "dias": 10,
+   "puntos": 0.7937
+  },
+  {
+   "texto": "- Reunión con Aqualine: precio viejo 120 $.",
+   "origen": "nota diaria del 2026-08-29",
+   "fecha": "2026-08-29",
+   "refuerzo": 1,
+   "dias": 60,
+   "puntos": 0.25
+  },
+  {
+   "texto": "- Aqualine usa logo azul.",
+   "origen": "MEMORY.md: sin origen registrado",
+   "fecha": null,
+   "refuerzo": 1,
+   "dias": 365,
+   "puntos": 0.0002
+  }
+ ],
+ "c_el_viejo_sigue": true,
+ "c_el_viejo_va_abajo": true,
+ "d_recuerda_esto": [
+  {
+   "ok": true,
+   "destino": "memory",
+   "ruta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-memb-28746_3e\\memory\\MEMORY.md",
+   "mensaje": "Guardado en MEMORY.md (hechos duraderos), sección «2026-10-28 — Recordado por el usuario»: «Aqualine cambia de contacto el lunes». Porque no lleva fecha ni «hoy/ayer»: se guarda como hecho duradero. Archivo: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-memb-28746_3e\\memory\\MEMORY.md"
+  },
+  {
+   "ok": true,
+   "destino": "memory",
+   "ruta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-memb-28746_3e\\memory\\MEMORY.md",
+   "mensaje": "Guardado en MEMORY.md (hechos duraderos), sección «2026-10-28 — Recordado por el usuario»: «Aqualine factura en dólares». Porque lo pediste «para siempre». Archivo: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-memb-28746_3e\\memory\\MEMORY.md"
+  }
+ ],
+ "d_en_el_archivo": [
+  true,
+  true
+ ],
+ "grupo_sin_MEMORY": {
+  "grupo_trae_MEMORY": false,
+  "privada_trae_MEMORY": true
+ },
+ "e_memoria_real_medidas": {
+  "growi": {
+   "resultados": 59,
+   "ms": 85.1,
+   "archivos": 7,
+   "bytes": 47266,
+   "total": 59,
+   "con_fecha": 1
+  },
+  "claude": {
+   "resultados": 40,
+   "ms": 22.5,
+   "archivos": 7,
+   "bytes": 47266,
+   "total": 40,
+   "con_fecha": 1
+  },
+  "proxy": {
+   "resultados": 4,
+   "ms": 15.6,
+   "archivos": 7,
+   "bytes": 47266,
+   "total": 4,
+   "con_fecha": 2
+  }
+ }
+}
