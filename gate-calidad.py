@@ -528,7 +528,8 @@ def correr(entrada, forzar_smoke=None):
     elif (raiz / APP).exists():
         sm = Chequeo("smoke Tkinter (/gateway/salud)")
         sm.estado = "OMITIDO"
-        sm.detalle.append(f"no cambio {APP} ni lo que lee al arrancar")
+        sm.detalle.append("saltado con --sin-smoke" if forzar_smoke is False
+                          else f"no cambio {APP} ni lo que lee al arrancar")
         chequeos.append(sm)
     falla = any(c.estado == "FALLA" for c in chequeos)
     total = round(time.time() - t0, 1)

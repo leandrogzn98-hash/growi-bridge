@@ -31324,6 +31324,75 @@ def _ctk_wanted():
     return load_settings().get("piloto_ctk", True) is not False
 
 
+# ---- Ajustes -> Datos y respaldo: exportar / importar configuracion
+# (t-ajustes-reorg). Solo ajustes y carpetas: nunca proxy.json (clave del
+# proxy), secret.txt, el token ni el almacen de claves. Al importar no se
+# toca lo propio de esta instalacion (carril, puerto, onboarding).
+_CONFIG_NO_EXPORTA = {"lane", "bridge_port", "onboarding_done", "close_toast_shown"}
+
+
+def config_exportar(dest):
+    s = {k: v for k, v in load_settings().items() if k not in _CONFIG_NO_EXPORTA}
+    try:
+        carpetas = json.loads(FOLDERS_FILE.read_text(encoding="utf-8")).get("allowed_roots")
+    except (OSError, ValueError):
+        carpetas = None
+    d = {"growi_bridge_config": 1, "version": VERSION, "exportado": _now_iso(),
+         "settings": s, "carpetas": carpetas}
+    Path(dest).write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"ajustes: configuración exportada a {dest} ({len(s)} ajustes"
+        f"{', ' + str(len(carpetas)) + ' carpetas' if carpetas else ''})")
+    return d
+
+
+def config_importar(src):
+    """(ok, mensaje). Guarda .bak de settings.json y folders.json antes."""
+    try:
+        d = json.loads(Path(src).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return False, f"No se pudo leer el archivo ({type(e).__name__})."
+    if not isinstance(d, dict) or d.get("growi_bridge_config") != 1 or not isinstance(d.get("settings"), dict):
+        return False, "Ese archivo no es una configuración exportada por Growi Bridge."
+    sello = time.strftime("%Y%m%d-%H%M%S")
+    for f in (SETTINGS_FILE, FOLDERS_FILE):
+        if f.exists():
+            shutil.copy2(f, f.with_name(f"{f.name}.{sello}.bak"))
+    s = load_settings()
+    nuevos = {k: v for k, v in d["settings"].items() if k not in _CONFIG_NO_EXPORTA}
+    s.update(nuevos)
+    save_settings(s)
+    if isinstance(d.get("carpetas"), list) and d["carpetas"]:
+        save_folders([str(x) for x in d["carpetas"]])
+    log(f"ajustes: configuración importada de {src} ({len(nuevos)} ajustes; copia .{sello}.bak)")
+    return True, (f"Importados {len(nuevos)} ajustes" + (f" y {len(d['carpetas'])} carpetas"
+                                                       if d.get("carpetas") else "")
+                  + f". Lo de antes quedó en .{sello}.bak. Se aplica al reiniciar Growi Bridge.")
+
+
+def config_exportar_ui():
+    from tkinter import filedialog
+    dest = filedialog.asksaveasfilename(title="Exportar configuración", defaultextension=".json",
+                                        initialfile=f"growi-bridge-config-{time.strftime('%Y%m%d')}.json",
+                                        filetypes=[("Configuración", "*.json")])
+    if dest:
+        config_exportar(dest)
+        messagebox.showinfo("Exportar configuración", f"Guardada en {dest}.\n\nNo lleva claves, "
+                                                      "proxy ni secreto.")
+
+
+def config_importar_ui():
+    from tkinter import filedialog
+    src = filedialog.askopenfilename(title="Importar configuración", filetypes=[("Configuración", "*.json")])
+    if not src:
+        return
+    if not messagebox.askyesno("Importar configuración", "Esto cambia tus ajustes y carpetas por los del "
+                                                         "archivo (lo de ahora queda en una copia .bak).\n\n"
+                                                         "¿Seguimos?", default="no"):
+        return
+    ok, msg = config_importar(src)
+    (messagebox.showinfo if ok else messagebox.showerror)("Importar configuración", msg)
+
+
 def _build_ajustes(tab_aj):
     """Pagina Ajustes: CustomTkinter (piloto) o, si no se puede, la clasica."""
     if _ctk_wanted():
@@ -31444,25 +31513,6 @@ def _build_ajustes_ctk(tab_aj):
             ex.pack(anchor="w", fill="x", pady=(2, 0))
             wrap_to(ex, parent)
 
-    def section(title):
-        # Etiqueta de seccion fuera de la tarjeta, en formato oracion y
-        # apagada (Raycast: "Categories", "All Extensions").
-        _Label(tab_aj, text=title, font=F(15, "semibold"), text_color=T["muted"],
-               anchor="w", height=1).pack(anchor="w", padx=22, pady=(16, 6))
-        card = ctk.CTkFrame(tab_aj, fg_color=T["card"], corner_radius=10,
-                            border_width=1, border_color=T["line"])
-        card.pack(fill="x", padx=20)
-        card._rows = 0
-        return card
-
-    def row(card):
-        if card._rows:
-            tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=16)
-        card._rows += 1
-        r = ctk.CTkFrame(card, fg_color="transparent")
-        r.pack(fill="x", padx=16, pady=12)
-        return r
-
     def button(parent, text, command, danger=False):
         return _Button(parent, text=text, command=command, font=F(13),
                        corner_radius=8, height=32, width=0, border_spacing=10,
@@ -31512,14 +31562,105 @@ def _build_ajustes_ctk(tab_aj):
         text_block(left, label, expl)
         return sw
 
-    # ---- cabecera
+    # ---- cabecera + buscador (t-ajustes-reorg: 6 grupos planos, filas
+    # «etiqueta a la izquierda, control a la derecha», separadores de 1 px)
     _Label(tab_aj, text="Ajustes", font=F(29, "bold"), text_color=T["text"],
            anchor="w").pack(anchor="w", padx=20, pady=(18, 0))
-    _Label(tab_aj, text="Todo lo de la app en un solo sitio.", font=F(15),
-           text_color=T["muted"], anchor="w", height=1).pack(anchor="w", padx=20, pady=(0, 2))
+    _Label(tab_aj, text="Todo lo de la app en un solo sitio. Cada cambio se guarda solo.", font=F(15),
+           text_color=T["muted"], anchor="w", height=1).pack(anchor="w", padx=20, pady=(0, 8))
+    bus = ctk.CTkFrame(tab_aj, fg_color="transparent")
+    bus.pack(fill="x", padx=20, pady=(0, 4))
+    q_ent = ctk.CTkEntry(bus, placeholder_text="Buscar en Ajustes (proxy, tema, atajos, carpetas…)",
+                         font=F(14), height=34, corner_radius=8, border_width=1, border_color=T["line"],
+                         fg_color=T["field"], text_color=T["text"])
+    q_ent.pack(side="left", fill="x", expand=True)
+    q_res = _Label(bus, text="", font=F(13), text_color=T["muted"], anchor="w", height=1)
+    q_res.pack(side="left", padx=(12, 0))
+    _widgets["aj_buscar"], _widgets["aj_buscar_res"] = q_ent, q_res
+    filas = []  # (titulo del grupo, fila) para el buscador
+    _grupo = [""]
 
-    # ---- General (mismos manejadores que la pagina clasica)
-    gen = section("General")
+    def section(title, peligro=False):
+        _Label(tab_aj, text=title, font=F(17, "semibold"), text_color=T["red"] if peligro else T["text"],
+               anchor="w", height=1).pack(anchor="w", padx=22, pady=(24, 4))
+        card = ctk.CTkFrame(tab_aj, fg_color="transparent", corner_radius=0, border_width=0)
+        card.pack(fill="x", padx=6)
+        tk.Frame(card, bg=T["red"] if peligro else T["line"], height=S(1)).pack(fill="x", padx=16)
+        card._rows, card._title = 0, title
+        _grupo[0] = title
+        return card
+
+    def row(card):
+        if card._rows:
+            tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=16)
+        card._rows += 1
+        r = ctk.CTkFrame(card, fg_color="transparent", corner_radius=8)
+        r.pack(fill="x", padx=16, pady=10)
+        filas.append((getattr(card, "_title", None) or _grupo[0], r))
+        return r
+
+    def side_row(card, label, expl, reinicio=False):
+        """Fila: texto a la izquierda; devuelve (fila, caja derecha para el control)."""
+        r = row(card)
+        der = ctk.CTkFrame(r, fg_color="transparent", width=1, height=1)  # vacio: no ocupa (CTk da 200 px)
+        der.pack(side="right", padx=(16, 0))
+        left = ctk.CTkFrame(r, fg_color="transparent")
+        left.pack(side="left", fill="x", expand=True)
+        r._left = left
+        text_block(left, label, expl)
+        if reinicio:
+            _Label(left, text="Se aplica al reiniciar", font=F(12), text_color=T["orange_text"],
+                   anchor="w", height=1).pack(anchor="w", pady=(2, 0))
+        return r, der
+
+    def _norm(t):
+        import unicodedata
+        t = unicodedata.normalize("NFKD", str(t or "").lower())
+        return "".join(c for c in t if not unicodedata.combining(c))
+
+    def _textos(w):
+        out = []
+        for ch in w.winfo_children():
+            try:
+                out.append(str(ch.cget("text")))
+            except Exception:
+                pass
+            out += _textos(ch)
+        return out
+
+    def _ir_a(r):
+        canvas = tab_aj.master
+        try:
+            tab_aj.update_idletasks()
+            y = r.winfo_rooty() - tab_aj.winfo_rooty() - S(60)
+            canvas.yview_moveto(max(0, y) / max(1, tab_aj.winfo_height()))
+            r.configure(fg_color=seg_sel)
+            r.after(1600, lambda: r.winfo_exists() and r.configure(fg_color="transparent"))
+        except Exception:
+            pass
+
+    _ultimo = [None]
+
+    def _buscar(_e=None):
+        q = _norm(q_ent.get()).strip()
+        if len(q) < 2:
+            q_res.configure(text="")
+            _ultimo[0] = None
+            return
+        for grupo, r in filas:
+            if q in _norm(grupo + " " + " ".join(_textos(r))):
+                tit = next((t for t in _textos(getattr(r, "_left", r)) + _textos(r) if t.strip()), "")
+                q_res.configure(text=f"→ {grupo}" + (f" · {tit[:40]}" if tit else ""))
+                if _ultimo[0] is not r:
+                    _ultimo[0] = r
+                    _ir_a(r)
+                    log(f"ajustes: buscar «{q}» → grupo {grupo} ({tit[:40]})")
+                return
+        q_res.configure(text="Sin resultados")
+        _ultimo[0] = None
+    q_ent.bind("<KeyRelease>", _buscar, add=True)
+    q_ent.bind("<Return>", lambda _e: (_ultimo.__setitem__(0, None), _buscar()), add=True)
+    _widgets["aj_ir_a"] = lambda texto: (q_ent.delete(0, "end"), q_ent.insert(0, texto), _buscar())
 
     def _sw_autoupd(on):
         state["auto_update"] = on
@@ -31545,18 +31686,8 @@ def _build_ajustes_ctk(tab_aj):
         save_settings(s)
         log(f"ajustes: no suspender mientras trabaja {'activado' if on else 'desactivado'}")
 
-    _widgets["autoupd_sw"] = setting_switch(
-        gen, "Actualización automática",
-        "Se actualiza sola desde GitHub cuando hay una versión nueva.",
-        state.get("auto_update", False), _sw_autoupd)
-    _widgets["autostart_sw"] = setting_switch(
-        gen, "Iniciar al encender la PC", "Arranca sola con Windows al iniciar sesión.",
-        state.get("autostart", False), _sw_autostart)
-    _widgets["keepawake_sw"] = setting_switch(
-        gen, "No suspender mientras trabaja",
-        "La PC no se duerme mientras Claude corre una tarea.",
-        state.get("keep_awake", True), _sw_keepawake)
-
+    # ---- 1. General
+    gen = section("General")
     r = row(gen)
     text_block(r, "Al cerrar la ventana",
                "Qué hace la X: quedarse en la bandeja (sigue recibiendo tareas) "
@@ -31564,70 +31695,112 @@ def _build_ajustes_ctk(tab_aj):
     _widgets["close_var"] = tk.StringVar(value=close_mode())
     segmented(r, _widgets["close_var"], CLOSE_MODES, _set_close_mode).pack(
         anchor="w", pady=(10, 0))
+    _widgets["autostart_sw"] = setting_switch(
+        gen, "Iniciar al encender la PC", "Arranca sola con Windows al iniciar sesión.",
+        state.get("autostart", False), _sw_autostart)
+    _widgets["autoupd_sw"] = setting_switch(
+        gen, "Actualización automática",
+        "Se actualiza sola desde GitHub cuando hay una versión nueva.",
+        state.get("auto_update", False), _sw_autoupd)
+    _widgets["keepawake_sw"] = setting_switch(
+        gen, "No suspender mientras trabaja",
+        "La PC no se duerme mientras Claude corre una tarea.",
+        state.get("keep_awake", True), _sw_keepawake)
 
-    # ---- Atajos: filas por accion + campo de captura (superficie nueva, CTk;
-    # si CTk falla aqui, toda la pagina cae a la clasica, que tambien la trae)
+    # ---- 2. Apariencia
+    ap = section("Apariencia")
+    r = row(ap)
+    text_block(r, "Tema", "Claro, oscuro o el que use Windows. Cambia al momento, sin reiniciar.")
+    _t_tema = time.perf_counter()
+    tema_seccion(_KitCtk(tab_aj, global_setup=False), r)
+    log(f"ajustes: apariencia con CustomTkinter ({(time.perf_counter() - _t_tema) * 1000:.0f} ms)")
+
+    # ---- 3. Conexion (los campos del proxy siguen plegados en Estado)
+    con = section("Conexión")
+    r, der = side_row(con, "Proxy", "Por dónde sale Claude a internet. Probar mira el proxy y "
+                                    "Claude a través de él.")
+    px_lab = _Label(r._left, text=conn_text(), font=F(13), text_color=T["muted"], anchor="w", height=1)
+    px_lab.pack(anchor="w", pady=(4, 0))
+    px_btn = button(der, "Probar", lambda: proxy_test_ui(px_btn, px_lab))
+    px_btn.pack()
+    r = row(con)
+    text_block(r, "Modo del proxy", "Mi proxy (el del VPS), el del sistema o ninguno.")
+    _px_var = tk.StringVar(value=load_settings().get("proxy_mode") or "vps")
+
+    def _px_pick(k):
+        ok, msg = set_proxy_mode(k)
+        if not ok:
+            messagebox.showinfo("Proxy", msg)
+            _px_var.set(load_settings().get("proxy_mode") or "vps")
+        elif isinstance(_widgets.get("px_mode"), tk.StringVar):
+            _widgets["px_mode"].set(k)  # la tarjeta de Estado dice lo mismo
+    segmented(r, _px_var, (("vps", "Mi proxy"), ("sistema", "Usar proxy del sistema"), ("ninguno", "Sin proxy")),
+              _px_pick).pack(anchor="w", pady=(10, 0))
+    r, der = side_row(con, "Ajustes avanzados del proxy", "Host, puerto, usuario y clave: están "
+                                                           "plegados en Estado, junto al mapa.")
+    button(der, "Abrir", lambda: _widgets["show_page"]("estado")).pack()
+
+    # ---- 4. Motores y modelos
+    mm = section("Motores y modelos")
+    side_row(mm, "Motor por defecto",
+             f"{default_motor()}: lo dice engines.json (por_defecto). Cada tarea puede elegir otro.")
+    r, der = side_row(mm, "Carpeta de modelos", str(MODELS_DIR))
+    button(der, "Abrir", lambda: open_folder(MODELS_DIR)).pack()
+    r, der = side_row(mm, "Comprobar mi PC", "Qué modelos caben en tu tarjeta gráfica (página Modelos).")
+    button(der, "Comprobar", lambda: _widgets["show_page"]("modelos")).pack()
+    r = row(mm)
+    _widgets["aj_claves_slot"] = tk.Frame(r, bg=T["bg"])  # aqui dibuja _build_claves las claves
+    _widgets["aj_claves_slot"].pack(fill="x")
+
+    # ---- 5. Permisos y seguridad
+    gr = section("Permisos y seguridad")
+    _widgets["permisos_anchor"] = gr  # «Cambiar nivel» (fila de Tareas) trae aqui
+    r = row(gr)
+    text_block(r, "Antes de actuar", "Antes de borrar, publicar, gastar o enviar algo, Growi te enseña "
+                                     "el plan en Tareas y espera tu sí.")
+    _widgets["guardrail_var"] = tk.StringVar(value=guardrail_level())
+
+    def _radio(parent, k, lab, expl):
+        ctk.CTkRadioButton(parent, text=lab, value=k, variable=_widgets["guardrail_var"],
+                           command=lambda: _on_guardrail(k), font=F(14, "semibold"),
+                           text_color=T["text"], fg_color=accent, hover_color=accent_hover,
+                           border_color=T["muted"], radiobutton_width=18,
+                           radiobutton_height=18, border_width_unchecked=2,
+                           border_width_checked=5).pack(anchor="w")
+        sub = ctk.CTkFrame(parent, fg_color="transparent")
+        sub.pack(fill="x", padx=(28, 0))
+        text_block(sub, None, expl)
+    for _k, _lab, _expl in GUARDRAIL_LEVELS:
+        if _k != "nunca":  # «Hazlo sin preguntar» vive en la zona peligrosa
+            _radio(row(gr), _k, _lab, _expl)
+    r, der = side_row(gr, "Carpetas", "Dónde puede leer y escribir Growi (la lista se edita en Carpetas).")
+    button(der, "Editar", lambda: _widgets["show_page"]("carpetas")).pack()
+    r, der = side_row(gr, "Exportar mis conversaciones", "La ruta oficial de Claude, paso a paso; "
+                                                          "Bridge apunta la fecha y comprueba el ZIP.")
+    button(der, "Exportar", export_guia_ui).pack()
+
+    # ---- 6. Notificaciones y atajos
     _t_at = time.perf_counter()
-    at = section("Atajos")
+    at = section("Notificaciones y atajos")
     _widgets["atajos_anchor"] = at
     _atajos_construir(_atajos_kit_ctk(ctk, row, text_block, F, wrap_to, seg_bg, seg_hover,
                                       accent, accent_hover), at)
     log(f"ajustes: atajos con CustomTkinter ({(time.perf_counter() - _t_at) * 1000:.0f} ms)")
 
-    # ---- Configuracion inicial y apariencia
-    ob = section("Configuración inicial")
-    r = row(ob)
-    text_block(r, None,
-               "Los 4 pasos del principio: asistente, conectar, carpetas y comprobación.")
-    button(r, "Volver a hacer la configuración inicial", open_onboarding).pack(
-        anchor="w", pady=(10, 0))
-    # Apariencia: Claro / Oscuro / Segun el sistema (temas\*.json, en caliente)
-    r = row(ob)
-    text_block(r, "Apariencia", "Claro, oscuro o el que use Windows. Cambia al momento, "
-                                "sin reiniciar.")
-    _t_tema = time.perf_counter()
-    tema_seccion(_KitCtk(tab_aj, global_setup=False), r)
-    log(f"ajustes: apariencia con CustomTkinter ({(time.perf_counter() - _t_tema) * 1000:.0f} ms)")
-
-    # ---- Permisos (una opcion por fila, explicacion debajo: BFF)
-    gr = section("Permisos")
-    _widgets["permisos_anchor"] = gr  # «Cambiar nivel» (fila de Tareas) trae aqui
-    r = row(gr)
-    text_block(r, None, "Antes de borrar, publicar, gastar o enviar algo, Growi te enseña "
-                        "el plan en Tareas y espera tu sí.")
-    _widgets["guardrail_var"] = tk.StringVar(value=guardrail_level())
-    for _k, _lab, _expl in GUARDRAIL_LEVELS:
-        r = row(gr)
-        ctk.CTkRadioButton(r, text=_lab, value=_k, variable=_widgets["guardrail_var"],
-                           command=lambda k=_k: _on_guardrail(k), font=F(14, "semibold"),
-                           text_color=T["text"], fg_color=accent, hover_color=accent_hover,
-                           border_color=T["muted"], radiobutton_width=18,
-                           radiobutton_height=18, border_width_unchecked=2,
-                           border_width_checked=5).pack(anchor="w")
-        sub = ctk.CTkFrame(r, fg_color="transparent")
-        sub.pack(fill="x", padx=(28, 0))
-        text_block(sub, None, _expl)
-
-    # ---- Este PC (confirmacion y 60 s de margen: _pc_confirm, igual que antes)
-    pc = section("Este PC")
-    r = row(pc)
-    text_block(r, None, "Apagar o reiniciar este PC. Te pide confirmación y tienes "
-                        "60 segundos para cancelarlo.")
-    prow = ctk.CTkFrame(r, fg_color="transparent")
-    prow.pack(anchor="w", pady=(10, 0))
-    _widgets["aj_pc_off"] = button(prow, "Apagar PC", lambda: _pc_confirm("shutdown"),
-                                   danger=True)
-    _widgets["aj_pc_off"].pack(side="left", padx=(0, 8))
-    _widgets["aj_pc_restart"] = button(prow, "Reiniciar PC", lambda: _pc_confirm("restart"),
-                                       danger=True)
-    _widgets["aj_pc_restart"].pack(side="left", padx=(0, 8))
-    _widgets["aj_pc_cancel"] = button(prow, "Cancelar apagado", pc_abort)
-    _widgets["aj_pc_cancel"].pack(side="left")
-
-    # ---- Carpetas y version
-    up = section("Carpetas y actualizaciones")
-    r = row(up)
-    text_block(r, None, f"Versión {VERSION}.")
+    # ---- Datos y respaldo
+    dr = section("Datos y respaldo")
+    r, der = side_row(dr, "Exportar configuración", "Tus ajustes y carpetas en un archivo .json (sin "
+                                                    "claves, proxy ni secreto) para reinstalar sin repetir "
+                                                    "la configuración inicial.")
+    button(der, "Exportar…", config_exportar_ui).pack()
+    r, der = side_row(dr, "Importar configuración", "Lee ese archivo y guarda una copia .bak de lo de ahora.",
+                      reinicio=True)
+    button(der, "Importar…", config_importar_ui).pack()
+    r, der = side_row(dr, "Configuración inicial", "Los 4 pasos del principio: asistente, conectar, "
+                                                   "carpetas y comprobación.")
+    button(der, "Volver a hacerla", open_onboarding).pack()
+    r = row(dr)
+    text_block(r, "Carpetas y versión", f"Versión {VERSION}.")
     brow = ctk.CTkFrame(r, fg_color="transparent")
     brow.pack(anchor="w", pady=(10, 0))
     for i, (txt, cmd) in enumerate((("Abrir Inbox", lambda: open_folder(INBOX)),
@@ -31646,7 +31819,25 @@ def _build_ajustes_ctk(tab_aj):
     ub.configure(state="disabled")
     ub.pack(anchor="w", pady=(6, 0))
     _widgets["update_btn"] = ub
+
+    # ---- Zona peligrosa (separada, titulo en rojo, todo con confirmacion)
+    zp = section("Zona peligrosa", peligro=True)
+    _nunca = [x for x in GUARDRAIL_LEVELS if x[0] == "nunca"][0]
+    _radio(row(zp), "nunca", _nunca[1], _nunca[2])  # _on_guardrail pide doble confirmacion
+    r = row(zp)
+    text_block(r, "Apagar o reiniciar este PC", "Te pide confirmación y tienes 60 segundos para cancelarlo.")
+    prow = ctk.CTkFrame(r, fg_color="transparent")
+    prow.pack(anchor="w", pady=(10, 0))
+    _widgets["aj_pc_off"] = button(prow, "Apagar PC", lambda: _pc_confirm("shutdown"),
+                                   danger=True)
+    _widgets["aj_pc_off"].pack(side="left", padx=(0, 8))
+    _widgets["aj_pc_restart"] = button(prow, "Reiniciar PC", lambda: _pc_confirm("restart"),
+                                       danger=True)
+    _widgets["aj_pc_restart"].pack(side="left", padx=(0, 8))
+    _widgets["aj_pc_cancel"] = button(prow, "Cancelar apagado", pc_abort)
+    _widgets["aj_pc_cancel"].pack(side="left")
     tk.Frame(tab_aj, bg=T["bg"], height=S(20)).pack()
+    _widgets["aj_filas"] = filas
     return ctk.__version__
 
 
@@ -32274,7 +32465,7 @@ def build_gui():
 
     # ================= pagina Ajustes (piloto CustomTkinter; si no, la clasica)
     _build_ajustes(pages["ajustes"])
-    _build_claves(pages["ajustes"], "ajustes")
+    _build_claves(_widgets.get("aj_claves_slot") or pages["ajustes"], "ajustes")  # en «Motores y modelos»
 
 
     # ================= pagina Registro

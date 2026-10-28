@@ -1,0 +1,38 @@
+{
+ "exportado_claves": [
+  "guardrail",
+  "mascot",
+  "on_close"
+ ],
+ "exportado_carpetas": [
+  "C:/uno",
+  "C:/dos"
+ ],
+ "no_lleva_lane_puerto": true,
+ "no_lleva_password_proxy": true,
+ "importar": [
+  true,
+  "Importados 3 ajustes y 2 carpetas. Lo de antes quedó en .20261027-233435.bak. Se aplica al reiniciar Growi Bridge."
+ ],
+ "settings_tras_importar": {
+  "lane": "b",
+  "bridge_port": 8799,
+  "on_close": "quit",
+  "guardrail": "delicado",
+  "mascot": true
+ },
+ "folders_tras_importar": {
+  "allowed_roots": [
+   "C:/uno",
+   "C:/dos"
+  ]
+ },
+ "baks": [
+  "folders.json.20261027-233435.bak",
+  "settings.json.20261027-233435.bak"
+ ],
+ "importar_archivo_ajeno": [
+  false,
+  "Ese archivo no es una configuración exportada por Growi Bridge."
+ ]
+}

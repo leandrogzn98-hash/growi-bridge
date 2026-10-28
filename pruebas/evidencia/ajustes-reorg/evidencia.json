@@ -1,0 +1,65 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-ajustes-zzrh5pdw",
+ "a_grupos_en_orden": [
+  "General",
+  "Apariencia",
+  "Conexión",
+  "Motores y modelos",
+  "Permisos y seguridad",
+  "Notificaciones y atajos",
+  "Datos y respaldo",
+  "Zona peligrosa"
+ ],
+ "a_filas_por_grupo": {
+  "General": 4,
+  "Apariencia": 1,
+  "Conexión": 3,
+  "Motores y modelos": 4,
+  "Permisos y seguridad": 5,
+  "Notificaciones y atajos": 16,
+  "Datos y respaldo": 4,
+  "Zona peligrosa": 2
+ },
+ "b_resultado_buscador": "→ Conexión · Proxy",
+ "b_scroll_y": [
+  0.17170989433237271,
+  0.3398174831892411
+ ],
+ "c_keep_awake_settings_json": {
+  "antes": true,
+  "despues_del_clic": false,
+  "interruptor": false
+ },
+ "d_buscador_zona": "→ Zona peligrosa · Hazlo sin preguntar",
+ "d_zona_peligrosa_textos": [
+  "Apagar PC",
+  "Apagar o reiniciar este PC",
+  "Cancelar apagado",
+  "Growi lo hace todo sin enseñarte el plan. Pide doble confirmación.",
+  "Hazlo sin preguntar",
+  "Reiniciar PC",
+  "Te pide confirmación y tienes 60 segundos para cancelarlo."
+ ],
+ "b2_otros": {
+  "tema": "→ Apariencia · Tema",
+  "atajo": "→ Notificaciones y atajos · Haz clic en un campo y pulsa la combinac",
+  "carpetas": "→ Permisos y seguridad · Carpetas",
+  "exportar config": "→ Datos y respaldo · Exportar configuración",
+  "motor": "→ Motores y modelos · Motor por defecto"
+ },
+ "log_ajustes": [
+  "2026-10-27T23:33:21-04:00 claves: ajustes: superficie con CustomTkinter (3568 ms, al abrir la página)",
+  "2026-10-27T23:33:24-04:00 ajustes: buscar «pr» → grupo General (Al cerrar la ventana)",
+  "2026-10-27T23:33:25-04:00 ajustes: buscar «pro» → grupo Conexión (Proxy)",
+  "2026-10-27T23:33:25-04:00 ajustes: buscar «suspender» → grupo General (No suspender mientras trabaja)",
+  "2026-10-27T23:33:26-04:00 ajustes: no suspender mientras trabaja desactivado",
+  "2026-10-27T23:33:27-04:00 ajustes: no suspender mientras trabaja activado",
+  "2026-10-27T23:33:27-04:00 ajustes: buscar «zona peligrosa» → grupo Zona peligrosa (Hazlo sin preguntar)",
+  "2026-10-27T23:33:28-04:00 ajustes: buscar «tema» → grupo Apariencia (Tema)",
+  "2026-10-27T23:33:28-04:00 ajustes: buscar «atajo» → grupo Notificaciones y atajos (Haz clic en un campo y pulsa la combinac)",
+  "2026-10-27T23:33:28-04:00 ajustes: buscar «carpetas» → grupo Permisos y seguridad (Carpetas)",
+  "2026-10-27T23:33:28-04:00 ajustes: buscar «exportar config» → grupo Datos y respaldo (Exportar configuración)",
+  "2026-10-27T23:33:28-04:00 ajustes: buscar «motor» → grupo Motores y modelos (Motor por defecto)"
+ ],
+ "tracebacks_en_log": 0
+}
