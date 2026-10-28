@@ -1,4 +1,4 @@
-# Estado de la fase 3: 0.4.0 fase B (en curso)
+# Estado de la fase 3: 0.4.0 fase B + 040plus (TERMINADA)
 
 Orden de la lista de Leandro. Cada spec terminado tiene su `ESTADO-*.md` en la
 raíz y su commit.
