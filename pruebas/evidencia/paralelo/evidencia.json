@@ -1,0 +1,112 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w",
+ "a_paralelo": {
+  "a1": [
+   "2026-10-28T05:19:22-04:00",
+   "2026-10-28T05:19:36-04:00",
+   "ok"
+  ],
+  "a2": [
+   "2026-10-28T05:19:26-04:00",
+   "2026-10-28T05:19:29-04:00",
+   "ok"
+  ],
+  "a2_dentro_de_a1": true
+ },
+ "b_serie": {
+  "b2_sigue_en_cola": true,
+  "b3_sigue_en_cola": true,
+  "decisiones": [
+   [
+    false,
+    "nunca dos Claudes a la vez (sesión Max única)",
+    false
+   ],
+   [
+    false,
+    "se solapan (C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1\\dentro y C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1): en serie",
+    false
+   ]
+  ]
+ },
+ "c_worktree": {
+  "registro": {
+   "ruta": "c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-paralelo-0fc86r2w\\repo-t-par-c2",
+   "rama": "agent/t-par-c2",
+   "base": "main",
+   "estado": "tests_ok",
+   "cwd": "c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-paralelo-0fc86r2w\\repo-t-par-c2\\subB"
+  },
+  "cwd_de_la_tarea": "hecho por ollama [simulado] en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\repo-t-par-c2\\subB",
+  "en_main_no_esta_aun": true,
+  "nota_merge": "# Nota de merge: agent/t-par-c2\n\n- Repo: c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-paralelo-0fc86r2w\\repo (rama base: main)\n- Worktree: c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-paralelo-0fc86r2w\\repo-t-par-c2\n- Orden: primero lo que ya está en main (incluida la tarea t-par-c1, que corrió en el checkout principal); después agent/t-par-c2.\n- Tests en el worktree: `C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -m pytest -q` → exit 0\n- Nada se fusiona solo: «Fusionar» vuelve a correr los tests y solo fusiona con exit 0.\n\n```\n.                                                                        [100%]\n1 passed in 0.03s\n\n```\n"
+ },
+ "c_fusionar": [
+  true,
+  "fusionada agent/t-par-c2 en main"
+ ],
+ "c_tras_fusionar": {
+  "en_main": true,
+  "worktree_quitado": true,
+  "log_main": "d475fc0 Merge agent/t-par-c2 (tarea t-par-c2, tests en verde)\n8d64448 cambio del agente\ne1a58f9 base"
+ },
+ "d_test_rojo": {
+  "estado_wt": "tests_fallan",
+  "tests": [
+   [
+    "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -m pytest -q",
+    1
+   ],
+   [
+    "C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -m pytest -q",
+    1
+   ]
+  ],
+  "reintento_del_agente": [
+   "t-par-d2-test2.task.json"
+  ],
+  "prompt_reintento": "Los tests fallan en tu worktree después de tu cambio. Corrígelo (solo esto). Salida de `C:\\Users\\forte\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -m pytest -q`:\n.F                                                                       [100%]\n================================== FAILURES =======",
+  "fusionar": [
+   false,
+   "no se fusiona: los tests fallan (exit 1)"
+  ]
+ },
+ "e_espera_libera": {
+  "e2": "esperando_aprobacion",
+  "e3": "ok",
+  "e3_termino_con_e1_corriendo": true
+ },
+ "log": [
+  "2026-10-28T05:19:20-04:00 paralelo: t-par-a2 (local) en el 2.º hueco junto a t-par-a1 (claude); proceso 8224",
+  "2026-10-28T05:19:32-04:00 paralelo: el 2.º hueco terminó t-par-a2 (salida 0)",
+  "2026-10-28T05:19:38-04:00 paralelo: t-par-b2 no va junto a t-par-b1: nunca dos Claudes a la vez (sesión Max única)",
+  "2026-10-28T05:19:38-04:00 paralelo: t-par-b3 no va junto a t-par-b1: se solapan (C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1\\dentro y C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1): en serie",
+  "2026-10-28T05:19:41-04:00 paralelo: t-par-b2 no va junto a t-par-b1: nunca dos Claudes a la vez (sesión Max única)",
+  "2026-10-28T05:19:41-04:00 paralelo: t-par-b3 no va junto a t-par-b1: se solapan (C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1\\dentro y C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1): en serie",
+  "2026-10-28T05:19:44-04:00 paralelo: t-par-b2 no va junto a t-par-b1: nunca dos Claudes a la vez (sesión Max única)",
+  "2026-10-28T05:19:44-04:00 paralelo: t-par-b3 no va junto a t-par-b1: se solapan (C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1\\dentro y C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1): en serie",
+  "2026-10-28T05:19:47-04:00 paralelo: t-par-b2 no va junto a t-par-b1: nunca dos Claudes a la vez (sesión Max única)",
+  "2026-10-28T05:19:47-04:00 paralelo: t-par-b3 no va junto a t-par-b1: se solapan (C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1\\dentro y C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-paralelo-0fc86r2w\\libre1): en serie",
+  "2026-10-28T05:19:50-04:00 paralelo: worktree c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-paralelo-0fc86r2w\\repo-t-par-c2 en la rama agent/t-par-c2 para t-par-c2 (sale de main)",
+  "2026-10-28T05:19:50-04:00 paralelo: t-par-c2 (local) en el 2.º hueco junto a t-par-c1 (claude) en su worktree; proceso 28432",
+  "2026-10-28T05:19:59-04:00 paralelo: el 2.º hueco terminó t-par-c2 (salida 0)",
+  "2026-10-28T05:20:00-04:00 paralelo: tests en el worktree de t-par-c2: exit 0",
+  "2026-10-28T05:20:06-04:00 paralelo: tests en el worktree de t-par-c2: exit 0",
+  "2026-10-28T05:20:06-04:00 paralelo: agent/t-par-c2 fusionada en main y worktree quitado",
+  "2026-10-28T05:20:07-04:00 paralelo: worktree c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-paralelo-0fc86r2w\\repo-t-par-d2 en la rama agent/t-par-d2 para t-par-d2 (sale de main)",
+  "2026-10-28T05:20:07-04:00 paralelo: t-par-d2 (local) en el 2.º hueco junto a t-par-d1 (claude) en su worktree; proceso 25916",
+  "2026-10-28T05:20:16-04:00 paralelo: el 2.º hueco terminó t-par-d2 (salida 0)",
+  "2026-10-28T05:20:16-04:00 paralelo: tests en el worktree de t-par-d2: exit 1",
+  "2026-10-28T05:20:16-04:00 paralelo: tests en rojo en el worktree de t-par-d2: el agente recibe el fallo y reintenta (t-par-d2-test1)",
+  "2026-10-28T05:20:20-04:00 paralelo: t-par-d2-test1 (local) en el 2.º hueco junto a t-par-d1 (claude); proceso 14416",
+  "2026-10-28T05:20:29-04:00 paralelo: el 2.º hueco terminó t-par-d2-test1 (salida 0)",
+  "2026-10-28T05:20:29-04:00 paralelo: tests en el worktree de t-par-d2: exit 1",
+  "2026-10-28T05:20:29-04:00 paralelo: tests en rojo en el worktree de t-par-d2: el agente recibe el fallo y reintenta (t-par-d2-test2)",
+  "2026-10-28T05:20:31-04:00 paralelo: tests en el worktree de t-par-d2: exit 1",
+  "2026-10-28T05:20:33-04:00 paralelo: t-par-e2 (local) en el 2.º hueco junto a t-par-e1 (claude); proceso 27140",
+  "2026-10-28T05:20:36-04:00 paralelo: el 2.º hueco terminó t-par-e2 (salida 0)",
+  "2026-10-28T05:20:39-04:00 paralelo: t-par-e3 (local) en el 2.º hueco junto a t-par-e1 (claude); proceso 2644",
+  "2026-10-28T05:20:48-04:00 paralelo: el 2.º hueco terminó t-par-e3 (salida 0)"
+ ],
+ "tracebacks_en_log": 0
+}

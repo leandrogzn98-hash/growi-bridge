@@ -4295,7 +4295,7 @@ def validate_task(data):
         return None, f"cwd invalido: {cwd_raw}"
     if not cwd.is_dir():
         return None, f"cwd no existe o no es carpeta: {cwd}"
-    if not _inside_any(cwd, load_folders()):
+    if not _inside_any(cwd, load_folders()) and not es_worktree_agente(cwd):
         return None, f"cwd fuera de las carpetas permitidas: {cwd}"
     if asis is not None and not _inside_any(cwd, asis_raices(asis)):
         return None, asis_fuera_txt(asis, cwd)  # las carpetas que ve el asistente
@@ -16949,6 +16949,315 @@ def _runner_pulse_loop(stop_event):
         stop_event.wait(1)
 
 
+# ---- paralelo seguro (t-paralelo-seguro-030): un 2.º hueco, con reglas
+# Máximo 2 tareas a la vez (settings «paralelo_max», 1 = en serie). La 2.ª
+# corre en un PROCESO APARTE (growi-bridge.py --slot2 <tarea>) para no mezclar
+# el estado de la que ya corre. Solo si: no son del mismo tipo de motor (nunca
+# dos Claudes: sesión Max única; nunca dos locales: VRAM) y sus carpetas o
+# archivos objetivo no se solapan (si se solapan, en serie). Si son del mismo
+# repo git, la 2.ª trabaja en su worktree «agent/<id>» y NADA se fusiona solo:
+# al terminar se corre la suite de tests en el worktree; con exit 0 queda la
+# nota de merge para que Leandro decida; si falla, el agente recibe el fallo y
+# reintenta. Una tarea que espera aprobación se aparca y libera el hueco.
+PARALELO_WT_REG = APP_DIR / "worktrees-agentes.json"
+SLOT_DIR = TASKS.parent / "runner-slot"
+_SLOT = {"proc": None, "task": None, "file": None, "t0": None, "wt": None, "main": None}
+
+
+def paralelo_max():
+    try:
+        return max(1, min(2, int(load_settings().get("paralelo_max") or 2)))
+    except (TypeError, ValueError):
+        return 2
+
+
+def _motor_clase(task):
+    m = str(task.get("motor") or default_motor())
+    mod = str(task.get("model") or task.get("modelo") or "")
+    return "local" if m in ("llama", "ollama") or mod.startswith("ollama:") else m
+
+
+def _objetivos(task):
+    decl = [str(x) for x in (task.get("archivos") or []) if x]
+    decl += [str(a.get("ruta")) for a in task.get("acciones") or [] if a.get("ruta")]
+    base = Path(task.get("cwd") or INBOX)
+    out = [Path(x) if Path(x).is_absolute() else base / x for x in decl]
+    return out or [base]
+
+
+def _repo_de(path):
+    try:
+        r = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                           timeout=15, encoding="utf-8", errors="replace", **_oculto())
+        return os.path.normcase(os.path.abspath(r.stdout.strip())) if r.returncode == 0 and r.stdout.strip() else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def paralelo_decidir(a, b):
+    """(en_paralelo, motivo, usar_worktree) para la tarea b junto a la a, que ya corre."""
+    if paralelo_max() < 2:
+        return False, "el tope es 1 (settings «paralelo_max»): en serie", False
+    ca, cb = _motor_clase(a), _motor_clase(b)
+    if ca == cb:
+        return False, ("nunca dos Claudes a la vez (sesión Max única)" if ca == "claude" else
+                       "nunca dos modelos locales a la vez (VRAM)" if ca == "local" else
+                       f"el motor {ca} ya está ocupado"), False
+    for x in _objetivos(a):
+        for y in _objetivos(b):
+            if _dentro(x, y) or _dentro(y, x):
+                return False, f"se solapan ({y} y {x}): en serie", False
+    ra, rb = _repo_de(a.get("cwd") or INBOX), _repo_de(b.get("cwd") or INBOX)
+    return True, "no se solapan", bool(ra and ra == rb)
+
+
+def _wt_reg():
+    try:
+        d = json.loads(PARALELO_WT_REG.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _wt_guardar(reg):
+    PARALELO_WT_REG.write_text(json.dumps(reg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def es_worktree_agente(cwd):
+    """True si cwd está dentro de un worktree que creó Bridge para una tarea (su repo sí está permitido)."""
+    for w in _wt_reg().values():
+        if w.get("estado") in ("activo", "tests_ok", "tests_fallan") and _dentro(cwd, w["ruta"]):
+            return True
+    return False
+
+
+def _git(args, cwd, timeout=120):
+    r = subprocess.run(["git", "-C", str(cwd)] + list(args), capture_output=True, text=True, timeout=timeout,
+                       encoding="utf-8", errors="replace", **_oculto())
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def worktree_crear(task):
+    """git worktree add ../<repo>-<id> -b agent/<id>. Devuelve el registro o None."""
+    repo = _repo_de(task.get("cwd") or INBOX)
+    if not repo:
+        return None
+    tid = _safe_id_part(task["id"])
+    ruta = Path(repo).parent / f"{Path(repo).name}-{tid}"
+    rama = f"agent/{tid}"
+    base_rc, base = _git(["rev-parse", "--abbrev-ref", "HEAD"], repo)
+    rc, out = _git(["worktree", "add", str(ruta), "-b", rama], repo)
+    if rc != 0:
+        log(f"paralelo: no se pudo crear el worktree de {task['id']}: {out.strip()[:300]}")
+        return None
+    rel = os.path.relpath(os.path.abspath(task.get("cwd") or repo), repo)
+    w = {"tarea": task["id"], "repo": repo, "ruta": str(ruta), "rama": rama, "base": base.strip() if base_rc == 0 else None,
+         "cwd": str(ruta / rel) if rel != "." else str(ruta), "creado": _now_iso(), "estado": "activo", "tests": [],
+         "reintentos_test": 0}
+    reg = _wt_reg()
+    reg[task["id"]] = w
+    _wt_guardar(reg)
+    log(f"paralelo: worktree {ruta} en la rama {rama} para {task['id']} (sale de {w['base']})")
+    return w
+
+
+def _tests_comando(ruta):
+    cmd = str(load_settings().get("paralelo_tests") or "").strip()
+    if cmd:
+        return cmd.split()
+    if (Path(ruta) / "tests").is_dir() or list(Path(ruta).glob("test_*.py")):
+        return [sys.executable.replace("pythonw.exe", "python.exe"), "-m", "pytest", "-q"]
+    return None
+
+
+def worktree_test_gate(tid):
+    """Corre la suite en el worktree. (exit, salida). Sin suite: (None, motivo)."""
+    reg = _wt_reg()
+    w = reg.get(tid)
+    if not w:
+        return None, "no hay worktree para esa tarea"
+    cmd = _tests_comando(w["ruta"])
+    if not cmd:
+        w["tests"].append({"at": _now_iso(), "comando": None, "exit": None, "salida": "sin suite de tests"})
+        _wt_guardar(reg)
+        return None, "el repo no tiene suite de tests (settings «paralelo_tests»): sin test gate no se fusiona"
+    try:
+        r = subprocess.run(cmd, cwd=w["ruta"], capture_output=True, text=True, timeout=900, encoding="utf-8",
+                           errors="replace", **_oculto())
+        rc, out = r.returncode, ((r.stdout or "") + (r.stderr or ""))[-3000:]
+    except (OSError, subprocess.TimeoutExpired) as e:
+        rc, out = 1, f"no se pudo correr: {type(e).__name__}: {e}"
+    w["tests"].append({"at": _now_iso(), "comando": " ".join(cmd), "exit": rc, "salida": out[-1500:]})
+    w["estado"] = "tests_ok" if rc == 0 else "tests_fallan"
+    _wt_guardar(reg)
+    log(f"paralelo: tests en el worktree de {tid}: exit {rc}")
+    return rc, out
+
+
+def worktree_nota_merge(tid, main_id=None):
+    w = _wt_reg().get(tid) or {}
+    ult = (w.get("tests") or [{}])[-1]
+    nota = [f"# Nota de merge: {w.get('rama')}", "",
+            f"- Repo: {w.get('repo')} (rama base: {w.get('base')})",
+            f"- Worktree: {w.get('ruta')}",
+            f"- Orden: primero lo que ya está en {w.get('base')}"
+            + (f" (incluida la tarea {main_id}, que corrió en el checkout principal)" if main_id else "")
+            + f"; después {w.get('rama')}.",
+            f"- Tests en el worktree: `{ult.get('comando')}` → exit {ult.get('exit')}",
+            "- Nada se fusiona solo: «Fusionar» vuelve a correr los tests y solo fusiona con exit 0.", "",
+            "```", str(ult.get("salida") or "")[-1200:], "```"]
+    p = RESULTS / f"{tid}.merge.md"
+    p.write_text("\n".join(nota) + "\n", encoding="utf-8")
+    return p
+
+
+def paralelo_fusionar(tid):
+    """Merge explícito (lo pide Leandro): tests otra vez; con exit 0, merge --no-ff y se quita el worktree."""
+    w = _wt_reg().get(tid)
+    if not w:
+        return False, "no hay worktree para esa tarea"
+    rc, out = worktree_test_gate(tid)
+    if rc != 0:
+        return False, ("no se fusiona: " + (out if rc is None else f"los tests fallan (exit {rc})"))[:400]
+    mrc, mout = _git(["merge", "--no-ff", w["rama"], "-m", f"Merge {w['rama']} (tarea {tid}, tests en verde)"], w["repo"])
+    if mrc != 0:
+        _git(["merge", "--abort"], w["repo"])
+        return False, f"conflicto al fusionar: {mout.strip()[:300]} (merge abortado; nada cambió)"
+    _git(["worktree", "remove", w["ruta"]], w["repo"])
+    _git(["branch", "-d", w["rama"]], w["repo"])
+    reg = _wt_reg()
+    reg[tid]["estado"] = "fusionado"
+    reg[tid]["fusionado"] = _now_iso()
+    _wt_guardar(reg)
+    log(f"paralelo: {w['rama']} fusionada en {w['base']} y worktree quitado")
+    return True, f"fusionada {w['rama']} en {w['base']}"
+
+
+def _slot_lanzar(main_task, cand_file, cand_task, usar_wt):
+    data = json.loads(Path(cand_file).read_text(encoding="utf-8"))
+    if usar_wt:
+        w = worktree_crear(cand_task)
+        if w is None:
+            log(f"paralelo: {cand_task['id']} es del mismo repo y no hay worktree: va en serie")
+            return False
+        data["cwd"], data["worktree"] = w["cwd"], {"ruta": w["ruta"], "rama": w["rama"]}
+    SLOT_DIR.mkdir(parents=True, exist_ok=True)
+    dest = SLOT_DIR / Path(cand_file).name
+    os.replace(cand_file, dest)  # primero fuera de la cola (atómico): el bucle principal ya no la ve
+    dest.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    py = sys.executable.replace("pythonw.exe", "python.exe")
+    p = subprocess.Popen([py, str(Path(__file__).resolve()), "--slot2", str(dest)], cwd=str(APP_DIR),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **_oculto())
+    _SLOT.update(proc=p, task=cand_task, file=dest, t0=time.time(), wt=usar_wt, main=main_task.get("id"))
+    log(f"paralelo: {cand_task['id']} ({_motor_clase(cand_task)}) en el 2.º hueco junto a {main_task['id']} "
+        f"({_motor_clase(main_task)})" + (" en su worktree" if usar_wt else "") + f"; proceso {p.pid}")
+    return True
+
+
+def _wt_de_cwd(cwd):
+    """La tarea dueña del worktree donde está cwd (para los reintentos del agente en su worktree)."""
+    for tid, w in _wt_reg().items():
+        if w.get("estado") in ("activo", "tests_ok", "tests_fallan") and _dentro(cwd, w["ruta"]):
+            return tid
+    return None
+
+
+def _slot_terminar():
+    p, t = _SLOT["proc"], _SLOT["task"]
+    rc = p.poll()
+    log(f"paralelo: el 2.º hueco terminó {t['id']} (salida {rc})")
+    dueno = t["id"] if _SLOT["wt"] else _wt_de_cwd(t.get("cwd") or "")
+    if dueno:
+        rc_t, out = worktree_test_gate(dueno)
+        nota = worktree_nota_merge(dueno, _SLOT["main"])
+        if rc_t == 0:
+            _family_update(t.get("raiz") or t["id"], merge={"estado": "tests en verde: espera tu decisión de fusionar",
+                                                            "nota": str(nota)})
+        else:
+            reg = _wt_reg()
+            w = reg.get(dueno) or {}
+            if rc_t is not None and w.get("reintentos_test", 0) < 2:  # el agente recibe el fallo y reintenta
+                w["reintentos_test"] = w.get("reintentos_test", 0) + 1
+                _wt_guardar(reg)
+                nid = _new_task_file({"id": f"{dueno[:60]}-test{w['reintentos_test']}", "motor": t.get("motor"),
+                                      "cwd": w["cwd"], "worktree": {"ruta": w["ruta"], "rama": w["rama"]},
+                                      "raiz": t.get("raiz") or t["id"], "run_id": t.get("run_id") or t["id"],
+                                      "tarea_padre": t["id"], "revisar": False,
+                                      "prompt": "Los tests fallan en tu worktree después de tu cambio. Corrígelo "
+                                                f"(solo esto). Salida de `{(w.get('tests') or [{}])[-1].get('comando')}`:\n"
+                                                + out[-2000:]})
+                log(f"paralelo: tests en rojo en el worktree de {dueno}: el agente recibe el fallo y reintenta ({nid})")
+            elif rc_t is not None:
+                log(f"paralelo: tests en rojo en el worktree de {dueno} tras {w.get('reintentos_test')} reintento(s): "
+                    "se para; la rama queda sin fusionar para que decidas tú")
+            _family_update(t.get("raiz") or t["id"], merge={"estado": "tests en rojo: no se fusiona", "nota": str(nota)})
+    _SLOT.update(proc=None, task=None, file=None, t0=None, wt=None, main=None)
+
+
+def _main_actual():
+    tid = state.get("current")
+    if not tid:
+        return None
+    for p in PROCESSING.glob("*.task.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if d.get("id") == tid:
+            t, err = validate_task(d)
+            return t if not err else None
+    return None
+
+
+def slot_vigia(stop_event):
+    """Cada 3 s: si corre una tarea y el 2.º hueco está libre, busca otra compatible."""
+    while not stop_event.is_set():
+        try:
+            if _SLOT["proc"] is not None:
+                if _SLOT["proc"].poll() is not None:
+                    _slot_terminar()
+            elif paralelo_max() >= 2 and not _BREAKER["pausado"]:
+                main = _main_actual()
+                if main is not None:
+                    espera = cola_en_espera()
+                    now = time.time()
+                    for f in sorted(TASKS.glob("*.task.json"), key=lambda q: q.stat().st_mtime):
+                        if now - f.stat().st_mtime < 2 or _is_model_task(f) or f.name in espera:
+                            continue
+                        try:
+                            t, err = validate_task(json.loads(f.read_text(encoding="utf-8")))
+                        except (OSError, ValueError):
+                            continue
+                        if err or t["id"] == main["id"]:
+                            continue
+                        ok, motivo, wt = paralelo_decidir(main, t)
+                        if ok:
+                            _slot_lanzar(main, f, t, wt)
+                            break
+                        log(f"paralelo: {t['id']} no va junto a {main['id']}: {motivo}") if _SLOT.get(
+                            "ultimo_no") != (t["id"], main["id"]) else None
+                        _SLOT["ultimo_no"] = (t["id"], main["id"])
+        except Exception as e:
+            log(f"paralelo: {type(e).__name__}: {e}")
+        stop_event.wait(3)
+
+
+def _cli_slot2(ruta):
+    """El 2.º hueco: procesa UNA tarea en este proceso y sale."""
+    cola_init()
+    hook = os.environ.get("GROWI_BRIDGE_PRUEBA_HOOK")
+    if hook and os.environ.get("GROWI_BRIDGE_SHARE") and os.environ.get("GROWI_BRIDGE_MUTEX"):
+        import runpy  # solo en una instancia aislada de prueba (share y mutex propios)
+        runpy.run_path(hook, init_globals={"gb": sys.modules[__name__]})
+    p = Path(ruta)
+    try:
+        process_one(p)
+    except Exception as e:
+        log(f"paralelo: el 2.º hueco falló con {p.name}: {type(e).__name__}: {e}")
+        return 1
+    return 0
+
+
 def runner_loop(stop_event):
     for d in (TASKS, PROCESSING, DONE, RESULTS, WAITING):
         d.mkdir(parents=True, exist_ok=True)
@@ -16996,6 +17305,7 @@ def runner_loop(stop_event):
     if not claude:
         log("runner AVISO: `claude` no esta en el PATH; las tareas fallaran con error.")
     threading.Thread(target=_runner_pulse_loop, args=(stop_event,), daemon=True).start()
+    threading.Thread(target=slot_vigia, args=(stop_event,), daemon=True).start()  # 2.º hueco (t-paralelo-seguro-030)
     last_heartbeat = 0.0
     last_archive = time.time()
     while not stop_event.is_set():
@@ -25439,6 +25749,23 @@ def _requeue_ui():
     messagebox.showinfo("Tareas", f"{row['id']}: {msg}")
     _tasks_fp[0] = None
     _refresh_tasks_ui()
+
+
+def _paralelo_fusionar_ui():
+    tree = _widgets.get("tasks_tree")
+    sel = tree.selection() if tree is not None else ()
+    if not sel:
+        messagebox.showinfo("Fusionar", "Elige primero en Tareas la tarea que trabajó en su worktree.")
+        return
+    w = _wt_reg().get(sel[0])
+    if not w:
+        messagebox.showinfo("Fusionar", "Esa tarea no tiene una rama de agente (no corrió en un worktree).")
+        return
+    if not messagebox.askyesno("Fusionar", f"Se vuelven a correr los tests en {w['ruta']} y, solo si pasan, se "
+                                           f"fusiona {w['rama']} en {w['base']}.\n\n¿Sigo?"):
+        return
+    ok, msg = paralelo_fusionar(sel[0])
+    messagebox.showinfo("Fusionar", msg if ok else f"No se fusionó: {msg}")
 
 
 def _cuarentena_abandonar_ui():
@@ -39535,6 +39862,8 @@ def build_gui():
           abrir_lista_espera),
         C("reencolar", "Volver a encolar la tarea elegida", "reintentar repetir encolar cola corte",
           lambda: (_show_page("tareas"), _requeue_ui())),
+        C("fusionar_agente", "Fusionar la rama del agente (la tarea elegida; tests antes)",
+          "fusionar merge rama agente worktree paralelo tests", lambda: _paralelo_fusionar_ui()),
         C("cuarentena_abandonar", "Abandonar la tarea en cuarentena (la elegida en Tareas)",
           "cuarentena abandonar fallo ambiguo descartar", lambda: _cuarentena_abandonar_ui()),
         C("rev_aprobar", "Corregir la revisión: yo la apruebo",
@@ -39847,6 +40176,8 @@ def main():
     # Ayudante sin elevacion del Administrador de credenciales (Ajustes -> Claves).
     if len(sys.argv) >= 3 and sys.argv[1] == "--cred-ayudante":
         return _cli_cred_ayudante(sys.argv[2])
+    if len(sys.argv) >= 3 and sys.argv[1] == "--slot2":  # el 2.º hueco del runner: una tarea y sale
+        return _cli_slot2(sys.argv[2])
     if len(sys.argv) >= 3 and sys.argv[1] == "--probar-motor":
         return _cli_probar_motor(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
     # Tripo (saldo / generar): proceso aparte con la clave SOLO en su entorno.
