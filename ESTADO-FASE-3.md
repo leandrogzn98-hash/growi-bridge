@@ -20,6 +20,7 @@ raíz y su commit.
 | 13 | t-estimado-gasto-030 | **LISTO** (FALTA: aplicar el umbral por plan) | `7d6d1c5`, `ESTADO-ESTIMADO-GASTO.md` |
 | 14 | t-evaluar-hermes4 | **SALTADO (depende del 08 + GPU)** | Pide A/B con 10 tareas en local con Hermes 4 descargado; la GPU está ocupada y el catálogo (08) no se pudo instalar |
 | 15 | t-gasto-pronostico | **LISTO** (FALTA P2: ahorro por usar local) | `566fbaa`, `ESTADO-GASTO-PRONOSTICO.md` |
+| 16 | t-interruptor-motor | **LISTO** | `ebed8ec`, `ESTADO-INTERRUPTOR-MOTOR.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
