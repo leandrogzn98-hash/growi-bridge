@@ -1,0 +1,87 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-tareas-ctrlk-hq882mj8",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 11.96,
+ "campo": {
+  "tipo": "Entry",
+  "placeholder": "Buscar o pedirle algo (Ctrl K)",
+  "en_encabezado": true
+ },
+ "inicio": [
+  "t-blender-07",
+  "t-factura-01",
+  "t-factura-02",
+  "t-notas-11"
+ ],
+ "a_filtra": {
+  "factura-0": [
+   "t-factura-01",
+   "t-factura-02"
+  ],
+  "BLENDER": [
+   "t-blender-07"
+  ],
+  "obsidian": [
+   "t-notas-11"
+  ],
+  "reunión": [
+   "t-notas-11"
+  ]
+ },
+ "b_sin_filtro": {
+  "filas": [
+   "t-blender-07",
+   "t-factura-01",
+   "t-factura-02",
+   "t-notas-11"
+  ],
+  "igual_que_al_inicio": true
+ },
+ "intro_coincide": {
+  "seleccion": [
+   "t-notas-11"
+  ],
+  "detalle": "t-notas-11"
+ },
+ "c_sin_coincidencias_filas": [],
+ "c_encargo": {
+  "archivo": [
+   "t-20261028-142401.task.json"
+  ],
+  "motor": "auto",
+  "model": null,
+  "prompt": "Hazme una lista de la compra para la semana",
+  "en_la_lista": true,
+  "campo_limpio": true,
+  "selector_del_compositor_igual": true
+ },
+ "d_ctrl_k": {
+  "foco": [
+   "campo"
+  ],
+  "paleta_abierta": false
+ },
+ "e_esc": {
+  "campo": "",
+  "foco": [
+   "lista"
+  ],
+  "filas_sin_filtro": true
+ },
+ "f_paleta": {
+  "abierta": true,
+  "tipo": "Toplevel",
+  "secciones": [
+   "Resultados"
+  ],
+  "resultados": 2
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 534,
+  "encabezado_pedido": 382,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}

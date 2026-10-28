@@ -27934,6 +27934,143 @@ TFILTROS_EXPL = ("Necesita decisión: tras 3 rondas no quedó bien, o su aprobac
 _T45: dict = {"kit": None, "filtro": "todos", "pills": {}, "stats": {}, "fijada": None, "cuentas": {}}
 
 
+# ---- Tareas: «Buscar o pedirle algo (Ctrl K)» en el encabezado (t-tareas-ctrlk-045). Tkinter clásico (la paleta
+# Ctrl+K no se convierte ni se toca). Al escribir, la lista se filtra en vivo por id o por título (el encargo);
+# vacío, sin filtro. Intro sin coincidencias: el texto va como encargo nuevo por el camino del compositor
+# (_send_ask) con «Automático (recomendado)»: decide el router. Intro con coincidencias: elige la primera.
+# Ctrl+K en Tareas pone el foco aquí (si ya lo tiene, abre la paleta de siempre); Esc limpia y vuelve a la lista.
+BUSCA_PLACEHOLDER = "Buscar o pedirle algo (Ctrl K)"
+
+
+def tareas_buscar(rows, q):
+    """Las filas cuyo id o título (el encargo) contienen q (sin mayúsculas). q vacío: todas."""
+    q = str(q or "").strip().lower()
+    if not q:
+        return list(rows)
+    out = []
+    for r in rows:
+        fam = r.get("fam") or {}
+        titulo = str(fam.get("encargo") or fam.get("titulo") or "")
+        if q in str(r.get("id") or "").lower() or q in titulo.lower():
+            out.append(r)
+    return out
+
+
+def _busca_construir(parent):
+    caja = tk.Frame(parent, bg=THEME["bg"])
+    caja.pack(side="right", anchor="s", pady=(0, 4))
+    var = tk.StringVar()
+    ent = ttk.Entry(caja, textvariable=var, width=34, font=(FONT, 10))
+    ent.pack()
+    ph = tk.Label(caja, text=BUSCA_PLACEHOLDER, font=(FONT, 10), bg=THEME["field"], fg=THEME["muted"],
+                  cursor="xterm")
+    ph.bind("<Button-1>", lambda _e: ent.focus_set())
+    _T45.update(busca_var=var, busca_entry=ent, busca_ph=ph, busca="")
+
+    def _ph(_e=None):
+        try:
+            enf = ent.focus_get() is ent
+        except Exception:
+            enf = False
+        if not var.get() and not enf:
+            ph.place(in_=ent, x=S(6), rely=0.5, anchor="w")
+            ph.lift()
+        else:
+            ph.place_forget()
+    _T45["busca_ph_fn"] = _ph
+    var.trace_add("write", lambda *_a: _busca_filtrar())
+    ent.bind("<Return>", _busca_intro)
+    ent.bind("<Escape>", _busca_esc)
+    for ev in ("<FocusIn>", "<FocusOut>"):
+        ent.bind(ev, lambda _e: ent.after_idle(_ph), add=True)
+    ent.after(60, _ph)
+    _widgets["tareas_busca"] = ent
+
+
+def _busca_filtrar():
+    var = _T45.get("busca_var")
+    q = var.get().strip() if var is not None else ""
+    if q == _T45.get("busca", ""):
+        return
+    _T45["busca"] = q
+    _tasks_fp[0] = None
+    _refresh_tasks_ui()
+    fn = _T45.get("busca_ph_fn")
+    if fn:
+        fn()
+
+
+def _busca_intro(_e=None):
+    var = _T45.get("busca_var")
+    q = var.get().strip() if var is not None else ""
+    if not q:
+        return "break"
+    tree = _widgets.get("tasks_tree")
+    hay = tareas_buscar(_task_rows()[0], q)
+    if hay and tree is not None:
+        vis = list(tree.get_children())
+        primera = next((r["id"] for r in hay if r["id"] in vis), None)
+        if primera:
+            tree.selection_set(primera)
+            tree.focus(primera)
+            tree.see(primera)
+            tree.focus_set()
+            _show_task_detail()
+        return "break"
+    # nada coincide: encargo nuevo por el camino del compositor, con el router automático
+    box, cb, crit = _widgets.get("ask_text"), _widgets.get("ask_engine"), _widgets.get("ask_criterios")
+    if box is None:
+        return "break"
+    prev = cb.get() if cb is not None else None
+    crit_txt = crit.get("1.0", "end").strip() if crit is not None else ""
+    if crit is not None:
+        crit.delete("1.0", "end")  # los criterios a medio escribir en el compositor no se cuelan aquí
+    box.delete("1.0", "end")
+    box.insert("1.0", q)
+    if cb is not None:
+        cb.set(AUTO_LABEL)
+    _send_ask()
+    if cb is not None and prev:
+        cb.set(prev)
+    if crit is not None and crit_txt:
+        crit.insert("1.0", crit_txt)
+    try:
+        _comp_placeholder()
+    except Exception:
+        pass
+    log(f"tareas: «Buscar o pedirle algo»: sin coincidencias, enviado como encargo («{q[:60]}»)")
+    var.set("")
+    return "break"
+
+
+def _busca_esc(_e=None):
+    var = _T45.get("busca_var")
+    if var is not None:
+        var.set("")
+    tree = _widgets.get("tasks_tree")
+    if tree is not None:
+        tree.focus_set()
+    return "break"
+
+
+def tareas_ctrl_k():
+    """Ctrl+K dentro de la app con Tareas a la vista: el foco al campo «Buscar o pedirle algo». True si lo tomó;
+    False (ya tenía el foco, u otra página) -> la paleta de siempre."""
+    ent = _widgets.get("tareas_busca")
+    if ent is None or _widgets.get("pagina_actual") != "tareas":
+        return False
+    try:
+        foco = ent.focus_get()
+        pal = _palette.get("win")
+        if foco is ent or (foco is not None and pal is not None and str(foco).startswith(str(pal))):
+            return False  # ya está aquí, o estás en la paleta: Ctrl+K hace lo de siempre
+    except Exception:
+        pass
+    ent.focus_set()
+    ent.select_range(0, "end")
+    return True
+
+
 def tareas_filtrar(rows, filtro):
     est = next((e for k, _l, e, _c in TFILTROS if k == filtro), None)
     return list(rows) if not est else [r for r in rows if r["estado"] in est]
@@ -28101,7 +28238,8 @@ def _refresh_tasks_ui():
         files = list(RESULTS.glob("*.json"))
         fp = (len(files), max((f.stat().st_mtime for f in files), default=0),
               tuple(sorted(p.name for p in TASKS.glob("*.task.json"))),
-              tuple(sorted(p.name for p in WAITING.glob("*.task.json"))), _ESP["filtro"], _T45["filtro"])
+              tuple(sorted(p.name for p in WAITING.glob("*.task.json"))), _ESP["filtro"], _T45["filtro"],
+              _T45.get("busca", ""))
         if fp == _tasks_fp[0]:
             return
         _tasks_fp[0] = fp
@@ -28119,6 +28257,7 @@ def _refresh_tasks_ui():
             vista = [r for r in vista if (r.get("fam") or {}).get("proyecto") == _pa["nombre"]]
         base = vista
         vista = tareas_filtrar(vista, _T45["filtro"])  # píldora de filtro (t-tareas-estadisticas-045)
+        vista = tareas_buscar(vista, _T45.get("busca", ""))  # «Buscar o pedirle algo» (t-tareas-ctrlk-045)
         for r in vista[:TAREAS_MAX_FILAS]:
             iid = r["id"]
             _tasks_rows[iid] = r
@@ -37189,6 +37328,8 @@ def atajo_quitar_accion(aid):
 
 
 def _atajo_fn_paleta(ambito="paleta"):
+    if ambito == "paleta" and tareas_ctrl_k():  # en Tareas: al campo «Buscar o pedirle algo» (t-tareas-ctrlk-045)
+        return
     _on_ctrl_k()
     if ambito == "global":  # desde otra app: la paleta delante y con el foco
         try:
@@ -43194,8 +43335,11 @@ def build_gui():
 
     # ================= pagina Tareas
     tabt = pages["tareas"]
-    tk.Label(tabt, text="Tareas", font=(FONT, 22, "bold"),
-             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    _thead = tk.Frame(tabt, bg=THEME["bg"])
+    _thead.pack(fill="x", padx=20, pady=(18, 2))
+    tk.Label(_thead, text="Tareas", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(side="left")
+    _busca_construir(_thead)  # «Buscar o pedirle algo (Ctrl K)» (t-tareas-ctrlk-045)
     tk.Label(tabt, text="Cada tarea se revisa sola al terminar. Si falta algo, Growi lo "
              "corrige hasta 3 veces; si aun asi no queda, te pide que decidas tú.",
              font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
