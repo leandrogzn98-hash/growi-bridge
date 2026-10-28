@@ -1,0 +1,47 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-pp-gpwmns9k",
+ "por_defecto_apagado": false,
+ "apagado_no_guarda": 0,
+ "a_guardados": [
+  [
+   "Precio para Aqualine: filtro X a 120 $",
+   "2026-10-28T05:42:19-04:00"
+  ],
+  [
+   "Brief de Summit Maker: taller hands-on el sábado",
+   "2026-10-28T05:42:21-04:00"
+  ],
+  [
+   "Mensaje para Angelis: confirmo la sala del taller",
+   "2026-10-28T05:42:22-04:00"
+  ]
+ ],
+ "c_tras_secretos": 3,
+ "c_secretos_guardados": [],
+ "b_paleta": [
+  "Brief de Summit Maker: taller hands-on el sábado  ·  2026-10-28 05:42"
+ ],
+ "b_portapapeles_tras_intro": "Brief de Summit Maker: taller hands-on el sábado",
+ "c_nunca_esto": [],
+ "e_local": {
+  "archivo": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-pp-gpwmns9k\\app\\portapapeles.json",
+  "dentro_de_share": false,
+  "el_puente_lo_nombra": false,
+  "lo_exporta_config": false
+ },
+ "d_apagar": {
+  "antes": 3,
+  "archivo_existe": false,
+  "activo": false
+ },
+ "log": [
+  "2026-10-28T05:42:19-04:00 portapapeles: historial ENCENDIDO (solo texto, 30 días, en este PC)",
+  "2026-10-28T05:42:24-04:00 portapapeles: no guardado (parece una contraseña, clave o token)",
+  "2026-10-28T05:42:25-04:00 portapapeles: no guardado (parece una contraseña, clave o token)",
+  "2026-10-28T05:42:28-04:00 portapapeles: copiado de vuelta desde la paleta",
+  "2026-10-28T05:42:29-04:00 portapapeles: borrado un texto (y «no guardar nunca esto»)",
+  "2026-10-28T05:42:29-04:00 portapapeles: no guardado (marcado «no guardar nunca esto»)",
+  "2026-10-28T05:42:30-04:00 portapapeles: historial APAGADO y borrado (3 textos)"
+ ],
+ "tracebacks_en_log": 0
+}

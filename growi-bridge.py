@@ -24912,7 +24912,8 @@ def _palette_sections(q):
         else:
             scored.append((total + min(int(use.get(c["id"], 0)), 10) * 0.1, c))
     scored.sort(key=lambda x: -x[0])
-    return [("Resultados", [c for _s, c in scored[:12]])]
+    pp = _pp_paleta_items(q)  # t-portapapeles: lo copiado que coincide (si el historial está encendido)
+    return [("Resultados", [c for _s, c in scored[:12]])] + ([("Portapapeles (Intro: copiar)", pp)] if pp else [])
 
 
 def _palette_ask_ai(q):
@@ -29858,6 +29859,307 @@ def _corte_sin_prueba():
     ok, msg = resiliencia_registrar("sin prueba")
     _CORTE["kit"].set_label(_CORTE["msg"], text=("Guardado: " + msg) if ok else msg, color="green_text" if ok else "red")
     _corte_render()
+
+
+# ---------------------------------------------------------------- historial del portapapeles (t-portapapeles)
+# APAGADO por defecto (settings «portapapeles_historial»): se enciende en
+# Ajustes con la explicación de qué guarda. Solo texto, 30 días, en este PC
+# (portapapeles.json en la carpeta de Bridge: fuera de share\, que es lo único
+# que ve el puente; nunca va a ninguna nube). Nunca guarda lo que un gestor de
+# contraseñas marca como no-monitorizable, lo de las apps que marques como
+# sensibles, ni lo que parece una contraseña, clave o token. Apagarlo borra
+# lo guardado (con confirmación). Buscable desde la paleta; Intro lo copia.
+PP_FILE = APP_DIR / "portapapeles.json"
+PP_DIAS = 30
+PP_MAX = 2000
+_PP = {"seq": None, "hilo": None, "omitidos": 0}
+_PP_TOKEN_RE = re.compile(r"^(?:sk-[\w-]{16,}|sk-ant-[\w-]{16,}|ghp_\w{20,}|gho_\w{20,}|github_pat_\w{20,}|"
+                          r"xox[abp]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|eyJ[\w-]+\.[\w-]+\.[\w-]+|"
+                          r"[A-Fa-f0-9]{32,}|[A-Za-z0-9+/=_-]{40,})$")
+
+
+def pp_activo():
+    return bool(load_settings().get("portapapeles_historial"))
+
+
+def _pp_k32_u32():
+    import ctypes
+    from ctypes import wintypes
+    u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+    u32.GetClipboardData.restype = wintypes.HANDLE
+    u32.SetClipboardData.argtypes = (wintypes.UINT, wintypes.HANDLE)
+    u32.SetClipboardData.restype = wintypes.HANDLE
+    u32.OpenClipboard.argtypes = (wintypes.HWND,)
+    k32.GlobalLock.argtypes = (wintypes.HGLOBAL,)
+    k32.GlobalLock.restype = ctypes.c_void_p
+    k32.GlobalUnlock.argtypes = (wintypes.HGLOBAL,)
+    k32.GlobalAlloc.argtypes = (wintypes.UINT, ctypes.c_size_t)
+    k32.GlobalAlloc.restype = wintypes.HGLOBAL
+    u32.RegisterClipboardFormatW.restype = wintypes.UINT
+    u32.IsClipboardFormatAvailable.argtypes = (wintypes.UINT,)
+    return ctypes, u32, k32
+
+
+def _pp_leer():
+    """(texto o None, motivo_si_no). Solo CF_UNICODETEXT; respeta las marcas de los gestores de contraseñas."""
+    ctypes, u32, k32 = _pp_k32_u32()
+    for fmt in ("ExcludeClipboardContentFromMonitorProcessing", "Clipboard Viewer Ignore"):
+        if u32.IsClipboardFormatAvailable(u32.RegisterClipboardFormatW(fmt)):
+            return None, f"la app lo marca como no guardable ({fmt})"
+    cih = u32.RegisterClipboardFormatW("CanIncludeInClipboardHistory")
+    if not u32.IsClipboardFormatAvailable(13):
+        return None, "no es texto"
+    for _i in range(5):
+        if u32.OpenClipboard(None):
+            break
+        time.sleep(0.05)
+    else:
+        return None, "el portapapeles está ocupado"
+    try:
+        if u32.IsClipboardFormatAvailable(cih):
+            h = u32.GetClipboardData(cih)
+            p = k32.GlobalLock(h) if h else None
+            if p:
+                val = ctypes.c_uint32.from_address(p).value
+                k32.GlobalUnlock(h)
+                if val == 0:
+                    return None, "la app pide que no entre en el historial (CanIncludeInClipboardHistory = 0)"
+        h = u32.GetClipboardData(13)
+        if not h:
+            return None, "sin texto"
+        p = k32.GlobalLock(h)
+        try:
+            return ctypes.wstring_at(p), None
+        finally:
+            k32.GlobalUnlock(h)
+    finally:
+        u32.CloseClipboard()
+
+
+def _pp_poner(texto):
+    """Copia texto al portapapeles (Intro en la paleta)."""
+    ctypes, u32, k32 = _pp_k32_u32()
+    data = (texto + "\0").encode("utf-16-le")
+    for _i in range(5):
+        if u32.OpenClipboard(None):
+            break
+        time.sleep(0.05)
+    else:
+        return False
+    try:
+        u32.EmptyClipboard()
+        h = k32.GlobalAlloc(0x0002, len(data))
+        p = k32.GlobalLock(h)
+        ctypes.memmove(p, data, len(data))
+        k32.GlobalUnlock(h)
+        return bool(u32.SetClipboardData(13, h))
+    finally:
+        u32.CloseClipboard()
+
+
+def _pp_app_origen():
+    """El .exe de la app que puso lo copiado (para las apps sensibles)."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        u32 = ctypes.windll.user32
+        hwnd = u32.GetClipboardOwner()
+        if not hwnd:
+            return None
+        pid = wintypes.DWORD()
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        k32 = ctypes.windll.kernel32
+        hp = k32.OpenProcess(0x1000, False, pid.value)
+        if not hp:
+            return None
+        buf = ctypes.create_unicode_buffer(520)
+        n = wintypes.DWORD(520)
+        ok = k32.QueryFullProcessImageNameW(hp, 0, buf, ctypes.byref(n))
+        k32.CloseHandle(hp)
+        return Path(buf.value).name.lower() if ok else None
+    except Exception:
+        return None
+
+
+def pp_parece_secreto(texto):
+    """True si parece contraseña, clave o token (una sola «palabra» con pinta de secreto)."""
+    t = texto.strip()
+    if not t or "\n" in t or " " in t or len(t) > 200:
+        return False
+    if _PP_TOKEN_RE.match(t):
+        return True
+    clases = sum(bool(re.search(r, t)) for r in (r"[a-z]", r"[A-Z]", r"\d", r"[^\w\s]"))
+    return 8 <= len(t) <= 64 and clases >= 3 and not re.match(r"^https?://", t) and "@" not in t[1:-1]
+
+
+def _pp_hash(texto):
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:24]
+
+
+def pp_lista():
+    try:
+        d = json.loads(PP_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _pp_guardar_lista(lista):
+    corte = (datetime.now().astimezone() - timedelta(days=PP_DIAS)).isoformat(timespec="seconds")
+    lista = [x for x in lista if str(x.get("at") or "") >= corte][-PP_MAX:]  # pasados 30 días se borra solo
+    tmp = PP_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, PP_FILE)
+    return lista
+
+
+def pp_apuntar(texto, app=None):
+    """Una entrada nueva (o sube la que ya estaba). (guardado, motivo)."""
+    texto = str(texto or "")
+    if not texto.strip():
+        return False, "vacío"
+    s = load_settings()
+    if _pp_hash(texto) in (s.get("portapapeles_nunca") or []):
+        return False, "marcado «no guardar nunca esto»"
+    if app and app in [str(x).lower() for x in s.get("portapapeles_apps_sensibles") or []]:
+        return False, f"viene de una app sensible ({app})"
+    if pp_parece_secreto(texto):
+        return False, "parece una contraseña, clave o token"
+    lista = [x for x in pp_lista() if x.get("texto") != texto]
+    lista.append({"texto": texto[:20000], "at": _now_iso(), "app": app, "id": secrets.token_hex(4)})
+    _pp_guardar_lista(lista)
+    return True, "guardado"
+
+
+def _pp_vigia():
+    """Cada segundo: si cambió el portapapeles (número de secuencia) y el historial está encendido, se mira."""
+    import ctypes
+    u32 = ctypes.windll.user32
+    while True:
+        try:
+            seq = u32.GetClipboardSequenceNumber()
+            if seq != _PP["seq"]:
+                _PP["seq"] = seq
+                if pp_activo():
+                    texto, por_que = _pp_leer()
+                    if texto is not None:
+                        ok, por_que = pp_apuntar(texto, _pp_app_origen())
+                    if texto is not None and not ok and por_que not in ("vacío",):
+                        _PP["omitidos"] += 1
+                        log(f"portapapeles: no guardado ({por_que})")  # nunca el contenido
+        except Exception as e:
+            log(f"portapapeles: {type(e).__name__}: {e}")
+        time.sleep(1.0)
+
+
+def pp_iniciar():
+    if _PP["hilo"] is None:
+        try:
+            import ctypes
+            _PP["seq"] = ctypes.windll.user32.GetClipboardSequenceNumber()  # lo de antes de encender no cuenta
+        except Exception:
+            pass
+        _PP["hilo"] = threading.Thread(target=_pp_vigia, daemon=True, name="portapapeles")
+        _PP["hilo"].start()
+
+
+def pp_encender(on, confirmar=True):
+    s = load_settings()
+    if on:
+        s["portapapeles_historial"] = True
+        save_settings(s)
+        try:
+            import ctypes
+            _PP["seq"] = ctypes.windll.user32.GetClipboardSequenceNumber()
+        except Exception:
+            pass
+        log("portapapeles: historial ENCENDIDO (solo texto, 30 días, en este PC)")
+        return True
+    if confirmar and pp_lista() and not messagebox.askyesno(
+            "Historial del portapapeles", f"Al apagarlo se borran los {len(pp_lista())} textos guardados. ¿Lo apago?"):
+        return False
+    s["portapapeles_historial"] = False
+    save_settings(s)
+    n = len(pp_lista())
+    try:
+        PP_FILE.unlink()
+    except FileNotFoundError:
+        pass
+    log(f"portapapeles: historial APAGADO y borrado ({n} textos)")
+    return True
+
+
+def _pp_switch_ui(on):
+    """El interruptor de Ajustes: si al apagar dices «no», vuelve a encendido (no se borra nada)."""
+    if not pp_encender(on):
+        sw = _widgets.get("pp_sw")
+        if sw is not None:
+            sw.select()
+
+
+def pp_borrar(item_id, nunca=False):
+    lista = pp_lista()
+    x = next((i for i in lista if i.get("id") == item_id), None)
+    if x is None:
+        return False
+    if nunca:
+        s = load_settings()
+        s["portapapeles_nunca"] = list(dict.fromkeys((s.get("portapapeles_nunca") or []) + [_pp_hash(x["texto"])]))
+        save_settings(s)
+    _pp_guardar_lista([i for i in lista if i.get("id") != item_id])
+    log("portapapeles: borrado un texto" + (" (y «no guardar nunca esto»)" if nunca else ""))
+    return True
+
+
+def pp_buscar(q, n=8):
+    """Por palabras + fecha (lo más reciente primero). Sin IA."""
+    toks = [t for t in _norm(q).split() if t]
+    out = [x for x in reversed(pp_lista()) if all(t in _norm(x["texto"]) for t in toks)]
+    return out[:n]
+
+
+def _pp_paleta_items(q):
+    if not pp_activo() or not q.strip():
+        return []
+    items = []
+    for x in pp_buscar(q, 5):
+        corto = re.sub(r"\s+", " ", x["texto"]).strip()
+        items.append({"id": "_pp", "label": f"{corto[:60]}{'…' if len(corto) > 60 else ''}  ·  {str(x['at'])[:16].replace('T', ' ')}",
+                      "fn": lambda t=x["texto"]: (_pp_poner(t), log("portapapeles: copiado de vuelta desde la paleta"),
+                                                  toast("Copiado"))})
+    return items
+
+
+def pp_ui():
+    """Todo lo guardado, con borrar uno / «no guardar nunca esto» / borrar todo."""
+    top = tk.Toplevel(_root)
+    top.title("Historial del portapapeles")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(640)}x{S(520)}")
+    page = _scrollable(top)
+    k = _KitTk(page)
+    c = k.section("Lo que hay guardado", f"Solo texto, {PP_DIAS} días, en este PC ({PP_FILE.name}). Nunca sale por el "
+                                         "puente ni a ninguna nube.")
+    box = k.frame(c)
+    box.pack(fill="x", padx=16, pady=(2, 8))
+
+    def pintar():
+        for ch in box.winfo_children():
+            ch.destroy()
+        lista = pp_lista()
+        if not lista:
+            k.label(box, "Nada guardado." + ("" if pp_activo() else " (El historial está apagado.)"), muted=True).pack(anchor="w")
+        for x in reversed(lista[-200:]):
+            f = k.frame(box)
+            f.pack(fill="x", pady=1)
+            corto = " ".join(x["texto"].split())[:70]
+            k.label(f, f"{str(x['at'])[:16].replace('T', ' ')} · {corto}", wrap=380).pack(side="left", anchor="w")
+            k.button(f, "No guardar nunca esto", lambda i=x["id"]: (pp_borrar(i, nunca=True), pintar())).pack(side="right")
+            k.button(f, "Borrar", lambda i=x["id"]: (pp_borrar(i), pintar())).pack(side="right", padx=(0, 6))
+    k.button(c, "Borrar todo", lambda: (messagebox.askyesno("Historial", "¿Borro todo lo guardado?") and (
+        PP_FILE.unlink(missing_ok=True), log("portapapeles: borrado todo"), pintar()))).pack(anchor="w", padx=16, pady=(0, 12))
+    pintar()
+    return top
 
 
 # ---------------------------------------------------------------- proyectos (t-proyectos)
@@ -38846,6 +39148,13 @@ def _build_ajustes_ctk(tab_aj):
 
     # ---- Datos y respaldo
     dr = section("Datos y respaldo")
+    _widgets["pp_sw"] = setting_switch(
+        dr, "Historial del portapapeles",
+        "Guarda lo que copias, solo texto, 30 días, en tu PC (nunca sale por el puente ni a la nube). Nunca guarda "
+        "contraseñas, claves ni lo de las apps sensibles. Apagarlo borra lo guardado. Se busca desde Ctrl+K.",
+        pp_activo(), _pp_switch_ui)
+    r, der = side_row(dr, "Lo copiado guardado", "Verlo todo, borrar uno («no guardar nunca esto») o borrarlo todo.")
+    button(der, "Ver…", pp_ui).pack()
     r, der = side_row(dr, "Exportar configuración", "Tus ajustes y carpetas en un archivo .json (sin "
                                                     "claves, proxy ni secreto) para reinstalar sin repetir "
                                                     "la configuración inicial.")
@@ -40403,6 +40712,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("portapapeles", "Historial del portapapeles (ver o borrar)",
+          "portapapeles historial copiado pegar clipboard", lambda: (show_window(), pp_ui())),
         C("proyectos", "Proyectos: cambiar de proyecto o crear uno",
           "proyecto proyectos cliente aqualine summit maker hayai cambiar activar carpeta instrucciones",
           lambda: (show_window(), proyectos_ui())),
@@ -40450,6 +40761,7 @@ def build_gui():
     # porque Tk ya tiene <Alt-Key> en «all» y taparia al generico.
     root.bind_all("<KeyPress>", _atajo_tecla_tk, add="+")
     root.bind_all("<Alt-KeyPress>", _atajo_tecla_tk, add="+")
+    pp_iniciar()  # historial del portapapeles: solo mira si está encendido en Ajustes (t-portapapeles)
     try:
         teclado_init(root)  # Alt+0..9, «?», flechas, Esc y un solo anillo de foco (t-teclado-foco)
     except Exception as e:
