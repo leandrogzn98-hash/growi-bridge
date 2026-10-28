@@ -536,7 +536,9 @@ def correr(entrada, forzar_smoke=None):
         est["bloqueos"] = (est.get("bloqueos") or 0) + 1 if falla else 0
         if falla and est["bloqueos"] > MAX_BLOQUEOS:
             resultado, bloquear = "FALLA SIN CORREGIR", False
+        est["historial"] = [*(est.get("historial") or []), f"{time.strftime('%H:%M:%S')} {resultado}"][-20:]
         est_f.write_text(json.dumps(est), encoding="utf-8")
+        cab.append("historial de esta sesion: " + " -> ".join(est["historial"]))
     txt = "\n".join([f"GATE: {resultado} ({total} s, $0: sin modelo)", *cab, ""] + [c.texto() for c in chequeos])
     if resultado == "FALLA SIN CORREGIR":
         txt += f"\n\nEl agente no lo corrigio tras {MAX_BLOQUEOS} bloqueos: se deja terminar; la revision lo ve como fallo."

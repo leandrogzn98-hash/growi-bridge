@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -78,3 +79,21 @@ def test_sin_py_cambiados_pasa_rapido(repo):
     assert r.returncode == 0, r.stdout + r.stderr
     assert r.stdout.startswith("GATE: PASA")
     assert float(r.stdout.split("(")[1].split(" s")[0]) < 5
+
+
+def test_mypy_ausente_no_bloquea(repo, monkeypatch):
+    monkeypatch.setattr(gate, "_tiene", lambda m: False)
+    c = gate.ch_mypy(repo, [repo / "viejo.py"], {})
+    assert c.estado == "AVISO" and "FALTA" in c.detalle[0]
+
+
+def test_sin_suite_no_bloquea(repo):
+    assert gate.ch_pytest(repo, [repo / "viejo.py"]).estado == "OMITIDO"
+
+
+def test_sesion_de_revision_no_corre(repo):
+    (repo / "roto.py").write_text("def f(:\n", encoding="utf-8")
+    env = dict(os.environ, GROWI_TAREA_ROL="revision")
+    r = subprocess.run([sys.executable, str(RAIZ / "gate-calidad.py"), "--sin-stdin"], cwd=repo, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0 and r.stdout == ""
