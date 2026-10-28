@@ -1,0 +1,124 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-idem-y1sfg9je",
+ "a_run_id": {
+  "estado": "aprobada",
+  "rondas": 1,
+  "familia_run_id": "t-idem-run",
+  "archivos": {
+   "t-idem-run-r1.task.json": "t-idem-run",
+   "t-idem-run.task.json": "t-idem-run",
+   "t-idem-run-r1.result.json": "t-idem-run",
+   "t-idem-run-r1.revision.json": "t-idem-run",
+   "t-idem-run.orquestacion.json": "t-idem-run",
+   "t-idem-run.result.json": "t-idem-run",
+   "t-idem-run.revision.json": "t-idem-run",
+   "t-idem-run.ronda-0.json": "t-idem-run",
+   "t-idem-run.ronda-1.json": "t-idem-run"
+  },
+  "todos_llevan_el_run_id": true
+ },
+ "a_aprobacion_run_id": [
+  {
+   "evento": "pedido",
+   "approval_id": "apr-t-idem-apr-20261028050843-8be1",
+   "run_id": "t-idem-apr"
+  }
+ ],
+ "b_muerte": "el runner murió entre «enviar» y «apuntar enviado» (simulado)",
+ "b_fila_tras_morir": "registrado",
+ "b_reintento": [
+  "ya_hecho",
+  "está en el buzón"
+ ],
+ "b_tercera_vez": [
+  "ya_hecho",
+  "comprobado tras un corte: está en el buzón"
+ ],
+ "b_veces_que_se_envio": 1,
+ "b_sin_comprobar": [
+  "cuarentena",
+  "consta empezado y no se puede comprobar si se hizo"
+ ],
+ "b_dinero_claves": [
+  "run-d:pago:26054563220e",
+  "run-d:pago:1b8f355021e4"
+ ],
+ "b_cosecha": {
+  "aprobar": [
+   true,
+   "Enviado a la VM con tu OK (estimado $0.37)."
+  ],
+  "efecto": {
+   "clave": "cosecha-20261028-050843-311a:enviar_a_la_vm",
+   "run_id": "cosecha-20261028-050843-311a",
+   "paso": "enviar_a_la_vm",
+   "tipo": "pedido_vm",
+   "payload_sha": "b0d94ac73666f8ec",
+   "estado": "hecho",
+   "resultado": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-idem-y1sfg9je\\share\\outbox\\cosecha\\cosecha-20261028-050843-311a.json",
+   "compensacion": "retirar outbox\\cosecha\\<id>.json si la VM aún no lo leyó; si ya corrió: sin compensación, revisión manual (créditos gastados)",
+   "registrado_en": "2026-10-28T05:08:43-04:00",
+   "hecho_en": "2026-10-28T05:08:43-04:00",
+   "intentos": 1
+  }
+ },
+ "c_cuarentena": {
+  "estado": "en_cuarentena",
+  "cola": "en_cuarentena",
+  "reporte": "Lo intenté pero no pude confirmar que funcionara. Se intentó: «Haz algo con notas.txt.». No hay nada comprobado en archivos. No se pudo confirmar: el motor devolvió algo que no se entiende: «0xBEEF: estado 7». Costó: $0.0120 este intento ($0.0120 en total). Siguiente paso: decide tú: «Volver a la cola» si fue algo puntual, corrige el encargo, o «Abandonar» (y deshaz lo hecho con su compensación). El error y la entrada están en t-idem-ambiguo.cuarentena.json.",
+  "snapshot": {
+   "run_id": "t-idem-ambiguo",
+   "tarea": "t-idem-ambiguo",
+   "at": "2026-10-28T05:08:45-04:00",
+   "error": "el motor devolvió algo que no se entiende: «0xBEEF: estado 7»",
+   "stderr_final": "",
+   "entrada": {
+    "prompt": "Haz algo con notas.txt.",
+    "motor": "claude",
+    "modelo": null,
+    "cwd": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-idem-y1sfg9je\\trabajo",
+    "criterios": [],
+    "ronda": 0,
+    "permission_mode": null,
+    "allowed_tools": null
+   },
+   "efectos": [],
+   "que_hacer": "Volver a la cola (Tareas) o Abandonar (Ctrl+K). No se reintenta solo."
+  }
+ },
+ "c_abandonar": [
+  true,
+  "abandonada"
+ ],
+ "d_reporte_fallo": {
+  "estado": "fallida",
+  "reporte": "Lo intenté pero no pude confirmar que funcionara. Se intentó: «Resume notas.txt.». No hay nada comprobado en archivos. No se pudo confirmar: HTTP 401 Unauthorized: invalid api key. Costó: $0.0120 este intento ($0.0120 en total). Siguiente paso: corrige la configuración o el encargo y vuelve a encolarla."
+ },
+ "e_compensar_pedido": [
+  true,
+  "retirado cosecha-20261028-050843-311a.json"
+ ],
+ "e_compensar_correo": [
+  false,
+  "sin compensación: revisión manual (un correo enviado no se puede retirar)"
+ ],
+ "e_tabla": {
+  "enviar_correo": "sin compensación: revisión manual (un correo enviado no se puede retirar)",
+  "crear_ticket": "cerrar el ticket que lleva el run_id como marcador (se busca por el marcador antes de crear)",
+  "borrar": "soft-delete primero (a la papelera de Bridge, restaurable); el borrado definitivo, solo después",
+  "mover_dinero": "reembolso usando el fingerprint del pago (la clave lleva el fingerprint del payload)",
+  "escribir_archivos": "el worktree de la tarea (t-paralelo-seguro-030) o la copia previa (.bak)",
+  "pedido_vm": "retirar outbox\\cosecha\\<id>.json si la VM aún no lo leyó; si ya corrió: sin compensación, revisión manual (créditos gastados)"
+ },
+ "log": [
+  "2026-10-28T05:08:43-04:00 efectos: run-b:enviar constaba empezado; comprobado que SÍ se hizo (está en el buzón): no se repite",
+  "2026-10-28T05:08:43-04:00 efectos: run-b:enviar (pedido_vm) ya está hecho (2026-10-28T05:08:43-04:00): no se repite",
+  "2026-10-28T05:08:43-04:00 efectos: run-c:correo constaba empezado y no se puede comprobar si se hizo: cuarentena (no se repite)",
+  "2026-10-28T05:08:43-04:00 efectos: cosecha-20261028-050843-311a:enviar_a_la_vm (pedido_vm) hecho: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-idem-y1sfg9je\\share\\outbox\\cosecha\\cosecha-20261028-050843-311a.json",
+  "2026-10-28T05:08:45-04:00 runner [t-idem-ambiguo]: EN CUARENTENA (fallo que no encaja en nada conocido): el motor devolvió algo que no se entiende: «0xBEEF: estado 7»",
+  "2026-10-28T05:08:46-04:00 runner [t-idem-ambiguo]: en cuarentena: Lo intenté pero no pude confirmar que funcionara. Se intentó: «Haz algo con notas.txt.». No hay nada comprobado en archivos. No se pudo confirmar: el motor devo",
+  "2026-10-28T05:08:46-04:00 cuarentena: t-idem-ambiguo abandonada por el usuario",
+  "2026-10-28T05:08:48-04:00 efectos: cosecha-20261028-050843-311a:enviar_a_la_vm: compensado (retirado cosecha-20261028-050843-311a.json antes de que la VM lo leyera)"
+ ],
+ "tracebacks_en_log": 0
+}

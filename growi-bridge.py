@@ -4490,6 +4490,7 @@ def validate_task(data):
         # t-router-fallbacks: «si Claude no responde, sigue con el siguiente» (declarado) y por donde paso
         "degradacion": data.get("degradacion") if isinstance(data.get("degradacion"), (bool, str, dict)) else None,
         "ruta_motor": data.get("ruta_motor") if isinstance(data.get("ruta_motor"), dict) else None,
+        "run_id": str(data.get("run_id") or refs["raiz"] or task_id),
     }, None
 
 
@@ -9186,6 +9187,8 @@ def _run_task_motor(task):
 
 def _write_result(result):
     RESULTS.mkdir(parents=True, exist_ok=True)
+    if isinstance(result, dict):
+        result.setdefault("run_id", result.get("raiz") or result.get("id"))
     snap = _cfg_snap()
     if snap is not None and isinstance(result, dict):
         # Evidencia de la recarga en caliente: con que config corrio esta tarea.
@@ -9243,9 +9246,9 @@ ESTADOS = {
     "en_curso": "en curso", "revisando": "revisando", "aprobada": "aprobada",
     "necesita_decision": "necesita decisión", "fallida": "fallida",
     "sin_revision": "sin revisión", "rechazada": "rechazada",
-    "esperando_reintento": "esperando reintento",
+    "esperando_reintento": "esperando reintento", "en_cuarentena": "en cuarentena",
 }
-FINAL_STATES = ("aprobada", "necesita_decision", "fallida", "sin_revision", "rechazada")
+FINAL_STATES = ("aprobada", "necesita_decision", "fallida", "sin_revision", "rechazada", "en_cuarentena")
 NO_CONFIRMADO = "Lo intenté pero no pude confirmar que funcionara."
 
 
@@ -9276,6 +9279,7 @@ def _family_update(raiz, **kw):
                 fam.setdefault(k[len("solo_si_falta_"):], v)
             else:
                 fam[k] = v
+        fam.setdefault("run_id", raiz)  # t-idempotencia-cuarentena-030: un run_id por encargo
         fam["actualizado"] = _now_iso()
         fam["final"] = fam.get("estado") in FINAL_STATES
         RESULTS.mkdir(parents=True, exist_ok=True)
@@ -10434,7 +10438,7 @@ def _approval_needed(task):
 
 def _apr_evento(ev, row, **kw):
     """Una linea en el registro auditable (nunca se reescribe ni se borra)."""
-    d = {"at": hora_caracas(time.time()), "evento": ev,
+    d = {"at": hora_caracas(time.time()), "evento": ev, "run_id": row.get("raiz"),
          **{k: row.get(k) for k in ("approval_id", "tarea", "raiz", "nivel", "motivo", "pedido",
                                     "creado_en", "vence_en", "estado", "resultado")}, **kw}
     try:
@@ -11860,6 +11864,7 @@ def review_task(task, result):
     # el veredicto en tres palabras (t-rubrica-revisor-030): aprobado / rechazado / necesita_decision
     rev["veredicto"] = {"aprobado": "aprobado", "no_aprobado": "rechazado"}.get(rev.get("decision"),
                                                                               rev.get("decision"))
+    rev["run_id"] = task.get("run_id") or task.get("raiz")
     try:
         rev["calibracion_id"] = calib_registrar(task, rev)
     except Exception as e:
@@ -14474,6 +14479,173 @@ def veredicto_txt(v):
 
 
 
+# ---- idempotencia, cuarentena y compensación (t-idempotencia-cuarentena-030)
+# run_id = el id del encargo original (la raiz): va en cada task, ronda,
+# revision, aprobacion y resultado. Cada efecto externo que hace Bridge se
+# apunta en cola.db (tabla efectos) con su idempotencia_key = run_id:paso ANTES
+# de ejecutarse; si al reintentar ya consta «hecho», no se repite, y si consta
+# solo «registrado» (se murio entre hacer y apuntar) se COMPRUEBA si se hizo
+# antes de repetir nada; si no se puede comprobar, cuarentena. Un fallo que no
+# encaja en nada conocido no se reintenta ni se da por fallido: queda
+# «en_cuarentena» con el error y la entrada a la vista hasta que decidas tu.
+# Patron: reintento -> cuarentena -> escalada (tu) -> rollback (compensacion).
+EFECTOS_COMPENSACION = {
+    "enviar_correo": "sin compensación: revisión manual (un correo enviado no se puede retirar)",
+    "crear_ticket": "cerrar el ticket que lleva el run_id como marcador (se busca por el marcador antes de crear)",
+    "borrar": "soft-delete primero (a la papelera de Bridge, restaurable); el borrado definitivo, solo después",
+    "mover_dinero": "reembolso usando el fingerprint del pago (la clave lleva el fingerprint del payload)",
+    "escribir_archivos": "el worktree de la tarea (t-paralelo-seguro-030) o la copia previa (.bak)",
+    "pedido_vm": "retirar outbox\\cosecha\\<id>.json si la VM aún no lo leyó; si ya corrió: sin compensación, "
+                 "revisión manual (créditos gastados)",
+}
+
+
+def efectos_init():
+    _cola("""CREATE TABLE IF NOT EXISTS efectos (
+        clave TEXT PRIMARY KEY, run_id TEXT, paso TEXT, tipo TEXT, payload_sha TEXT, estado TEXT,
+        resultado TEXT, compensacion TEXT, registrado_en TEXT, hecho_en TEXT, intentos INTEGER DEFAULT 0)""")
+
+
+def efecto_clave(run_id, paso, payload=None, tipo=None):
+    """run_id:paso; para mover dinero, con el fingerprint del payload (otra cantidad = otro efecto)."""
+    clave = f"{run_id}:{paso}"
+    if tipo == "mover_dinero" and payload is not None:
+        clave += ":" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:12]
+    return clave
+
+
+def efecto_get(clave):
+    r = _cola("SELECT * FROM efectos WHERE clave=?", (clave,), fetch=True)
+    return dict(r[0]) if r else None
+
+
+def efecto_ejecutar(run_id, paso, tipo, payload, fn, comprobar=None):
+    """Hace el efecto UNA vez. (estado, resultado): «hecho» (ahora), «ya_hecho» (no se repite),
+    «cuarentena» (consta empezado y no se puede comprobar si se hizo)."""
+    efectos_init()
+    clave = efecto_clave(run_id, paso, payload, tipo)
+    sha = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+    fila = efecto_get(clave)
+    if fila and fila["estado"] == "hecho":
+        log(f"efectos: {clave} ({tipo}) ya está hecho ({fila['hecho_en']}): no se repite")
+        return "ya_hecho", fila["resultado"]
+    if fila and fila["estado"] == "registrado":
+        # se murió entre «hacer» y «apuntar»: se comprueba ANTES de repetir
+        hecho = None
+        if comprobar is not None:
+            try:
+                hecho = comprobar()
+            except Exception as e:
+                log(f"efectos: {clave}: no se pudo comprobar ({type(e).__name__}: {e})")
+        if hecho:
+            _cola("UPDATE efectos SET estado='hecho', resultado=?, hecho_en=? WHERE clave=?",
+                  (f"comprobado tras un corte: {hecho}", _now_iso(), clave))
+            log(f"efectos: {clave} constaba empezado; comprobado que SÍ se hizo ({hecho}): no se repite")
+            return "ya_hecho", str(hecho)
+        if comprobar is None or hecho is None:
+            _cola("UPDATE efectos SET estado='cuarentena' WHERE clave=?", (clave,))
+            log(f"efectos: {clave} constaba empezado y no se puede comprobar si se hizo: cuarentena (no se repite)")
+            return "cuarentena", "consta empezado y no se puede comprobar si se hizo"
+    if fila and fila["estado"] == "cuarentena":
+        return "cuarentena", "en cuarentena: decide tú antes de repetirlo"
+    _cola("INSERT OR REPLACE INTO efectos (clave, run_id, paso, tipo, payload_sha, estado, compensacion, "
+          "registrado_en, intentos) VALUES (?, ?, ?, ?, ?, 'registrado', ?, ?, ?)",
+          (clave, run_id, paso, tipo, sha, EFECTOS_COMPENSACION.get(tipo, "sin compensación: revisión manual"),
+           _now_iso(), ((fila or {}).get("intentos") or 0) + 1))
+    res = fn()  # el efecto de verdad (si el proceso muere aquí, queda «registrado»)
+    _cola("UPDATE efectos SET estado='hecho', resultado=?, hecho_en=? WHERE clave=?",
+          (str(res)[:500], _now_iso(), clave))
+    log(f"efectos: {clave} ({tipo}) hecho: {str(res)[:160]}")
+    return "hecho", res
+
+
+def efectos_de(run_id):
+    efectos_init()
+    return [dict(r) for r in _cola("SELECT * FROM efectos WHERE run_id=? ORDER BY registrado_en", (run_id,),
+                                   fetch=True)]
+
+
+def efecto_compensar(clave):
+    """La acción inversa, si la hay. (hecho, texto)."""
+    f = efecto_get(clave)
+    if f is None:
+        return False, "no existe ese efecto"
+    if f["tipo"] == "pedido_vm":
+        p = COSECHA_OUT / f"{f['run_id']}.json"
+        if p.exists():
+            p.unlink()
+            _cola("UPDATE efectos SET estado='compensado', resultado=? WHERE clave=?",
+                  (f"retirado {p.name} del outbox", clave))
+            log(f"efectos: {clave}: compensado (retirado {p.name} antes de que la VM lo leyera)")
+            return True, f"retirado {p.name}"
+        return False, "la VM ya lo recogió: sin compensación, revisión manual"
+    return False, f["compensacion"] or "sin compensación: revisión manual"
+
+
+def _es_ambiguo(result):
+    """Un fallo que no encaja en ninguna respuesta conocida (ni pasajero ni definitivo)."""
+    if result.get("status") in ("ok", "timeout") or result.get("error_tipo") in ("transitorio", "definitivo"):
+        return False
+    err = str(result.get("error") or "")
+    if not err or _DEFINITIVO_RE.search(err):
+        return False
+    txt = " ".join((err, str(result.get("stderr") or "")[-1500:]))
+    return not _TRANSITORIO_RE.search(txt)
+
+
+def _reporte_fallo(task, result, fam, motivo, cuarentena=False):
+    """Qué se intentó, qué quedó hecho (comprobado), qué no se pudo confirmar,
+    cuánto costó y el siguiente paso."""
+    encargo = re.sub(r"\s+", " ", (fam or {}).get("encargo") or task.get("prompt") or "")[:180]
+    hecho = []
+    try:
+        desde = _iso_ts(result.get("started_at")) - 2
+        hecho = [p for p in _touched_files(task["cwd"], desde) if Path(p).exists()][:8]
+    except Exception:
+        hecho = []
+    efs = efectos_de(task.get("run_id") or task.get("raiz") or task["id"])
+    costo_i = result.get("cost_usd") if isinstance(result.get("cost_usd"), (int, float)) else None
+    costo_f = (fam or {}).get("costo_usd")
+    if cuarentena:
+        sig = ("decide tú: «Volver a la cola» si fue algo puntual, corrige el encargo, o «Abandonar» "
+               "(y deshaz lo hecho con su compensación)")
+    elif re.search(r"clave|credencial|401|403|config|no existe|no est[aá] instalado", motivo, re.I):
+        sig = "corrige la configuración o el encargo y vuelve a encolarla"
+    else:
+        sig = "reintentar más tarde, o abandonar"
+    return (f"{NO_CONFIRMADO} Se intentó: «{encargo}». "
+            + ("Quedó hecho (comprobado en archivos): " + "; ".join(hecho) + ". " if hecho else
+               "No hay nada comprobado en archivos. ")
+            + ("Efectos registrados: " + "; ".join(f"{e['paso']} ({e['tipo']}): {e['estado']}" for e in efs) + ". "
+               if efs else "")
+            + f"No se pudo confirmar: {motivo[:300]}. "
+            + "Costó: " + (f"${costo_i:.4f} este intento" if costo_i is not None else "sin dato este intento")
+            + (f" (${costo_f:.4f} en total)" if isinstance(costo_f, (int, float)) and costo_f else "") + ". "
+            + f"Siguiente paso: {sig}.")
+
+
+def cuarentena_snapshot(task, result):
+    snap = {"run_id": task.get("run_id") or task.get("raiz"), "tarea": task["id"], "at": _now_iso(),
+            "error": result.get("error"), "stderr_final": str(result.get("stderr") or "")[-1500:],
+            "entrada": {k: task.get(k) for k in ("prompt", "motor", "modelo", "cwd", "criterios", "ronda",
+                                                 "permission_mode", "allowed_tools")},
+            "efectos": efectos_de(task.get("run_id") or task.get("raiz") or task["id"]),
+            "que_hacer": "Volver a la cola (Tareas) o Abandonar (Ctrl+K). No se reintenta solo."}
+    p = RESULTS / f"{task['id']}.cuarentena.json"
+    p.write_text(json.dumps(snap, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    return p
+
+
+def cuarentena_abandonar(raiz):
+    fam = load_family(raiz) or {}
+    if fam.get("estado") != "en_cuarentena":
+        return False, "esa tarea no está en cuarentena"
+    _family_update(raiz, estado="fallida", reporte=(fam.get("reporte") or "") + " Abandonada por ti desde la cuarentena.")
+    cola_set(fam.get("ultimo_resultado") or raiz, estado="fallida", motivo="abandonada desde la cuarentena")
+    log(f"cuarentena: {raiz} abandonada por el usuario")
+    return True, "abandonada"
+
+
 def _honest_report(estado, task, rev, fam, error=None):
     """Regla anti-exito-inventado: solo se dice que algo funciono si esta
     comprobado contra archivos reales (o, sin criterios, si hay respuesta)."""
@@ -14563,7 +14735,7 @@ def _enqueue_round(task, result, rev):
                    + (fam.get("encargo") or task["prompt"])[:4000])
     data = dict(_task_core(task), id=f"{raiz[:70]}-r{n}", prompt=prompt, session_id=sid,
                 criterios=(task.get("criterios") or []) + (task.get("criterios_tipados") or []),
-                ronda=n, tarea_padre=raiz, raiz=raiz,
+                ronda=n, tarea_padre=raiz, raiz=raiz, run_id=task.get("run_id") or raiz,
                 fase=task.get("fase"), siguiente_fase=task.get("siguiente_fase"),
                 fase_base=task.get("fase_base"), creada_por="runner: ronda de corrección")
     return _new_task_file({k: v for k, v in data.items() if v is not None})
@@ -14620,9 +14792,16 @@ def _after_run(task, result):
         estado, reporte = "necesita_decision", (
             f"{NO_CONFIRMADO} {result.get('motivo_decision')}. Lo hecho hasta aquí está guardado (checkpoint y "
             "rondas anteriores): nada se borró. Decide tú: reintentar más tarde, cambiar de motor o cerrarla.")
+    elif result["status"] != "ok" and _es_ambiguo(result):
+        # ni pasajero ni definitivo conocido: ni reintento ni fallida; decide Leandro (t-idempotencia-cuarentena-030)
+        snap = cuarentena_snapshot(task, result)
+        estado = "en_cuarentena"
+        reporte = (_reporte_fallo(task, result, load_family(raiz), str(result.get("error")), cuarentena=True)
+                   + f" El error y la entrada están en {snap.name}.")
+        log(f"runner [{task['id']}]: EN CUARENTENA (fallo que no encaja en nada conocido): {str(result.get('error'))[:200]}")
     elif result["status"] != "ok":
         motivo = result.get("error") or result["status"]
-        estado, reporte = "fallida", _honest_report("fallida", task, None, None, motivo)
+        estado, reporte = "fallida", _reporte_fallo(task, result, load_family(raiz), str(motivo))
     elif not task.get("revisar", True):
         estado, reporte = "sin_revision", _honest_report("sin_revision", task, None, None,
                                                          "la tarea pidió no revisarla")
@@ -16421,6 +16600,13 @@ def _process_one_impl(task_file):
         _write_result(res)
         return True
     is_model = bool(task.get("ollama_action"))
+    if not is_model and isinstance(data, dict) and not data.get("run_id") and task.get("run_id"):
+        # el run_id queda también en el encargo original (t-idempotencia-cuarentena-030)
+        try:
+            data["run_id"] = task["run_id"]
+            task_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as e:
+            log(f"runner [{task['id']}]: no pude apuntar el run_id en el encargo ({e})")
     if not is_model:
         need = _approval_needed(task)
         if task.get("_estimado"):  # el estimado queda a la vista ANTES de ejecutar
@@ -16678,6 +16864,7 @@ def _process_one_impl(task_file):
     est = result.get("estado")
     cola_set(cid, archivo=str(DONE / task_file.name), intentos=result["intentos"],
              estado=("necesita_decision" if est == "necesita_decision" else
+                     "en_cuarentena" if est == "en_cuarentena" else
                      "terminada" if result.get("status") == "ok" and est != "fallida" else "fallida"),
              motivo=(str(result.get("error") or "")[:300] or None))
     _cola_corriendo.discard(cid)
@@ -25254,6 +25441,16 @@ def _requeue_ui():
     _refresh_tasks_ui()
 
 
+def _cuarentena_abandonar_ui():
+    tree = _widgets.get("tasks_tree")
+    sel = tree.selection() if tree is not None else ()
+    if not sel:
+        messagebox.showinfo("Cuarentena", "Elige primero en Tareas la tarea en cuarentena.")
+        return
+    ok, msg = cuarentena_abandonar(sel[0])
+    messagebox.showinfo("Cuarentena", msg if ok else f"No: {msg}")
+
+
 def _etiquetar_ui(veredicto):
     """Ctrl+K «Corregir la revision»: tu veredicto queda como etiqueta para la
     calibracion del revisor. No cambia la tarea ni ningun umbral."""
@@ -29944,9 +30141,18 @@ def cosecha_aprobar(pid):
                   "ok_at": p["ok_at"], "ok_por": p["ok_por"], "devolver_en": f"inbox/cosecha/{p['id']}.resultado.json",
                   "nota": "Correr el Actor GASTA créditos de Apify: este pedido trae el OK explícito de Leandro."}
         COSECHA_OUT.mkdir(parents=True, exist_ok=True)
-        tmp = COSECHA_OUT / f"{p['id']}.tmp"
-        tmp.write_text(json.dumps(pedido, ensure_ascii=False, indent=1), encoding="utf-8")
-        os.replace(tmp, COSECHA_OUT / f"{p['id']}.json")
+
+        def _enviar():
+            tmp = COSECHA_OUT / f"{p['id']}.tmp"
+            tmp.write_text(json.dumps(pedido, ensure_ascii=False, indent=1), encoding="utf-8")
+            os.replace(tmp, COSECHA_OUT / f"{p['id']}.json")
+            return str(COSECHA_OUT / f"{p['id']}.json")
+
+        def _ya_esta():
+            return "el archivo ya está en el outbox" if (COSECHA_OUT / f"{p['id']}.json").exists() else False
+        est_ef, _r = efecto_ejecutar(p["id"], "enviar_a_la_vm", "pedido_vm", pedido, _enviar, comprobar=_ya_esta)
+        if est_ef == "cuarentena":
+            return False, "ese envío consta empezado y no se puede comprobar: en cuarentena, revísalo antes de repetir"
         p["archivo"] = str(COSECHA_OUT / f"{p['id']}.json")
         _cosecha_guardar(lista)
     log(f"cosecha: OK de Leandro al pedido {pid}: enviado a la VM ({p['archivo']}), estimado ${e['usd']:.2f}")
@@ -39135,6 +39341,7 @@ def build_gui():
     tree.tag_configure("en_curso", foreground=THEME["blue"])
     tree.tag_configure("revisando", foreground=THEME["blue"])
     tree.tag_configure("esperando_reintento", foreground=THEME["orange_text"])
+    tree.tag_configure("en_cuarentena", foreground=THEME["orange_text"])
     tree.bind("<<TreeviewSelect>>", _show_task_detail)
     tree.pack(fill="x", padx=20, pady=4)
     _widgets["tasks_tree"] = tree
@@ -39328,6 +39535,8 @@ def build_gui():
           abrir_lista_espera),
         C("reencolar", "Volver a encolar la tarea elegida", "reintentar repetir encolar cola corte",
           lambda: (_show_page("tareas"), _requeue_ui())),
+        C("cuarentena_abandonar", "Abandonar la tarea en cuarentena (la elegida en Tareas)",
+          "cuarentena abandonar fallo ambiguo descartar", lambda: _cuarentena_abandonar_ui()),
         C("rev_aprobar", "Corregir la revisión: yo la apruebo",
           "corregir revision revisor juez calibracion aprobar estaba bien etiqueta",
           lambda: (_show_page("tareas"), _etiquetar_ui("aprobado"))),
