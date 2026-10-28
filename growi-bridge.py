@@ -39686,12 +39686,133 @@ def _auto_vigia():
     return ("aviso" if aviso else "ok"), det, aviso
 
 
+# ---- pendientes por persona (t-pendientes-por-persona): «qué falta por
+# responder» en el resumen de las 21:00. SOLO con lo que pasó por el Bridge:
+# tareas del runner y encargos (incluidos los mensajes que el usuario reenvió
+# al asistente, que entran como encargos). Un pendiente = un encargo con un
+# verbo de respuesta (responder, contestar, enviar, mandar, escribir, llamar,
+# confirmar, avisar) dirigido a una persona con nombre. Cada uno con su origen
+# (qué tarea, de qué fecha). Nunca se leen chats ni el calendario. Marcado como
+# hecho, no vuelve. Máximo 5 por persona («y N más»).
+PEND_HECHOS = APP_DIR / "pendientes-hechos.json"
+_PEND_VERBO = (r"(?i:respond|contest|env[ií]|mand|escr[ií]b|llam|conf[ií]rm|av[ií]s|pas[aá])")
+# el verbo da igual mayúscula o tilde; la persona, con nombre propio (mayúscula)
+_PEND_RE = re.compile(r"\b" + _PEND_VERBO + r"\w*(?i:le|les|selo|sela)?\s+(?:\w+\s+){0,3}?(?i:a|con|para)\s+"
+                      r"(?P<p>[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)")
+_PEND_RE2 = re.compile(r"\b" + _PEND_VERBO + r"\w*\s+a\s+"
+                       r"(?P<p>[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)")
+
+
+def _pend_hechos():
+    try:
+        d = json.loads(PEND_HECHOS.read_text(encoding="utf-8"))
+        return set(d) if isinstance(d, list) else set()
+    except (OSError, ValueError):
+        return set()
+
+
+def pendiente_marcar_hecho(pid):
+    h = _pend_hechos()
+    h.add(pid)
+    PEND_HECHOS.write_text(json.dumps(sorted(h), ensure_ascii=False, indent=1), encoding="utf-8")
+    log(f"pendientes: marcado como hecho {pid}")
+    return True
+
+
+def pendientes_por_persona():
+    """{persona: [{"que", "desde", "origen", "id"}...]} (lo más reciente primero), sin los marcados como hechos."""
+    hechos = _pend_hechos()
+    fuentes = []
+    for f in RESULTS.glob("*.orquestacion.json"):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if d.get("raiz") and d.get("encargo"):
+            fuentes.append((d["raiz"], d["encargo"], str(d.get("creada") or d.get("actualizado") or "")[:10], "tarea"))
+    for f in TASKS.glob("*.task.json"):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("prompt") and not d.get("raiz"):
+            fuentes.append((d.get("id") or f.stem, d["prompt"],
+                            datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d"), "encargo en cola"))
+    out = {}
+    for tid, texto, fecha, tipo in fuentes:
+        for frase in _frases(str(texto)):
+            m = _PEND_RE2.search(frase) or _PEND_RE.search(frase)
+            if not m:
+                continue
+            persona = m.group("p").strip()
+            pid = f"{tid}:{_proy_slug(persona)}"
+            if pid in hechos:
+                continue
+            out.setdefault(persona, []).append({"que": re.sub(r"\s+", " ", frase).strip()[:140], "desde": fecha,
+                                                "origen": f"{tipo} {tid} ({fecha})", "id": pid})
+            break
+    for k in out:
+        out[k].sort(key=lambda x: x["desde"], reverse=True)
+    return out
+
+
+def pendientes_seccion(maximo=5):
+    """Las líneas de «Qué falta por responder» para el resumen (una pantalla)."""
+    pp = pendientes_por_persona()
+    lineas = ["", "## Qué falta por responder", ""]
+    if not pp:
+        return lineas + ["nada pendiente"]
+    for persona in sorted(pp, key=lambda k: pp[k][0]["desde"], reverse=True):
+        items = pp[persona]
+        lineas.append(f"- **{persona}** (desde {min(i['desde'] for i in items)}):")
+        for i in items[:maximo]:
+            lineas.append(f"  - {i['que']} — {i['origen']} [hecho: {i['id']}]")
+        if len(items) > maximo:
+            lineas.append(f"  - y {len(items) - maximo} más")
+    return lineas
+
+
+def pendientes_ui():
+    top = tk.Toplevel(_root)
+    top.title("Qué falta por responder")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(640)}x{S(520)}")
+    page = _scrollable(top)
+    k = _KitTk(page)
+    c = k.section("Qué falta por responder", "Solo con lo que pasó por Bridge (tareas y encargos), cada uno con su "
+                                             "origen. Nunca se leen tus chats. «Hecho» lo quita para siempre.")
+    box = k.frame(c)
+    box.pack(fill="x", padx=16, pady=(2, 12))
+
+    def pintar():
+        for ch in box.winfo_children():
+            ch.destroy()
+        pp = pendientes_por_persona()
+        if not pp:
+            k.label(box, "Nada pendiente.", muted=True).pack(anchor="w")
+        for persona, items in pp.items():
+            k.label(box, persona, bold=True, wrap=0).pack(anchor="w", pady=(6, 0))
+            for i in items[:5]:
+                f = k.frame(box)
+                f.pack(fill="x")
+                k.label(f, f"{i['que'][:80]} — {i['origen']}", wrap=440).pack(side="left", anchor="w")
+                k.button(f, "Hecho", lambda pid=i["id"]: (pendiente_marcar_hecho(pid), pintar())).pack(side="right")
+            if len(items) > 5:
+                k.label(box, f"y {len(items) - 5} más", muted=True).pack(anchor="w")
+    pintar()
+    return top
+
+
 def _auto_resumen():
     hoy = datetime.now().strftime("%Y-%m-%d")
     filas = _cola("SELECT id, estado, motor FROM tareas WHERE creado_en LIKE ? ORDER BY creado_en", (hoy + "%",),
                   fetch=True) or []
     lineas = [f"# Resumen del {hoy} (Growi Bridge, local)", "", f"{len(filas)} tarea(s) hoy."]
     lineas += [f"- {r['id']}: {r['estado']} ({r['motor'] or '—'})" for r in filas]
+    try:
+        lineas += pendientes_seccion()  # «qué falta por responder», por persona (t-pendientes-por-persona)
+    except Exception as e:
+        lineas += ["", "## Qué falta por responder", "", f"(no se pudo calcular: {type(e).__name__})"]
     dest = OUTBOX / f"resumen-{hoy}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text("\n".join(lineas) + "\n", encoding="utf-8")
@@ -40951,6 +41072,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("pendientes", "Qué falta por responder (por persona)",
+          "pendientes por persona responder contestar deber respuesta resumen", lambda: (show_window(), pendientes_ui())),
         C("portapapeles", "Historial del portapapeles (ver o borrar)",
           "portapapeles historial copiado pegar clipboard", lambda: (show_window(), pp_ui())),
         C("proyectos", "Proyectos: cambiar de proyecto o crear uno",

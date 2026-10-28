@@ -1,0 +1,80 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-pend-9_d57f7r",
+ "d_cero": "## Qué falta por responder\n\nnada pendiente\n",
+ "a_resumen": {
+  "automatizacion": [
+   "ok",
+   "0 tarea(s) en resumen-2026-10-28.md",
+   null
+  ],
+  "seccion": "## Qué falta por responder\n\n- **Angelis** (desde 2026-10-28):\n  - Confírmale a Angelis la sala del taller del sábado. — encargo en cola t-angelis (2026-10-28) [hecho: t-angelis:angelis]\n- **William** (desde 2026-10-27):\n  - Responde a William sobre el precio del filtro X. — tarea t-william (2026-10-27) [hecho: t-william:william]\n- **Vero** (desde 2026-10-26):\n  - Prepara el presupuesto del taller y envíaselo a Vero mañana. — tarea t-vero (2026-10-26) [hecho: t-vero:vero]\n- **Luis Galban** (desde 2026-10-10):\n  - Escríbele a Luis Galban sobre la función 7 de Barquicinema. — tarea t-luis-6 (2026-10-16) [hecho: t-luis-6:luis-galban]\n  - Escríbele a Luis Galban sobre la función 6 de Barquicinema. — tarea t-luis-5 (2026-10-15) [hecho: t-luis-5:luis-galban]\n  - Escríbele a Luis Galban sobre la función 5 de Barquicinema. — tarea t-luis-4 (2026-10-14) [hecho: t-luis-4:luis-galban]\n  - Escríbele a Luis Galban sobre la función 4 de Barquicinema. — tarea t-luis-3 (2026-10-13) [hecho: t-luis-3:luis-galban]\n  - Escríbele a Luis Galban sobre la función 3 de Barquicinema. — tarea t-luis-2 (2026-10-12) [hecho: t-luis-2:luis-galban]\n  - y 2 más\n"
+ },
+ "a_por_persona": {
+  "Luis Galban": [
+   [
+    "Escríbele a Luis Galban sobre la función 7 de Barquicinema.",
+    "tarea t-luis-6 (2026-10-16)"
+   ],
+   [
+    "Escríbele a Luis Galban sobre la función 6 de Barquicinema.",
+    "tarea t-luis-5 (2026-10-15)"
+   ],
+   [
+    "Escríbele a Luis Galban sobre la función 5 de Barquicinema.",
+    "tarea t-luis-4 (2026-10-14)"
+   ],
+   [
+    "Escríbele a Luis Galban sobre la función 4 de Barquicinema.",
+    "tarea t-luis-3 (2026-10-13)"
+   ],
+   [
+    "Escríbele a Luis Galban sobre la función 3 de Barquicinema.",
+    "tarea t-luis-2 (2026-10-12)"
+   ],
+   [
+    "Escríbele a Luis Galban sobre la función 2 de Barquicinema.",
+    "tarea t-luis-1 (2026-10-11)"
+   ],
+   [
+    "Escríbele a Luis Galban sobre la función 1 de Barquicinema.",
+    "tarea t-luis-0 (2026-10-10)"
+   ]
+  ],
+  "Vero": [
+   [
+    "Prepara el presupuesto del taller y envíaselo a Vero mañana.",
+    "tarea t-vero (2026-10-26)"
+   ]
+  ],
+  "William": [
+   [
+    "Responde a William sobre el precio del filtro X.",
+    "tarea t-william (2026-10-27)"
+   ]
+  ],
+  "Angelis": [
+   [
+    "Confírmale a Angelis la sala del taller del sábado.",
+    "encargo en cola t-angelis (2026-10-28)"
+   ]
+  ]
+ },
+ "b_solo_bridge": {
+  "personas": [
+   "Angelis",
+   "Luis Galban",
+   "Vero",
+   "William"
+  ],
+  "fuentes": "familias del runner + encargos en la cola",
+  "un_chat_que_no_pasó_por_bridge": true
+ },
+ "c_tras_marcar": {
+  "william_en_el_siguiente": false,
+  "seccion": "## Qué falta por responder\n\n- **Angelis** (desde 2026-10-28):\n  - Confírmale a Angelis la sala del taller del sábado. — encargo en cola t-angelis (2026-10-28) [hecho: t-angelis:angelis]\n- **Vero** (desde 2026-10-26):\n  - Prepara el presupuesto del taller y envíaselo a Vero mañana. — tarea t-vero (2026-10-26) [hecho: t-vero:vero]\n- **Luis Galban** (desde 2026-10-10):\n  - Escríbele a Luis Galban sobre la función 7 de Barquicinema. — tarea t-luis-6 (2026-10-16) [hecho: t-luis-6:luis-galban]\n  - Escríbele a Luis Galban sobre la función 6 de Barquicinema. — tarea t-luis-5 (2026-10-15) [hecho: t-luis-5:luis-galban]\n  - Escríbele a Luis Galban sobre la función 5 de Barquicinema. — tarea t-luis-4 (2026-10-14) [hecho: t-luis-4:luis-galban]\n  - Escríbele a Luis Galban sobre la función 4 de Barquicinema. — tarea t-luis-3 (2026-10-13) [hecho: t-luis-3:luis-galban]\n  - Escríbele a Luis Galban sobre la función 3 de Barquicinema. — tarea t-luis-2 (2026-10-12) [hecho: t-luis-2:luis-galban]\n  - y 2 más\n"
+ },
+ "log": [
+  "2026-10-28T05:53:53-04:00 pendientes: marcado como hecho t-william:william"
+ ],
+ "tracebacks_en_log": 0
+}
