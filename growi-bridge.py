@@ -8045,6 +8045,159 @@ def herramienta_correr(task, pedido):
     return result
 
 
+# ---- verificar Groq y Gemini (t-verificar-groq-gemini): llamada REAL, medida
+# Tres caminos: Groq directo, Groq por el proxy y Gemini directo sin proxy.
+# Primero se mira si el servidor contesta desde aqui SIN clave (un 401/403 de
+# «falta la clave» dice que la IP llega; un error de region o de red, que no).
+# Con la clave activa de Ajustes -> Claves se hace la prueba corta de siempre
+# («Escribe tres frutas, una por linea»): latencia, tokens y costo. Sin clave
+# es FALTA, nunca «no funciona». El informe (VERIFICACION-NUBES.json/.md, en la
+# carpeta de Bridge) es lo que mira el router: un camino solo entra si su
+# llamada real salio bien.
+NUBES_FILE = APP_DIR / "VERIFICACION-NUBES.json"
+NUBES_PRUEBA = "Escribe tres frutas, una por línea."
+NUBES_PRECIOS = {  # $ por millón de tokens (entrada, salida), publicados (no medidos aquí)
+    "groq": {"modelo": "llama-3.1-8b-instant", "entrada": 0.05, "salida": 0.08,
+             "fuente": "precios publicados por Groq (oct-2026)"},
+    "gemini": {"modelo": None, "entrada": 0.0, "salida": 0.0,
+               "fuente": "capa gratis de Gemini: $0 (si la clave tiene facturación, cobra el precio del modelo)"},
+}
+_NUBES_SONDEO = {"groq": "https://api.groq.com/openai/v1/models",
+                 "gemini": "https://generativelanguage.googleapis.com/v1beta/models"}
+
+
+def _nubes_lectura(code, body, err):
+    """Qué dice el sondeo sin clave. Un 401, o un 403 que habla de la clave, es
+    «llega y pide clave»; un 403 pelado («Forbidden») es otra cosa: el servidor
+    rechaza esta IP antes de mirar la clave (bloqueo por región, probablemente)."""
+    low = (body or "").lower()
+    if code == 401 or (code == 403 and any(x in low for x in ("api key", "api_key", "unregistered", "caller"))):
+        return "llega: pide clave (lo esperado sin clave)"
+    if code == 403:
+        return "403 Forbidden sin hablar de la clave: rechaza esta IP (¿bloqueo por región?)"
+    return f"contesta {code}" if code else f"no contesta: {err}"
+
+
+def _nubes_llamar(prov, via_proxy, clave, c):
+    """La prueba corta, de verdad. dict con lo medido."""
+    info = CRED_PROVIDERS[prov]
+    modelo = NUBES_PRECIOS[prov]["modelo"]
+    if prov == "gemini":  # el modelo Flash-Lite (o Flash) que la API diga que hay, sin adivinar
+        try:
+            req = urllib.request.Request(_cred_url(c, info["test"]), headers=_cred_headers(prov, clave))
+            op = urllib.request.build_opener(urllib.request.ProxyHandler(
+                {"http": proxy_url(), "https": proxy_url()} if via_proxy else {}))
+            with op.open(req, timeout=20) as r:
+                nombres = [m.get("name", "").split("/")[-1] for m in json.loads(r.read().decode("utf-8")).get("models", [])]
+            modelo = next((n for n in nombres if "flash-lite" in n), None) or next((n for n in nombres if "flash" in n), None)
+        except Exception as e:
+            return {"responde": False, "error": f"no pude leer la lista de modelos: {_net_reason(e)}"}
+        if not modelo:
+            return {"responde": False, "error": "la API no lista ningún modelo Flash"}
+    cuerpo = json.dumps({"model": modelo, "messages": [{"role": "user", "content": NUBES_PRUEBA}],
+                         "max_tokens": 60, "temperature": 0}).encode("utf-8")
+    req = urllib.request.Request(_cred_url(c, info["chat"]), data=cuerpo, method="POST",
+                                 headers=dict(_cred_headers(prov, clave), **{"Content-Type": "application/json"}))
+    op = urllib.request.build_opener(urllib.request.ProxyHandler(
+        {"http": proxy_url(), "https": proxy_url()} if via_proxy else {}))
+    t0 = time.time()
+    try:
+        with op.open(req, timeout=60) as r:
+            d = json.loads(r.read().decode("utf-8"))
+            ms = int((time.time() - t0) * 1000)
+            hdr = {k: v for k, v in r.headers.items() if "ratelimit" in k.lower() or "quota" in k.lower()}
+    except urllib.error.HTTPError as e:
+        try:
+            det = e.read(600).decode("utf-8", "replace")
+        except Exception:
+            det = ""
+        return {"responde": False, "http": e.code, "error": f"HTTP {e.code}: {det[:300]}",
+                "ms": int((time.time() - t0) * 1000), "modelo": modelo}
+    except Exception as e:
+        return {"responde": False, "error": _net_reason(e), "ms": int((time.time() - t0) * 1000), "modelo": modelo}
+    u = d.get("usage") or {}
+    tin, tout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
+    p = NUBES_PRECIOS[prov]
+    costo = round((tin * p["entrada"] + tout * p["salida"]) / 1e6, 8)
+    tipica = round((2000 * p["entrada"] + 500 * p["salida"]) / 1e6, 6)
+    txt = ((d.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+    return {"responde": True, "ms": ms, "modelo": d.get("model") or modelo, "salida": txt.strip()[:200],
+            "tokens_entrada": tin, "tokens_salida": tout, "costo_usd": costo,
+            "costo_tarea_tipica_usd": tipica, "precio_fuente": p["fuente"], "limites": hdr}
+
+
+def verificar_nubes():
+    """Los tres caminos, medidos ahora. Escribe el informe y lo devuelve."""
+    caminos = [("groq", False, "Groq directo"), ("groq", True, "Groq por el proxy"), ("gemini", False, "Gemini directo")]
+    filas = []
+    for prov, via, nombre in caminos:
+        f = {"camino": nombre, "proveedor": prov, "via_proxy": via, "at": _now_iso()}
+        if via and not proxy_url():
+            f.update(sondeo=None, llamada=None, entra_router=False, falta="no hay proxy guardado (Estado → Proxy)")
+            filas.append(f)
+            continue
+        code, body, ms, err = _probe(_NUBES_SONDEO[prov], via_proxy=via, timeout=12)
+        f["sondeo"] = {"http": code, "ms": ms, "error": err or None,
+                       "lectura": _nubes_lectura(code, body, err),
+                       "cuerpo": (body or "")[:200]}
+        c = cred_activa(prov)
+        clave = cred_clave(c["cuenta"]) if c else None
+        if not c or not clave:
+            f.update(llamada=None, entra_router=False,
+                     falta=f"sin clave de {CRED_PROVIDERS[prov]['label']} en Ajustes → Claves: la llamada real no "
+                           "se hizo (FALTA previa; no se inventa ni se pide prestada)")
+        else:
+            f["llamada"] = _nubes_llamar(prov, via, clave, c)
+            f["entra_router"] = bool(f["llamada"].get("responde"))
+            if not f["entra_router"]:
+                f["falta"] = f"la llamada real falló: {f['llamada'].get('error')}"
+        filas.append(f)
+        log(f"verificar nubes: {nombre}: sondeo {f['sondeo']['http'] if f.get('sondeo') else '-'} "
+            + (f"; llamada {'OK' if f['llamada'].get('responde') else 'falló'} en {f['llamada'].get('ms')} ms"
+               if f.get("llamada") else f"; {f.get('falta')}"))
+    entran = [f["camino"] for f in filas if f["entra_router"]]
+    inf = {"actualizado": _now_iso(), "prueba": NUBES_PRUEBA, "caminos": filas, "entran_al_router": entran,
+           "conclusion": (("Entran al router: " + ", ".join(entran) + ". ") if entran else
+                          "Ninguno entra al router todavía: ") +
+                         "; ".join(f"{f['camino']}: {f.get('falta')}" for f in filas if not f["entra_router"])}
+    NUBES_FILE.write_text(json.dumps(inf, ensure_ascii=False, indent=2), encoding="utf-8")
+    md = ["# Verificación de Groq y Gemini", "", f"Medido el {inf['actualizado'][:16].replace('T', ' a las ')}. "
+          f"Prueba: «{NUBES_PRUEBA}».", "",
+          "| Camino | Contesta sin clave | Llamada real | Latencia | Tokens | Costo (esta / típica 2.000+500) | Límites |",
+          "|---|---|---|---|---|---|---|"]
+    for f in filas:
+        s, ll = f.get("sondeo") or {}, f.get("llamada") or {}
+        md.append(f"| {f['camino']} | {s.get('lectura', '—')} ({s.get('ms', '—')} ms) | "
+                  + ("sí: " + ll.get("salida", "").replace("\n", " / ")[:60] if ll.get("responde") else
+                     (f.get("falta") or "—"))
+                  + f" | {ll.get('ms', '—')} ms | {ll.get('tokens_entrada', '—')}+{ll.get('tokens_salida', '—')} | "
+                  + (f"${ll['costo_usd']:.6f} / ${ll['costo_tarea_tipica_usd']:.6f}" if ll.get("responde") else "—")
+                  + f" | {', '.join(f'{k}: {v}' for k, v in (ll.get('limites') or {}).items()) or '—'} |")
+    md += ["", f"**Conclusión:** {inf['conclusion']}", "",
+           "Regla: un camino entra al router automático solo si su llamada real salió bien aquí."]
+    NUBES_FILE.with_suffix(".md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    log(f"verificar nubes: {inf['conclusion'][:300]}")
+    return inf
+
+
+def nube_verificada(camino):
+    """Para el router: True solo si el último informe dice que ese camino respondió de verdad."""
+    try:
+        inf = json.loads(NUBES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return camino in (inf.get("entran_al_router") or [])
+
+
+def verificar_nubes_ui():
+    def _bg():
+        inf = verificar_nubes()
+        _ui_call(lambda: messagebox.showinfo("Verificar Groq y Gemini", inf["conclusion"][:900]
+                                             + f"\n\nInforme: {NUBES_FILE.with_suffix('.md')}"))
+    threading.Thread(target=_bg, daemon=True).start()
+    toast("Verificando Groq y Gemini…")
+
+
 # ---- herramienta «transcribe» (t-transcribe-whisper): audio/video -> texto
 # con faster-whisper en local ($0, offline una vez bajado el modelo). La receta
 # es la probada en la VM: ffmpeg decodifica a f32le 16 kHz mono y se parchea
@@ -38963,6 +39116,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("verificar_nubes", "Verificar Groq y Gemini (llamada real, medida)",
+          "verificar groq gemini nube router llamada real latencia costo venezuela proxy", verificar_nubes_ui),
         C("transcribir", "Transcribir un audio o video ($0, local, offline)",
           "transcribir transcripcion audio video nota de voz whisper subtitulos texto", transcribe_ui),
         C("revisor", "Revisor: rúbrica, calibración y costo por revisión",

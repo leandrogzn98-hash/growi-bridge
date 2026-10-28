@@ -1,0 +1,70 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-nubes-7aojdv24",
+ "claves_en_la_copia": [],
+ "hay_proxy": true,
+ "informe": {
+  "actualizado": "2026-10-28T04:50:39-04:00",
+  "prueba": "Escribe tres frutas, una por línea.",
+  "caminos": [
+   {
+    "camino": "Groq directo",
+    "proveedor": "groq",
+    "via_proxy": false,
+    "at": "2026-10-28T04:50:37-04:00",
+    "sondeo": {
+     "http": 403,
+     "ms": 216,
+     "error": null,
+     "lectura": "403 Forbidden sin hablar de la clave: rechaza esta IP (¿bloqueo por región?)",
+     "cuerpo": "{\"error\":{\"message\":\"Forbidden\"}}"
+    },
+    "llamada": null,
+    "entra_router": false,
+    "falta": "sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)"
+   },
+   {
+    "camino": "Groq por el proxy",
+    "proveedor": "groq",
+    "via_proxy": true,
+    "at": "2026-10-28T04:50:38-04:00",
+    "sondeo": {
+     "http": 401,
+     "ms": 412,
+     "error": null,
+     "lectura": "llega: pide clave (lo esperado sin clave)",
+     "cuerpo": "{\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}\n"
+    },
+    "llamada": null,
+    "entra_router": false,
+    "falta": "sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)"
+   },
+   {
+    "camino": "Gemini directo",
+    "proveedor": "gemini",
+    "via_proxy": false,
+    "at": "2026-10-28T04:50:38-04:00",
+    "sondeo": {
+     "http": 403,
+     "ms": 188,
+     "error": null,
+     "lectura": "llega: pide clave (lo esperado sin clave)",
+     "cuerpo": "{\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"Method doesn't allow unregistered callers (callers without established identity). Please use API Key or other form of API consumer identity to call this"
+    },
+    "llamada": null,
+    "entra_router": false,
+    "falta": "sin clave de Google Gemini en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)"
+   }
+  ],
+  "entran_al_router": [],
+  "conclusion": "Ninguno entra al router todavía: Groq directo: sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada); Groq por el proxy: sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada); Gemini directo: sin clave de Google Gemini en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)"
+ },
+ "md": "# Verificación de Groq y Gemini\n\nMedido el 2026-10-28 a las 04:50. Prueba: «Escribe tres frutas, una por línea.».\n\n| Camino | Contesta sin clave | Llamada real | Latencia | Tokens | Costo (esta / típica 2.000+500) | Límites |\n|---|---|---|---|---|---|---|\n| Groq directo | 403 Forbidden sin hablar de la clave: rechaza esta IP (¿bloqueo por región?) (216 ms) | sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada) | — ms | —+— | — | — |\n| Groq por el proxy | llega: pide clave (lo esperado sin clave) (412 ms) | sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada) | — ms | —+— | — | — |\n| Gemini directo | llega: pide clave (lo esperado sin clave) (188 ms) | sin clave de Google Gemini en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada) | — ms | —+— | — | — |\n\n**Conclusión:** Ninguno entra al router todavía: Groq directo: sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada); Groq por el proxy: sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada); Gemini directo: sin clave de Google Gemini en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)\n\nRegla: un camino entra al router automático solo si su llamada real salió bien aquí.\n",
+ "router_groq_directo": false,
+ "log": [
+  "2026-10-28T04:50:38-04:00 verificar nubes: Groq directo: sondeo 403 ; sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)",
+  "2026-10-28T04:50:38-04:00 verificar nubes: Groq por el proxy: sondeo 401 ; sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)",
+  "2026-10-28T04:50:39-04:00 verificar nubes: Gemini directo: sondeo 403 ; sin clave de Google Gemini en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada)",
+  "2026-10-28T04:50:39-04:00 verificar nubes: Ninguno entra al router todavía: Groq directo: sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada); Groq por el proxy: sin clave de Groq en Ajustes → Claves: la llamada real no se hizo (FALTA previa; no se inventa ni se pide prestada); "
+ ],
+ "tracebacks_en_log": 0
+}
