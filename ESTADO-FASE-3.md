@@ -32,6 +32,10 @@ raíz y su commit.
 | 26 | t-motor-opencode | **SALTADO (permiso)** | El spec pide **instalar OpenCode** (`npm install -g opencode-ai`, vía oficial). El clasificador de permisos de esta sesión **denegó** instalar código externo, y sin el binario no se puede verificar en vivo ni su nombre, ni su sintaxis, ni su salida, ni la prueba corta (el spec prohíbe inventar el descriptor). Para retomar: que Leandro autorice la instalación |
 | 27 | t-movimiento-contraste | **LISTO** (FALTA: la sesión real en Night Sky, con el procedimiento) | `deac949`, `ESTADO-MOVIMIENTO-CONTRASTE.md` |
 | 28 | t-notas-obsidian-030 | **LISTO** (FALTA: Muse Link como espejo, que necesita endpoint y credencial; la configuración guiada) | `6c24061`, `ESTADO-NOTAS-OBSIDIAN.md` |
+| 29 | t-onboarding-fallos | **LISTO** (FALTA: cronometrar la «primera victoria < 2 min» con un modelo real) | `abb5df6`, `ESTADO-ONBOARDING-FALLOS.md` |
+| 30 | t-panel-estado-gateway | **LISTO** (el registro de cambios de motor es en memoria; el router con fallbacks es el spec 35) | `3ef8d12`, `ESTADO-PANEL-ESTADO-GATEWAY.md` |
+| 31 | t-pedir-cosecha | **LISTO** (FALTA: cosecha real — sin TIKTOK_MS_TOKEN y gasta créditos; el lado de la VM es contrato; tarifa de Instagram sin dato) | `197ec62`, `ESTADO-PEDIR-COSECHA.md` |
+| 32 | t-perfil-sobre-mi | **LISTO** (FALTA: (c) con Hermes 8B solo a medias — rellena el tono con las reglas de estilo; probar con Claude gasta cuota) | `fa5c984`, `ESTADO-PERFIL-SOBRE-MI.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
