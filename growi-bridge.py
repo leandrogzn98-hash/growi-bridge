@@ -6913,6 +6913,10 @@ def _router_available(motor_id):
     2 s en Windows y el runner lo enciende al usarlo."""
     if motor_id in motores_apagados():
         return False, "desactivado por ti"
+    if motor_id in ("claude", "codex", "gemini"):  # nube: lo que diga el mapa (t-mapa-ampliado)
+        ok, why = mapa_permite_nube(motor_id)
+        if not ok:
+            return False, why
     eng = get_engine(motor_id)
     if eng and eng.get("tipo") == "api_sincrona" and eng.get("servidor"):
         inst, msg = _llama_installed(eng)
@@ -18519,8 +18523,67 @@ def _check_internet(cfg, fila):
                 ("reintentar", "Reintentar"), best[0], "directo", f"{best[1]}: HTTP {best[2]}")
 
 
+# ---- filas «servicio» del mapa (t-mapa-ampliado): responde / no responde,
+# latencia y por que via (directo / proxy / ambas), medido las dos veces.
+# Lento = mas de MAPA_LENTO_MS (umbral nuevo, documentado en el ESTADO). Un
+# timeout no deja la fila en blanco: «no se pudo comprobar».
+MAPA_LENTO_MS = 2000
+
+
+def _check_servicio(cfg, fila):
+    to = cfg.get("timeout_s", 8)
+    routes = [("directo", False)] + ([("proxy", True)] if proxy_url() else [])
+    res, det = {}, []
+    for name, via in routes:
+        code, _body, ms, err = _probe(fila["url"], via, timeout=to)
+        if err:
+            timeout = bool(re.search(r"timed out|timeout|tard", str(err), re.I))
+            res[name] = ("timeout" if timeout else "no", ms, err)
+        else:
+            res[name] = ("si", ms, f"HTTP {code}")
+        det.append(f"{name}: {'responde' if res[name][0] == 'si' else 'sin respuesta en ' + str(to) + ' s' if res[name][0] == 'timeout' else 'no responde'} "
+                   f"({res[name][2]}, {ms} ms)")
+    if not proxy_url():
+        det.append("proxy: sin proxy guardado, no se mide")
+    si = {k: v for k, v in res.items() if v[0] == "si"}
+    detalle = "; ".join(det)
+    if not si:
+        if all(v[0] == "timeout" for v in res.values()):
+            return _row(fila, "falla", f"No se pudo comprobar en {to} s.", ("reintentar", "Reintentar"), None, None,
+                        detalle)
+        return _row(fila, "falla", "No responde ni directo ni por el proxy.", ("reintentar", "Reintentar"), None,
+                    None, detalle)
+    via = "ambas" if len(si) == 2 else next(iter(si))
+    ms = min(v[1] for v in si.values())
+    lento = ms > MAPA_LENTO_MS
+    frase = {"ambas": "Responde directo y por el proxy", "directo": "Responde solo directo",
+             "proxy": "Responde solo por el proxy"}[via] + f" ({ms} ms)" + (
+        f": lento (más de {MAPA_LENTO_MS / 1000:g} s)" if lento else "") + "."
+    return _row(fila, "aviso" if lento or via == "proxy" else "ok", frase, ("reintentar", "Reintentar"), ms, via,
+                detalle)
+
+
+def mapa_fila(rid, max_edad_s=900):
+    """La fila del mapa si es reciente (para el router y el descargador)."""
+    r = (_AV.get("rows") or {}).get(rid)
+    if r and time.time() - (r.get("at") or 0) <= max_edad_s:
+        return r
+    return None
+
+
+def mapa_permite_nube(motor_id="claude"):
+    """Regla de oro del router: si Claude solo llega por el proxy y el mapa
+    tiene el proxy en rojo (o «forzar proxy» con el proxy caído), ni se intenta."""
+    px, c = mapa_fila("proxy"), mapa_fila(motor_id)
+    if _IPX.get("forzar") and _IPX.get("proxy_caido"):
+        return False, "el proxy está caído y tienes «Forzar siempre el proxy»"
+    if px and px.get("estado") == "falla" and (not c or c.get("ruta") != "directo" or c.get("estado") == "falla"):
+        return False, f"el mapa tiene el proxy en rojo ({px.get('frase')}) y {motor_id} no llega directo"
+    return True, ""
+
+
 _CHECKERS = {"nube": _check_nube, "ollama": _check_ollama, "proxy": _check_proxy,
-             "internet": _check_internet}
+             "internet": _check_internet, "servicio": _check_servicio}
 
 
 def run_availability(only=None):
@@ -23547,6 +23610,11 @@ def lib_route(repo):
     pref = str(load_settings().get("librero_ruta") or "auto")
     if pref == "proxy":
         return True, "por el proxy del Bridge (elegido en settings.json)"
+    hf = mapa_fila("huggingface") if pref == "auto" else None  # lo que ya midio el mapa (t-mapa-ampliado)
+    if hf and hf.get("ruta") == "proxy" and proxy_url():
+        return True, f"por el proxy del Bridge (el mapa dice: {hf.get('frase')})"
+    if hf and hf.get("ruta") in ("directo", "ambas"):
+        return False, f"directo a huggingface.co (el mapa dice: {hf.get('frase')})"
     url = f"{HF_BASE}/api/models/{repo}"
     try:
         _lib_opener(False).open(urllib.request.Request(url, headers=_lib_ua()), timeout=8).close()

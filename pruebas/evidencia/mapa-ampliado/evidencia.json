@@ -1,0 +1,150 @@
+{
+ "proxy_guardado": true,
+ "umbral_lento_ms": 2000,
+ "d_mapa_en_segundo_plano": {
+  "segundos_midiendo": 6.6,
+  "hueco_maximo_de_la_ventana_ms": 346,
+  "ticks": 100
+ },
+ "ab_filas": {
+  "ollama_registry": {
+   "estado": "ok",
+   "frase": "Responde directo y por el proxy (350 ms).",
+   "ruta": "ambas",
+   "ms": 350,
+   "detalle": "directo: responde (HTTP 404, 350 ms); proxy: responde (HTTP 404, 3991 ms)"
+  },
+  "huggingface": {
+   "estado": "ok",
+   "frase": "Responde directo y por el proxy (545 ms).",
+   "ruta": "ambas",
+   "ms": 545,
+   "detalle": "directo: responde (HTTP 200, 545 ms); proxy: responde (HTTP 200, 4069 ms)"
+  },
+  "github": {
+   "estado": "ok",
+   "frase": "Responde directo y por el proxy (720 ms).",
+   "ruta": "ambas",
+   "ms": 720,
+   "detalle": "directo: responde (HTTP 200, 720 ms); proxy: responde (HTTP 200, 4051 ms)"
+  },
+  "tailscale_ctrl": {
+   "estado": "ok",
+   "frase": "Responde directo y por el proxy (689 ms).",
+   "ruta": "ambas",
+   "ms": 689,
+   "detalle": "directo: responde (HTTP 200, 689 ms); proxy: responde (HTTP 200, 4470 ms)"
+  },
+  "cloudflare": {
+   "estado": "ok",
+   "frase": "Responde directo y por el proxy (475 ms).",
+   "ruta": "ambas",
+   "ms": 475,
+   "detalle": "directo: responde (HTTP 200, 475 ms); proxy: responde (HTTP 200, 4087 ms)"
+  }
+ },
+ "mapa_completo_segundos": 34.2,
+ "mapa_completo": {
+  "cloudflare": [
+   "ok",
+   "ambas",
+   934
+  ],
+  "ollama_registry": [
+   "ok",
+   "ambas",
+   901
+  ],
+  "github": [
+   "ok",
+   "ambas",
+   966
+  ],
+  "huggingface": [
+   "ok",
+   "ambas",
+   971
+  ],
+  "tailscale_ctrl": [
+   "ok",
+   "ambas",
+   897
+  ],
+  "ollama": [
+   "ok",
+   "local",
+   341
+  ],
+  "proxy": [
+   "ok",
+   "proxy",
+   1819
+  ],
+  "claude": [
+   "ok",
+   "proxy",
+   1066
+  ],
+  "chatgpt": [
+   "ok",
+   "proxy",
+   1366
+  ],
+  "internet": [
+   "ok",
+   "directo",
+   1422
+  ]
+ },
+ "proxy_y_claude": {
+  "proxy": {
+   "estado": "ok",
+   "frase": "Conectado — sales por EEUU.",
+   "ruta": "proxy"
+  },
+  "claude": {
+   "estado": "ok",
+   "frase": "Claude no responde desde IP venezolana; con el proxy sí.",
+   "ruta": "proxy"
+  }
+ },
+ "descargador_ruta": [
+  false,
+  "directo a huggingface.co (el mapa dice: Responde directo y por el proxy (971 ms).)"
+ ],
+ "router_claude_con_proxy_bien": [
+  true,
+  "binario: C:\\Users\\forte\\.local\\bin\\claude.EXE"
+ ],
+ "c_proxy_caido": {
+  "proxy": {
+   "estado": "falla",
+   "frase": "El proxy no responde: rechaza la conexión. La ruta que sí anda: el modelo local.",
+   "ruta": null
+  },
+  "claude": {
+   "estado": "falla",
+   "frase": "Claude no responde ni directo ni con el proxy. La ruta que sí anda: el modelo local.",
+   "ruta": null
+  },
+  "huggingface": {
+   "estado": "ok",
+   "frase": "Responde solo directo (291 ms).",
+   "ruta": "directo"
+  }
+ },
+ "c_router_claude": [
+  false,
+  "el mapa tiene el proxy en rojo (El proxy no responde: rechaza la conexión. La ruta que sí anda: el modelo local.) y claude no llega directo"
+ ],
+ "c_route_task": [
+  {
+   "elegido": "sonnet",
+   "motor": "claude",
+   "modelo": null,
+   "motivo": "sonnet: código / depuración / tarea con pasos («funcion»)",
+   "regla": "codigo-palabras"
+  },
+  "Automático eligió Sonnet (código / depuración / tarea con pasos («funcion»)), pero sonnet no está disponible: el mapa tiene el proxy en rojo (El proxy no responde: rechaza la conexión. La ruta que sí anda: el modelo local.) y claude no llega directo"
+ ]
+}

@@ -51,6 +51,11 @@
      "urls": ["https://www.google.com/generate_204", "https://1.1.1.1/"],
      "como": "Abro una página sin el proxy, mido cuánto tarda y desde qué país sales.",
      "frase_ok": "Hay internet. Sales desde {pais}.",
-     "frase_caido": "Sin internet. La ruta que sí anda: el modelo local, si está descargado."}
+     "frase_caido": "Sin internet. La ruta que sí anda: el modelo local, si está descargado."},
+    {"id": "ollama_registry", "nombre": "Registro de Ollama", "tipo": "servicio", "url": "https://registry.ollama.ai/v2/", "como": "Lo pido directo y por el proxy del VPS y mido cuánto tarda. De aquí bajan los modelos de Ollama."},
+    {"id": "huggingface", "nombre": "Hugging Face", "tipo": "servicio", "url": "https://huggingface.co/api/models?limit=1", "como": "Lo pido directo y por el proxy del VPS y mido cuánto tarda. De aquí baja el descargador los GGUF."},
+    {"id": "github", "nombre": "GitHub", "tipo": "servicio", "url": "https://api.github.com/", "como": "Lo pido directo y por el proxy del VPS y mido cuánto tarda. Actualizaciones y releases de la app."},
+    {"id": "tailscale_ctrl", "nombre": "Tailscale (control)", "tipo": "servicio", "url": "https://controlplane.tailscale.com/key?v=71", "como": "Lo pido directo y por el proxy del VPS y mido cuánto tarda. Sin esto el túnel VM↔PC no arranca."},
+    {"id": "cloudflare", "nombre": "Cloudflare", "tipo": "servicio", "url": "https://www.cloudflare.com/cdn-cgi/trace", "como": "Lo pido directo y por el proxy del VPS y mido cuánto tarda. Red general (CDN de mucha web)."}
   ]
 }
