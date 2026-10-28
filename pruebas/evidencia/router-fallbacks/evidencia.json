@@ -1,0 +1,53 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-routergui-xm28kpxr",
+ "a_tarjeta": {
+  "activo": "Activo ahora: ninguna tarea en curso; la siguiente empieza con Claude.",
+  "filas": [
+   "1. Claude1. Claude  principal · equivalente Max ·   principal · equivalente Max · disponibledisponible↓",
+   "2. Gemini (Antigravity CLI)2. Gemini (Antigravity CLI)  fallback · real (clave) o $0 (agy) ·   fallback · real (clave) o $0 (agy) · no disponibleno disponible↓↑",
+   "3. Local Hermes 3 directo $03. Local Hermes 3 directo $0  fallback · $0 (local) ·   fallback · $0 (local) · no disponibleno disponible↑",
+   "1. Local Hermes 3 directo $01. Local Hermes 3 directo $0↓",
+   "2. Ollama · Hermes 3 8B (local $0)2. Ollama · Hermes 3 8B (local $0)↓↑",
+   "3. Claude (haiku)3. Claude (haiku)↑"
+  ],
+  "pie": "Si un motor falla 3 veces seguidas, 5 min al siguiente y luego se vuelve a probar. Revisión, latidos y resúmenes: Local Hermes 3 directo $0 (local, $0). Sin permiso para cambiar de motor (la tarea no lo declara), la tarea queda esperando tu decisión."
+ },
+ "d_tras_bajar_claude": {
+  "engines_json": [
+   "gemini",
+   "claude",
+   "llama"
+  ],
+  "lo_que_usa_el_runner": [
+   "gemini",
+   "claude",
+   "llama"
+  ],
+  "filas": [
+   "1. Gemini (Antigravity CLI)1. Gemini (Antigravity CLI)  fallback · real (clave) o $0 (agy) ·   fallback · real (clave) o $0 (agy) · no disponibleno disponible↓",
+   "2. Claude2. Claude  principal · equivalente Max ·   principal · equivalente Max · disponibledisponible↓↑",
+   "3. Local Hermes 3 directo $03. Local Hermes 3 directo $0  fallback · $0 (local) ·   fallback · $0 (local) · no disponibleno disponible↑",
+   "1. Local Hermes 3 directo $01. Local Hermes 3 directo $0↓",
+   "2. Ollama · Hermes 3 8B (local $0)2. Ollama · Hermes 3 8B (local $0)↓↑",
+   "3. Claude (haiku)3. Claude (haiku)↑"
+  ]
+ },
+ "d_revisor": {
+  "revision_orden": [
+   "ollama",
+   "llama",
+   "claude"
+  ],
+  "fallback_revisor": [
+   "ollama",
+   "llama",
+   "claude:haiku"
+  ]
+ },
+ "log": [
+  "2026-10-28T03:54:30-04:00 respaldo: cadena del ejecutor ahora: gemini -> claude -> llama (desde Modelos; vale para la siguiente tarea, sin reiniciar)",
+  "2026-10-28T03:54:31-04:00 respaldo: cadena del revisor ahora: ollama -> llama -> claude:haiku",
+  "2026-10-28T03:54:31-04:00 recarga en caliente: engines.json (cambió: descriptores); aplicado sin reiniciar: motores"
+ ],
+ "tracebacks_en_log": 0
+}

@@ -4481,6 +4481,9 @@ def validate_task(data):
         "archivos": data.get("archivos") if LANE == "b" else None,
         "lee": data.get("lee") if LANE == "b" else None,
         "lee_carril_a": LANE == "b" and _lane_lee_carril_a(data),
+        # t-router-fallbacks: «si Claude no responde, sigue con el siguiente» (declarado) y por donde paso
+        "degradacion": data.get("degradacion") if isinstance(data.get("degradacion"), (bool, str, dict)) else None,
+        "ruta_motor": data.get("ruta_motor") if isinstance(data.get("ruta_motor"), dict) else None,
     }, None
 
 
@@ -11372,6 +11375,9 @@ def review_task(task, result):
     # 2. El juez (cadena del descriptor).
     j1, intentos = _llm_review(task, result, checks, touched, nivel)
     rev["jueces_intentados"] = [_resumen_juez(x) for x in intentos]
+    rev.update(_ruta_revisor(j1, intentos))  # t-router-fallbacks: «llama: sin respuesta -> ollama: valido»
+    if intentos or j1:
+        log(f"runner [{task['id']}]: revisión por la cadena: {rev['cadena_revisor']}")
     cost = sum(x.get("costo_usd") or 0 for x in intentos) + ((j1 or {}).get("costo_usd") or 0)
     v1 = (j1 or {}).get("veredicto")
     if j1:
@@ -14206,6 +14212,10 @@ def _after_run(task, result):
             f"Parada por el tope de gasto: lleva ${tope[0]:.2f} de ${tope[1]:.2f} (con reintentos, rondas y "
             "revisiones). No sigue gastando: decide tú si subes el tope o la cierras.")
         log(f"runner [{task['id']}]: tope de gasto: ${tope[0]:.2f} de ${tope[1]:.2f}; queda en necesita_decision")
+    elif result["status"] != "ok" and result.get("estado") == "necesita_decision":
+        estado, reporte = "necesita_decision", (
+            f"{NO_CONFIRMADO} {result.get('motivo_decision')}. Lo hecho hasta aquí está guardado (checkpoint y "
+            "rondas anteriores): nada se borró. Decide tú: reintentar más tarde, cambiar de motor o cerrarla.")
     elif result["status"] != "ok":
         motivo = result.get("error") or result["status"]
         estado, reporte = "fallida", _honest_report("fallida", task, None, None, motivo)
@@ -14312,13 +14322,13 @@ _DEFINITIVO_RE = re.compile(
     r"no est[aá] en el PATH|no encuentro '|tipo de motor desconocido|no est[aá] instalado|"
     r"CODIFICACI[OÓ]N|clave rechazada|sin permiso \(403\)|no encontrado \(404\)|"
     r"petici[oó]n rechazada \(400\)|JSON invalido|no es una direcci[oó]n local|"
-    r"descriptor mal formado|sin credencial", re.I)
+    r"descriptor mal formado|sin credencial|\b40[13]\b|unauthori[sz]ed|forbidden|invalid.{0,4}api.?key", re.I)
 _TRANSITORIO_RE = re.compile(
     r"no responde|servidor apagado|sin respuesta de|conexi[oó]n cortada|PROXY:|sin conexi[oó]n|"
     r"todav[ií]a est[aá] cargando|no respondi[oó] en|se cerr[oó] al arrancar|timed? ?out|timeout|"
     r"ECONNRE|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed|network|overloaded|"
     r"\b5(?:00|02|03|04|29)\b|el servicio fall[oó]|l[ií]mite de uso|rate.?limit|\b429\b|"
-    r"Connection(?:Reset|Aborted|Refused)Error|RemoteDisconnected|temporarily|temporalmente", re.I)
+    r"Connection(?:Reset|Aborted|Refused)Error|RemoteDisconnected|temporarily|temporalmente|\b408\b|cuota", re.I)
 
 
 def _cola_conn():
@@ -14494,6 +14504,380 @@ def _cola_nota(result):
         nota += (f" Hicieron falta {result['reintentos']} reintento(s) por errores pasajeros "
                  f"(último: {str(ult)[:120]}).")
     return nota
+
+
+# ---- cadena de respaldo del ejecutor (t-router-fallbacks)
+# engines.json -> «fallback» (editable, nada fijo en el codigo). Reglas de
+# OpenClaw (isFailoverWorthyBackendError): solo se cambia de motor ante un
+# error TRANSITORIO (429, 408, 5xx, red, cuota, timeout, sin respuesta) y tras
+# agotar los reintentos con backoff; un error definitivo (400/401/403,
+# configuracion) nunca cambia de motor ni se reintenta. El cambio es ENTRE
+# intentos o rondas (frontera limpia): el motor nuevo sigue con la sesion si
+# puede; si no, con el resumen del checkpoint. Cambiar de motor es degradar
+# el alcance: solo si la tarea lo declara («degradacion») o la seccion lo
+# permite por defecto; sin regla, la decision no la toma el error: la tarea
+# queda «necesita decision» con el trabajo parcial guardado.
+_FB_DEF = {"ejecutor": {"cadena": ["claude", "gemini", "llama"]},
+           "breaker": {"fallos": 3, "minutos": 5}, "cuota_aviso_pct": 90,
+           "degradacion_sin_regla": "necesita_decision", "utilidad": "llama", "heartbeat": "llama"}
+_MOTOR_BRK = {}  # motor -> {"seguidos", "abierto_hasta", "ultimo"}
+
+
+def fallback_cfg():
+    data, _e = load_engines()
+    fb = data.get("fallback") if isinstance(data.get("fallback"), dict) else {}
+    out = json.loads(json.dumps(_FB_DEF))
+    for k, v in fb.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k].update(v)
+        elif not str(k).startswith("_"):
+            out[k] = v
+    return out
+
+
+def cadena_ejecutor():
+    """La cadena del ejecutor, solo con motores de la allowlist (los descritos
+    en engines.json); uno de fuera se rechaza y se dice."""
+    cad = [str(m) for m in (fallback_cfg().get("ejecutor") or {}).get("cadena") or []]
+    ok = [m for m in cad if m in engine_ids()]
+    fuera = [m for m in cad if m not in ok]
+    if fuera and _FB_AVISO.get("fuera") != fuera:
+        _FB_AVISO["fuera"] = fuera
+        log(f"respaldo: {', '.join(fuera)} no está en la lista de motores (engines.json → motores): se rechaza "
+            "en la cadena")
+    return list(dict.fromkeys(ok))
+
+
+_FB_AVISO = {}
+
+
+def _nombre_motor(mid):
+    return ((get_engine(mid) or {}).get("nombre") or mid) if mid else "?"
+
+
+def degradacion_permitida(task):
+    """(si/no, por qué). La tarea manda; si no dice nada, la sección fallback."""
+    d = task.get("degradacion")
+    if d in (True, "seguir") or (isinstance(d, dict) and d.get("permitida")):
+        return True, "la tarea lo declara («si Claude no responde, sigue con el siguiente y avísame»)"
+    if d in (False, "no", "preguntar") or (isinstance(d, dict) and d.get("permitida") is False):
+        return False, "la tarea pide no cambiar de motor"
+    if fallback_cfg().get("degradacion_sin_regla") == "seguir":
+        return True, "engines.json → fallback.degradacion_sin_regla = seguir"
+    return False, "ni la tarea ni engines.json declaran que se pueda seguir con otro motor"
+
+
+def motor_breaker_abierto(mid):
+    b = _MOTOR_BRK.get(mid) or {}
+    return bool(b.get("abierto_hasta") and time.time() < b["abierto_hasta"])
+
+
+def motor_fallo_apuntar(mid, result, transitorio):
+    """Breaker por motor: 3 fallos transitorios seguidos -> 5 min al
+    respaldo; despues se sondea el primario con la siguiente tarea."""
+    if not mid:
+        return
+    b = _MOTOR_BRK.setdefault(mid, {"seguidos": 0, "abierto_hasta": None, "ultimo": None})
+    if result.get("status") == "ok":
+        if b["seguidos"] or b["abierto_hasta"]:
+            log(f"respaldo: {_nombre_motor(mid)} vuelve a responder: se cierra su breaker")
+        b.update(seguidos=0, abierto_hasta=None)
+        return
+    if not transitorio:
+        return
+    b["seguidos"] += 1
+    b["ultimo"] = str(result.get("error") or result.get("status"))[:160]
+    cfg = fallback_cfg().get("breaker") or {}
+    n, mins = int(cfg.get("fallos") or 3), float(cfg.get("minutos") or 5)
+    if b["seguidos"] >= n and not motor_breaker_abierto(mid):
+        b["abierto_hasta"] = time.time() + mins * 60
+        sig = _siguiente_motor(mid, None)
+        log(f"respaldo: {_nombre_motor(mid)} no responde ({n} fallos seguidos; el último: {b['ultimo']}): "
+            f"{mins:g} min trabajando con {_nombre_motor(sig) if sig else 'nadie (cadena agotada)'}; luego se "
+            f"vuelve a probar {_nombre_motor(mid)}")
+        try:
+            _ui_call(lambda: toast(f"{_nombre_motor(mid)} no responde: {mins:g} min con "
+                                   f"{_nombre_motor(sig) if sig else 'nadie'}", ("tareas",)))
+        except Exception:
+            pass
+
+
+def _siguiente_motor(actual, task, probados=()):
+    """El siguiente de la cadena que esté encendido, disponible y sin breaker."""
+    cad = cadena_ejecutor()
+    i = cad.index(actual) if actual in cad else -1
+    for m in cad[i + 1:]:
+        if m in probados or m == actual or motor_breaker_abierto(m) or m in motores_apagados():
+            continue
+        try:
+            ok, _why = engine_status(m)
+        except Exception:
+            ok = False
+        if ok:
+            return m
+    return None
+
+
+def _ruta_motor(task, de, a, motivo):
+    r = dict(task.get("ruta_motor") or {})
+    pasos = list(r.get("pasos") or [])
+    pasos.append(f"{de}: {motivo} -> {a}")
+    r.update(motor_elegido=a, motivo_eleccion=f"respaldo de {de}", escalon_previo=de, motivo_escalado=motivo,
+             pasos=pasos, probados=list(dict.fromkeys(list(r.get("probados") or []) + [de])))
+    return r
+
+
+def router_antes(task, task_file, cid):
+    """Antes de lanzar: si el motor tiene el breaker abierto (o la cuota está
+    a punto de acabarse), la tarea va al respaldo si puede degradarse; si no,
+    espera a que pase el breaker. (task, 'seguir'|'pospuesta')."""
+    mid = task.get("motor")
+    cad = cadena_ejecutor()
+    if mid not in cad:
+        return task, "seguir"
+    motivo = None
+    if motor_breaker_abierto(mid):
+        b = _MOTOR_BRK[mid]
+        motivo = f"breaker abierto ({b['seguidos']} fallos seguidos; el último: {b['ultimo']})"
+    elif mid == "claude":
+        pct = None
+        try:
+            pct = _quota_pct()
+        except Exception:
+            pct = None
+        umbral = fallback_cfg().get("cuota_aviso_pct") or 90
+        if isinstance(pct, (int, float)) and pct >= umbral:
+            motivo = f"cuota de Claude al {pct:.0f} % (aviso desde el {umbral:g} %): mejor cambiar antes del corte"
+    if not motivo:
+        return task, "seguir"
+    ok, por_que = degradacion_permitida(task)
+    sig = _siguiente_motor(mid, task, (task.get("ruta_motor") or {}).get("probados") or ())
+    if ok and sig:
+        motor_cambio(mid, sig, f"{_nombre_motor(mid)}: {motivo}; la tarea {task['id']} sigue con {_nombre_motor(sig)}")
+        task = dict(task, motor=sig, ruta_motor=_ruta_motor(task, mid, sig, motivo))
+        task.pop("model", None)
+        task.pop("modelo", None)
+        _fb_reescribir(task_file, task)
+        return task, "seguir"
+    if motor_breaker_abierto(mid):
+        hasta = _MOTOR_BRK[mid]["abierto_hasta"]
+        cola_set(cid, estado="en_cola", proximo_intento=hasta,
+                 motivo=f"esperando a {_nombre_motor(mid)} ({motivo}); no cambia de motor: {por_que}")
+        log(f"runner [{task['id']}]: {_nombre_motor(mid)} {motivo}: espera hasta las {_hora(hasta)[11:19]} "
+            f"(no cambia de motor: {por_que})")
+        return task, "pospuesta"
+    log(f"runner [{task['id']}]: {motivo}; sigue con {_nombre_motor(mid)} (no cambia de motor: {por_que})")
+    return task, "seguir"
+
+
+def _fb_reescribir(task_file, task):
+    try:
+        d = json.loads(Path(task_file).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    d["motor"] = task["motor"]
+    d.pop("model", None)
+    d.pop("modelo", None)
+    d["ruta_motor"] = task.get("ruta_motor")
+    Path(task_file).write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def fallback_tras_fallo(cid, task, task_file, processing_path, result, row):
+    """Reintentos agotados con un error transitorio: siguiente de la cadena
+    (si se puede degradar) o necesita_decision. True si ya se encargó."""
+    mid = task.get("motor")
+    if mid not in cadena_ejecutor():
+        return False
+    err = str(result.get("error") or result.get("status"))[:200]
+    ok, por_que = degradacion_permitida(task)
+    probados = list((task.get("ruta_motor") or {}).get("probados") or []) + [mid]
+    sig = _siguiente_motor(mid, task, probados) if ok else None
+    if sig:
+        nuevo = dict(task, motor=sig, ruta_motor=_ruta_motor(task, mid, sig, err))
+        motor_cambio(mid, sig, f"{_nombre_motor(mid)} no responde ({err[:120]}): la tarea {task['id']} sigue con "
+                               f"{_nombre_motor(sig)}")
+        dest = TASKS / task_file.name
+        try:
+            os.replace(processing_path, dest)
+        except OSError as e:
+            log(f"runner [{task['id']}]: respaldo: no se pudo devolver a la cola ({e})")
+            return False
+        _fb_reescribir(dest, nuevo)
+        hist = _cola_hist(row) + [{"respaldo": f"{mid} -> {sig}", "error": err, "at": _now_iso()}]
+        cola_set(cid, estado="en_cola", archivo=str(dest), intentos=(row.get("intentos") or 0) + 1,
+                 reintentos=0, proximo_intento=None, motivo=f"respaldo: {mid} -> {sig} ({err[:120]})",
+                 historial=hist, motor=sig)
+        _family_update(task["raiz"], estado="pendiente", en_curso=None, motor=sig,
+                       ruta_motor=nuevo["ruta_motor"], sumar_costo=result.get("cost_usd"))
+        return True
+    motivo = (f"{_nombre_motor(mid)} falló con un error pasajero ({err}) tras {MAX_RETRIES} reintentos y "
+              + (f"no queda nadie en la cadena ({' -> '.join(cadena_ejecutor())}) que responda"
+                 if ok else f"no se cambia de motor: {por_que}"))
+    result.update(estado="necesita_decision", motivo_decision=motivo,
+                  ruta_motor=_ruta_motor(task, mid, "nadie", err) if ok else task.get("ruta_motor"))
+    result.setdefault("avisos", []).append(motivo + ". Lo hecho hasta aquí está guardado (checkpoint y "
+                                                    "resultados de las rondas anteriores): nada se borró.")
+    log(f"runner [{task['id']}]: necesita tu decisión: {motivo}")
+    return False
+
+
+def _ruta_revisor(j1, intentos):
+    """motor_elegido / motivo_eleccion / escalon_previo / motivo_escalado de la revisión."""
+    pasos = []
+    for i in intentos:
+        err = "; ".join(i.get("errores") or [])[:90]
+        pasos.append(f"{i.get('motor')}{(':' + i['modelo']) if i.get('modelo') else ''}: {i.get('estado')}"
+                     + (f" ({err})" if err else ""))
+    if j1:
+        pasos.append(f"{j1.get('motor')}{(':' + j1['modelo']) if j1.get('modelo') else ''}: {j1.get('estado')}")
+    previo = intentos[-1] if intentos else None
+    return {"motor_elegido": (f"{j1['motor']}" + (f":{j1['modelo']}" if j1.get("modelo") else "")) if j1 else None,
+            "motivo_eleccion": ("el primero de la cadena del revisor que respondió" if j1 and not intentos else
+                                "respaldo: los anteriores de la cadena no respondieron" if j1 else
+                                "ningún juez de la cadena respondió"),
+            "escalon_previo": previo.get("motor") if previo else None,
+            "motivo_escalado": "; ".join(previo.get("errores") or [])[:200] if previo else None,
+            "cadena_revisor": " -> ".join(pasos)}
+
+
+# ---- Modelos -> «Cadena de respaldo» (t-router-fallbacks): la cadena y el
+# modelo activo, con ↑/↓ para reordenar. Se guarda en engines.json (con .bak)
+# y vale para la siguiente tarea sin reiniciar (la recarga en caliente la ve;
+# la que esté en curso termina con el motor con el que empezó).
+_CAD = {"kit": None}
+
+
+def fallback_guardar(ejecutor=None, revisor=None):
+    """Reordena la cadena del ejecutor y/o la del revisor (revision.orden). (ok, msg)."""
+    try:
+        raw = json.loads(ENGINES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return False, f"no se pudo leer engines.json ({e})"
+    if ejecutor is not None:
+        fuera = [m for m in ejecutor if m not in (raw.get("motores") or {})]
+        if fuera:
+            return False, f"{', '.join(fuera)} no está en la lista de motores: no puede ir en la cadena"
+        fb = raw.setdefault("fallback", {})
+        fb.setdefault("ejecutor", {})["cadena"] = list(ejecutor)
+    if revisor is not None:
+        orden = (raw.get("revision") or {}).get("orden") or []
+        por = {(x.get("motor"), x.get("modelo")): x for x in orden if isinstance(x, dict)}
+        raw["revision"]["orden"] = [por[k] for k in revisor if k in por]
+        raw.setdefault("fallback", {}).setdefault("revisor", {})["cadena"] = [
+            m + (f":{mod}" if mod else "") for m, mod in revisor]
+    try:
+        shutil.copy2(ENGINES_FILE, ENGINES_FILE.with_name(ENGINES_FILE.name + ".bak"))
+        tmpf = ENGINES_FILE.with_name(ENGINES_FILE.name + ".tmp")
+        tmpf.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmpf, ENGINES_FILE)
+    except OSError as e:
+        return False, f"no se pudo escribir engines.json ({e})"
+    if ejecutor is not None:
+        log(f"respaldo: cadena del ejecutor ahora: {' -> '.join(ejecutor)} (desde Modelos; vale para la "
+            "siguiente tarea, sin reiniciar)")
+    if revisor is not None:
+        log(f"respaldo: cadena del revisor ahora: {' -> '.join(m + (':' + d if d else '') for m, d in revisor)}")
+    return True, "guardado"
+
+
+def _build_cadena_card(tab):
+    holder = tk.Frame(tab, bg=THEME["bg"])
+    holder.pack(fill="x")
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(holder)
+        except Exception as e:
+            log(f"respaldo: CustomTkinter no disponible ({type(e).__name__}: {e}); tarjeta clásica")
+    k = k or _KitTk(holder)
+    _CAD["kit"] = k
+    card = k.section("Cadena de respaldo", "Si el motor de una tarea no responde (429, 5xx, red, cuota, timeout) tras "
+                                           "los reintentos, sigue el siguiente; solo si la tarea lo permite. Un "
+                                           "401/403 nunca cambia de motor. Se guarda en engines.json y vale para la "
+                                           "siguiente tarea, sin reiniciar.")
+    _CAD["activo"] = k.label(card, "", wrap=560)
+    _CAD["activo"].pack(anchor="w", padx=16, pady=(2, 4))
+    k.label(card, "Quien hace la tarea", bold=True, wrap=0).pack(anchor="w", padx=16, pady=(4, 0))
+    _CAD["ejec"] = k.frame(card)
+    _CAD["ejec"].pack(fill="x", padx=16)
+    k.label(card, "Quien la revisa", bold=True, wrap=0).pack(anchor="w", padx=16, pady=(8, 0))
+    _CAD["rev"] = k.frame(card)
+    _CAD["rev"].pack(fill="x", padx=16)
+    _CAD["pie"] = k.label(card, "", muted=True, wrap=560)
+    _CAD["pie"].pack(anchor="w", padx=16, pady=(6, 12))
+    _cadena_render()
+
+
+def _cadena_estado(mid):
+    if motor_breaker_abierto(mid):
+        b = _MOTOR_BRK[mid]
+        return f"en pausa hasta las {_hora(b['abierto_hasta'])[11:16]} ({b['seguidos']} fallos seguidos)", "red"
+    if mid in motores_apagados():
+        return "apagado", "muted"
+    m = next((x for x in (_GW_ESTADO_CACHE.get("motores") or []) if x["id"] == mid), None)
+    if m is None:
+        return "sin comprobar", "muted"
+    return ("disponible", "green_text") if m["disponible"] else ("no disponible", "orange_text")
+
+
+def _cadena_render():
+    k = _CAD.get("kit")
+    if k is None:
+        return
+    for box in (_CAD["ejec"], _CAD["rev"]):
+        for ch in box.winfo_children():
+            ch.destroy()
+    cfg = fallback_cfg()
+    info = cfg.get("motores") or {}
+    cad = cadena_ejecutor()
+    for i, mid in enumerate(cad):
+        r = k.frame(_CAD["ejec"])
+        r.pack(fill="x", pady=1)
+        est, col = _cadena_estado(mid)
+        d = info.get(mid) or {}
+        k.label(r, f"{i + 1}. {_nombre_motor(mid)}", wrap=0).pack(side="left")
+        k.label(r, f"  {d.get('rol') or ('principal' if i == 0 else 'respaldo')} · {d.get('coste') or 'sin dato'} · ",
+                muted=True, wrap=0).pack(side="left")
+        k.label(r, est, wrap=0, color=col).pack(side="left")
+        if i < len(cad) - 1:
+            k.button(r, "↓", lambda i=i: _cadena_mover("ejec", i, 1)).pack(side="right", padx=(4, 0))
+        if i:
+            k.button(r, "↑", lambda i=i: _cadena_mover("ejec", i, -1)).pack(side="right", padx=(4, 0))
+    orden = [(x.get("motor"), x.get("modelo")) for x in (_rev_cfg().get("orden") or []) if isinstance(x, dict)]
+    for i, (mid, mod) in enumerate(orden):
+        r = k.frame(_CAD["rev"])
+        r.pack(fill="x", pady=1)
+        k.label(r, f"{i + 1}. {_nombre_motor(mid)}" + (f" ({mod})" if mod else ""), wrap=0).pack(side="left")
+        if i < len(orden) - 1:
+            k.button(r, "↓", lambda i=i: _cadena_mover("rev", i, 1)).pack(side="right", padx=(4, 0))
+        if i:
+            k.button(r, "↑", lambda i=i: _cadena_mover("rev", i, -1)).pack(side="right", padx=(4, 0))
+    cur = state.get("current_motor")
+    k.set_label(_CAD["activo"], text=(f"Activo ahora: {_nombre_motor(cur)} (en la tarea {state.get('current')}; "
+                                      "termina con este motor aunque cambies la cadena)" if cur else
+                                      f"Activo ahora: ninguna tarea en curso; la siguiente empieza con "
+                                      f"{_nombre_motor(cad[0]) if cad else default_motor()}."))
+    brk = cfg.get("breaker") or {}
+    k.set_label(_CAD["pie"], text=(
+        f"Si un motor falla {brk.get('fallos', 3)} veces seguidas, {brk.get('minutos', 5)} min al siguiente y luego "
+        f"se vuelve a probar. Revisión, latidos y resúmenes: {_nombre_motor(cfg.get('utilidad'))} (local, $0). "
+        "Sin permiso para cambiar de motor (la tarea no lo declara), la tarea queda esperando tu decisión."))
+
+
+def _cadena_mover(cual, i, delta):
+    if cual == "ejec":
+        cad = cadena_ejecutor()
+        j = i + delta
+        if 0 <= j < len(cad):
+            cad[i], cad[j] = cad[j], cad[i]
+            fallback_guardar(ejecutor=cad)
+    else:
+        orden = [(x.get("motor"), x.get("modelo")) for x in (_rev_cfg().get("orden") or []) if isinstance(x, dict)]
+        j = i + delta
+        if 0 <= j < len(orden):
+            orden[i], orden[j] = orden[j], orden[i]
+            fallback_guardar(revisor=orden)
+    _cadena_render()
 
 
 def _programar_reintento(cid, task, task_file, processing_path, result, row):
@@ -15645,6 +16029,13 @@ def _process_one_impl(task_file):
             est, dest = _park_for_approval(task_file, task, need)
             cola_set(cid, estado=est, archivo=str(dest))
             return True
+        try:
+            task, _ruta = router_antes(task, task_file, cid)  # t-router-fallbacks
+        except Exception as e:
+            log(f"runner [{task['id']}]: respaldo: {type(e).__name__}: {e}; sigue con su motor")
+            _ruta = "seguir"
+        if _ruta == "pospuesta":
+            return True
     PROCESSING.mkdir(parents=True, exist_ok=True)
     DONE.mkdir(parents=True, exist_ok=True)
     processing_path = PROCESSING / task_file.name
@@ -15783,6 +16174,7 @@ def _process_one_impl(task_file):
         state["last_result"] = f"{task['id']}: {result['status']} ({result['duration_s']}s)"
         reintentos = row.get("reintentos") or 0
         breaker_apuntar(result, result.get("status") != "ok" and _es_transitorio(result))
+        motor_fallo_apuntar(task.get("motor"), result, result.get("status") != "ok" and _es_transitorio(result))
         if (result.get("status") != "ok" and not _RUN.get("stop") and reintentos < MAX_RETRIES
                 and _es_transitorio(result)):
             try:
@@ -15799,6 +16191,23 @@ def _process_one_impl(task_file):
                 _RUN.update(proc=None, conn=None, id=None, ck=None)
                 _cola_corriendo.discard(cid)
             return True
+        if result.get("status") != "ok" and not _RUN.get("stop") and _es_transitorio(result):
+            try:
+                hecho = fallback_tras_fallo(cid, task, task_file, processing_path, result, row)
+            except Exception as e:
+                log(f"runner [{task['id']}]: respaldo: {type(e).__name__}: {e}")
+                hecho = False
+            if hecho:
+                live_finish("sigue con el siguiente motor de la cadena")
+                state["current"] = state["paso"] = None
+                state["current_motor"] = state["current_modelo"] = None
+                _RUN.update(proc=None, conn=None, id=None, ck=None)
+                _cola_corriendo.discard(cid)
+                return True
+        if task.get("ruta_motor"):  # motor por intento: motor_elegido, motivo_eleccion, escalon_previo...
+            result.setdefault("ruta_motor", task["ruta_motor"])
+            for _k in ("motor_elegido", "motivo_eleccion", "escalon_previo", "motivo_escalado"):
+                result.setdefault(_k, task["ruta_motor"].get(_k))
     hist = _cola_hist(row)
     result["intentos"] = (row.get("intentos") or 0) + 1
     result["reintentos"] = row.get("reintentos") or 0
@@ -26292,6 +26701,10 @@ def start_pc_check():
 
 
 def _on_models_open():
+    try:
+        _cadena_render()
+    except Exception as e:
+        log(f"respaldo: {type(e).__name__}: {e}")
     """Al abrir la pestana: la primera vez comprueba el PC sola, y pide la
     lista de modelos si aun no la hay. Y el escaneo de arranque de models\\
     (lo que no esta en el manifiesto sale «sin registrar»)."""
@@ -29769,6 +30182,10 @@ def _build_models_page(tab):
     # Saldo Tripo + Generar con Tripo (t-saldo-tripo): arriba, siempre a la
     # vista. CustomTkinter con respaldo clasico.
     _build_tripo_cards(tab)
+    try:
+        _build_cadena_card(tab)  # «Cadena de respaldo» (t-router-fallbacks)
+    except Exception as e:
+        log(f"respaldo: no se pudo dibujar la cadena en Modelos ({type(e).__name__}: {e})")
 
     # Tu PC (Comprobar mi PC)
     card = _card(tab, "Tu PC")

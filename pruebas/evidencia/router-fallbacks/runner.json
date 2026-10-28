@@ -1,0 +1,350 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-router-o4yzxzgy",
+ "a_cadena_ejecutor": [
+  "claude",
+  "gemini",
+  "llama"
+ ],
+ "a_cadena_revisor": [
+  [
+   "llama",
+   null
+  ],
+  [
+   "ollama",
+   null
+  ],
+  [
+   "claude",
+   "haiku"
+  ]
+ ],
+ "a_fallback_cfg": {
+  "ejecutor": {
+   "cadena": [
+    "claude",
+    "gemini",
+    "llama"
+   ]
+  },
+  "breaker": {
+   "fallos": 3,
+   "minutos": 5
+  },
+  "cuota_aviso_pct": 90,
+  "degradacion_sin_regla": "necesita_decision",
+  "utilidad": "llama",
+  "heartbeat": "llama",
+  "revisor": {
+   "cadena": [
+    "llama",
+    "ollama",
+    "claude:haiku"
+   ],
+   "_que_es": "Espejo de revision.orden (el que usa el runner); Modelos reordena los dos a la vez."
+  },
+  "motores": {
+   "claude": {
+    "rol": "principal",
+    "coste": "equivalente Max",
+    "cambia_si": [
+     "cuota",
+     "proxy_caido",
+     "429",
+     "5xx",
+     "timeout"
+    ]
+   },
+   "gemini": {
+    "rol": "fallback",
+    "coste": "real (clave) o $0 (agy)",
+    "cambia_si": [
+     "429",
+     "5xx",
+     "timeout"
+    ]
+   },
+   "llama": {
+    "rol": "fallback",
+    "coste": "$0 (local)",
+    "cambia_si": [
+     "sin_respuesta",
+     "timeout"
+    ]
+   },
+   "ollama": {
+    "rol": "utilidad",
+    "coste": "$0 (local)"
+   }
+  }
+ },
+ "b_429_cae_por_la_cadena": {
+  "llamadas": [
+   "t-r-429:claude",
+   "t-r-429:claude",
+   "t-r-429:gemini",
+   "t-r-429:gemini",
+   "t-r-429:llama"
+  ],
+  "estado": "sin_revision",
+  "motor_final": "llama",
+  "ruta_motor": {
+   "motor_elegido": "llama",
+   "motivo_eleccion": "respaldo de gemini",
+   "escalon_previo": "gemini",
+   "motivo_escalado": "gemini: HTTP 429 Too Many Requests (rate limit) [simulado]",
+   "pasos": [
+    "claude: claude: HTTP 429 Too Many Requests (rate limit) [simulado] -> gemini",
+    "gemini: gemini: HTTP 429 Too Many Requests (rate limit) [simulado] -> llama"
+   ],
+   "probados": [
+    "claude",
+    "gemini"
+   ]
+  },
+  "motor_elegido": "llama",
+  "escalon_previo": "gemini",
+  "motivo_escalado": "gemini: HTTP 429 Too Many Requests (rate limit) [simulado]",
+  "reporte": "Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien.",
+  "cola": "terminada",
+  "cola_motivo": ""
+ },
+ "b_401_no_cambia": {
+  "llamadas": [
+   "t-r-401:claude"
+  ],
+  "estado": "fallida",
+  "motor_final": "claude",
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "Lo intenté pero no pude confirmar que funcionara. claude: HTTP 401 Unauthorized: invalid api key [simulado].",
+  "cola": "fallida",
+  "cola_motivo": "claude: HTTP 401 Unauthorized: invalid api key [simulado]"
+ },
+ "g_sin_regla": {
+  "llamadas": [
+   "t-r-sinregla:claude",
+   "t-r-sinregla:claude"
+  ],
+  "estado": "necesita_decision",
+  "motor_final": "claude",
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "Lo intenté pero no pude confirmar que funcionara. Claude falló con un error pasajero (claude: HTTP 429 Too Many Requests (rate limit) [simulado]) tras 1 reintentos y no se cambia de motor: ni la tarea ni engines.json declaran que se pueda seguir con otro motor. Lo hecho hasta aquí está guardado (che",
+  "cola": "necesita_decision",
+  "cola_motivo": "claude: HTTP 429 Too Many Requests (rate limit) [simulado]"
+ },
+ "g_cadena_agotada": {
+  "llamadas": [
+   "t-r-agotada:claude",
+   "t-r-agotada:claude",
+   "t-r-agotada:gemini",
+   "t-r-agotada:gemini",
+   "t-r-agotada:llama",
+   "t-r-agotada:llama"
+  ],
+  "estado": "necesita_decision",
+  "motor_final": "llama",
+  "ruta_motor": {
+   "motor_elegido": "nadie",
+   "motivo_eleccion": "respaldo de llama",
+   "escalon_previo": "llama",
+   "motivo_escalado": "llama: HTTP 429 Too Many Requests (rate limit) [simulado]",
+   "pasos": [
+    "claude: claude: HTTP 429 Too Many Requests (rate limit) [simulado] -> gemini",
+    "gemini: gemini: HTTP 429 Too Many Requests (rate limit) [simulado] -> llama",
+    "llama: llama: HTTP 429 Too Many Requests (rate limit) [simulado] -> nadie"
+   ],
+   "probados": [
+    "claude",
+    "gemini",
+    "llama"
+   ]
+  },
+  "motor_elegido": "llama",
+  "escalon_previo": "gemini",
+  "motivo_escalado": "gemini: HTTP 429 Too Many Requests (rate limit) [simulado]",
+  "reporte": "Lo intenté pero no pude confirmar que funcionara. Local Hermes 3 directo $0 falló con un error pasajero (llama: HTTP 429 Too Many Requests (rate limit) [simulado]) tras 1 reintentos y no queda nadie en la cadena (claude -> gemini -> llama) que responda. Lo hecho hasta aquí está guardado (checkpoint ",
+  "cola": "necesita_decision",
+  "cola_motivo": "llama: HTTP 429 Too Many Requests (rate limit) [simulado]"
+ },
+ "c_fallo_1_2": {
+  "llamadas": [
+   "t-r-brk1:claude",
+   "t-r-brk1:claude"
+  ],
+  "estado": "necesita_decision",
+  "motor_final": "claude",
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "Lo intenté pero no pude confirmar que funcionara. Claude falló con un error pasajero (claude: HTTP 429 Too Many Requests (rate limit) [simulado]) tras 1 reintentos y no se cambia de motor: ni la tarea ni engines.json declaran que se pueda seguir con otro motor. Lo hecho hasta aquí está guardado (che",
+  "cola": "necesita_decision",
+  "cola_motivo": "claude: HTTP 429 Too Many Requests (rate limit) [simulado]"
+ },
+ "c_fallo_3": {
+  "llamadas": [
+   "t-r-brk2:claude"
+  ],
+  "estado": "esperando_reintento",
+  "motor_final": null,
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "",
+  "cola": "en_cola",
+  "cola_motivo": "esperando a Claude (breaker abierto (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado])); no cambia de motor: ni la tarea ni engines.json declaran que se pueda s"
+ },
+ "c_breaker": {
+  "claude": {
+   "seguidos": 3,
+   "abierto_hasta": 1793174412.3527884,
+   "ultimo": "claude: HTTP 429 Too Many Requests (rate limit) [simulado]"
+  }
+ },
+ "c_con_breaker_y_regla": {
+  "llamadas": [
+   "t-r-brk3:gemini"
+  ],
+  "estado": "sin_revision",
+  "motor_final": "gemini",
+  "ruta_motor": {
+   "motor_elegido": "gemini",
+   "motivo_eleccion": "respaldo de claude",
+   "escalon_previo": "claude",
+   "motivo_escalado": "breaker abierto (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado])",
+   "pasos": [
+    "claude: breaker abierto (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado]) -> gemini"
+   ],
+   "probados": [
+    "claude"
+   ]
+  },
+  "motor_elegido": "gemini",
+  "escalon_previo": "claude",
+  "motivo_escalado": "breaker abierto (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado])",
+  "reporte": "Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien.",
+  "cola": "terminada",
+  "cola_motivo": ""
+ },
+ "c_con_breaker_sin_regla": {
+  "llamadas": [],
+  "estado": null,
+  "motor_final": null,
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "",
+  "cola": "en_cola",
+  "cola_motivo": "esperando a Claude (breaker abierto (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado])); no cambia de motor: ni la tarea ni engines.json declaran que se pueda s"
+ },
+ "cuota_antes_del_corte": {
+  "llamadas": [
+   "t-r-cuota:gemini"
+  ],
+  "estado": "sin_revision",
+  "motor_final": "gemini",
+  "ruta_motor": {
+   "motor_elegido": "gemini",
+   "motivo_eleccion": "respaldo de claude",
+   "escalon_previo": "claude",
+   "motivo_escalado": "cuota de Claude al 95 % (aviso desde el 90 %): mejor cambiar antes del corte",
+   "pasos": [
+    "claude: cuota de Claude al 95 % (aviso desde el 90 %): mejor cambiar antes del corte -> gemini"
+   ],
+   "probados": [
+    "claude"
+   ]
+  },
+  "motor_elegido": "gemini",
+  "escalon_previo": "claude",
+  "motivo_escalado": "cuota de Claude al 95 % (aviso desde el 90 %): mejor cambiar antes del corte",
+  "reporte": "Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien.",
+  "cola": "terminada",
+  "cola_motivo": ""
+ },
+ "cuota_sin_regla": {
+  "llamadas": [
+   "t-r-cuota2:claude"
+  ],
+  "estado": "sin_revision",
+  "motor_final": "claude",
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien.",
+  "cola": "terminada",
+  "cola_motivo": ""
+ },
+ "d_guardar": [
+  true,
+  "guardado"
+ ],
+ "d_en_curso": {
+  "llamadas": [
+   "t-r-encurso:claude"
+  ],
+  "estado": "sin_revision",
+  "motor_final": "claude",
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien.",
+  "cola": "terminada",
+  "cola_motivo": ""
+ },
+ "d_cadena_despues": [
+  "llama",
+  "claude",
+  "gemini"
+ ],
+ "e_revision": {
+  "llamadas": [
+   "t-r-revision:claude"
+  ],
+  "estado": "aprobada",
+  "motor_final": "claude",
+  "ruta_motor": null,
+  "motor_elegido": null,
+  "escalon_previo": null,
+  "motivo_escalado": null,
+  "reporte": "Aprobada por la revisión (ollama). Comprobado en archivos: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-router-o4yzxzgy\\trabajo\\notas.txt existe (3 líneas, 72 bytes).",
+  "cola": "terminada",
+  "cola_motivo": ""
+ },
+ "e_revision_json": {
+  "motor_revision": "ollama",
+  "motor_elegido": "ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+  "motivo_eleccion": "respaldo: los anteriores de la cadena no respondieron",
+  "escalon_previo": "llama",
+  "motivo_escalado": "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-router-o4yzxzgy\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-router-o4yzxzgy\\ap",
+  "cadena_revisor": "llama: no_disponible (llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-route) -> ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M: valido",
+  "aprobado": true,
+  "cost_usd": 0
+ },
+ "log": [
+  "2026-10-28T03:55:05-04:00 motores: cambio de claude a gemini (Claude no responde (claude: HTTP 429 Too Many Requests (rate limit) [simulado]): la tarea t-r-429 sigue con Gemini (Antigravity CLI))",
+  "2026-10-28T03:55:05-04:00 motores: cambio de gemini a llama (Gemini (Antigravity CLI) no responde (gemini: HTTP 429 Too Many Requests (rate limit) [simulado]): la tarea t-r-429 sigue con Local Hermes 3 directo $0)",
+  "2026-10-28T03:55:09-04:00 runner [t-r-sinregla]: necesita tu decisión: Claude falló con un error pasajero (claude: HTTP 429 Too Many Requests (rate limit) [simulado]) tras 1 reintentos y no se cambia de motor: ni la tarea ni engines.json declaran que se pueda seguir con otro motor",
+  "2026-10-28T03:55:09-04:00 motores: cambio de claude a gemini (Claude no responde (claude: HTTP 429 Too Many Requests (rate limit) [simulado]): la tarea t-r-agotada sigue con Gemini (Antigravity CLI))",
+  "2026-10-28T03:55:10-04:00 motores: cambio de gemini a llama (Gemini (Antigravity CLI) no responde (gemini: HTTP 429 Too Many Requests (rate limit) [simulado]): la tarea t-r-agotada sigue con Local Hermes 3 directo $0)",
+  "2026-10-28T03:55:11-04:00 runner [t-r-agotada]: necesita tu decisión: Local Hermes 3 directo $0 falló con un error pasajero (llama: HTTP 429 Too Many Requests (rate limit) [simulado]) tras 1 reintentos y no queda nadie en la cadena (claude -> gemini -> llama) que responda",
+  "2026-10-28T03:55:11-04:00 runner [t-r-brk1]: necesita tu decisión: Claude falló con un error pasajero (claude: HTTP 429 Too Many Requests (rate limit) [simulado]) tras 1 reintentos y no se cambia de motor: ni la tarea ni engines.json declaran que se pueda seguir con otro motor",
+  "2026-10-28T03:55:12-04:00 respaldo: Claude no responde (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado]): 5 min trabajando con Gemini (Antigravity CLI); luego se vuelve a probar Claude",
+  "2026-10-28T03:55:12-04:00 motores: cambio de claude a gemini (Claude: breaker abierto (3 fallos seguidos; el último: claude: HTTP 429 Too Many Requests (rate limit) [simulado]); la tarea t-r-brk3 sigue con Gemini (Antigravity CLI))",
+  "2026-10-28T03:55:12-04:00 motores: cambio de claude a gemini (Claude: cuota de Claude al 95 % (aviso desde el 90 %): mejor cambiar antes del corte; la tarea t-r-cuota sigue con Gemini (Antigravity CLI))",
+  "2026-10-28T03:55:14-04:00 respaldo: cadena del ejecutor ahora: llama -> claude -> gemini (desde Modelos; vale para la siguiente tarea, sin reiniciar)",
+  "2026-10-28T03:55:14-04:00 respaldo: cadena del ejecutor ahora: claude -> gemini -> llama (desde Modelos; vale para la siguiente tarea, sin reiniciar)",
+  "2026-10-28T03:55:28-04:00 runner [t-r-revision]: revisión por la cadena: llama: no_disponible (llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-route) -> ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M: valido"
+ ],
+ "tracebacks_en_log": 0
+}

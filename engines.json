@@ -295,6 +295,66 @@
       }
     ]
   },
+  "fallback": {
+    "_que_es": "Cadena de respaldo (t-router-fallbacks). Ejecutor: si el motor de una tarea falla con un error TRANSITORIO (429, 408, 5xx, red, cuota, timeout, sin respuesta) y se agotan los reintentos con backoff, la tarea sigue con el siguiente de la cadena, ENTRE intentos (nunca a mitad de una salida). Un error definitivo (400/401/403, configuracion) nunca cambia de motor ni se reintenta. Cambiar de motor solo si la tarea lo declara (\"degradacion\": true) o si degradacion_sin_regla es \"seguir\"; si no, la tarea queda necesita_decision con lo hecho guardado. Solo valen motores de la seccion motores (allowlist). Se edita en la pestana Modelos (Cadena de respaldo).",
+    "ejecutor": {
+      "cadena": [
+        "claude",
+        "gemini",
+        "llama"
+      ]
+    },
+    "revisor": {
+      "cadena": [
+        "llama",
+        "ollama",
+        "claude:haiku"
+      ],
+      "_que_es": "Espejo de revision.orden (el que usa el runner); Modelos reordena los dos a la vez."
+    },
+    "motores": {
+      "claude": {
+        "rol": "principal",
+        "coste": "equivalente Max",
+        "cambia_si": [
+          "cuota",
+          "proxy_caido",
+          "429",
+          "5xx",
+          "timeout"
+        ]
+      },
+      "gemini": {
+        "rol": "fallback",
+        "coste": "real (clave) o $0 (agy)",
+        "cambia_si": [
+          "429",
+          "5xx",
+          "timeout"
+        ]
+      },
+      "llama": {
+        "rol": "fallback",
+        "coste": "$0 (local)",
+        "cambia_si": [
+          "sin_respuesta",
+          "timeout"
+        ]
+      },
+      "ollama": {
+        "rol": "utilidad",
+        "coste": "$0 (local)"
+      }
+    },
+    "breaker": {
+      "fallos": 3,
+      "minutos": 5
+    },
+    "cuota_aviso_pct": 90,
+    "degradacion_sin_regla": "necesita_decision",
+    "utilidad": "llama",
+    "heartbeat": "llama"
+  },
   "motores": {
     "claude": {
       "id": "claude",
