@@ -20,13 +20,16 @@
 - Runner instalado: `claude_exe()` → `C:\Users\forte\.local\bin\claude.exe (ruta absoluta)`; `_build_cmd` arma el comando con esa ruta.
 
 ## LISTO
-- Arreglo en repo + runner.py instalado.
-## FALTA
-- **Reiniciar la app instalada** (no lo hice: corre elevada y hay otros procesos vivos; reiniciarla pediría UAC/robaría foco). Hasta reiniciarla, el pid 15348 sigue con el entorno viejo.
-- **Parchear `growi-bridge.py` instalado** con `_claude_abs()` (aprobación tuya): el runner interno es el que atiende la cola; con solo reiniciar con el PATH bueno ya se desbloquea, pero sin el parche volvería a pasar. Alternativa: desplegar la próxima versión del repo.
-- No pude verificar el entorno real de pid 15348 (no se lee sin herramientas invasivas); la causa se deduce de la hora de arranque y del padre muerto.
+- Arreglo en repo (commit f00058e) + `runner.py` instalado parcheado.
+- Parche aplicado al `growi-bridge.py` INSTALADO (28 oct ~13:10): solo `_claude_abs()` + 2 lineas en `_resolve_binary` (con respaldo PATH). .bak: `growi-bridge.py.pre-path-045.bak`. El resto del instalado, que difiere del repo, no se toco. `py_compile` OK; comprobado que `_resolve_binary({'binario':'claude'})` devuelve `C:\Users\forte\.local\bin\claude.exe` y que cae al PATH si la ruta absoluta no existe.
+- App reiniciada (13:15:42): se detuvo solo el pid 15348 (ociosa, `current: null`) y se relanzo elevada (UAC aprobado por Leandro) con el PATH leido del registro (Machine+User). Pid nuevo **26016**; `runner-status.json` lo muestra (`pid: 26016`, claude disponible). Log de la app: arranque normal, `disponibilidad: ... claude ok`.
 
-## CÓMO REINICIAR / PROBAR
-1. Cierra Growi Bridge (bandeja → Salir).
-2. Lánzalo desde el Explorador (doble clic, "Ejecutar como administrador") o desde una terminal NUEVA abierta ahora. Nunca desde una terminal vieja.
-3. Comprueba: `runner.log` / log de la app debe decir `claude=C:\Users\forte\.local\bin\claude.exe`; `GET /gateway/salud`; manda una tarea claude pequeña y que termine ok. Luego reanuda t-lote-estados-030.
+## FALTA / NO VERIFICADO
+- `GET /gateway/salud` respondio **401** (no 200) en 8787: el gateway esta vivo pero pide token; no lei `secret.txt`. Compruebalo tu con el token. (Ojo: curl pasa por el proxy del sistema y da 500 falso; usar sin proxy.)
+- El runner interno de la app no registra en el log que ruta uso (solo el runner standalone lo hace), asi que no hay linea "claude se lanza por ruta absoluta" para la app. Falta probarlo con una tarea claude real por la cola: debe terminar ok sin "claude no esta en el PATH". Luego reanudar t-lote-estados-030.
+- El `runner.py` del repo va atrasado respecto al instalado (`t-corr-rutas`): sincronizar aparte.
+
+## COMO REINICIAR (si hace falta otra vez)
+1. Deten solo el pid de `pythonw.exe ... growi-bridge\growi-bridge.py` (por PID, no por ventana).
+2. Lanzala elevada desde el Explorador o desde una terminal NUEVA (nunca vieja): `Start-Process pythonw.exe C:\Users\forte\growi-bridge\growi-bridge.py -Verb RunAs`.
+3. Revisa `share\outbox\runner-status.json` (pid nuevo) y manda una tarea claude pequena.
