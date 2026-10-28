@@ -1,0 +1,94 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-teclado-ozum4ae3",
+ "a_alt": {
+  "Alt+1": "estado",
+  "Alt+2": "carpetas",
+  "Alt+3": "skills",
+  "Alt+4": "pantalla",
+  "Alt+5": "apis",
+  "Alt+6": "modelos",
+  "Alt+7": "tareas",
+  "Alt+8": "ajustes",
+  "Alt+9": "registro",
+  "Alt+0": "recursos"
+ },
+ "b_abierta": true,
+ "b_filas": 19,
+ "b_buscar_tareas": [
+  [
+   "Arriba / Abajo",
+   "moverse por una lista (Tareas, Skills, Modelos, la paleta)",
+   "listas"
+  ],
+  [
+   "Alt + 7  ·  Ctrl + 7",
+   "ir a Tareas",
+   "Bridge"
+  ]
+ ],
+ "b_esc_la_cierra": true,
+ "b_interrogacion_la_cierra": true,
+ "b_en_un_campo_se_escribe": {
+  "texto": "?",
+  "lista_abierta": false
+ },
+ "c_tareas": {
+  "al_entrar": [
+   "t-teclado-1"
+  ],
+  "tras_abajo": [
+   "t-teclado-2"
+  ],
+  "detalle_tras_intro": "t-teclado-2, pendiente, Claude, ronda 0/3\nEncargo: Tarea de prueba 2 para el teclado"
+ },
+ "c_paleta_abierta": true,
+ "c_paleta_intro": {
+  "pagina": "carpetas",
+  "paleta_cerrada": true
+ },
+ "d_foco": {
+  "color": "#0066CC",
+  "contraste_con_fondo": 5.11,
+  "estado": {
+   "widget": ".!frame2.!frame2.!canvas.!frame.!frame4.!frame5.!canvas",
+   "clase": "Canvas",
+   "anillos_visibles": 0,
+   "anillo_propio": true
+  },
+  "tareas": {
+   "widget": ".!frame2.!frame8.!canvas.!frame.!frame4.!frame.!button2",
+   "clase": "TButton",
+   "anillos_visibles": 1,
+   "anillo_propio": false
+  },
+  "ajustes": {
+   "widget": ".!frame2.!frame10.!canvas.!frame.!ctkframe2.!ctkframe2.!_switch.!ctkcanvas2",
+   "clase": "Canvas",
+   "anillos_visibles": 1,
+   "anillo_propio": true
+  }
+ },
+ "e_paleta": true,
+ "e_cajita_foco": ".!toplevel6.!frame2.!entry",
+ "e_cajita": {
+  "ventanas_antes": 1,
+  "despues": 0,
+  "titulos_antes": [
+   "Escríbeme"
+  ],
+  "titulos_despues": []
+ },
+ "e_dialogo": true,
+ "log": [
+  "2026-10-28T04:35:59-04:00 skills: índice (arranque): 0 cargada(s), 0 no se cargaron, 0 borrador(es) [sin_carpeta, 0 ms]; C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-teclado-ozum4ae3\\app\\skills no existe o no se puede abrir",
+  "2026-10-28T04:36:11-04:00 teclado: Alt+0..9 páginas, «?» atajos, flechas en listas, Esc cierra; foco #0066CC (contraste 5.11:1 con el fondo)",
+  "2026-10-28T04:36:14-04:00 gateway: token del plano de control migrado de secret.txt y guardado cifrado en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-teclado-ozum4ae3\\token\\plano-control-a.dpapi (secret.txt sigue en la carpeta: la app ya no lo lee, pero el servidor del navegador sí; no lo borres hasta que ese también lea el token)",
+  "2026-10-28T04:36:14-04:00 memoria: arranque: creados en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-teclado-ozum4ae3\\app\\memory: MEMORY.md (mínima: no llegó la semilla de la VM), 2026-10-28.md, sesion-actual.md",
+  "2026-10-28T04:36:15-04:00 comandos: 2 script(s) en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-teclado-ozum4ae3\\app\\comandos (0 desactivado(s))",
+  "2026-10-28T04:36:15-04:00 cola: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-teclado-ozum4ae3\\cola.db lista (0 recuperada(s) tras corte)",
+  "2026-10-28T04:37:54-04:00 teclado: «?»: lista de atajos abierta",
+  "2026-10-28T04:37:56-04:00 teclado: «?»: lista de atajos abierta",
+  "2026-10-28T04:38:00-04:00 teclado: Intro en Tareas: detalle de la tarea elegida"
+ ],
+ "tracebacks_en_log": 0
+}

@@ -17532,7 +17532,7 @@ def make_switch(parent, initial, command, bg=None):
         # Con el foco (Tab) el borde se vuelve azul y mas grueso.
         b = 2 if c._focus else 1
         if c._focus:
-            outline = THEME["blue"]
+            outline = foco_color()  # el mismo anillo de foco de toda la app
         c.delete("all")
         # borde (pildora b px mas grande detras); se dibuja a 100 % y luego
         # se escala entero con SCALE.
@@ -17658,7 +17658,7 @@ def draw_power():
     cx, cy, r = 85, 85, 62
     # Anillo fijo (antes parpadeaba a 1 Hz). Con el foco (Tab) es azul.
     if getattr(c, "_focus", False):
-        c.create_oval(4, 4, 166, 166, outline=THEME["blue"], width=S(3))
+        c.create_oval(4, 4, 166, 166, outline=foco_color(), width=S(3))
     if on:
         c.create_oval(8, 8, 162, 162, outline=THEME["green"], width=S(3))
         c.create_oval(cx - r - 2, cy - r + 4, cx + r + 2, cy + r + 8,
@@ -22857,7 +22857,7 @@ def open_onboarding(root=None):
     body_holder = tk.Frame(col, bg=bg)
     body_holder.pack(fill="both", expand=True)
     _OB["body"] = _scrollable(body_holder)
-    ov.bind_all("<Escape>", lambda _e: _ob_next(skip=True) if _OB.get("frame") else None)
+    ov.bind_all("<Escape>", lambda _e: _ob_next(skip=True) if _OB.get("frame") else None, add="+")
     if _OB.get("det") is None:
         def _det():
             d = onboarding_detect()
@@ -28486,6 +28486,423 @@ def _corte_sin_prueba():
     _corte_render()
 
 
+# ---------------------------------------------------------------- teclado y foco (t-teclado-foco)
+# Toda la app con el teclado: Alt+1..9 / Alt+0 (y Ctrl, como antes) cambian
+# de pagina; «?» abre la lista buscable de atajos; las listas se recorren con
+# flechas e Intro; un solo anillo de foco (2 px, #0066CC en claro; en oscuro,
+# el color con contraste >= 3:1 medido contra el fondo); Esc cierra la ventana
+# de delante (paleta, cajita, dialogos). Los botones CustomTkinter, que no
+# toman el foco por si solos, se vuelven enfocables (Tab) y responden a
+# Espacio/Intro.
+TECLADO_PAGINAS = ("recursos", "estado", "carpetas", "skills", "pantalla", "apis", "modelos", "tareas",
+                   "ajustes", "registro")
+TECLADO_NOMBRES = {"recursos": "Recursos", "estado": "Estado", "carpetas": "Carpetas", "skills": "Skills",
+                   "pantalla": "Pantalla", "apis": "APIs", "modelos": "Modelos", "tareas": "Tareas",
+                   "ajustes": "Ajustes", "registro": "Registro"}
+FOCO_CLARO = "#0066CC"
+_FOCO = {"marcos": {}, "w": None, "color": None, "contraste": None, "listas": []}
+_TEXTO_CLASES = ("Entry", "TEntry", "Text", "TCombobox", "Spinbox", "TSpinbox", "Listbox")
+
+
+def _lum(hexc):
+    h = hexc.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    f = (lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+
+def contraste(a, b):
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return round((la + 0.05) / (lb + 0.05), 2)
+
+
+def foco_color():
+    """#0066CC en claro; en oscuro, el primer azul que llega a 3:1 contra el
+    fondo y las tarjetas (WCAG 2.2, contraste de no-texto). Se mide, no se supone."""
+    try:
+        fondos = [THEME["bg"], THEME["card"]]
+        oscuro = sum(_lum(c) for c in fondos) / 2 < 0.2
+    except Exception:
+        fondos, oscuro = ["#FFFFFF"], False
+    if not oscuro:
+        _FOCO.update(color=FOCO_CLARO, contraste=min(contraste(FOCO_CLARO, c) for c in fondos))
+        return FOCO_CLARO
+    for cand in ("#4DA3FF", "#66B2FF", "#80BFFF", "#99CCFF"):
+        r = min(contraste(cand, c) for c in fondos)
+        if r >= 3:
+            _FOCO.update(color=cand, contraste=r)
+            return cand
+    _FOCO.update(color="#FFFFFF", contraste=min(contraste("#FFFFFF", c) for c in fondos))
+    return "#FFFFFF"
+
+
+def _foco_marcos(top):
+    m = _FOCO["marcos"].get(top)
+    if m is None or not all(x.winfo_exists() for x in m):
+        m = [tk.Frame(top, bg=foco_color(), height=S(2), width=S(2), bd=0, highlightthickness=0, takefocus=0)
+             for _ in range(4)]
+        _FOCO["marcos"][top] = m
+    return m
+
+
+def _foco_ocultar():
+    for m in list(_FOCO["marcos"].values()):
+        for x in m:
+            try:
+                x.place_forget()
+            except Exception:
+                pass
+
+
+def _foco_pintar():
+    w = _FOCO.get("w")
+    _foco_ocultar()
+    if w is None:
+        return
+    try:
+        if not w.winfo_exists() or not w.winfo_ismapped() or w.winfo_width() < 4:
+            return
+        top = w.winfo_toplevel()
+        x, y = w.winfo_rootx() - top.winfo_rootx(), w.winfo_rooty() - top.winfo_rooty()
+        ancho, alto, g = w.winfo_width(), w.winfo_height(), S(2)
+        col = foco_color()
+        m = _foco_marcos(top)
+        for f in m:
+            f.configure(bg=col)
+        m[0].place(x=x - g - 1, y=y - g - 1, width=ancho + 2 * g + 2, height=g)
+        m[1].place(x=x - g - 1, y=y + alto + 1, width=ancho + 2 * g + 2, height=g)
+        m[2].place(x=x - g - 1, y=y - g - 1, width=g, height=alto + 2 * g + 2)
+        m[3].place(x=x + ancho + 1, y=y - g - 1, width=g, height=alto + 2 * g + 2)
+        for f in m:
+            f.lift()
+    except (tk.TclError, AttributeError):
+        pass
+
+
+def _foco_in(e):
+    w = e.widget
+    if not hasattr(w, "winfo_class"):
+        return
+    try:
+        cls = w.winfo_class()
+    except tk.TclError:
+        return
+    if cls in ("Tk", "Toplevel"):
+        return
+    # Los que ya dibujan su anillo (interruptores, el boton de encendido, los
+    # campos con highlight) lo pintan con el MISMO color: no se dobla.
+    if hasattr(w, "_focus"):
+        _FOCO["w"] = None
+        _foco_ocultar()
+        return
+    try:
+        if int(str(w.cget("highlightthickness")) or 0) > 0:
+            w.configure(highlightcolor=foco_color())
+            _FOCO["w"] = None
+            _foco_ocultar()
+            return
+    except (tk.TclError, ValueError):
+        pass
+    _FOCO["w"] = w
+    _foco_pintar()
+
+
+def _foco_out(e):
+    if e.widget is _FOCO.get("w"):
+        _FOCO["w"] = None
+        _foco_ocultar()
+
+
+def _foco_seguir():
+    """Si la página se mueve (scroll, redimensionar), el anillo la sigue."""
+    try:
+        if _FOCO.get("w") is not None:
+            _foco_pintar()
+        _root.after(250, _foco_seguir)
+    except Exception:
+        pass
+
+
+def _teclado_ctk_patch():
+    """Botones, interruptores y casillas de CustomTkinter: enfocables con Tab y
+    accionables con Espacio/Intro (como los ttk)."""
+    try:
+        import customtkinter as ctk
+    except Exception:
+        return False
+    if getattr(ctk, "_growi_teclado", False):
+        return True
+
+    def envolver(cls, accion):
+        orig = cls.__init__
+
+        def nuevo(self, *a, **k):
+            orig(self, *a, **k)
+            try:
+                cv = self._canvas
+                cv.configure(takefocus=1)
+                for tecla in ("<space>", "<Return>"):
+                    cv.bind(tecla, lambda _e, s=self: (accion(s), "break")[1], add="+")
+            except Exception:
+                pass
+        cls.__init__ = nuevo
+    envolver(ctk.CTkButton, lambda s: s.invoke() if str(s.cget("state")) != "disabled" else None)
+    for nombre in ("CTkSwitch", "CTkCheckBox"):
+        if hasattr(ctk, nombre):
+            envolver(getattr(ctk, nombre), lambda s: s.toggle())
+    if hasattr(ctk, "CTkRadioButton"):
+        envolver(ctk.CTkRadioButton, lambda s: s.invoke())
+    ctk._growi_teclado = True
+    return True
+
+
+def _en_texto(w):
+    try:
+        return w.winfo_class() in _TEXTO_CLASES
+    except Exception:
+        return False
+
+
+def _es_paleta(w):
+    try:
+        return _palette.get("win") is not None and w.winfo_toplevel() is _palette["win"]
+    except Exception:
+        return False
+
+
+def _alt_pagina(e, i):
+    if _es_paleta(e.widget):
+        return None  # en la paleta, Alt+N elige la fila N
+    pag = TECLADO_PAGINAS[i]
+    try:
+        show_window()
+        _widgets["show_page"](pag)
+    except Exception as ex:
+        log(f"teclado: Alt+{i} ({type(ex).__name__}: {ex})")
+    return "break"
+
+
+def _tecla_pregunta(e):
+    if _en_texto(e.widget):
+        return None  # «?» escrito en un campo es un «?» (el buscador de la lista lo trata él)
+    atajos_lista_ui(alternar=True)
+    return "break"
+
+
+def _esc_global(e):
+    """Esc cierra la ventana de delante (no la principal; la paleta y el
+    onboarding tienen su propio Esc)."""
+    try:
+        top = e.widget.winfo_toplevel()
+    except Exception:
+        return None
+    if top is _root or _es_paleta(e.widget) or getattr(top, "_sin_esc", False):
+        return None
+    try:
+        cmd = top.protocol("WM_DELETE_WINDOW")
+        if cmd:
+            top.tk.eval(cmd)
+        else:
+            top.destroy()
+        log(f"teclado: Esc cerró «{top.title() if hasattr(top, 'title') else top}»")
+    except tk.TclError:
+        pass
+    return "break"
+
+
+def teclado_lista(contenedor):
+    """Marca un contenedor de filas: Arriba/Abajo pasan de fila en fila (al
+    primer control enfocable de cada una)."""
+    if contenedor not in _FOCO["listas"]:
+        _FOCO["listas"].append(contenedor)
+
+
+def _enfocables(w):
+    out = []
+    for ch in w.winfo_children():
+        try:
+            tf = str(ch.cget("takefocus")) if "takefocus" in ch.keys() else ""
+        except tk.TclError:
+            tf = ""
+        if tf in ("1", "True", "true") or ch.winfo_class() in ("TButton", "Button", "TCheckbutton", "TCombobox"):
+            out.append(ch)
+        out += _enfocables(ch)
+    return out
+
+
+def _flecha_lista(e, d):
+    w = e.widget
+    if _en_texto(w) or w.winfo_class() == "Treeview":
+        return None
+    for cont in list(_FOCO["listas"]):
+        try:
+            if not cont.winfo_exists():
+                _FOCO["listas"].remove(cont)
+                continue
+        except Exception:
+            continue
+        x = w
+        fila = None
+        while x is not None and x is not cont:
+            fila, x = x, x.master
+        if x is not cont or fila is None:
+            continue
+        filas = [f for f in cont.winfo_children() if _enfocables(f)]
+        if fila not in filas:
+            continue
+        j = filas.index(fila) + d
+        if 0 <= j < len(filas):
+            destino = _enfocables(filas[j])[0]
+            destino.focus_set()
+            try:
+                _scroll_a(destino)
+            except Exception:
+                pass
+        return "break"
+    return None
+
+
+def _tree_teclado(tree, al_intro):
+    """Treeview: al entrar con Tab, la primera fila queda elegida; Intro abre."""
+    def _in(_e):
+        if not tree.selection() and tree.get_children():
+            first = tree.get_children()[0]
+            tree.selection_set(first)
+            tree.focus(first)
+    tree.bind("<FocusIn>", _in, add="+")
+    tree.bind("<Return>", lambda _e: (al_intro(), "break")[1])
+
+
+def _tareas_intro():
+    _show_task_detail()
+    d = _widgets.get("tasks_detail")
+    if d is not None:
+        try:
+            _scroll_a(d)
+        except Exception:
+            pass
+    log("teclado: Intro en Tareas: detalle de la tarea elegida")
+
+
+def _skills_intro():
+    tree = _widgets.get("skills_tree")
+    sel = tree.selection() if tree is not None else ()
+    if not sel:
+        return
+    nombre = str(tree.item(sel[0], "values")[0])
+    carpeta = HOME_DIR / ".claude" / "skills" / nombre
+    log(f"teclado: Intro en Skills: abre {carpeta}")
+    if carpeta.is_dir():
+        os.startfile(str(carpeta))
+
+
+def teclado_init(root):
+    for i in range(10):
+        root.bind_all(f"<Alt-Key-{i}>", lambda e, i=i: _alt_pagina(e, i), add="+")
+    # por el carácter, no por el keysym: «?» llega como «question» o, inyectado, como «??»
+    root.bind_all("<KeyPress>", lambda e: _tecla_pregunta(e) if e.char == "?" else None, add="+")
+    root.bind_all("<Escape>", _esc_global, add="+")
+    root.bind_all("<FocusIn>", _foco_in, add="+")
+    root.bind_all("<FocusOut>", _foco_out, add="+")
+    root.bind_all("<Down>", lambda e: _flecha_lista(e, 1), add="+")
+    root.bind_all("<Up>", lambda e: _flecha_lista(e, -1), add="+")
+    for clave, fn in (("tasks_tree", _tareas_intro), ("skills_tree", _skills_intro)):
+        if _widgets.get(clave) is not None:
+            _tree_teclado(_widgets[clave], fn)
+    for clave in ("mdl_installed_box", "mdl_library_box"):
+        if _widgets.get(clave) is not None:
+            teclado_lista(_widgets[clave])
+    root.after(250, _foco_seguir)
+    log(f"teclado: Alt+0..9 páginas, «?» atajos, flechas en listas, Esc cierra; foco {foco_color()} "
+        f"(contraste {_FOCO['contraste']}:1 con el fondo)")
+
+
+# ---- «?»: la lista de todos los atajos, buscable
+def atajos_todos():
+    """[(combinación, qué hace, dónde)] de la app y los personalizables."""
+    out = [("Ctrl + K", "abrir o cerrar la paleta de acciones", "Bridge"),
+           ("?", "esta lista de atajos (Esc o ? la cierra)", "Bridge"),
+           ("Esc", "cerrar la ventana de delante: paleta, cajita, diálogos", "Bridge"),
+           ("Tab / Mayús + Tab", "pasar al siguiente / anterior control (un solo anillo de foco)", "Bridge"),
+           ("Espacio / Intro", "pulsar el botón o el interruptor con el foco", "Bridge"),
+           ("Arriba / Abajo", "moverse por una lista (Tareas, Skills, Modelos, la paleta)", "listas"),
+           ("Intro", "abrir lo elegido en la lista (detalle de la tarea, carpeta de la skill, acción de la "
+                     "paleta)", "listas"),
+           ("Alt + 1..9 (en la paleta)", "elegir la fila 1..9 de la paleta", "paleta")]
+    for i, pag in enumerate(TECLADO_PAGINAS):
+        out.append((f"Alt + {i}  ·  Ctrl + {i}", f"ir a {TECLADO_NOMBRES[pag]}", "Bridge"))
+    for aid, a in ATAJO_ACCIONES.items():
+        for amb in a.get("ambitos") or ():
+            try:
+                comb = atajo_actual(aid, amb)
+            except Exception:
+                comb = None
+            if comb:
+                out.append((comb, a["nombre"], "cualquier aplicación" if amb == "global" else "Bridge"))
+    return out
+
+
+_ATJ = {"top": None}
+
+
+def atajos_lista_ui(alternar=False):
+    top = _ATJ.get("top")
+    if top is not None:
+        try:
+            if top.winfo_exists():
+                if alternar:
+                    top.destroy()
+                    _ATJ["top"] = None
+                    return None
+                top.lift()
+                return top
+        except tk.TclError:
+            pass
+    top = tk.Toplevel(_root)
+    top.title("Atajos de teclado")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(560)}x{S(520)}")
+    top.transient(_root)
+    _ATJ["top"] = top
+    tk.Label(top, text="Atajos de teclado", font=(FONT, 16, "bold"), bg=THEME["bg"], fg=THEME["text"]).pack(
+        anchor="w", padx=16, pady=(14, 2))
+    tk.Label(top, text="Escribe para buscar. Esc o ? para cerrar.", font=(FONT, 10), bg=THEME["bg"],
+             fg=THEME["muted"]).pack(anchor="w", padx=16)
+    q = ttk.Entry(top, font=(FONT, 11))
+    q.pack(fill="x", padx=16, pady=(8, 6))
+    q._atajos_buscar = True
+    lista = ttk.Treeview(top, columns=("tecla", "que", "donde"), show="headings", height=16)
+    for col, txt, ancho in (("tecla", "Atajo", 150), ("que", "Qué hace", 260), ("donde", "Dónde", 90)):
+        lista.heading(col, text=txt, anchor="w")
+        lista.column(col, width=S(ancho), anchor="w")
+    lista.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+    _ATJ.update(q=q, lista=lista)
+
+    def filtrar(_e=None):
+        t = _norm(q.get())
+        lista.delete(*lista.get_children())
+        for comb, que, donde in atajos_todos():
+            if not t or t in _norm(f"{comb} {que} {donde}"):
+                lista.insert("", "end", values=(comb, que, donde))
+    q.bind("<KeyRelease>", filtrar)
+
+    def _q_pregunta(e):  # «?» con la búsqueda vacía cierra (antes de que el campo lo escriba)
+        if e.char == "?" and not q.get():
+            top.destroy()
+            _ATJ.update(top=None)
+            return "break"
+        return None
+    q.bind("<KeyPress>", _q_pregunta)
+    q.bind("<Down>", lambda _e: (lista.focus_set(), lista.selection_set(lista.get_children()[0])
+                                 if lista.get_children() else None, "break")[2])
+    top.bind("<Escape>", lambda _e: (top.destroy(), _ATJ.update(top=None), "break")[2])
+    top.protocol("WM_DELETE_WINDOW", lambda: (top.destroy(), _ATJ.update(top=None)))
+    filtrar()
+    q.focus_set()
+    log("teclado: «?»: lista de atajos abierta")
+    return top
+
+
 # ---------------------------------------------------------------- Sobre mí (t-perfil-sobre-mi)
 # El perfil es lo que el usuario DECLARA (quién es, qué hace, cómo escribe, a
 # quién le habla, qué no hace), en palabras, en memory\PERFIL.md junto a la
@@ -32173,7 +32590,9 @@ _ATAJO_SISTEMA = {
 _ATAJO_FIJOS = {**{f"Ctrl + {i}": f"Ir a {p}" for i, p in enumerate(
     ("Recursos", "Estado", "Carpetas", "Skills", "Pantalla", "APIs", "Modelos", "Tareas",
      "Ajustes", "Registro"))},
-    **{f"Alt + {i}": f"elegir la fila {i} de la paleta" for i in range(1, 10)},
+    **{f"Alt + {i}": f"ir a {p} (en la paleta: elegir la fila {i})" for i, p in enumerate(
+        ("Recursos", "Estado", "Carpetas", "Skills", "Pantalla", "APIs", "Modelos", "Tareas", "Ajustes",
+         "Registro"))},
     "Ctrl + C": "copiar", "Ctrl + V": "pegar", "Ctrl + X": "cortar",
     "Ctrl + A": "seleccionar todo", "Ctrl + Z": "deshacer", "Ctrl + Y": "rehacer"}
 _ATAJO_AMBITO_TXT = {"paleta": "dentro de Bridge", "global": "en cualquier aplicación"}
@@ -37492,6 +37911,7 @@ def comandos_ui():
 
 def build_gui():
     global _root, _PALETTE_CMDS
+    _teclado_ctk_patch()  # botones CustomTkinter enfocables con Tab (t-teclado-foco)
     try:
         from tkinterdnd2 import TkinterDnD
         root = TkinterDnD.Tk()
@@ -37668,7 +38088,8 @@ def build_gui():
                         activebackground="#E8E8ED", anchor="w",
                         highlightthickness=S(2), highlightcolor=THEME["blue"],
                         highlightbackground=THEME["sidebar"], cursor="hand2",
-                        pady=0, command=lambda n=name: _show_page(n))
+                        pady=0, command=lambda n=name: _show_page(n),
+                        takefocus=0)  # con el teclado: Alt/Ctrl + número (t-teclado-foco); Tab va al contenido
         btn.bind("<Return>", lambda _e, n=name: _show_page(n))
         btn.pack(side="left", fill="x", expand=True, ipady=2)
         btn._bar = bar
@@ -38321,6 +38742,10 @@ def build_gui():
     # porque Tk ya tiene <Alt-Key> en «all» y taparia al generico.
     root.bind_all("<KeyPress>", _atajo_tecla_tk, add="+")
     root.bind_all("<Alt-KeyPress>", _atajo_tecla_tk, add="+")
+    try:
+        teclado_init(root)  # Alt+0..9, «?», flechas, Esc y un solo anillo de foco (t-teclado-foco)
+    except Exception as e:
+        log(f"teclado: {type(e).__name__}: {e}")
 
     _refresh_engine_widgets()
     _show_page("estado")
