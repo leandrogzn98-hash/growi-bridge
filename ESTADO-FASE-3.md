@@ -63,3 +63,4 @@ construye sobre lo que sí existe en el código.
 | 5 | t-proyectos | **LISTO** (FALTA: las carpetas reales de Aqualine / Summit Maker / HAYAI no están en este PC: quedan como FALTA) | `0578a82`, `ESTADO-PROYECTOS.md` |
 | 6 | t-portapapeles | **LISTO** (FALTA: heurística de secretos en frases; editor de apps sensibles) | `6fdd4d3`, `ESTADO-PORTAPAPELES.md` |
 | 7 | t-brief-reunion | **LISTO** (FALTA: con la MEMORY.md real y el calendario real — hay que pegar la dirección iCal) | `f5aa242`, `ESTADO-BRIEF-REUNION.md` |
+| 8 | t-pendientes-por-persona | **LISTO** (FALTA: con encargos reales en la app) | `644ec3e`, `ESTADO-PENDIENTES-POR-PERSONA.md` |
