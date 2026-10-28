@@ -27,3 +27,5 @@ gate-calidad/
 # Memoria minima de la mascota (datos locales de cada PC)
 mascota-memoria.json
 mascota-validacion.jsonl
+# Notas locales (t-notas-obsidian-030): datos de cada PC
+/notas/

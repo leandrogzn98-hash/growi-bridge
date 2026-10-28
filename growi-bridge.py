@@ -12006,6 +12006,419 @@ def _tarea_de_grupo(task):
     return bool(task.get("grupo")) or "grupo" in c or "group" in c
 
 
+# ---- notas locales estilo Obsidian, sin su curva (t-notas-obsidian-030).
+# Un .md por nota en notas\ (frontmatter: titulo, fecha, etiquetas, proyecto),
+# legible y editable a mano: nada de base opaca. [[wikilinks]] + backlinks;
+# un enlace a una nota que no existe queda «pendiente» (no se crea vacia).
+# La nube es un ESPEJO opcional (carpeta sincronizada), nunca el original.
+NOTAS_DIR = Path(os.environ.get("GROWI_BRIDGE_NOTAS") or (APP_DIR / "notas"))
+_WIKI_RE = re.compile(r"\[\[([^\[\]|#]{1,120})(?:[|#][^\]]*)?\]\]")
+NOTAS_PLANTILLAS = {
+    "reunion": ("Reunión", "## Asistentes\n- \n\n## Temas\n- \n\n## Acuerdos\n- \n\n## Siguiente paso\n- \n"),
+    "proyecto": ("Proyecto", "## Objetivo\n\n\n## Pendientes\n- [ ] \n\n## Enlaces\n- \n"),
+    "idea": ("Idea", "## Chispa\n\n\n## Siguiente paso\n- \n"),
+}
+
+
+def _nota_slug(titulo):
+    s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", str(titulo)).strip().rstrip(".")
+    return (s or "sin título")[:100]
+
+
+def nota_ruta(titulo):
+    return NOTAS_DIR / f"{_nota_slug(titulo)}.md"
+
+
+def nota_leer(path):
+    """{titulo, fecha, etiquetas, proyecto, cuerpo, ruta, enlaces}. Frontmatter simple (clave: valor)."""
+    txt = Path(path).read_text(encoding="utf-8")
+    meta, cuerpo = {}, txt
+    if txt.startswith("---"):
+        fin = txt.find("\n---", 3)
+        if fin > 0:
+            for ln in txt[3:fin].splitlines():
+                if ":" in ln:
+                    k, v = ln.split(":", 1)
+                    meta[k.strip().lower()] = v.strip()
+            cuerpo = txt[fin + 4:].lstrip("\n")
+    etq = [e.strip().lstrip("#") for e in re.split(r"[,\s]+", meta.get("etiquetas", "").strip("[]")) if e.strip()]
+    return {"titulo": meta.get("titulo") or Path(path).stem, "fecha": meta.get("fecha") or None, "etiquetas": etq,
+            "proyecto": meta.get("proyecto") or None, "cuerpo": cuerpo, "ruta": str(path),
+            "enlaces": sorted({m.group(1).strip() for m in _WIKI_RE.finditer(cuerpo)})}
+
+
+def nota_escribir(titulo, cuerpo, etiquetas=(), proyecto=None, fecha=None, sobrescribir=False):
+    NOTAS_DIR.mkdir(parents=True, exist_ok=True)
+    p = nota_ruta(titulo)
+    if p.exists() and not sobrescribir:
+        raise FileExistsError(str(p))
+    fm = ["---", f"titulo: {titulo}", f"fecha: {fecha or mem_hoy().isoformat()}",
+          f"etiquetas: {', '.join(etiquetas)}", f"proyecto: {proyecto or ''}", "---", ""]
+    p.write_text("\n".join(fm) + cuerpo.rstrip() + "\n", encoding="utf-8")
+    return p
+
+
+def notas_todas():
+    if not NOTAS_DIR.is_dir():
+        return []
+    out = []
+    for p in sorted(NOTAS_DIR.glob("*.md")):
+        try:
+            out.append(nota_leer(p))
+        except (OSError, UnicodeDecodeError):
+            continue
+    return out
+
+
+def notas_indice():
+    """Titulos, backlinks y enlaces pendientes (leido al momento, sin caché opaca)."""
+    notas = notas_todas()
+    por = {_norm(n["titulo"]): n for n in notas}
+    back = {n["titulo"]: [] for n in notas}
+    pendientes = {}
+    for n in notas:
+        for e in n["enlaces"]:
+            dest = por.get(_norm(e))
+            if dest:
+                back[dest["titulo"]].append(n["titulo"])
+            else:
+                pendientes.setdefault(e, []).append(n["titulo"])
+    return {"notas": notas, "backlinks": back, "pendientes": pendientes}
+
+
+def nota_diaria(fecha=None):
+    """Una por día, automática (se crea la primera vez que se pide)."""
+    f = (fecha or mem_hoy()).isoformat()
+    p = nota_ruta(f)
+    if not p.exists():
+        nota_escribir(f, f"# {f}\n\n- \n", etiquetas=("diaria",), fecha=f)
+        log(f"notas: nota diaria {p.name} creada")
+    return p
+
+
+def notas_parecidas(titulo, umbral=0.75):
+    """Duplicados probables por titulo (difflib). Solo avisa: nunca fusiona."""
+    import difflib
+    t = _norm(titulo)
+    return [n["titulo"] for n in notas_todas()
+            if difflib.SequenceMatcher(None, t, _norm(n["titulo"])).ratio() >= umbral]
+
+
+def nota_crear(titulo, plantilla=None, etiquetas=(), proyecto=None, cuerpo=None):
+    """(ok, ruta o motivo, parecidas). Con plantilla: su estructura."""
+    titulo = str(titulo).strip()
+    if not titulo:
+        return False, "falta el título", []
+    parecidas = [x for x in notas_parecidas(titulo) if _norm(x) != _norm(titulo)]
+    if nota_ruta(titulo).exists():
+        return False, f"ya existe la nota «{titulo}»", parecidas
+    if plantilla in NOTAS_PLANTILLAS:
+        nom, est = NOTAS_PLANTILLAS[plantilla]
+        cuerpo = (cuerpo or "") + f"# {titulo}\n\n" + est
+        etiquetas = tuple(etiquetas) + (plantilla,)
+    p = nota_escribir(titulo, cuerpo or f"# {titulo}\n\n", etiquetas, proyecto)
+    log(f"notas: creada «{titulo}»" + (f" con la plantilla {plantilla}" if plantilla else "")
+        + (f"; ojo, ya hay notas parecidas: {', '.join(parecidas)}" if parecidas else ""))
+    return True, str(p), parecidas
+
+
+def nota_enlazar(origen, destino):
+    """Añade [[destino]] al final de la nota origen (si no estaba)."""
+    p = nota_ruta(origen)
+    if not p.exists():
+        return False, f"no existe la nota «{origen}»"
+    n = nota_leer(p)
+    if _norm(destino) in {_norm(e) for e in n["enlaces"]}:
+        return True, f"«{origen}» ya enlazaba a «{destino}»"
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write(f"\n- Enlace: [[{destino}]]\n")
+    pend = "" if nota_ruta(destino).exists() else " (todavía no existe: queda como enlace pendiente)"
+    log(f"notas: «{origen}» → [[{destino}]]{pend}")
+    return True, f"enlazado «{origen}» → [[{destino}]]{pend}"
+
+
+def nota_resumir(titulo, n_frases=3):
+    """Resumen EXTRACTIVO y local (sin modelo): títulos de sección y las
+    primeras frases con contenido. Se dice que es extractivo."""
+    p = nota_ruta(titulo)
+    if not p.exists():
+        return None
+    c = nota_leer(p)["cuerpo"]
+    secc = [ln.lstrip("# ").strip() for ln in c.splitlines() if ln.startswith("#")]
+    frases = [ln.strip("-* ").strip() for ln in c.splitlines() if ln.strip() and not ln.startswith("#")
+              and len(ln.strip("-* [] ")) > 3][:n_frases]
+    return f"Resumen extractivo (sin IA) de «{titulo}»: secciones {', '.join(secc) or '—'}; " + (
+        "; ".join(frases) if frases else "sin contenido todavía") + "."
+
+
+def notas_buscar(q):
+    """Títulos, etiquetas y contenido; leído al momento. Orden: título > etiqueta > contenido."""
+    toks = [t for t in _norm(q).split() if t]
+    out = []
+    for n in notas_todas():
+        donde = ("título" if all(t in _norm(n["titulo"]) for t in toks) else
+                 "etiqueta" if all(any(t in _norm(e) for e in n["etiquetas"]) for t in toks) else
+                 "contenido" if all(t in _norm(n["cuerpo"]) for t in toks) else None)
+        if donde:
+            out.append({"titulo": n["titulo"], "donde": donde, "ruta": n["ruta"], "fecha": n["fecha"]})
+    out.sort(key=lambda x: {"título": 0, "etiqueta": 1, "contenido": 2}[x["donde"]])
+    return out
+
+
+def nota_capturar(texto, origen="tarea"):
+    """Captura en un clic: el texto va a la nota diaria con su origen."""
+    p = nota_diaria()
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write(f"\n- ({origen}, {datetime.now().strftime('%H:%M')}) {str(texto).strip()[:2000]}\n")
+    log(f"notas: capturado desde {origen} en {p.name}")
+    return p
+
+
+def notas_grafo(etiqueta=None, proyecto=None):
+    """{nodos, aristas, pendientes} filtrado. Nodos = notas; aristas = enlaces."""
+    idx = notas_indice()
+    sel = [n for n in idx["notas"] if (not etiqueta or etiqueta in n["etiquetas"])
+           and (not proyecto or (n["proyecto"] or "") == proyecto)]
+    tit = {_norm(n["titulo"]): n["titulo"] for n in sel}
+    aristas = [(n["titulo"], tit[_norm(e)]) for n in sel for e in n["enlaces"] if _norm(e) in tit]
+    return {"nodos": [{"titulo": n["titulo"], "proyecto": n["proyecto"], "etiquetas": n["etiquetas"]} for n in sel],
+            "aristas": aristas, "pendientes": {k: v for k, v in idx["pendientes"].items()
+                                               if any(x in tit.values() for x in v)}}
+
+
+def notas_espejo_sync(destino):
+    """Espejo bidireccional con una carpeta (OneDrive / Google Drive). Copia
+    lo nuevo en cada lado; si una nota cambió en los DOS lados desde la última
+    sync, es un CONFLICTO: no se sobrescribe, se lista para que elijas. El
+    original sigue siendo notas\\ (si el espejo se cae, todo sigue en local)."""
+    import hashlib
+    dst = Path(destino)
+    dst.mkdir(parents=True, exist_ok=True)
+    NOTAS_DIR.mkdir(parents=True, exist_ok=True)
+    est_f = NOTAS_DIR / ".espejo.json"
+    try:
+        est = json.loads(est_f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        est = {}
+
+    def h(p):
+        return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
+    res = {"a_espejo": [], "desde_espejo": [], "conflictos": [], "iguales": 0}
+    for nombre in sorted({p.name for p in NOTAS_DIR.glob("*.md")} | {p.name for p in dst.glob("*.md")}):
+        a, b = NOTAS_DIR / nombre, dst / nombre
+        ha, hb, base = h(a), h(b), est.get(nombre)
+        if ha == hb:
+            res["iguales"] += 1
+            est[nombre] = ha
+        elif hb is None or (ha and hb == base):
+            shutil.copy2(a, b)
+            res["a_espejo"].append(nombre)
+            est[nombre] = ha
+        elif ha is None or (hb and ha == base):
+            shutil.copy2(b, a)
+            res["desde_espejo"].append(nombre)
+            est[nombre] = hb
+        else:
+            res["conflictos"].append(nombre)  # cambió en los dos lados: decide Leandro
+    est_f.write_text(json.dumps(est, indent=1), encoding="utf-8")
+    log(f"notas: espejo {dst}: {len(res['a_espejo'])} subidas, {len(res['desde_espejo'])} bajadas, "
+        f"{len(res['conflictos'])} conflicto(s) sin tocar")
+    return res
+
+
+def _nota_capturar_tarea_ui():
+    tree = _widgets.get("tasks_tree")
+    sel = tree.selection() if tree is not None else ()
+    if not sel:
+        toast("Elige una tarea en Tareas primero")
+        return None
+    fam = load_family(sel[0]) or {}
+    p = nota_capturar(f"Tarea {sel[0]} ({fam.get('estado') or '—'}): {(fam.get('reporte') or '')[:600]}",
+                      origen=f"tarea {sel[0]}")
+    toast(f"Capturada en {p.name}")
+    return p
+
+
+def _nota_capturar_chat_ui():
+    box = _widgets.get("ask_text")
+    txt = box.get("1.0", "end").strip() if box is not None else ""
+    if not txt:
+        toast("El chat está vacío")
+        return None
+    p = nota_capturar(txt, origen="chat de Tareas")
+    toast(f"Capturado en {p.name}")
+    return p
+
+
+def notas_ui():
+    """Ventana «Notas»: lista + búsqueda, editor del archivo, backlinks y
+    pendientes, plantillas, grafo filtrable y espejo."""
+    top = tk.Toplevel(_root)
+    top.title("Notas")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(980)}x{S(640)}")
+    izq = tk.Frame(top, bg=THEME["sidebar"], width=S(260))
+    izq.pack(side="left", fill="y")
+    izq.pack_propagate(False)
+    der = tk.Frame(top, bg=THEME["bg"])
+    der.pack(side="right", fill="both", expand=True)
+    q = ttk.Entry(izq, font=(FONT, 10))
+    q.pack(fill="x", padx=8, pady=8)
+    lb = tk.Listbox(izq, font=(FONT, 10), activestyle="none", bd=0, highlightthickness=0)
+    lb.pack(fill="both", expand=True, padx=8)
+    barra = tk.Frame(izq, bg=THEME["sidebar"])
+    barra.pack(fill="x", padx=8, pady=8)
+    titulo = tk.Label(der, text="", font=(FONT, 15, "bold"), bg=THEME["bg"], fg=THEME["text"], anchor="w")
+    titulo.pack(fill="x", padx=16, pady=(12, 0))
+    meta = tk.Label(der, text="", font=(FONT, 9), bg=THEME["bg"], fg=THEME["muted"], anchor="w", justify="left")
+    meta.pack(fill="x", padx=16)
+    ed = tk.Text(der, font=(FONT, 10), wrap="word", height=18, undo=True)
+    ed.pack(fill="both", expand=True, padx=16, pady=8)
+    back = tk.Label(der, text="", font=(FONT, 9), bg=THEME["bg"], fg=THEME["text"], anchor="w", justify="left",
+                    wraplength=S(640))
+    back.pack(fill="x", padx=16, pady=(0, 10))
+    st = {"actual": None, "lista": []}
+
+    def pintar_lista(_e=None):
+        texto = q.get().strip()
+        lista = [x["titulo"] for x in notas_buscar(texto)] if texto else [n["titulo"] for n in notas_todas()]
+        st["lista"] = lista
+        lb.delete(0, "end")
+        for t in lista:
+            lb.insert("end", t)
+
+    def abrir(t):
+        p = nota_ruta(t)
+        if not p.exists():
+            return
+        n = nota_leer(p)
+        idx = notas_indice()
+        st["actual"] = n["titulo"]
+        titulo.config(text=n["titulo"])
+        meta.config(text=f"{n['fecha'] or 'sin fecha'} · etiquetas: {', '.join(n['etiquetas']) or '—'} · proyecto: "
+                         f"{n['proyecto'] or '—'} · {p}")
+        ed.delete("1.0", "end")
+        ed.insert("1.0", p.read_text(encoding="utf-8"))
+        bl = idx["backlinks"].get(n["titulo"]) or []
+        pend = [e for e in n["enlaces"] if e in idx["pendientes"]]
+        back.config(text=("Qué enlaza aquí: " + (", ".join(bl) or "nada")) +
+                         (f"\nEnlaces pendientes (la nota aún no existe): {', '.join(pend)}" if pend else ""))
+
+    def guardar(_e=None):
+        if st["actual"]:
+            nota_ruta(st["actual"]).write_text(ed.get("1.0", "end-1c"), encoding="utf-8")
+            log(f"notas: guardada «{st['actual']}»")
+            abrir(st["actual"])
+
+    def nueva(plantilla=None):
+        from tkinter import simpledialog
+        t = simpledialog.askstring("Nueva nota", "Título:", parent=top)
+        if not t:
+            return
+        ok, out, parecidas = nota_crear(t, plantilla)
+        if parecidas:
+            messagebox.showinfo("Notas", "Ya tienes notas parecidas: " + ", ".join(parecidas) +
+                                ". No fusiono ni borro nada: decide tú.")
+        if not ok:
+            messagebox.showwarning("Notas", out)
+        pintar_lista()
+        abrir(t)
+
+    lb.bind("<<ListboxSelect>>", lambda _e: lb.curselection() and abrir(st["lista"][lb.curselection()[0]]))
+    q.bind("<KeyRelease>", pintar_lista)
+    ed.bind("<Control-s>", guardar)
+    for txt, fn in (("Nueva", lambda: nueva()), ("Reunión", lambda: nueva("reunion")),
+                    ("Proyecto", lambda: nueva("proyecto")), ("Idea", lambda: nueva("idea")),
+                    ("Hoy", lambda: (nota_diaria(), pintar_lista(), abrir(mem_hoy().isoformat()))),
+                    ("Grafo", lambda: notas_grafo_ui()), ("Guardar", guardar)):
+        ttk.Button(barra, text=txt, command=fn).pack(fill="x", pady=1)
+    pintar_lista()
+    _widgets["notas_ui"] = {"top": top, "abrir": abrir, "lista": st, "back": back, "editor": ed}
+    return top
+
+
+def notas_grafo_ui(etiqueta=None, proyecto=None):
+    """Grafo simple: notas en círculo agrupadas por proyecto, aristas por enlace,
+    pendientes en gris. Sin física ni 3D. Filtro por etiqueta o proyecto."""
+    import math
+    top = tk.Toplevel(_root)
+    top.title("Grafo de notas")
+    top.configure(bg=THEME["bg"])
+    fila = tk.Frame(top, bg=THEME["bg"])
+    fila.pack(fill="x", padx=10, pady=6)
+    todas = notas_todas()
+    etqs = sorted({e for n in todas for e in n["etiquetas"]})
+    proys = sorted({n["proyecto"] for n in todas if n["proyecto"]})
+    ve, vp = tk.StringVar(value=etiqueta or "(todas)"), tk.StringVar(value=proyecto or "(todos)")
+    tk.Label(fila, text="Etiqueta", bg=THEME["bg"], fg=THEME["muted"]).pack(side="left")
+    ce = ttk.Combobox(fila, textvariable=ve, values=["(todas)"] + etqs, state="readonly", width=16)
+    ce.pack(side="left", padx=(4, 12))
+    tk.Label(fila, text="Proyecto", bg=THEME["bg"], fg=THEME["muted"]).pack(side="left")
+    cp = ttk.Combobox(fila, textvariable=vp, values=["(todos)"] + proys, state="readonly", width=18)
+    cp.pack(side="left", padx=4)
+    cv = tk.Canvas(top, width=S(760), height=S(520), bg=THEME["bg"], highlightthickness=0)
+    cv.pack(padx=10, pady=(0, 10))
+
+    def dibujar(_e=None):
+        cv.delete("all")
+        g = notas_grafo(None if ve.get() == "(todas)" else ve.get(), None if vp.get() == "(todos)" else vp.get())
+        nod = sorted(g["nodos"], key=lambda n: (n["proyecto"] or "~", n["titulo"]))
+        pend = sorted(g["pendientes"])
+        W_, H_ = S(760), S(520)
+        cx, cy, R = W_ / 2, H_ / 2, min(W_, H_) / 2 - S(70)
+        todos = [n["titulo"] for n in nod] + pend
+        pos = {t: (cx + R * math.cos(2 * math.pi * i / max(1, len(todos))),
+                   cy + R * math.sin(2 * math.pi * i / max(1, len(todos)))) for i, t in enumerate(todos)}
+        for a, b in g["aristas"]:
+            cv.create_line(*pos[a], *pos[b], fill=THEME["muted"], width=1)
+        for t, orig in g["pendientes"].items():
+            for o in orig:
+                if o in pos:
+                    cv.create_line(*pos[o], *pos[t], fill=THEME["line"], dash=(3, 3))
+        for n in nod:
+            x, y = pos[n["titulo"]]
+            cv.create_oval(x - 6, y - 6, x + 6, y + 6, fill=THEME["blue"], outline="")
+            cv.create_text(x, y - 14, text=n["titulo"][:28], fill=THEME["text"], font=(FONT, 9))
+            if n["proyecto"]:
+                cv.create_text(x, y + 14, text=n["proyecto"][:24], fill=THEME["muted"], font=(FONT, 8))
+        for t in pend:
+            x, y = pos[t]
+            cv.create_oval(x - 5, y - 5, x + 5, y + 5, outline=THEME["muted"], dash=(2, 2))
+            cv.create_text(x, y - 14, text=f"{t[:24]} (pendiente)", fill=THEME["muted"], font=(FONT, 8))
+        _widgets["notas_grafo_dato"] = g
+    ce.bind("<<ComboboxSelected>>", dibujar)
+    cp.bind("<<ComboboxSelected>>", dibujar)
+    dibujar()
+    _widgets["notas_grafo"] = (top, cv, ve, vp, dibujar)
+    return top
+
+
+_NOTA_CMD_RE = re.compile(r"^\s*(?:nota(?:\s+de\s+(?P<pl>reuni[oó]n|proyecto|idea))?\s*:\s*(?P<t>.+)|"
+                          r"enlaza\s+(?P<a>.+?)\s+con\s+(?P<b>.+)|resume\s+la\s+nota\s+(?P<r>.+))\s*$", re.I)
+
+
+def notas_paleta_items(q):
+    """Comandos de notas en palabras normales desde la paleta."""
+    m = _NOTA_CMD_RE.match(q or "")
+    if not m:
+        return None
+    if m.group("t"):
+        pl = {"reunion": "reunion", "reunión": "reunion", "proyecto": "proyecto", "idea": "idea"}.get(
+            (m.group("pl") or "").lower())
+        t = m.group("t").strip()
+        par = [x for x in notas_parecidas(t) if _norm(x) != _norm(t)]
+        return [{"id": "_nota_crear", "label": f"Crear la nota «{t}»" + (f" (plantilla {pl})" if pl else "")
+                 + (f" — ojo: ya tienes «{par[0]}»" if par else ""),
+                 "fn": lambda t=t, pl=pl: (nota_crear(t, pl), notas_ui())}]
+    if m.group("a"):
+        a, b = m.group("a").strip(), m.group("b").strip()
+        return [{"id": "_nota_enlazar", "label": f"Enlazar «{a}» → [[{b}]]",
+                 "fn": lambda a=a, b=b: toast(nota_enlazar(a, b)[1][:49])}]
+    t = m.group("r").strip()
+    return [{"id": "_nota_resumir", "label": f"Resumir la nota «{t}» (extractivo, sin IA)",
+             "fn": lambda t=t: messagebox.showinfo("Notas", nota_resumir(t) or f"No existe la nota «{t}»")}]
+
+
 def mem_buscar(q, maximo=40):
     """Busqueda por texto (sin vectores) en los Markdown de memory\\."""
     toks = [t for t in _norm(q).split() if t]
@@ -22141,6 +22554,9 @@ def _palette_sections(q):
                "fn": lambda q=q: mem_comando_ui(q, "paleta")}
     if mem is not None:
         return [("Memoria", [mem] + (asis_mem_filas(q) if mem["label"].startswith("Recordar") else []))]
+    nq = notas_paleta_items(q)  # «nota: …», «nota de reunión: …», «enlaza A con B», «resume la nota X»
+    if nq:
+        return [("Notas", nq)]
     mq = _MEM_QUE_SE_RE.match(q or "")
     if mq and mq.group("q").strip():  # «qué sé de X»: busca en la memoria (t-memoria-buscable)
         return [("Memoria: lo que sé de «" + mq.group("q").strip()[:40] + "»", _mem_paleta_items(mq.group("q").strip()))]
@@ -35497,6 +35913,15 @@ def build_gui():
         *[C(f"auto_{k}", f"Auto: {lab} ({_AUTO_NIVEL_TXT[k]})" + (" ✓" if auto_nivel() == k else ""),
             f"auto automatico router nivel {lab.lower()} rapido equilibrado potente", lambda k=k: auto_nivel_poner(k))
           for k, lab in AUTO_NIVELES],
+        C("notas", "Notas (Markdown, enlaces y grafo)", "notas obsidian wikilinks backlinks grafo plantilla reunion",
+          lambda: (show_window(), notas_ui())),
+        C("nota_capturar_tarea", "Capturar en notas: la tarea elegida", "capturar nota tarea guardar notas",
+          lambda: _nota_capturar_tarea_ui()),
+        C("nota_capturar_chat", "Capturar en notas: lo escrito en el chat", "capturar nota chat guardar notas",
+          lambda: _nota_capturar_chat_ui()),
+        C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
+                                                                      _widgets["notas_ui"]["abrir"](
+                                                                          mem_hoy().isoformat()))),
         C("mis_comandos", "Mis comandos (scripts)", "scripts comandos carpeta activar desactivar bat ps1 py",
           lambda: (show_window(), comandos_ui())),
         C("reanudar_cola", "Reanudar la cola (tras 3 fallos seguidos)", "circuit breaker pausa cola reanudar fallos",

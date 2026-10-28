@@ -1,0 +1,160 @@
+{
+ "a_archivo_kickoff": "---\ntitulo: Kickoff Aqualine\nfecha: 2026-10-28\netiquetas: reunion\nproyecto: Aqualine\n---\nReunión de arranque con [[Aqualine]]. Ver [[Presupuesto 2027]].\n\n# Kickoff Aqualine\n\n## Asistentes\n- \n\n## Temas\n- \n\n## Acuerdos\n- \n\n## Siguiente paso\n-\n",
+ "a_diaria": "2026-10-28.md",
+ "b_backlinks_aqualine": [
+  "Idea logo",
+  "Kickoff Aqualine"
+ ],
+ "b_pendientes": {
+  "Presupuesto 2027": [
+   "Kickoff Aqualine"
+  ]
+ },
+ "b_no_se_creo_vacia": true,
+ "d_duplicado": {
+  "creada": true,
+  "parecidas": [
+   "Aqualine"
+  ],
+  "aqualine_intacta": true
+ },
+ "d_paleta": {
+  "nota de reunión: Revisión semanal": [
+   [
+    "Notas",
+    [
+     "Crear la nota «Revisión semanal» (plantilla reunion)"
+    ]
+   ]
+  ],
+  "enlaza Summit Maker con Aqualine": [
+   [
+    "Notas",
+    [
+     "Enlazar «Summit Maker» → [[Aqualine]]"
+    ]
+   ]
+  ],
+  "resume la nota Kickoff Aqualine": [
+   [
+    "Notas",
+    [
+     "Resumir la nota «Kickoff Aqualine» (extractivo, sin IA)"
+    ]
+   ]
+  ]
+ },
+ "d_enlace_hecho": [
+  "Idea logo",
+  "Kickoff Aqualine",
+  "Summit Maker"
+ ],
+ "d_resumen": "Resumen extractivo (sin IA) de «Kickoff Aqualine»: secciones Kickoff Aqualine, Asistentes, Temas, Acuerdos, Siguiente paso; Reunión de arranque con [[Aqualine]]. Ver [[Presupuesto 2027]]..",
+ "d_captura": "- (chat de Tareas, 01:51) Llamar a Aqualine el lunes",
+ "e_buscar": {
+  "aqualine": [
+   [
+    "Aqualine",
+    "título"
+   ],
+   [
+    "Kickoff Aqualine",
+    "título"
+   ],
+   [
+    "2026-10-28",
+    "contenido"
+   ],
+   [
+    "Idea logo",
+    "contenido"
+   ],
+   [
+    "Summit Maker",
+    "contenido"
+   ]
+  ],
+  "diseño": [
+   [
+    "Idea logo",
+    "etiqueta"
+   ]
+  ],
+  "arranque": [
+   [
+    "Kickoff Aqualine",
+    "contenido"
+   ]
+  ]
+ },
+ "c_grafo_todo": {
+  "nodos": [
+   "2026-10-28",
+   "Aqualin",
+   "Aqualine",
+   "Idea logo",
+   "Kickoff Aqualine",
+   "Summit Maker"
+  ],
+  "aristas": [
+   [
+    "Idea logo",
+    "Aqualine"
+   ],
+   [
+    "Kickoff Aqualine",
+    "Aqualine"
+   ],
+   [
+    "Summit Maker",
+    "Aqualine"
+   ]
+  ],
+  "pendientes": [
+   "Presupuesto 2027"
+  ]
+ },
+ "c_grafo_filtro_summit": {
+  "nodos": [
+   "Summit Maker"
+  ],
+  "aristas": []
+ },
+ "b_panel_backlinks": "Qué enlaza aquí: Idea logo, Kickoff Aqualine, Summit Maker",
+ "f_espejo": {
+  "primera": {
+   "a_espejo": [
+    "2026-10-28.md",
+    "Aqualin.md",
+    "Aqualine.md",
+    "Idea logo.md",
+    "Kickoff Aqualine.md",
+    "Summit Maker.md"
+   ],
+   "desde_espejo": [],
+   "conflictos": [],
+   "iguales": 0
+  },
+  "cambio_en_espejo": {
+   "a_espejo": [],
+   "desde_espejo": [
+    "Idea logo.md"
+   ],
+   "conflictos": [],
+   "iguales": 5
+  },
+  "conflicto": {
+   "a_espejo": [],
+   "desde_espejo": [],
+   "conflictos": [
+    "Aqualine.md"
+   ],
+   "iguales": 5
+  },
+  "local_conserva_su_cambio": true,
+  "espejo_conserva_el_suyo": true
+ },
+ "toasts": [
+  "enlazado «Summit Maker» → [[Aqualine]]"
+ ]
+}
