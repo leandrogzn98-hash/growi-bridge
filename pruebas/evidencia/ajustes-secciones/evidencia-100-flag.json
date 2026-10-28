@@ -1,0 +1,177 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-ajustes-secciones-1ytliu3b",
+ "variante": "flag",
+ "dpi": "100",
+ "build_gui_s": 2.8,
+ "ctk": false,
+ "log_ajustes": [
+  "claves: ajustes: superficie clásica (tkinter) (22 ms, al abrir la página)"
+ ],
+ "log_dpi": [
+  "DPI de la ventana: 96 (100 % de escalado)"
+ ],
+ "scale": 1.0,
+ "a_secciones": [
+  "General",
+  "Apariencia"
+ ],
+ "a_filas": {
+  "Tamaño del texto": false,
+  "Mascota": true,
+  "Reducir movimiento": false,
+  "Tema": false,
+  "Antes de actuar": false,
+  "Pedir permiso si puede costar mucho": false
+ },
+ "a_estado_motores": {},
+ "a_guardrail_radios": [
+  "Hazlo sin preguntar",
+  "Preguntarme siempre",
+  "Preguntarme solo lo delicado"
+ ],
+ "b_guardrail": {
+  "siempre": {
+   "settings": "siempre",
+   "confirmaciones": []
+  },
+  "delicado": {
+   "settings": "delicado",
+   "confirmaciones": []
+  },
+  "nunca": {
+   "settings": "nunca",
+   "confirmaciones": [
+    [
+     "confirmar",
+     "Hazlo sin preguntar"
+    ],
+    [
+     "escribir",
+     "sin preguntar"
+    ]
+   ]
+  }
+ },
+ "b_motores_cuadra": {},
+ "b_tema": {
+  "claro": "claro",
+  "oscuro": "oscuro",
+  "sistema": "sistema"
+ },
+ "b_tamano_texto": {
+  "guardado": {
+   "125": "125",
+   "150": "150",
+   "100": "100"
+  },
+  "control": "StringVar",
+  "valores": [
+   "100",
+   "125",
+   "150"
+  ]
+ },
+ "b_mascota": {
+  "antes": false,
+  "despues": true,
+  "barra_lateral_sigue": true,
+  "tipo": "Canvas"
+ },
+ "c_funcional": {
+  "pasan": 15,
+  "total": 15,
+  "detalle": [
+   {
+    "control": "autostart_sw (vuelta 1)",
+    "ok": true,
+    "detalle": "[('set_autostart', False)]"
+   },
+   {
+    "control": "autostart_sw (vuelta 2)",
+    "ok": true,
+    "detalle": "[('set_autostart', True)]"
+   },
+   {
+    "control": "autoupd_sw (vuelta 1)",
+    "ok": true,
+    "detalle": "auto_update: False -> True"
+   },
+   {
+    "control": "autoupd_sw (vuelta 2)",
+    "ok": true,
+    "detalle": "auto_update: True -> False"
+   },
+   {
+    "control": "keepawake_sw (vuelta 1)",
+    "ok": true,
+    "detalle": "keep_awake: True -> False"
+   },
+   {
+    "control": "keepawake_sw (vuelta 2)",
+    "ok": true,
+    "detalle": "keep_awake: False -> True"
+   },
+   {
+    "control": "al cerrar: ask",
+    "ok": true,
+    "detalle": "ask"
+   },
+   {
+    "control": "al cerrar: minimize",
+    "ok": true,
+    "detalle": "minimize"
+   },
+   {
+    "control": "al cerrar: quit",
+    "ok": true,
+    "detalle": "quit"
+   },
+   {
+    "control": "aj_pc_off: confirma",
+    "ok": true,
+    "detalle": "[('confirmar', 'Apagar / reiniciar el PC'), ('pc_power', 'shutdown')]"
+   },
+   {
+    "control": "aj_pc_off: 60 s (shutdown)",
+    "ok": true,
+    "detalle": "[('confirmar', 'Apagar / reiniciar el PC'), ('pc_power', 'shutdown')]"
+   },
+   {
+    "control": "aj_pc_off: Cancelar",
+    "ok": true,
+    "detalle": "[('pc_abort',)]"
+   },
+   {
+    "control": "aj_pc_restart: confirma",
+    "ok": true,
+    "detalle": "[('confirmar', 'Apagar / reiniciar el PC'), ('pc_power', 'restart')]"
+   },
+   {
+    "control": "aj_pc_restart: 60 s (restart)",
+    "ok": true,
+    "detalle": "[('confirmar', 'Apagar / reiniciar el PC'), ('pc_power', 'restart')]"
+   },
+   {
+    "control": "aj_pc_restart: Cancelar",
+    "ok": true,
+    "detalle": "[('pc_abort',)]"
+   }
+  ]
+ },
+ "d_dpi_texto": {
+  "scale": 1.0,
+  "pantalla": [
+   1920,
+   1080
+  ],
+  "minsize": [
+   820,
+   763
+  ],
+  "barra_pide": 711,
+  "barra_cabe": true,
+  "contenido": 534,
+  "filas_mas_anchas_que_el_contenido": []
+ },
+ "tracebacks_en_log": 0
+}

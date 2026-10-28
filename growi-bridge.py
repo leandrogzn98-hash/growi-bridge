@@ -25999,19 +25999,66 @@ def _install_pad_scaling():
     tk.Pack._growi_scaled = True
 
 
+# ---- Tamaño del texto (t-ajustes-secciones-045, Ajustes → Apariencia). El ÚNICO ajuste nuevo de la 0.4.5: lo pide
+# el spec. Es un factor más sobre la escala de toda la interfaz (fuentes, medidas fijas y CTk), como el DPI, para
+# que todo crezca en proporción; se aplica al abrir la app («Se aplica al reiniciar», como los demás de ese tipo).
+TEXTO_TAMANOS = (("100", "100 %"), ("125", "125 %"), ("150", "150 %"))
+
+
+def texto_tamano():
+    v = str(load_settings().get("tamano_texto") or "100")
+    return v if v in dict(TEXTO_TAMANOS) else "100"
+
+
+def texto_factor():
+    return int(texto_tamano()) / 100
+
+
+def texto_tamano_poner(v):
+    v = str(v)
+    if v not in dict(TEXTO_TAMANOS):
+        return
+    s = load_settings()
+    s["tamano_texto"] = v
+    save_settings(s)
+    log(f"ajustes: tamaño del texto -> {v} % (se aplica al volver a abrir la app)")
+
+
+def mascota_poner(on):
+    """Enciende o apaga la mascota y lo guarda (el interruptor de la barra lateral y el de Ajustes)."""
+    on = bool(on)
+    if on and _mascot["win"] is None:
+        show_mascot()
+    elif not on and _mascot["win"] is not None:
+        hide_mascot()
+    state["mascot"] = _mascot["win"] is not None
+    s = load_settings()
+    s["mascot"] = state["mascot"]
+    save_settings(s)
+    for k in ("mascot_sw", "aj_mascota_sw"):
+        sw = _widgets.get(k)
+        if sw is not None:
+            try:
+                set_switch(sw, state["mascot"])
+            except Exception:
+                pass
+
+
 def _dpi_scaling(root):
     """Escala la interfaz al DPI de la ventana: las fuentes (tk scaling) y
     toda la geometria fija (SCALE = dpi / 96, ver S())."""
     global SCALE, MASCOT_SIZE
     dpi = _window_dpi(root)
-    SCALE = dpi / 96
+    fac = texto_factor()  # Ajustes → Apariencia → Tamaño del texto
+    SCALE = dpi * fac / 96
     try:
-        root.tk.call("tk", "scaling", dpi / 72)
+        root.tk.call("tk", "scaling", dpi * fac / 72)
     except Exception:
         pass
     MASCOT_SIZE = S(128)
     _install_pad_scaling()
-    log(f"DPI de la ventana: {dpi} ({round(SCALE * 100)} % de escalado)")
+    log(f"DPI de la ventana: {dpi} ({round(dpi / 96 * 100)} % de escalado)"
+        + (f", texto al {round(fac * 100)} %: {round(SCALE * 100)} % en total" if fac != 1 else ""))
 
 
 _PALETTE_CMDS = []
@@ -29817,6 +29864,24 @@ def _switch_ctk(parent, initial, on_change, bg):
     except Exception:
         pass
     return sw
+
+
+def _nav_ver(btn):
+    """La fila de la barra lateral con el foco, dentro de la parte visible de la lista (si hace scroll)."""
+    cv = _SB.get("nav_cv")
+    if cv is None or not _SB.get("nav_max"):
+        return
+    try:
+        fila = btn.master
+        total = max(1, fila.master.winfo_reqheight())
+        y0, y1 = fila.winfo_y(), fila.winfo_y() + fila.winfo_reqheight()
+        v0, v1 = (f * total for f in cv.yview())
+        if y0 < v0:
+            cv.yview_moveto(y0 / total)
+        elif y1 > v1:
+            cv.yview_moveto((y1 - (v1 - v0)) / total)
+    except tk.TclError:
+        pass
 
 
 def _barra_pintar():
@@ -41657,6 +41722,21 @@ def _build_ajustes_tk(tab_aj):
     aprow = tk.Frame(ob, bg=THEME["card"])
     aprow.pack(anchor="w", fill="x", padx=16, pady=(0, 12))
     tema_seccion(_KitTk(tab_aj), aprow)
+    # t-ajustes-secciones-045: tamaño del texto y mascota (también en la clásica)
+    _ttr = tk.Frame(ob, bg=THEME["card"])
+    _ttr.pack(anchor="w", fill="x", padx=16, pady=(0, 6))
+    tk.Label(_ttr, text="Tamaño del texto (se aplica al reiniciar)", font=(FONT, 10, "bold"),
+             bg=THEME["card"], fg=THEME["text"]).pack(side="left", padx=(0, 12))
+    _widgets["aj_tamano_texto"] = tk.StringVar(value=texto_tamano())
+    for _v, _lab in TEXTO_TAMANOS:
+        tk.Radiobutton(_ttr, text=_lab, value=_v, variable=_widgets["aj_tamano_texto"],
+                       command=lambda v=_v: texto_tamano_poner(v), font=(FONT, 10), bg=THEME["card"],
+                       fg=THEME["text"], activebackground=THEME["card"], selectcolor=THEME["field"]).pack(side="left")
+    _msr = tk.Frame(ob, bg=THEME["card"])
+    _msr.pack(anchor="w", fill="x", padx=16, pady=(0, 12))
+    tk.Label(_msr, text="Mascota", font=(FONT, 10, "bold"), bg=THEME["card"], fg=THEME["text"]).pack(side="left")
+    _widgets["aj_mascota_sw"] = make_switch(_msr, state.get("mascot"), mascota_poner, bg=THEME["card"])
+    _widgets["aj_mascota_sw"].pack(side="right")
 
     gr = tk.Frame(tab_aj, bg=THEME["card"])
     gr.pack(fill="x", padx=20, pady=8)
@@ -42135,6 +42215,15 @@ def _build_ajustes_ctk(tab_aj):
     _mv = tk.StringVar(value=load_settings().get("reducir_movimiento") or "sistema")
     segmented(r, _mv, MOVIMIENTO_OPCIONES, movimiento_poner).pack(anchor="w", pady=(10, 0))
     _widgets["aj_movimiento"] = _mv
+    # t-ajustes-secciones-045: tamaño del texto (lo pide el spec) y la mascota (el mismo ajuste de la barra lateral)
+    r, der = side_row(ap, "Tamaño del texto", "Agranda toda la interfaz, texto y medidas juntos, para leer mejor. "
+                                              "Se suma al escalado de Windows.", reinicio=True)
+    _tt = tk.StringVar(value=texto_tamano())
+    segmented(der, _tt, TEXTO_TAMANOS, texto_tamano_poner).pack()
+    _widgets["aj_tamano_texto"] = _tt
+    _widgets["aj_mascota_sw"] = setting_switch(ap, "Mascota", "Growi en una esquina de la pantalla: te avisa de lo "
+                                                              "que pasa. Es el mismo interruptor del pie de la "
+                                                              "barra lateral.", state.get("mascot"), mascota_poner)
 
     # ---- 3. Conexion (los campos del proxy siguen plegados en Estado)
     con = section("Conexión")
@@ -42251,6 +42340,16 @@ def _build_ajustes_ctk(tab_aj):
             (l_, m_) for l_, m_, _d in engine_choices()).get(w.get(), "motor:auto")), add="+")
         _om.pack()
         _widgets["aj_superficie"][_sup] = _om
+    # t-ajustes-secciones-045: punto + estado real de cada motor (el último healthcheck, como en Estado)
+    _widgets["aj_motores_estado"] = {}
+    for _key, _nom, _col, _txt in [f for f in estado_salud_filas() if f[0].startswith("motor:")]:
+        r, der = side_row(mm, f"Estado: {_nom}", _txt)
+        _corto = {"green": "Disponible", "red": "No disponible", "orange": "Con aviso"}.get(
+            _col, "Desactivado" if _txt.startswith("Desactivado") else "Sin datos")
+        _Label(der, text="● " + _corto, font=F(13, "semibold"), height=1,
+               text_color={"green": T["green_text"], "red": T["red"], "orange": T["orange_text"]}.get(
+                   _col, T["muted"])).pack()
+        _widgets["aj_motores_estado"][_key] = (_corto, _txt)
     r = row(mm)
     _widgets["aj_claves_slot"] = tk.Frame(r, bg=T["bg"])  # aqui dibuja _build_claves las claves
     _widgets["aj_claves_slot"].pack(fill="x")
@@ -42274,8 +42373,9 @@ def _build_ajustes_ctk(tab_aj):
         sub.pack(fill="x", padx=(28, 0))
         text_block(sub, None, expl)
     for _k, _lab, _expl in GUARDRAIL_LEVELS:
-        if _k != "nunca":  # «Hazlo sin preguntar» vive en la zona peligrosa
-            _radio(row(gr), _k, _lab, _expl)
+        # las 3 (t-ajustes-secciones-045); «Hazlo sin preguntar» pasa por la misma doble confirmación de
+        # _on_guardrail que su botón de la zona peligrosa, que sigue allí
+        _radio(row(gr), _k, _lab, _expl)
     r, der = side_row(gr, "Pedir permiso si puede costar mucho",
                       "Si el peor caso estimado de una tarea (3 rondas) pasa de este dinero, te pregunto antes aunque "
                       "solo pregunte lo delicado. Se guarda al salir del campo.")
@@ -43389,8 +43489,29 @@ def build_gui():
     _widgets["show_page"] = _show_page
     _nav_btns = {}
     _widgets["nav_btns"] = _nav_btns
-    nav = tk.Frame(sidebar, bg=THEME["sidebar"])
-    nav.pack(fill="x", padx=8, pady=(4, 6))
+    # La lista va dentro de un Canvas que mide lo mismo que la lista mientras cabe (a 100 % no cambia nada) y, si
+    # no cabe (p. ej. 150 % de texto + 150 % de DPI), lo que quede: entonces hace scroll (rueda; el foco de Tab
+    # trae su fila a la vista). t-ajustes-secciones-045.
+    nav_cv = tk.Canvas(sidebar, bg=THEME["sidebar"], highlightthickness=0, bd=0, height=1)
+    nav_cv.pack(fill="x", padx=8, pady=(4, 6))
+    nav = tk.Frame(nav_cv, bg=THEME["sidebar"])
+    _nav_win = nav_cv.create_window(0, 0, window=nav, anchor="nw")
+    _SB["nav_cv"], _SB["nav_max"] = nav_cv, None
+
+    def _nav_alto(_e=None):
+        alto = nav.winfo_reqheight()
+        tope = _SB.get("nav_max")
+        nav_cv.configure(height=min(alto, tope) if tope else alto, scrollregion=(0, 0, 1, alto))
+
+    def _nav_rueda(e):
+        if _SB.get("nav_max") and nav.winfo_reqheight() > _SB["nav_max"]:
+            nav_cv.yview_scroll(-1 if e.delta > 0 else 1, "units")
+            return "break"
+        return None
+    nav.bind("<Configure>", _nav_alto, add="+")
+    nav_cv.bind("<Configure>", lambda e: nav_cv.itemconfigure(_nav_win, width=e.width), add="+")
+    nav_cv.bind("<MouseWheel>", _nav_rueda)
+    _SB["nav_rueda"], _SB["nav_alto"] = _nav_rueda, _nav_alto
     fam_iconos = fuente_iconos()
     for name, label in (("estado", "Estado"), ("carpetas", "Carpetas"),
                         ("skills", "Skills"), ("pantalla", "Pantalla"),
@@ -43454,12 +43575,12 @@ def build_gui():
     # Pie de la barra lateral: la mascota siempre a la vista (Superlist /
     # Plain ponen el avatar abajo). El interruptor enciende o apaga a Growi.
     foot = tk.Frame(sidebar, bg=THEME["sidebar"])
-    foot.pack(side="bottom", fill="x", padx=16, pady=(6, 12), before=nav)
+    foot.pack(side="bottom", fill="x", padx=16, pady=(6, 12), before=nav_cv)
     # Tarjeta del guardrail, fija abajo (encima del pie): nivel en palabras + cuántas esperan.
     # Clic o Intro -> Ajustes -> Permisos (abrir_permisos, el mismo de «Cambiar nivel»).
     grc = tk.Frame(sidebar, bg=THEME["card"], cursor="hand2", takefocus=1, highlightthickness=S(2),
                    highlightbackground=THEME["line"], highlightcolor=THEME["blue"])
-    grc.pack(side="bottom", fill="x", padx=12, pady=(4, 0), before=nav)
+    grc.pack(side="bottom", fill="x", padx=12, pady=(4, 0), before=nav_cv)
     grr = tk.Frame(grc, bg=THEME["card"])
     grr.pack(fill="x", padx=10, pady=(8, 0))
     _widgets["sb_gr_punto"] = tk.Label(grr, text="●", font=(FONT, 10), bg=THEME["card"], fg=THEME["blue"])
@@ -43491,15 +43612,7 @@ def build_gui():
              bg=THEME["sidebar"], fg=THEME["text"]).pack(side="left", padx=(8, 0))
 
     def _sw_mascot_sidebar(on):
-        if on and _mascot["win"] is None:
-            show_mascot()
-            state["mascot"] = True
-        elif not on and _mascot["win"] is not None:
-            hide_mascot()
-            state["mascot"] = False
-        s = load_settings()
-        s["mascot"] = state["mascot"]
-        save_settings(s)
+        mascota_poner(on)  # el mismo que el interruptor de Ajustes → Apariencia
 
     sw_mascota = None
     if _ctk_wanted():
@@ -44121,6 +44234,7 @@ def build_gui():
 
     def _sidebar_need():
         root.update_idletasks()
+        _SB["nav_alto"]()  # el Canvas de la lista, a la altura de la lista (o del tope, si hace scroll)
         return (sum(w.winfo_reqheight() for w in (head, nav, krow, medidor, grc, foot) if w.winfo_manager())
                 + S(16 + 8 + 16 + 4 + 28 + 6 + 4))
 
@@ -44138,6 +44252,16 @@ def build_gui():
         if need > sh - 80 - S(60):  # aun no cabe: la fila «Buscar acciones» se va (Ctrl+K sigue igual)
             krow.pack_forget()
             need = _sidebar_need()
+        if need > sh - 80:  # y si de verdad no cabe en la pantalla, la lista de secciones hace scroll
+            _SB["nav_max"] = max(S(120), nav.winfo_reqheight() - (need - (sh - 80)))
+            _SB["nav_alto"]()
+            for _w in [nav] + [d for r_ in nav.winfo_children() for d in [r_] + r_.winfo_children()]:
+                _w.bind("<MouseWheel>", _SB["nav_rueda"], add="+")
+            for _n, _b in _nav_btns.items():  # Tab: la fila con el foco, a la vista
+                _b.bind("<FocusIn>", lambda _e, b=_b: _nav_ver(b), add="+")
+            need = _sidebar_need() - nav.winfo_reqheight() + _SB["nav_max"]
+            log(f"barra lateral: no cabe entera ({sh} px de alto): la lista de secciones hace scroll "
+                f"({_SB['nav_max']} de {nav.winfo_reqheight()} px)")
     root.minsize(min(S(820), sw - 40), min(max(S(560), need), sh - 80))
     return root
 

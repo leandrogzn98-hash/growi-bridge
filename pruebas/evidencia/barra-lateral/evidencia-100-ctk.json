@@ -1,8 +1,8 @@
 {
- "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-barra-rh4c0e0i",
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-barra-wb9znise",
  "variante": "ctk",
  "dpi": "100",
- "build_gui_s": 15.58,
+ "build_gui_s": 14.09,
  "a_barra": {
   "ancho_px": 232,
   "pack_propagate": null,
@@ -104,7 +104,7 @@
   "mascota_visible": false
  },
  "e_set_switch": {
-  "dibujo": true,
+  "dibujo": false,
   "settings_sin_cambiar": false
  },
  "altura_minima": {
@@ -121,7 +121,7 @@
   "detalle_consumo_visible": true
  },
  "log_barra": [
-  "2026-10-28T11:43:36-04:00 barra lateral: 232 px, iconos Segoe Fluent Icons, interruptor CustomTkinter (207 ms)"
+  "2026-10-28T16:09:43-04:00 barra lateral: 232 px, iconos Segoe Fluent Icons, interruptor CustomTkinter (155 ms)"
  ],
  "tracebacks_en_log": 0
 }
