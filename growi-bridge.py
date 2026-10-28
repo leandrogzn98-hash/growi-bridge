@@ -41624,6 +41624,153 @@ def _tray_asis_menu():
 asis_cargar(forzar=True)  # al importar: crea los 3 iniciales si no hay carpeta y los valida
 
 
+# ---- Ajustes: matriz motor × permiso y avisos de la cola (t-ajustes-matriz-045). Es PRESENTACIÓN de lo que ya
+# decide la app: por cada motor y tipo de acción, lo mismo que haría el runner (politica_decidir sobre
+# politicas.json y, si no hay regla, el guardrail con pregunta_desde de riesgos.json; R3 se pregunta siempre).
+# De lectura: las celdas no cambian nada (se cambia en Permisos y en las reglas). Un motor sin herramientas «solo
+# responde»; uno sin su clave lo dice en la fila («pon tu clave en APIs»). Los avisos de la cola no tienen ningún
+# ajuste en la app: cada fila dice lo que pasa hoy y «sin notificaciones configuradas» (ningún toggle inventado).
+MATRIZ_TIPOS = ("leer", "escribir_fuera", "gastar", "borrar", "publicar", "enviar", "borrar_recursivo")
+MATRIZ_CORTO = {"leer": "Leer", "escribir_fuera": "Escribir\nfuera", "gastar": "Gastar", "borrar": "Borrar",
+                "publicar": "Publicar", "enviar": "Enviar", "borrar_recursivo": "Borrar\nen masa"}
+MATRIZ_SIMBOLO = {"Sí": "✓", "Pregunta": "?", "No": "✕", "—": "—", "": ""}
+AVISOS_COLA = (
+    ("espera", "Tarea en espera de tu aprobación",
+     "Avisa con una ventana emergente y en el icono de la bandeja; la fila fija de Tareas lo cuenta."),
+    ("fallida", "Tarea fallida",
+     "Solo avisa si fallan 3 seguidas (la cola se pausa sola); una tarea fallida suelta sale en la lista."),
+    ("aprobada", "Tarea aprobada", "No avisa: sale en la lista y en «Aprobadas hoy»."),
+)
+
+
+def matriz_celda(tipo, guardrail=None):
+    """(corto, color, motivo) de un tipo de acción para un motor CON herramientas: política o guardrail."""
+    tabla, _e = cargar_riesgos()
+    info = ((tabla or {}).get("tipos") or {}).get(tipo) or {}
+    nivel = info.get("nivel") or "R2"
+    accion = {"tipo": tipo, "nivel": nivel, "nombre": info.get("nombre") or tipo, "rutas": []}
+    if nivel == "R3":
+        return "Pregunta", "orange_text", f"{nivel}: nunca sin ti delante (solo en la app)"
+    dec, regla = politica_decidir(accion, {"cwd": ""})
+    if dec is not None:
+        corto = {"allow": "Sí", "ask": "Pregunta", "deny": "No"}[dec]
+        return corto + " *", {"allow": "green_text", "ask": "orange_text", "deny": "red"}[dec], \
+            f"{nivel}, por tu regla: {politica_frase(regla)}"
+    lvl = guardrail or guardrail_level()
+    if _rango(nivel) >= _rango(_desde(tabla, lvl)):
+        return "Pregunta", "orange_text", f"{nivel}: lo pregunta tu nivel de permisos"
+    return "Sí", "green_text", f"{nivel}: tu nivel de permisos no lo pregunta"
+
+
+def matriz_permisos():
+    """{"columnas": [(tipo, corto, nivel)], "filas": [{motor, nombre, estado, aviso, celdas{tipo: (...)}}]}."""
+    tabla, _e = cargar_riesgos()
+    tipos = (tabla or {}).get("tipos") or {}
+    cols = [(t, MATRIZ_CORTO[t], (tipos.get(t) or {}).get("nivel") or "?") for t in MATRIZ_TIPOS if t in tipos]
+    lvl = guardrail_level()
+    base = {t: matriz_celda(t, lvl) for t, _c, _n in cols}
+    filas = []
+    for mid in engine_ids():
+        if mid.startswith("_"):
+            continue
+        eng = get_engine(mid) or {}
+        nombre = str((engine_raw(mid) or {}).get("nombre") or mid)
+        fila = {"motor": mid, "nombre": nombre, "estado": "ok", "aviso": None, "celdas": {}}
+        acc = None
+        try:
+            acc = acceso_motor(eng) if (eng.get("credencial_ref") or eng.get("autenticacion")) else None
+        except Exception:
+            acc = None
+        if mid in motores_apagados():
+            fila.update(estado="desactivado", aviso="Desactivado por ti: no hace nada hasta que lo actives.")
+        elif acc is not None and not acc.get("ok") and "credencial" in str(acc.get("motivo") or "").lower():
+            fila.update(estado="sin_clave", aviso="Sin clave · pon tu clave en APIs para que pueda trabajar.")
+        elif not _cap(eng, "herramientas"):
+            fila.update(estado="sin_herramientas")
+        for t, _c, _n in cols:
+            if fila["estado"] == "sin_herramientas":
+                fila["celdas"][t] = ("—", "muted", "solo responde texto: no toca archivos ni hace acciones")
+            elif fila["estado"] in ("desactivado", "sin_clave"):
+                fila["celdas"][t] = ("", "muted", fila["aviso"])
+            else:
+                fila["celdas"][t] = base[t]
+        filas.append(fila)
+    return {"columnas": cols, "filas": filas, "guardrail": lvl}
+
+
+_MTZ: dict = {"celdas": {}, "avisos": {}}
+
+
+def _matriz_construir(parent, ctk_on):
+    """La matriz y los avisos de la cola dentro de una sección de Ajustes (CTk: tarjeta CTkFrame; clásica: Frame).
+    Las celdas son etiquetas (tk.Label): de lectura, sin manejadores."""
+    T = THEME
+    if ctk_on:
+        import customtkinter as ctk
+        card = ctk.CTkFrame(parent, fg_color=T["card"], corner_radius=10, border_width=1, border_color=T["line"])
+    else:
+        card = tk.Frame(parent, bg=T["card"])
+    card.pack(fill="x", padx=16, pady=(6, 4))
+    g = tk.Frame(card, bg=T["card"])
+    g.pack(fill="x", padx=12, pady=(10, 4))
+    m = matriz_permisos()
+    _MTZ.update(datos=m, celdas={}, card=card)
+    tk.Label(g, text="Motor", font=(FONT, 9, "bold"), bg=T["card"], fg=T["muted"], anchor="w").grid(
+        row=0, column=0, sticky="sw", padx=(0, 6), pady=(0, 4))
+    for j, (t, corto, nivel) in enumerate(m["columnas"], start=1):
+        tk.Label(g, text=f"{corto}\n{nivel}", font=(FONT, 8), bg=T["card"], fg=T["muted"],
+                 justify="center").grid(row=0, column=j, padx=0, pady=(0, 4), sticky="s")
+        g.grid_columnconfigure(j, weight=1, uniform="mtz")
+    for i, f in enumerate(m["filas"], start=1):
+        tk.Label(g, text=f["nombre"], font=(FONT, 9, "bold"), bg=T["card"], fg=T["text"], anchor="w",
+                 justify="left", wraplength=S(84)).grid(row=i, column=0, sticky="w", padx=(0, 6), pady=2)
+        if f["aviso"]:
+            av = tk.Label(g, text=f["aviso"], font=(FONT, 9), bg=T["card"], anchor="w", justify="left",
+                          fg=T["orange_text"] if f["estado"] == "sin_clave" else T["muted"],
+                          wraplength=S(360))
+            av.grid(row=i, column=1, columnspan=len(m["columnas"]), sticky="w", pady=2)
+            _MTZ["celdas"][(f["motor"], "_aviso")] = av
+            continue
+        for j, (t, _c, _n) in enumerate(m["columnas"], start=1):
+            corto, col, _motivo = f["celdas"][t]
+            base_ = corto.replace(" *", "")
+            c = tk.Label(g, text=MATRIZ_SIMBOLO.get(base_, base_) + (" *" if corto.endswith("*") else ""),
+                         font=(FONT, 11, "bold"), bg=T["card"], fg=T.get(col, col))
+            c._valor = corto  # el valor en palabras (Sí / Pregunta / No / —)
+            c.grid(row=i, column=j, padx=1, pady=2)
+            _MTZ["celdas"][(f["motor"], t)] = c
+    tk.Label(card, text=("✓ = lo hace sin preguntar · ? = te enseña el plan y espera tu sí · ✕ = nunca · "
+                         "— = ese motor solo responde texto · * = por una regla tuya. R0 a R3: de reversible y local a "
+                         "«nunca sin ti». Es de lectura: los permisos se cambian arriba, en «Permisos y seguridad», y en "
+                         "«Reglas permanentes»."),
+             font=(FONT, 8), bg=T["card"], fg=T["muted"], justify="left", anchor="w",
+             wraplength=S(560)).pack(fill="x", padx=12, pady=(2, 10))
+
+
+def _avisos_cola_construir(parent, ctk_on):
+    T = THEME
+    if ctk_on:
+        import customtkinter as ctk
+        card = ctk.CTkFrame(parent, fg_color=T["card"], corner_radius=10, border_width=1, border_color=T["line"])
+    else:
+        card = tk.Frame(parent, bg=T["card"])
+    card.pack(fill="x", padx=16, pady=(6, 4))
+    _MTZ["avisos"] = {}
+    for i, (key, titulo, que) in enumerate(AVISOS_COLA):
+        if i:
+            tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=12)
+        r = tk.Frame(card, bg=T["card"])
+        r.pack(fill="x", padx=12, pady=8)
+        der = tk.Label(r, text="sin notificaciones configuradas", font=(FONT, 9), bg=T["card"], fg=T["muted"])
+        der.pack(side="right", anchor="n", padx=(12, 0))
+        izq = tk.Frame(r, bg=T["card"])
+        izq.pack(side="left", fill="x", expand=True)
+        tk.Label(izq, text=titulo, font=(FONT, 10, "bold"), bg=T["card"], fg=T["text"], anchor="w").pack(anchor="w")
+        tk.Label(izq, text=que, font=(FONT, 9), bg=T["card"], fg=T["muted"], anchor="w", justify="left",
+                 wraplength=S(380)).pack(anchor="w", fill="x")
+        _MTZ["avisos"][key] = der
+
+
 def _build_ajustes_tk(tab_aj):
     """Pagina Ajustes clasica (tkinter), tal cual estaba antes del piloto.
     Es la que sale si CustomTkinter no esta o el piloto esta apagado."""
@@ -41709,6 +41856,11 @@ def _build_ajustes_tk(tab_aj):
                        highlightbackground=THEME["card"], highlightcolor=THEME["blue"],
                        anchor="w").pack(side="left", padx=(0, 14))
 
+    try:  # matriz motor × permiso y avisos de la cola (t-ajustes-matriz-045), también en la clásica
+        _matriz_construir(_card(tab_aj, "Qué puede hacer cada motor"), False)
+        _avisos_cola_construir(_card(tab_aj, "Avisos de la cola"), False)
+    except Exception as e:
+        log(f"ajustes: no se pudo dibujar la matriz de permisos ({type(e).__name__}: {e})")
     ob = _card(tab_aj, "Configuración inicial",
                "Los 4 pasos del principio: asistente, conectar, carpetas y comprobación.")
     obr = tk.Frame(ob, bg=THEME["card"])
@@ -42471,6 +42623,13 @@ def _build_ajustes_ctk(tab_aj):
     ub.configure(state="disabled")
     ub.pack(anchor="w", pady=(6, 0))
     _widgets["update_btn"] = ub
+
+    # ---- Matriz motor × permiso y avisos de la cola (t-ajustes-matriz-045): de lectura
+    try:
+        _matriz_construir(section("Qué puede hacer cada motor"), True)
+        _avisos_cola_construir(section("Avisos de la cola"), True)
+    except Exception as e:
+        log(f"ajustes: no se pudo dibujar la matriz de permisos ({type(e).__name__}: {e})")
 
     # ---- Zona peligrosa (separada, titulo en rojo, todo con confirmacion)
     zp = section("Zona peligrosa", peligro=True)

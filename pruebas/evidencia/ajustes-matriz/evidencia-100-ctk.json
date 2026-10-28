@@ -1,0 +1,170 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-ajustes-matriz-_b0juu3q",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 13.94,
+ "tarjeta": "CTkFrame",
+ "columnas": [
+  [
+   "leer",
+   "Leer",
+   "R0"
+  ],
+  [
+   "escribir_fuera",
+   "Escribir\nfuera",
+   "R1"
+  ],
+  [
+   "gastar",
+   "Gastar",
+   "R2"
+  ],
+  [
+   "borrar",
+   "Borrar",
+   "R2"
+  ],
+  [
+   "publicar",
+   "Publicar",
+   "R2"
+  ],
+  [
+   "enviar",
+   "Enviar",
+   "R2"
+  ],
+  [
+   "borrar_recursivo",
+   "Borrar\nen masa",
+   "R3"
+  ]
+ ],
+ "guardrail": "delicado",
+ "a_simbolos": {
+  "claude": {
+   "leer": "? *",
+   "escribir_fuera": "✕ *",
+   "gastar": "?",
+   "borrar": "?",
+   "publicar": "?",
+   "enviar": "?",
+   "borrar_recursivo": "?"
+  },
+  "codex": {
+   "leer": "? *",
+   "escribir_fuera": "✕ *",
+   "gastar": "?",
+   "borrar": "?",
+   "publicar": "?",
+   "enviar": "?",
+   "borrar_recursivo": "?"
+  },
+  "llama": {
+   "leer": "—",
+   "escribir_fuera": "—",
+   "gastar": "—",
+   "borrar": "—",
+   "publicar": "—",
+   "enviar": "—",
+   "borrar_recursivo": "—"
+  },
+  "ollama": {
+   "leer": "—",
+   "escribir_fuera": "—",
+   "gastar": "—",
+   "borrar": "—",
+   "publicar": "—",
+   "enviar": "—",
+   "borrar_recursivo": "—"
+  }
+ },
+ "a_matriz": {
+  "claude": {
+   "leer": "Pregunta *",
+   "escribir_fuera": "No *",
+   "gastar": "Pregunta",
+   "borrar": "Pregunta",
+   "publicar": "Pregunta",
+   "enviar": "Pregunta",
+   "borrar_recursivo": "Pregunta"
+  },
+  "codex": {
+   "leer": "Pregunta *",
+   "escribir_fuera": "No *",
+   "gastar": "Pregunta",
+   "borrar": "Pregunta",
+   "publicar": "Pregunta",
+   "enviar": "Pregunta",
+   "borrar_recursivo": "Pregunta"
+  },
+  "llama": {
+   "leer": "—",
+   "escribir_fuera": "—",
+   "gastar": "—",
+   "borrar": "—",
+   "publicar": "—",
+   "enviar": "—",
+   "borrar_recursivo": "—"
+  },
+  "ollama": {
+   "leer": "—",
+   "escribir_fuera": "—",
+   "gastar": "—",
+   "borrar": "—",
+   "publicar": "—",
+   "enviar": "—",
+   "borrar_recursivo": "—"
+  },
+  "meshy": {
+   "aviso": "Sin clave · pon tu clave en APIs para que pueda trabajar."
+  },
+  "gemini": {
+   "aviso": "Sin clave · pon tu clave en APIs para que pueda trabajar."
+  }
+ },
+ "a_estados": {
+  "claude": "ok",
+  "codex": "ok",
+  "llama": "sin_herramientas",
+  "ollama": "sin_herramientas",
+  "meshy": "sin_clave",
+  "gemini": "sin_clave"
+ },
+ "a_esperado": {
+  "leer": "Pregunta *",
+  "escribir_fuera": "No *",
+  "gastar": "Pregunta",
+  "borrar": "Pregunta",
+  "publicar": "Pregunta",
+  "enviar": "Pregunta",
+  "borrar_recursivo": "Pregunta"
+ },
+ "a_cuadra": {
+  "claude": true,
+  "codex": true
+ },
+ "b_lectura": {
+  "celdas_sin_manejadores": true,
+  "nada_cambio": true,
+  "celdas_enfocables": 0
+ },
+ "c_avisos": {
+  "espera": "sin notificaciones configuradas",
+  "fallida": "sin notificaciones configuradas",
+  "aprobada": "sin notificaciones configuradas"
+ },
+ "c_toggles": 0,
+ "d_sin_clave": {
+  "meshy": "Sin clave · pon tu clave en APIs para que pueda trabajar.",
+  "gemini": "Sin clave · pon tu clave en APIs para que pueda trabajar."
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 478,
+  "rejilla_pedida": 465,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}
