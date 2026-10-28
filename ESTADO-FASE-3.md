@@ -11,6 +11,7 @@ raíz y su commit.
 | 04 | t-blender-herramienta | **LISTO** (Blender 5.2.2 real, tornamesa y QC) | `50cd345`, `ESTADO-BLENDER-HERRAMIENTA.md` |
 | 05 | t-byos-visible | **LISTO** (Max y ChatGPT conectadas, detectadas en vivo) | `478265f`, `ESTADO-BYOS-VISIBLE.md` |
 | 06 | t-calculadora-paleta | **LISTO** | `e8f3ed7`, `ESTADO-CALCULADORA-PALETA.md` |
+| 07 | t-carga-300ms | **LISTO** (FALTA: esqueleto en Tareas, Carpetas y Registro, que hoy cargan en síncrono y no esperan) | `24cdec9`, `ESTADO-CARGA-300MS.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
