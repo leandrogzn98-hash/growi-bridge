@@ -1,0 +1,560 @@
+{
+ "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk",
+ "casos": {
+  "a-solo-checks-verde": {
+   "task_revisar_enviado": "solo_checks",
+   "segundos": 38.9,
+   "estado_final_familia": "sin_revision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 2
+   },
+   "revision_json": {
+    "modo_revision": null,
+    "decision": "sin_revision",
+    "aprobado": null,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": null,
+    "cost_usd": 0,
+    "que_falta": [],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "claude",
+      "nombre": null,
+      "modelo": "haiku",
+      "estado": "omitido",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "no se gasta en tareas R0 (solo desde R1)"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R0: nunca se gasta el segundo juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:22:06-04:00 runner [a-solo-checks-verde]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 17716",
+    "2026-10-27T23:22:06-04:00 runner [a-solo-checks-verde]: terminado: ok duracion=0.1s costo=0",
+    "2026-10-27T23:22:11-04:00 runner [a-solo-checks-verde]: revisión (ninguna): sin revisión",
+    "2026-10-27T23:22:11-04:00 runner [a-solo-checks-verde]: sin revisión: Terminó, pero no se pudo revisar (no hay juez disponible: llama: llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-check"
+   ]
+  },
+  "b-solo-checks-rojo": {
+   "task_revisar_enviado": "solo_checks",
+   "segundos": 8.6,
+   "estado_final_familia": "en_curso",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 2
+   },
+   "revision_json": {
+    "modo_revision": null,
+    "decision": "no_aprobado",
+    "aprobado": false,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": "checks deterministas (sin juez válido: no hay juez disponible: llama: llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.)",
+    "cost_usd": 0,
+    "que_falta": [
+     "falta el marcador «adios» en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\trabajo\\hola.txt (no está en ninguna de sus 1 líneas)"
+    ],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "claude",
+      "nombre": null,
+      "modelo": "haiku",
+      "estado": "omitido",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "no se gasta en tareas R0 (solo desde R1)"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R0: nunca se gasta el segundo juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «adios»",
+      "falla",
+      true
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:22:15-04:00 runner [b-solo-checks-rojo]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 23264",
+    "2026-10-27T23:22:15-04:00 runner [b-solo-checks-rojo]: terminado: ok duracion=0.1s costo=0",
+    "2026-10-27T23:22:19-04:00 runner [b-solo-checks-rojo]: revisión (checks deterministas (sin juez válido: no hay juez disponible: llama: llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.)): no aprobada",
+    "2026-10-27T23:22:19-04:00 runner [b-solo-checks-rojo]: no aprobada; ronda de corrección 1/3: b-solo-checks-rojo-r1"
+   ]
+  },
+  "c-solo-checks-solo-frases": {
+   "task_revisar_enviado": "solo_checks",
+   "segundos": 8.7,
+   "estado_final_familia": "sin_revision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 2
+   },
+   "revision_json": {
+    "modo_revision": null,
+    "decision": "sin_revision",
+    "aprobado": null,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": null,
+    "cost_usd": 0,
+    "que_falta": [],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "claude",
+      "nombre": null,
+      "modelo": "haiku",
+      "estado": "omitido",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "no se gasta en tareas R0 (solo desde R1)"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R0: nunca se gasta el segundo juez"
+    },
+    "checks": [
+     [
+      "hola.txt saluda al mundo de forma amable",
+      "pasa",
+      false
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:22:24-04:00 runner [c-solo-checks-solo-frases]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 27728",
+    "2026-10-27T23:22:24-04:00 runner [c-solo-checks-solo-frases]: terminado: ok duracion=0.1s costo=0",
+    "2026-10-27T23:22:28-04:00 runner [c-solo-checks-solo-frases]: revisión (ninguna): sin revisión",
+    "2026-10-27T23:22:28-04:00 runner [c-solo-checks-solo-frases]: sin revisión: Terminó, pero no se pudo revisar (no hay juez disponible: llama: llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-check"
+   ]
+  },
+  "d1-revisar-true": {
+   "task_revisar_enviado": true,
+   "segundos": 8.7,
+   "estado_final_familia": "sin_revision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 2
+   },
+   "revision_json": {
+    "modo_revision": null,
+    "decision": "sin_revision",
+    "aprobado": null,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": null,
+    "cost_usd": 0,
+    "que_falta": [],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "claude",
+      "nombre": null,
+      "modelo": "haiku",
+      "estado": "omitido",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "no se gasta en tareas R0 (solo desde R1)"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R0: nunca se gasta el segundo juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:22:32-04:00 runner [d1-revisar-true]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 14108",
+    "2026-10-27T23:22:32-04:00 runner [d1-revisar-true]: terminado: ok duracion=0.2s costo=0",
+    "2026-10-27T23:22:37-04:00 runner [d1-revisar-true]: revisión (ninguna): sin revisión",
+    "2026-10-27T23:22:37-04:00 runner [d1-revisar-true]: sin revisión: Terminó, pero no se pudo revisar (no hay juez disponible: llama: llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-check"
+   ]
+  },
+  "d2-revisar-false": {
+   "task_revisar_enviado": false,
+   "segundos": 4.7,
+   "estado_final_familia": "sin_revision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 0,
+    "_llamar_juez": 0
+   },
+   "revision_json": null,
+   "revision_json_existe": false,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:22:41-04:00 runner [d2-revisar-false]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\trabajo (timeout 5 min)",
+    "2026-10-27T23:22:41-04:00 runner [d2-revisar-false]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 22280",
+    "2026-10-27T23:22:41-04:00 runner [d2-revisar-false]: terminado: ok duracion=0.2s costo=0",
+    "2026-10-27T23:22:41-04:00 runner [d2-revisar-false]: sin revisión: Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien."
+   ]
+  },
+  "d3-revisar-true-R1": {
+   "task_revisar_enviado": true,
+   "segundos": 8.9,
+   "estado_final_familia": "aprobada",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 3
+   },
+   "revision_json": {
+    "modo_revision": null,
+    "decision": "aprobado",
+    "aprobado": true,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": "claude",
+    "cost_usd": 0,
+    "que_falta": [],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R1 con todos los checks en verde: basta con el primer juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ]
+    ],
+    "veredictos": [
+     [
+      "claude",
+      "valido",
+      true
+     ]
+    ]
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:22:50-04:00 runner [d3-revisar-true-R1-revision]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\trabajo (timeout 10 min)",
+    "2026-10-27T23:22:50-04:00 runner [d3-revisar-true-R1-revision]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 16924",
+    "2026-10-27T23:22:50-04:00 runner [d3-revisar-true-R1]: revisión (claude): aprobada",
+    "2026-10-27T23:22:50-04:00 runner [d3-revisar-true-R1]: aprobada: Aprobada por la revisión (claude). Comprobado en archivos: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-u6ix3myk\\trabajo\\hola.txt existe (1 líneas"
+   ]
+  }
+ }
+}

@@ -1,0 +1,370 @@
+{
+ "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq",
+ "casos": {
+  "a-solo-checks-verde": {
+   "task_revisar_enviado": "solo_checks",
+   "segundos": 34.9,
+   "estado_final_familia": "aprobada",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 0,
+    "_llamar_juez": 0
+   },
+   "revision_json": {
+    "modo_revision": "solo_checks",
+    "decision": "aprobado",
+    "aprobado": true,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": "checks deterministas (revisar: solo_checks, sin juez, $0)",
+    "cost_usd": 0.0,
+    "que_falta": [],
+    "jueces_intentados": [],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "revisar: solo_checks: no se llama a ningún juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:20:53-04:00 runner [a-solo-checks-verde]: terminado: ok duracion=0.2s costo=0",
+    "2026-10-27T23:20:53-04:00 runner [a-solo-checks-verde]: revisión solo_checks (sin juez, $0): 2 check(s), 2 tipado(s), 0 en rojo -> aprobado",
+    "2026-10-27T23:20:53-04:00 runner [a-solo-checks-verde]: revisión (checks deterministas (revisar: solo_checks, sin juez, $0)): aprobada",
+    "2026-10-27T23:20:54-04:00 runner [a-solo-checks-verde]: aprobada: Aprobada por la revisión (checks deterministas (revisar: solo_checks, sin juez, $0)). Comprobado en archivos: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-sol"
+   ]
+  },
+  "b-solo-checks-rojo": {
+   "task_revisar_enviado": "solo_checks",
+   "segundos": 4.6,
+   "estado_final_familia": "necesita_decision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 0,
+    "_llamar_juez": 0
+   },
+   "revision_json": {
+    "modo_revision": "solo_checks",
+    "decision": "necesita_decision",
+    "aprobado": false,
+    "necesita_decision": true,
+    "motivo_decision": "solo_checks: un check determinista falla (los hechos mandan; sin juez no se abre otra ronda)",
+    "motor_revision": "checks deterministas (revisar: solo_checks, sin juez, $0)",
+    "cost_usd": 0.0,
+    "que_falta": [
+     "falta el marcador «adios» en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\trabajo\\hola.txt (no está en ninguna de sus 1 líneas)"
+    ],
+    "jueces_intentados": [],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "revisar: solo_checks: no se llama a ningún juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «adios»",
+      "falla",
+      true
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:20:58-04:00 runner [b-solo-checks-rojo]: terminado: ok duracion=0.1s costo=0",
+    "2026-10-27T23:20:58-04:00 runner [b-solo-checks-rojo]: revisión solo_checks (sin juez, $0): 3 check(s), 3 tipado(s), 1 en rojo -> necesita_decision",
+    "2026-10-27T23:20:58-04:00 runner [b-solo-checks-rojo]: revisión (checks deterministas (revisar: solo_checks, sin juez, $0)): no aprobada",
+    "2026-10-27T23:20:58-04:00 runner [b-solo-checks-rojo]: necesita decisión: Lo intenté pero no pude confirmar que funcionara. Solo_checks: un check determinista falla (los hechos mandan; sin juez no se abre otra ronda): . No se aprueba "
+   ]
+  },
+  "c-solo-checks-solo-frases": {
+   "task_revisar_enviado": "solo_checks",
+   "segundos": 4.6,
+   "estado_final_familia": "necesita_decision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 0,
+    "_llamar_juez": 0
+   },
+   "revision_json": {
+    "modo_revision": "solo_checks",
+    "decision": "necesita_decision",
+    "aprobado": false,
+    "necesita_decision": true,
+    "motivo_decision": "solo_checks sin criterios tipados: no hay hechos que comprobar con código; no se aprueba en silencio",
+    "motor_revision": "checks deterministas (revisar: solo_checks, sin juez, $0)",
+    "cost_usd": 0.0,
+    "que_falta": [
+     "la tarea no trae criterios_tipados: añádelos o usa \"revisar\": true (con juez)"
+    ],
+    "jueces_intentados": [],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "revisar: solo_checks: no se llama a ningún juez"
+    },
+    "checks": [
+     [
+      "hola.txt saluda al mundo de forma amable",
+      "pasa",
+      false
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:21:02-04:00 runner [c-solo-checks-solo-frases]: terminado: ok duracion=0.1s costo=0",
+    "2026-10-27T23:21:03-04:00 runner [c-solo-checks-solo-frases]: revisión solo_checks (sin juez, $0): 1 check(s), 0 tipado(s), 0 en rojo -> necesita_decision",
+    "2026-10-27T23:21:03-04:00 runner [c-solo-checks-solo-frases]: revisión (checks deterministas (revisar: solo_checks, sin juez, $0)): no aprobada",
+    "2026-10-27T23:21:03-04:00 runner [c-solo-checks-solo-frases]: necesita decisión: Lo intenté pero no pude confirmar que funcionara. Solo_checks sin criterios tipados: no hay hechos que comprobar con código; no se aprueba en silencio: . No se "
+   ]
+  },
+  "d1-revisar-true": {
+   "task_revisar_enviado": true,
+   "segundos": 8.6,
+   "estado_final_familia": "sin_revision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 2
+   },
+   "revision_json": {
+    "modo_revision": "completa",
+    "decision": "sin_revision",
+    "aprobado": null,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": null,
+    "cost_usd": 0,
+    "que_falta": [],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "claude",
+      "nombre": null,
+      "modelo": "haiku",
+      "estado": "omitido",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "no se gasta en tareas R0 (solo desde R1)"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R0: nunca se gasta el segundo juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ]
+    ],
+    "veredictos": []
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:21:07-04:00 runner [d1-revisar-true]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 25024",
+    "2026-10-27T23:21:07-04:00 runner [d1-revisar-true]: terminado: ok duracion=0.1s costo=0",
+    "2026-10-27T23:21:11-04:00 runner [d1-revisar-true]: revisión (ninguna): sin revisión",
+    "2026-10-27T23:21:11-04:00 runner [d1-revisar-true]: sin revisión: Terminó, pero no se pudo revisar (no hay juez disponible: llama: llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-check"
+   ]
+  },
+  "d2-revisar-false": {
+   "task_revisar_enviado": false,
+   "segundos": 4.5,
+   "estado_final_familia": "sin_revision",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 0,
+    "_llamar_juez": 0
+   },
+   "revision_json": null,
+   "revision_json_existe": false,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:21:16-04:00 runner [d2-revisar-false]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\trabajo (timeout 5 min)",
+    "2026-10-27T23:21:16-04:00 runner [d2-revisar-false]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 28392",
+    "2026-10-27T23:21:16-04:00 runner [d2-revisar-false]: terminado: ok duracion=0.2s costo=0",
+    "2026-10-27T23:21:16-04:00 runner [d2-revisar-false]: sin revisión: Terminó, pero no se pudo revisar (la tarea pidió no revisarla). Nadie ha comprobado que esté bien."
+   ]
+  },
+  "d3-revisar-true-R1": {
+   "task_revisar_enviado": true,
+   "segundos": 8.8,
+   "estado_final_familia": "aprobada",
+   "llamadas_juez_en_este_caso": {
+    "_llm_review": 1,
+    "_llamar_juez": 3
+   },
+   "revision_json": {
+    "modo_revision": "completa",
+    "decision": "aprobado",
+    "aprobado": true,
+    "necesita_decision": false,
+    "motivo_decision": null,
+    "motor_revision": "claude",
+    "cost_usd": 0,
+    "que_falta": [],
+    "jueces_intentados": [
+     {
+      "rol": "juez 1",
+      "motor": "llama",
+      "nombre": "Local Hermes 3 directo $0",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "llama-server no está instalado (falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\app\\llama\\llama-server.exe; falta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\app\\models\\hermes-3-8b-q4_k_m.gguf). Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     },
+     {
+      "rol": "juez 1",
+      "motor": "ollama",
+      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "modelo": null,
+      "estado": "no_disponible",
+      "aprobado": null,
+      "aprobado_juez": null,
+      "puntuacion": null,
+      "ajustado_por_umbral": null,
+      "que_falta": [],
+      "que_falta_items": [],
+      "evidencia": [],
+      "errores": [
+       "sin respuesta de 127.0.0.1:11434 en 2 s"
+      ],
+      "costo_usd": null,
+      "segundos": null,
+      "tokens": null,
+      "recorte": null
+     }
+    ],
+    "segundo_juez": {
+     "llamado": false,
+     "motivo": null,
+     "por_que_no": "tarea R1 con todos los checks en verde: basta con el primer juez"
+    },
+    "checks": [
+     [
+      "[existe] hola.txt existe",
+      "pasa",
+      true
+     ],
+     [
+      "[contiene] hola.txt contiene «hola»",
+      "pasa",
+      true
+     ]
+    ],
+    "veredictos": [
+     [
+      "claude",
+      "valido",
+      true
+     ]
+    ]
+   },
+   "revision_json_existe": true,
+   "resultado_status": "ok",
+   "log": [
+    "2026-10-27T23:21:24-04:00 runner [d3-revisar-true-R1-revision]: corriendo claude en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\trabajo (timeout 10 min)",
+    "2026-10-27T23:21:24-04:00 runner [d3-revisar-true-R1-revision]: claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 9704",
+    "2026-10-27T23:21:25-04:00 runner [d3-revisar-true-R1]: revisión (claude): aprobada",
+    "2026-10-27T23:21:25-04:00 runner [d3-revisar-true-R1]: aprobada: Aprobada por la revisión (claude). Comprobado en archivos: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-solo-checks-um_8aynq\\trabajo\\hola.txt existe (1 líneas"
+   ]
+  }
+ }
+}

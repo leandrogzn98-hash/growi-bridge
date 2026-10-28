@@ -4457,7 +4457,10 @@ def validate_task(data):
         "fase_anterior": refs["fase_anterior"], "sensible": sensible,
         "acciones": acciones, "canal": canal,
         "modelo_local": modelo_local, "liberar_vram": liberar_vram or None,
-        "revisar": data.get("revisar", True) is not False,
+        # true (completa, con juez) | false (sin revision) | "solo_checks"
+        # (solo checks deterministas, sin juez: t-revision-solo-checks).
+        "revisar": ("solo_checks" if str(data.get("revisar")).strip().lower() in ("solo_checks", "solo-checks")
+                    else data.get("revisar", True) is not False),
         "memoria": data.get("memoria", True) is not False,
         "enrutado": enrutado,
         "asistente": asis["id"] if asis else None,
@@ -10153,6 +10156,7 @@ def review_task(task, result):
     frases = task.get("criterios") or []
     tipados = task.get("criterios_tipados") or []
     text = (result.get("result") or "").strip()
+    solo = task.get("revisar") == "solo_checks"
     can_touch = eng.get("tipo") in ("cli_sincrono", "api_asincrona") or task.get("motor") == "api"
     touched = _touched_files(task["cwd"], _iso_ts(result.get("started_at")) - 2) if can_touch else []
     touched = list(dict.fromkeys((result.get("archivos") or []) + touched))
@@ -10161,8 +10165,9 @@ def review_task(task, result):
            "motor_revision": None, "verificacion_automatica": [], "checks_deterministas": [],
            "opinion_modelo": None, "veredictos": [], "segundo_juez": None, "archivos_tocados": touched,
            "criterios": frases, "criterios_tipados": tipados, "cost_usd": 0.0, "revisado_at": None,
-           "error": None, "esquema": "rubrica-1-5 (t-criterios-tipados-030)"}
-    if not frases and not tipados:
+           "error": None, "esquema": "rubrica-1-5 (t-criterios-tipados-030)",
+           "modo_revision": "solo_checks" if solo else "completa"}
+    if not frases and not tipados and not solo:
         ok = bool(text) and not result.get("error")
         rev.update(aprobado=ok, decision="aprobado" if ok else "no_aprobado",
                    motor_revision="reglas (la tarea no trae criterios)",
@@ -10183,6 +10188,8 @@ def review_task(task, result):
     if _RUN.get("stop"):
         rev.update(error="parado por el usuario durante la revisión", revisado_at=_now_iso())
         return rev
+    if solo:
+        return _decision_solo_checks(task, rev, checks, det_fail, verified)
     # 2. El juez (cadena del descriptor).
     j1, intentos = _llm_review(task, result, checks, touched, nivel)
     rev["jueces_intentados"] = [_resumen_juez(x) for x in intentos]
@@ -10268,6 +10275,33 @@ def review_task(task, result):
         rev["calibracion_id"] = calib_registrar(task, rev)
     except Exception as e:
         log(f"runner [{task['id']}]: calibración: no se pudo apuntar la revisión ({type(e).__name__}: {e})")
+    return rev
+
+
+def _decision_solo_checks(task, rev, checks, det_fail, verified):
+    """«revisar»: «solo_checks»: decide SOLO con los checks deterministas,
+    sin ningun juez ($0). Aprueba solo si hay criterios tipados y todos los
+    checks pasan; un check en rojo o ningun tipado -> necesita decision
+    (nunca aprobado contra un hecho, ni en silencio sin hechos)."""
+    tipados_ok = [c for c in checks if c.get("tipado")]
+    rev.update(motor_revision="checks deterministas (revisar: solo_checks, sin juez, $0)",
+               jueces_intentados=[], cost_usd=0.0, evidencia=verified,
+               segundo_juez={"llamado": False, "motivo": None,
+                             "por_que_no": "revisar: solo_checks: no se llama a ningún juez"})
+    if det_fail:
+        rev.update(decision="necesita_decision", necesita_decision=True, aprobado=False, que_falta=det_fail,
+                   motivo_decision="solo_checks: un check determinista falla (los hechos mandan; "
+                                   "sin juez no se abre otra ronda)")
+    elif not tipados_ok:
+        rev.update(decision="necesita_decision", necesita_decision=True, aprobado=False,
+                   motivo_decision="solo_checks sin criterios tipados: no hay hechos que comprobar con código; "
+                                   "no se aprueba en silencio",
+                   que_falta=["la tarea no trae criterios_tipados: añádelos o usa \"revisar\": true (con juez)"])
+    else:
+        rev.update(decision="aprobado", aprobado=True)
+    rev["revisado_at"] = _now_iso()
+    log(f"runner [{task['id']}]: revisión solo_checks (sin juez, $0): {len(checks)} check(s), "
+        f"{len(tipados_ok)} tipado(s), {len(det_fail)} en rojo -> {rev['decision']}")
     return rev
 
 
