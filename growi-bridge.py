@@ -20754,6 +20754,9 @@ def toggle_mascot():
 
 # ---------------------------------------------------------------- pestanas
 def refresh_folders_ui():
+    if _CARP.get("ctk"):
+        _carpetas_ctk_pintar()
+        return
     lb = _widgets.get("folders_list")
     if lb is None:
         return
@@ -20781,10 +20784,17 @@ def remove_folder_ui():
     sel = lb.curselection()
     if not sel:
         return
+    quitar_carpeta(load_folders()[sel[0]])
+
+
+def quitar_carpeta(path):
+    """Quita una carpeta de la lista (el «Quitar» de cada fila CTk y el de la lista clásica)."""
     roots = load_folders()
-    removed = roots.pop(sel[0])
+    if path not in roots:
+        return
+    roots.remove(path)
     save_folders(roots)
-    log(f"carpetas: quitada {removed}")
+    log(f"carpetas: quitada {path}")
     refresh_folders_ui()
 
 
@@ -20792,6 +20802,109 @@ def reset_folders_ui():
     save_folders(default_roots())
     log("carpetas: restablecidas a los valores por defecto")
     refresh_folders_ui()
+
+
+# ---- Pagina Carpetas en CustomTkinter (t-carpetas-ctk-045). Mismo comportamiento que la clásica (la lista de
+# folders.json con Añadir / Quitar / Restablecer), en filas: cada carpeta con su ruta real, «Abrir» (la abre en
+# el Explorador, open_folder) y «Quitar». Si CTk no se puede (import roto, piloto_ctk false,
+# GROWI_BRIDGE_CTK=0 o falla al dibujar), sale la lista clásica de siempre.
+_CARP: dict = {"ctk": False, "kit": None, "lista": None, "filas": [], "ms": None}
+
+
+def _build_carpetas(tab2):
+    holder = tk.Frame(tab2, bg=THEME["bg"])
+    holder.pack(fill="both", expand=True)
+    t0 = time.perf_counter()
+    if _ctk_wanted():
+        try:
+            _teclado_ctk_patch()
+            kit = _KitCtk(holder, global_setup=False)
+            _carpetas_ctk_build(kit, holder)
+            _CARP.update(ctk=True, kit=kit)
+            _CARP["ms"] = round((time.perf_counter() - t0) * 1000)
+            log(f"carpetas: página con CustomTkinter {kit.ctk.__version__} ({_CARP['ms']} ms)")
+            refresh_folders_ui()
+            return
+        except Exception as e:
+            log(f"carpetas: CustomTkinter no disponible ({type(e).__name__}: {e}); se usa la versión clásica")
+            _CARP.update(ctk=False, kit=None, lista=None, filas=[])
+            for ch in holder.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    lb = tk.Listbox(holder, height=12, font=(FONT, 10), bg="#FFFFFF",
+                    fg=THEME["text"], selectbackground=THEME["blue"],
+                    selectforeground="white", borderwidth=0,
+                    highlightthickness=0)
+    lb.pack(fill="both", expand=True, padx=20, pady=4)
+    _widgets["folders_list"] = lb
+    brow = tk.Frame(holder, bg=THEME["bg"])
+    brow.pack(fill="x", padx=20, pady=(4, 16))
+    ttk.Button(brow, text="Añadir carpeta", command=add_folder_ui).pack(side="left", padx=2)
+    ttk.Button(brow, text="Quitar seleccionada", command=remove_folder_ui).pack(side="left", padx=2)
+    ttk.Button(brow, text="Restablecer", command=reset_folders_ui).pack(side="left", padx=2)
+    _CARP["ms"] = round((time.perf_counter() - t0) * 1000)
+    log(f"carpetas: página clásica (tkinter) ({_CARP['ms']} ms)")
+    refresh_folders_ui()
+
+
+def _carpetas_ctk_build(kit, holder):
+    ctk = kit.ctk
+    card = kit.card(holder)
+    card.pack(fill="x", padx=20, pady=(4, 8))
+    _CARP["lista"] = card
+    brow = ctk.CTkFrame(holder, fg_color="transparent")
+    brow.pack(fill="x", padx=20, pady=(4, 16))
+    _CARP["btn_anadir"] = kit.button(brow, "Añadir carpeta", add_folder_ui)
+    _CARP["btn_anadir"].pack(side="left", padx=(0, 8))
+    _CARP["btn_reset"] = kit.button(brow, "Restablecer", reset_folders_ui)
+    _CARP["btn_reset"].pack(side="left")
+
+
+def _carpetas_ctk_pintar():
+    """Una fila por carpeta de folders.json (las rutas reales; si una no existe en este PC, lo dice)."""
+    kit, card = _CARP.get("kit"), _CARP.get("lista")
+    if kit is None or card is None:
+        return
+    for ch in card.winfo_children():
+        ch.destroy()
+    _CARP["filas"] = []
+    roots = load_folders()
+    if not roots:
+        kit.label(card, "No hay carpetas: Claude Code no puede tocar ningún archivo. Añade una con "
+                        "«Añadir carpeta».", muted=True).pack(anchor="w", fill="x", padx=16, pady=14)
+        return
+    for i, path in enumerate(roots):
+        if i:
+            tk.Frame(card, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
+        fila = kit.frame(card)
+        fila.pack(fill="x", padx=16, pady=8)
+        existe = Path(path).is_dir()
+        b_quitar = kit.button(fila, "Quitar", lambda p=path: quitar_carpeta(p))
+        b_quitar.pack(side="right", padx=(8, 0))
+        b_abrir = kit.button(fila, "Abrir", lambda p=path: open_folder(p))
+        b_abrir.pack(side="right")
+        kit.set_enabled(b_abrir, existe)
+        if not existe:  # desactivado: Tab no se para en él
+            try:
+                b_abrir._canvas.configure(takefocus=0)
+            except Exception:
+                pass
+        txt = kit.frame(fila)
+        txt.pack(side="left", fill="x", expand=True)
+        lab = kit.label(txt, path, wrap=420)
+        lab.pack(anchor="w", fill="x")
+        if not existe:
+            kit.label(txt, "No existe en este PC", muted=True, color="orange").pack(anchor="w")
+
+        def _ajustar(e, lab=lab):  # la ruta se parte al ancho que queda (150 %, ventana mínima)
+            try:
+                lab.configure(wraplength=max(120, int(e.width / SCALE) - 8))
+            except Exception:
+                pass
+        txt.bind("<Configure>", _ajustar, add=True)
+        _CARP["filas"].append({"ruta": path, "existe": existe, "abrir": b_abrir, "quitar": b_quitar, "texto": lab})
 
 
 def refresh_skills_ui():
@@ -41958,18 +42071,7 @@ def build_gui():
              "que edite folders.json.",
              font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
              wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 10))
-    lb = tk.Listbox(tab2, height=12, font=(FONT, 10), bg="#FFFFFF",
-                    fg=THEME["text"], selectbackground=THEME["blue"],
-                    selectforeground="white", borderwidth=0,
-                    highlightthickness=0)
-    lb.pack(fill="both", expand=True, padx=20, pady=4)
-    _widgets["folders_list"] = lb
-    brow = tk.Frame(tab2, bg=THEME["bg"])
-    brow.pack(fill="x", padx=20, pady=(4, 16))
-    ttk.Button(brow, text="Añadir carpeta", command=add_folder_ui).pack(side="left", padx=2)
-    ttk.Button(brow, text="Quitar seleccionada", command=remove_folder_ui).pack(side="left", padx=2)
-    ttk.Button(brow, text="Restablecer", command=reset_folders_ui).pack(side="left", padx=2)
-    refresh_folders_ui()
+    _build_carpetas(tab2)
 
     # ================= pagina Skills
     tab3 = pages["skills"]

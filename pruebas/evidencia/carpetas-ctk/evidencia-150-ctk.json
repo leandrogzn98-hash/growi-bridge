@@ -1,0 +1,146 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9",
+ "variante": "ctk",
+ "dpi": "150",
+ "build_gui_s": 14.18,
+ "ctk": true,
+ "log_carpetas": [
+  "2026-10-28T12:07:12-04:00 carpetas: página con CustomTkinter 6.0.0 (9 ms)"
+ ],
+ "a_filas": [
+  {
+   "ruta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\proyecto-uno",
+   "existe": true,
+   "abrir": "CTkButton",
+   "quitar": "CTkButton",
+   "abrir_estado": "normal",
+   "esquinas_boton": 8
+  },
+  {
+   "ruta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\proyecto dos con espacios y un nombre largo para partir la línea a 150 %",
+   "existe": true,
+   "abrir": "CTkButton",
+   "quitar": "CTkButton",
+   "abrir_estado": "normal",
+   "esquinas_boton": 8
+  },
+  {
+   "ruta": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\no-existe-en-este-pc",
+   "existe": false,
+   "abrir": "CTkButton",
+   "quitar": "CTkButton",
+   "abrir_estado": "disabled",
+   "esquinas_boton": 8
+  }
+ ],
+ "a_card": {
+  "tipo": "CTkFrame",
+  "esquinas": 10,
+  "botones_pie": [
+   "CTkButton",
+   "CTkButton"
+  ]
+ },
+ "a_rutas_iguales_a_folders_json": true,
+ "b_abiertos": [
+  "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\proyecto-uno",
+  "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\proyecto dos con espacios y un nombre largo para partir la línea a 150 %"
+ ],
+ "b_cuadra": true,
+ "d_foco": [
+  {
+   "texto": "Abrir",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Quitar",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Abrir",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Quitar",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Abrir",
+   "estado": "disabled",
+   "takefocus": "0",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Quitar",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Añadir carpeta",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  },
+  {
+   "texto": "Restablecer",
+   "estado": "normal",
+   "takefocus": "1",
+   "espacio": true,
+   "intro": true
+  }
+ ],
+ "d_anillo": {
+  "color": "#4DA3FF",
+  "foco_global_enlazado": true
+ },
+ "quitar": {
+  "folders_json": [
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\proyecto-uno",
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-lbecq3b9\\proyecto dos con espacios y un nombre largo para partir la línea a 150 %"
+  ],
+  "filas": 2
+ },
+ "e_dpi": {
+  "minsize": [
+   1230,
+   967
+  ],
+  "ventana": [
+   200,
+   200
+  ],
+  "fila_ancho": 768,
+  "texto_ancho": 584,
+  "wraplength_ruta": 381,
+  "ruta_alto": 72,
+  "abrir_x": 584,
+  "quitar_derecha": 768,
+  "ruta_no_pisa_botones": true,
+  "botones_dentro": true,
+  "ruta_dentro_de_su_caja": true
+ },
+ "e_dpi_ancho_minimo": {
+  "contenido": 753,
+  "botones": 178,
+  "caja_ruta": 575,
+  "wraplength_ruta_px": 562,
+  "cabe": true
+ },
+ "tracebacks_en_log": 0
+}

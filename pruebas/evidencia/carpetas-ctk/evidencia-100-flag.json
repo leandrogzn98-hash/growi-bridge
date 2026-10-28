@@ -1,0 +1,24 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-ixkgqsjp",
+ "variante": "flag",
+ "dpi": "100",
+ "build_gui_s": 2.62,
+ "ctk": false,
+ "log_carpetas": [
+  "2026-10-28T12:10:23-04:00 carpetas: página clásica (tkinter) (4 ms)"
+ ],
+ "clasica": {
+  "lista": "Listbox",
+  "items": [
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-ixkgqsjp\\proyecto-uno",
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-ixkgqsjp\\proyecto dos con espacios y un nombre largo para partir la línea a 150 %",
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-ixkgqsjp\\no-existe-en-este-pc"
+  ],
+  "iguales": true,
+  "tras_quitar": [
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-ixkgqsjp\\proyecto-uno",
+   "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-carpetas-ctk-ixkgqsjp\\proyecto dos con espacios y un nombre largo para partir la línea a 150 %"
+  ]
+ },
+ "tracebacks_en_log": 0
+}
