@@ -9189,6 +9189,8 @@ def _write_result(result):
     RESULTS.mkdir(parents=True, exist_ok=True)
     if isinstance(result, dict):
         result.setdefault("run_id", result.get("raiz") or result.get("id"))
+        if _CTX.get(str(result.get("id"))):
+            result.setdefault("contexto_recibido", _CTX[str(result.get("id"))])
     snap = _cfg_snap()
     if snap is not None and isinstance(result, dict):
         # Evidencia de la recarga en caliente: con que config corrio esta tarea.
@@ -11967,6 +11969,10 @@ def prompt_de_tarea(task):
         perfil_ojo = perfil_recordatorio(task) if perfil_txt else ""
     except Exception:
         perfil_ojo = ""
+    if SLOT2_MODO["activo"]:  # agente del 2.º hueco: encargo + archivos + perfil, sin la memoria larga
+        mem_txt = ""
+    contexto_apuntar(task, {"reglas": rules_prefix(), "asistente": asis_txt, "memoria": mem_txt, "skills": skills_txt,
+                            "perfil": perfil_txt, "encargo": task["prompt"]})
     return (rules_prefix() + asis_txt + mem_txt + skills_txt + perfil_txt + task["prompt"] + perfil_ojo
             + autocritica_txt(task))
 
@@ -16904,7 +16910,7 @@ def runner_heartbeat():
                 "cola": cola["cuenta"], "cola_db": str(COLA_DB),
                 "vivo": LIVE_FILE.name, "supervisor": CK_SUPERVISOR_FILE.name,
             }
-            path = OUTBOX / "runner-status.json"
+            path = OUTBOX / _STATUS_NOMBRE["principal"]  # el 2.º hueco escribe el suyo (t-agentes-paralelos-030)
             tmp = path.with_suffix(".tmp")
             tmp.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
             for i in range(5):
@@ -17166,6 +17172,9 @@ def _slot_terminar():
     p, t = _SLOT["proc"], _SLOT["task"]
     rc = p.poll()
     log(f"paralelo: el 2.º hueco terminó {t['id']} (salida {rc})")
+    if rc != 0 and _agente_reasignar(t, rc):  # murió a medias: a la cola, desde su checkpoint
+        _SLOT.update(proc=None, task=None, file=None, t0=None, wt=None, main=None)
+        return
     dueno = t["id"] if _SLOT["wt"] else _wt_de_cwd(t.get("cwd") or "")
     if dueno:
         rc_t, out = worktree_test_gate(dueno)
@@ -17216,6 +17225,18 @@ def slot_vigia(stop_event):
             if _SLOT["proc"] is not None:
                 if _SLOT["proc"].poll() is not None:
                     _slot_terminar()
+                else:  # los 2 huecos ocupados: lo que espera lo dice (cola visible)
+                    for f in list(TASKS.glob("*.task.json"))[:6]:
+                        try:
+                            tid = json.loads(f.read_text(encoding="utf-8")).get("id")
+                            if tid in (state.get("current"), (_SLOT.get("task") or {}).get("id")):
+                                continue  # un duplicado de lo que ya corre: no se toca su fila (deduplicación)
+                            _cola_ver(f)  # que conste en la cola (y en la vista) aunque el bucle aún no la haya visto
+                            fila = cola_get(tid) if tid else None
+                            if fila and fila.get("estado") == "en_cola" and not fila.get("motivo"):
+                                cola_set(tid, motivo=f"espera hueco: los {paralelo_max()} huecos están ocupados")
+                        except (OSError, ValueError):
+                            continue
             elif paralelo_max() >= 2 and not _BREAKER["pausado"]:
                 main = _main_actual()
                 if main is not None:
@@ -17228,7 +17249,12 @@ def slot_vigia(stop_event):
                             t, err = validate_task(json.loads(f.read_text(encoding="utf-8")))
                         except (OSError, ValueError):
                             continue
-                        if err or t["id"] == main["id"]:
+                        if err:
+                            continue
+                        if t["id"] == main["id"] or (cola_get(t["id"]) or {}).get("estado") == "en_curso":
+                            if _SLOT.get("ultimo_dup") != t["id"]:
+                                log(f"agentes: {t['id']} ya tiene un agente activo: no se asigna otro (deduplicación)")
+                                _SLOT["ultimo_dup"] = t["id"]
                             continue
                         ok, motivo, wt = paralelo_decidir(main, t)
                         if ok:
@@ -17236,6 +17262,11 @@ def slot_vigia(stop_event):
                             break
                         log(f"paralelo: {t['id']} no va junto a {main['id']}: {motivo}") if _SLOT.get(
                             "ultimo_no") != (t["id"], main["id"]) else None
+                        try:
+                            _cola_ver(f)
+                            cola_set(t["id"], motivo=f"espera hueco: {motivo}")
+                        except Exception:
+                            pass
                         _SLOT["ultimo_no"] = (t["id"], main["id"])
         except Exception as e:
             log(f"paralelo: {type(e).__name__}: {e}")
@@ -17244,6 +17275,10 @@ def slot_vigia(stop_event):
 
 def _cli_slot2(ruta):
     """El 2.º hueco: procesa UNA tarea en este proceso y sale."""
+    global LIVE_FILE
+    SLOT2_MODO["activo"] = True  # contexto mínimo y sus propios archivos de estado
+    _STATUS_NOMBRE["principal"] = "runner-status-slot2.json"
+    LIVE_FILE = OUTBOX / "runner-live-slot2.json"
     cola_init()
     hook = os.environ.get("GROWI_BRIDGE_PRUEBA_HOOK")
     if hook and os.environ.get("GROWI_BRIDGE_SHARE") and os.environ.get("GROWI_BRIDGE_MUTEX"):
@@ -17256,6 +17291,143 @@ def _cli_slot2(ruta):
         log(f"paralelo: el 2.º hueco falló con {p.name}: {type(e).__name__}: {e}")
         return 1
     return 0
+
+
+# ---- agentes en paralelo (t-agentes-paralelos-030): el orquestador encima
+# del 2.º hueco. Cada agente = un motor + su tarea (+ su worktree si es código
+# del mismo repo). Tope total paralelo_max (2). Lo que no cabe queda en la cola
+# con el motivo a la vista («espera hueco: …»). Nunca dos agentes con el mismo
+# task_id. Si el agente del 2.º hueco muere, su tarea vuelve a la cola y sigue
+# desde su checkpoint; el otro agente no se entera. Cada agente del 2.º hueco
+# recibe solo encargo + archivos de su tarea + perfil (sin la memoria larga), y
+# queda apuntado qué contexto recibió.
+SLOT2_MODO = {"activo": False}
+_STATUS_NOMBRE = {"principal": "runner-status.json"}
+_CTX = {}
+
+
+def contexto_apuntar(task, partes):
+    """Lo que de verdad recibió el motor de esa tarea (caracteres por pieza)."""
+    _CTX[str(task.get("id"))] = dict({k: len(v or "") for k, v in partes.items()},
+                                     modo="agente del 2.º hueco (contexto mínimo)" if SLOT2_MODO["activo"]
+                                     else "principal")
+    if len(_CTX) > 300:
+        for k in list(_CTX)[:100]:
+            _CTX.pop(k, None)
+
+
+def agentes_vista():
+    """[{hueco, tarea, motor, estado, costo, progreso, worktree}] + [(en cola, motivo)]."""
+    out = []
+    if state.get("current"):
+        lv = _LIVE.get("d") or {}
+        ini = _ACT.get("started_at")
+        try:
+            seg = time.time() - datetime.fromisoformat(ini).timestamp() if ini else None
+        except ValueError:
+            seg = None
+        out.append({"hueco": 1, "tarea": state["current"], "motor": state.get("current_motor"),
+                    "estado": "en curso", "costo": lv.get("cost_usd_estimado"),
+                    "tokens": (lv.get("tokens_in") or 0) + (lv.get("tokens_out") or 0),
+                    "progreso": state.get("paso") or (f"{_gw_hace(seg)} trabajando" if seg else "empezando"),
+                    "worktree": None})
+    if _SLOT.get("proc") is not None and _SLOT.get("task"):
+        t = _SLOT["task"]
+        try:
+            st = json.loads((OUTBOX / "runner-status-slot2.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            st = {}
+        try:
+            lv2 = json.loads((OUTBOX / "runner-live-slot2.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            lv2 = {}
+        w = _wt_reg().get(t["id"]) or {}
+        out.append({"hueco": 2, "tarea": t["id"], "motor": t.get("motor"), "estado": "en curso",
+                    "costo": lv2.get("cost_usd_estimado"),
+                    "tokens": (lv2.get("tokens_in") or 0) + (lv2.get("tokens_out") or 0),
+                    "progreso": st.get("paso") or f"{_gw_hace(time.time() - (_SLOT.get('t0') or time.time()))} trabajando",
+                    "worktree": w.get("rama")})
+    cola = []
+    try:
+        for r in _cola("SELECT id, motivo FROM tareas WHERE estado='en_cola' AND motivo LIKE 'espera hueco:%' "
+                       "ORDER BY actualizado_ts", fetch=True):
+            cola.append((r["id"], r["motivo"]))
+    except Exception:
+        pass
+    return out, cola
+
+
+def _agente_reasignar(t, rc):
+    """El agente del 2.º hueco murió con su tarea a medias: vuelve a la cola y
+    sigue desde su checkpoint (el otro agente sigue como si nada)."""
+    fila = cola_get(t["id"]) or {}
+    if fila.get("estado") != "en_curso":
+        return False
+    name = Path(fila.get("archivo") or f"{t['id']}.task.json").name
+    src = PROCESSING / name
+    if not src.exists():
+        return False
+    os.replace(src, TASKS / name)
+    cortes = (fila.get("cortes") or 0) + 1
+    cola_set(t["id"], estado="en_cola", archivo=str(TASKS / name), cortes=cortes, proximo_intento=None,
+             motivo=f"el agente del 2.º hueco murió (salida {rc}): se reasigna y sigue desde su checkpoint")
+    _family_update(t.get("raiz") or t["id"], estado="pendiente", en_curso=None, recuperada_tras_corte=True)
+    log(f"agentes: el agente de {t['id']} murió (salida {rc}) a mitad: vuelve a la cola (corte {cortes}) y sigue "
+        "desde su checkpoint; el resto sigue")
+    return True
+
+
+_AGUI = {"kit": None}
+
+
+def _agentes_build(page):
+    holder = tk.Frame(page, bg=THEME["bg"])
+    holder.pack(fill="x")
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(holder)
+        except Exception as e:
+            log(f"agentes: CustomTkinter no disponible ({type(e).__name__}: {e}); tarjeta clásica")
+    k = k or _KitTk(holder)
+    _AGUI["kit"] = k
+    c = k.section("Agentes", f"Hasta {paralelo_max()} a la vez: nunca dos Claudes ni dos locales; lo que no cabe "
+                             "espera en la cola con el motivo.")
+    _AGUI["box"] = k.frame(c)
+    _AGUI["box"].pack(fill="x", padx=16, pady=(2, 12))
+    _AGUI["fp"] = None
+    _agentes_refrescar()
+
+
+def _agentes_refrescar():
+    k = _AGUI.get("kit")
+    if k is None:
+        return
+    try:
+        filas, cola = agentes_vista()
+        txt = []
+        for f in filas:
+            txt.append((f"Hueco {f['hueco']}: {f['tarea']} · {MOTOR_CORTO.get(str(f['motor']), f['motor'])}"
+                        + (f" · rama {f['worktree']}" if f.get("worktree") else "")
+                        + f" · {f['estado']} · " + (f"${f['costo']:.4f}" if isinstance(f.get("costo"), (int, float))
+                                                     else "costo sin dato")
+                        + (f" · {f['tokens']} tokens" if f.get("tokens") else "") + f" · {f['progreso']}"[:160], "text"))
+        if not filas:
+            txt.append(("Ningún agente trabajando ahora.", "muted"))
+        for tid, motivo in cola[:4]:
+            txt.append((f"En cola: {tid} — {motivo}"[:180], "orange_text"))
+        if txt != _AGUI["fp"]:
+            _AGUI["fp"] = txt
+            for ch in _AGUI["box"].winfo_children():
+                ch.destroy()
+            for t, col in txt:
+                k.label(_AGUI["box"], t, wrap=600, color=col).pack(anchor="w", pady=1)
+    except Exception as e:
+        log(f"agentes: vista ({type(e).__name__}: {e})")
+    try:
+        _AGUI["box"].after(3000, _agentes_refrescar)
+    except Exception:
+        pass
 
 
 def runner_loop(stop_event):
@@ -39649,6 +39821,10 @@ def build_gui():
     _widgets["tasks_summary"] = tk.Label(tabt, text="", font=(FONT, 11, "bold"),
                                          bg=THEME["bg"], fg=THEME["text"])
     _widgets["tasks_summary"].pack(anchor="w", padx=20, pady=(0, 6))
+    try:
+        _agentes_build(tabt)  # quién trabaja en cada hueco (t-agentes-paralelos-030)
+    except Exception as e:
+        log(f"agentes: no se pudo dibujar la vista ({type(e).__name__}: {e})")
     _build_spend_card(tabt)
     _widgets["approvals_box"] = tk.Frame(tabt, bg=THEME["card"])
     tree = ttk.Treeview(tabt, columns=("tarea", "estado", "motor", "ronda", "tiempo", "tokens",

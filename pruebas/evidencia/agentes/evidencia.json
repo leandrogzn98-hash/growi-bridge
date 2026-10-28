@@ -1,0 +1,116 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-agentes-4gsseed3",
+ "e_vista_con_dos": {
+  "agentes": [
+   {
+    "hueco": 1,
+    "tarea": "t-ag-1",
+    "motor": "claude",
+    "estado": "en curso",
+    "costo": null,
+    "tokens": 0,
+    "progreso": "Claude trabaja en t-ag-1",
+    "worktree": null
+   },
+   {
+    "hueco": 2,
+    "tarea": "t-ag-2",
+    "motor": "ollama",
+    "estado": "en curso",
+    "costo": 0.0,
+    "tokens": 0,
+    "progreso": "5 s trabajando",
+    "worktree": "agent/t-ag-2"
+   }
+  ],
+  "en_cola": [
+   [
+    "t-ag-3",
+    "espera hueco: los 2 huecos están ocupados"
+   ]
+  ]
+ },
+ "a_dos_a_la_vez": [
+  [
+   1,
+   "t-ag-1",
+   "claude",
+   null
+  ],
+  [
+   2,
+   "t-ag-2",
+   "ollama",
+   "agent/t-ag-2"
+  ]
+ ],
+ "b_tercero": {
+  "sigue_en_cola": true,
+  "motivo_visible": "espera hueco: los 2 huecos están ocupados"
+ },
+ "c_duplicado": {
+  "no_se_lanzo": true
+ },
+ "a_resultados": {
+  "agente1": [
+   "claude",
+   "2026-10-28T05:29:18-04:00",
+   "2026-10-28T05:29:43-04:00",
+   "ok"
+  ],
+  "agente2": [
+   "ollama",
+   "2026-10-28T05:29:23-04:00",
+   "2026-10-28T05:29:31-04:00",
+   "ok",
+   "hecho por ollama [simulado] en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-agentes-4gsseed3\\repo-t-ag-2\\subB"
+  ],
+  "contexto_agente2": {
+   "reglas": 94,
+   "asistente": 986,
+   "memoria": 0,
+   "skills": 0,
+   "perfil": 0,
+   "encargo": 46,
+   "modo": "agente del 2.º hueco (contexto mínimo)"
+  },
+  "contexto_agente1": {
+   "reglas": 94,
+   "asistente": 986,
+   "memoria": 1963,
+   "skills": 0,
+   "perfil": 0,
+   "encargo": 9,
+   "modo": "principal"
+  }
+ },
+ "d_tras_morir": {
+  "estado": "en_cola",
+  "cortes": 1,
+  "motivo": "el agente del 2.º hueco murió (salida 3): se reasigna y sigue desde su checkpoint"
+ },
+ "d_reasignado": {
+  "estado": "ok",
+  "recuperada_tras_corte": true,
+  "cortes": 1,
+  "avisos": [
+   "recuperada tras corte: se cortó 1 vez mientras corría; se reanudó desde el checkpoint (ronda 0)"
+  ],
+  "termino_mientras_el_1_seguia": true,
+  "agente1": "ok"
+ },
+ "log": [
+  "2026-10-28T05:29:15-04:00 agentes: t-ag-1 ya tiene un agente activo: no se asigna otro (deduplicación)",
+  "2026-10-28T05:29:16-04:00 paralelo: worktree c:\\users\\forte\\appdata\\local\\temp\\growi-prueba-agentes-4gsseed3\\repo-t-ag-2 en la rama agent/t-ag-2 para t-ag-2 (sale de main)",
+  "2026-10-28T05:29:16-04:00 paralelo: t-ag-2 (local) en el 2.º hueco junto a t-ag-1 (claude) en su worktree; proceso 25592",
+  "2026-10-28T05:29:31-04:00 paralelo: el 2.º hueco terminó t-ag-2 (salida 0)",
+  "2026-10-28T05:29:34-04:00 paralelo: t-ag-3 (codex) en el 2.º hueco junto a t-ag-1 (claude); proceso 18080",
+  "2026-10-28T05:29:44-04:00 paralelo: el 2.º hueco terminó t-ag-3 (salida 0)",
+  "2026-10-28T05:29:47-04:00 paralelo: t-ag-5 (local) en el 2.º hueco junto a t-ag-4 (claude); proceso 13400",
+  "2026-10-28T05:29:56-04:00 paralelo: el 2.º hueco terminó t-ag-5 (salida 3)",
+  "2026-10-28T05:29:56-04:00 agentes: el agente de t-ag-5 murió (salida 3) a mitad: vuelve a la cola (corte 1) y sigue desde su checkpoint; el resto sigue",
+  "2026-10-28T05:29:59-04:00 paralelo: t-ag-5 (local) en el 2.º hueco junto a t-ag-4 (claude); proceso 21564",
+  "2026-10-28T05:30:08-04:00 paralelo: el 2.º hueco terminó t-ag-5 (salida 0)"
+ ],
+ "tracebacks_en_log": 0
+}
