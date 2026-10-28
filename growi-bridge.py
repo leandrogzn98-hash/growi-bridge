@@ -12666,6 +12666,7 @@ def cola_init():
     aprobaciones_init()
     checkpoint_init()
     calibracion_init()
+    automations_init()
 
 
 def cola_get(tid):
@@ -31783,6 +31784,9 @@ def _build_ajustes_ctk(tab_aj):
     _t_at = time.perf_counter()
     at = section("Notificaciones y atajos")
     _widgets["atajos_anchor"] = at
+    r, der = side_row(at, "Automatizaciones", "Recordatorios y chequeos programados (salud, cuota, cola, "
+                                              "resumen). Avisan como mucho una vez al día; cada uno se apaga en un clic.")
+    button(der, "Abrir", automations_ui).pack()
     _atajos_construir(_atajos_kit_ctk(ctk, row, text_block, F, wrap_to, seg_bg, seg_hover,
                                       accent, accent_hover), at)
     log(f"ajustes: atajos con CustomTkinter ({(time.perf_counter() - _t_at) * 1000:.0f} ms)")
@@ -31839,6 +31843,382 @@ def _build_ajustes_ctk(tab_aj):
     tk.Frame(tab_aj, bg=T["bg"], height=S(20)).pack()
     _widgets["aj_filas"] = filas
     return ctk.__version__
+
+
+# ---- automatizaciones: programador persistente (t-automations)
+# Un trabajo = horario + encargo + motor + entrega, en cola.db (tablas
+# automatizaciones y automatizaciones_runs): sobrevive a reinicios y apagones.
+# Se crea en lenguaje natural («recuérdame en 3 horas…», «cada lunes a las
+# 9…») pero se GUARDA estructurado (horario JSON); el texto no se reinterpreta.
+# Nada usa el modelo principal: los 5 iniciales son código local ($0). Lo
+# proactivo avisa como mucho 1 vez al día; nada envía ni escribe a nadie.
+AUTO_TICK_S = 30
+AUTO_AVISOS_DIA = 1
+AUTO_VIGIA_MIN = 30  # tarea «en curso» sin moverse más de esto -> aviso
+_DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_AUTO = {"arranque_hecho": False}
+
+
+def automations_init():
+    _cola("""CREATE TABLE IF NOT EXISTS automatizaciones (
+        id TEXT PRIMARY KEY, nombre TEXT NOT NULL, tipo TEXT NOT NULL, horario TEXT NOT NULL,
+        encargo TEXT, motor TEXT NOT NULL, entrega TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1,
+        proactivo INTEGER NOT NULL DEFAULT 0, proxima REAL, creado_en TEXT NOT NULL, texto_original TEXT)""")
+    _cola("""CREATE TABLE IF NOT EXISTS automatizaciones_runs (
+        n INTEGER PRIMARY KEY AUTOINCREMENT, auto_id TEXT NOT NULL, nombre TEXT, at TEXT NOT NULL,
+        ts REAL NOT NULL, resultado TEXT, detalle TEXT, motor TEXT, costo_usd REAL NOT NULL DEFAULT 0,
+        aviso INTEGER NOT NULL DEFAULT 0)""")
+    iniciales = (
+        ("salud-arranque", "Chequeo de salud al arrancar", "salud", {"tipo": "al_arrancar"},
+         "Proxy, llama-server, disco, Tailscale y cola pendiente", 1),
+        ("cuota-max-75", "Aviso de cuota Max al 75 %", "cuota", {"tipo": "cada_min", "min": 30},
+         "Gasto de los últimos 7 días contra el límite semanal que pongas (sin límite: sin dato)", 1),
+        ("vigia-cola", "Vigía de la cola", "vigia", {"tipo": "cada_min", "min": 5},
+         f"Tarea en curso sin avanzar más de {AUTO_VIGIA_MIN} min, o recuperada tras un corte", 1),
+        ("resumen-2100", "Resumen del día (21:00)", "resumen", {"tipo": "diario", "hora": "21:00"},
+         "Escribe share\\outbox\\resumen-<fecha>.md con lo del día (no avisa: el mensaje de las 21:00 "
+         "ya lo manda Growi; esto no lo duplica)", 0),
+        ("brief-reunion", "Brief antes de una reunión", "brief", {"tipo": "hueco"},
+         "Hueco preparado para t-brief-reunion (0.4.0): aún no construido", 0),
+    )
+    for aid, nombre, tipo, horario, encargo, proactivo in iniciales:
+        _cola("INSERT OR IGNORE INTO automatizaciones (id, nombre, tipo, horario, encargo, motor, entrega, activo, "
+              "proactivo, proxima, creado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+              (aid, nombre, tipo, json.dumps(horario), encargo, "local (código, $0)", "aviso en la bandeja",
+               0 if tipo == "brief" else 1, proactivo, _auto_proxima(horario), _now_iso()))
+
+
+def _auto_hhmm(t):
+    h, m = (str(t).split(":") + ["0"])[:2]
+    return int(h), int(m)
+
+
+def _auto_proxima(h, desde=None):
+    """Siguiente ejecución (epoch) del horario estructurado, o None."""
+    ahora = datetime.fromtimestamp(desde or time.time())
+    t = h.get("tipo")
+    if t == "una_vez":
+        return float(h["ts"])
+    if t == "al_arrancar":
+        return None  # lo dispara el arranque
+    if t == "cada_min":
+        return (desde or time.time()) + int(h.get("min") or 30) * 60
+    if t in ("diario", "semanal"):
+        hh, mm = _auto_hhmm(h.get("hora") or "09:00")
+        c = ahora.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        for _ in range(8):
+            if c > ahora and (t == "diario" or c.weekday() == int(h.get("dia", 0))):
+                return c.timestamp()
+            c += timedelta(days=1)
+    return None
+
+
+def auto_describir(h):
+    """El horario en palabras normales."""
+    t = h.get("tipo")
+    if t == "una_vez":
+        return "una vez, el " + datetime.fromtimestamp(h["ts"]).strftime("%d/%m a las %H:%M") + " (se borra al hacerlo)"
+    if t == "al_arrancar":
+        return "cada vez que arranca la app"
+    if t == "cada_min":
+        return f"cada {h.get('min')} minutos"
+    if t == "diario":
+        return f"todos los días a las {h.get('hora')}"
+    if t == "semanal":
+        return f"cada {_DIAS[int(h.get('dia', 0))]} a las {h.get('hora')}"
+    return "sin horario (hueco preparado)"
+
+
+def auto_interpretar(texto, ahora=None):
+    """Lenguaje natural -> (horario, encargo) o (None, motivo). Reglas fijas,
+    sin modelo: «en 3 horas …», «en 20 minutos …», «mañana a las 9 …»,
+    «a las 18:30 …», «cada lunes a las 9 …», «cada día a las 21 …»."""
+    ahora = ahora or datetime.now()
+    s = " ".join(str(texto or "").strip().split())
+    s = re.sub(r"^(recu[eé]rdame|av[ií]same|recordatorio:?)\s+(que\s+)?", "", s, flags=re.I)
+    hora = r"(\d{1,2})(?::(\d{2}))?\s*(h|hs|horas)?"
+    m = re.match(r"^en\s+(\d+)\s*(minutos?|min|horas?|h|d[ií]as?)\s+(?:que\s+)?(.+)$", s, re.I)
+    if m:
+        n, u = int(m.group(1)), m.group(2).lower()
+        seg = n * (60 if u.startswith("m") else 3600 if u.startswith("h") else 86400)
+        return {"tipo": "una_vez", "ts": (ahora + timedelta(seconds=seg)).timestamp()}, m.group(3)
+    m = re.match(r"^cada\s+(d[ií]a|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\s+a\s+las\s+"
+                 + hora + r"\s+(?:que\s+)?(.+)$", s, re.I)
+    if m:
+        hhmm = f"{int(m.group(2)):02d}:{int(m.group(3) or 0):02d}"
+        dia = m.group(1).lower().replace("í", "i")
+        if dia == "dia":
+            return {"tipo": "diario", "hora": hhmm}, m.group(5)
+        norm = [d.replace("é", "e").replace("á", "a") for d in _DIAS]
+        return {"tipo": "semanal", "dia": norm.index(dia.replace("é", "e").replace("á", "a")), "hora": hhmm}, m.group(5)
+    m = re.match(r"^(ma[ñn]ana\s+)?a\s+las\s+" + hora + r"\s+(?:que\s+)?(.+)$", s, re.I)
+    if m:
+        c = ahora.replace(hour=int(m.group(2)), minute=int(m.group(3) or 0), second=0, microsecond=0)
+        if m.group(1) or c <= ahora:
+            c += timedelta(days=1)
+        return {"tipo": "una_vez", "ts": c.timestamp()}, m.group(5)
+    return None, ("No lo entendí. Prueba con «en 3 horas …», «mañana a las 9 …», «a las 18:30 …», "
+                  "«cada lunes a las 9 …» o «cada día a las 21 …».")
+
+
+def auto_crear(texto, reemplaza=None):
+    """(ok, fila o motivo). Guarda el registro estructurado, no el texto."""
+    h, encargo = auto_interpretar(texto)
+    if h is None:
+        return False, encargo
+    if h.get("tipo") == "una_vez" and h["ts"] <= time.time():
+        return False, "Esa hora ya pasó."
+    aid = reemplaza or f"rec-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid() % 1000}"
+    if reemplaza:
+        _cola("DELETE FROM automatizaciones WHERE id = ?", (reemplaza,))
+    _cola("INSERT INTO automatizaciones (id, nombre, tipo, horario, encargo, motor, entrega, activo, proactivo, "
+          "proxima, creado_en, texto_original) VALUES (?,?,?,?,?,?,?,1,0,?,?,?)",
+          (aid, "Recordatorio", "recordatorio", json.dumps(h), encargo.strip(), "local (código, $0)",
+           "aviso en la bandeja", _auto_proxima(h), _now_iso(), str(texto)))
+    log(f"automatizaciones: creado {aid}: «{encargo.strip()}», {auto_describir(h)} (de «{texto}»)")
+    return True, auto_get(aid)
+
+
+def auto_get(aid):
+    rows = _cola("SELECT * FROM automatizaciones WHERE id = ?", (aid,), fetch=True)
+    return dict(rows[0]) if rows else None
+
+
+def auto_lista():
+    return [dict(r) for r in _cola("SELECT * FROM automatizaciones ORDER BY tipo = 'recordatorio', creado_en",
+                                   fetch=True) or []]
+
+
+def auto_activar(aid, on):
+    _cola("UPDATE automatizaciones SET activo = ? WHERE id = ?", (1 if on else 0, aid))
+    log(f"automatizaciones: {aid} {'encendido' if on else 'apagado'}")
+
+
+def auto_borrar(aid):
+    _cola("DELETE FROM automatizaciones WHERE id = ?", (aid,))
+    log(f"automatizaciones: {aid} borrado a mano")
+
+
+def auto_historial(aid=None, n=30):
+    q = "SELECT * FROM automatizaciones_runs" + (" WHERE auto_id = ?" if aid else "") + " ORDER BY n DESC LIMIT ?"
+    return [dict(r) for r in _cola(q, ((aid, n) if aid else (n,)), fetch=True) or []]
+
+
+def _auto_aviso_ok():
+    """Máximo AUTO_AVISOS_DIA avisos proactivos al día."""
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    rows = _cola("SELECT COUNT(*) AS n FROM automatizaciones_runs WHERE aviso = 1 AND at LIKE ?", (hoy + "%",),
+                 fetch=True)
+    return (rows[0]["n"] if rows else 0) < AUTO_AVISOS_DIA
+
+
+def _auto_salud():
+    out, mal = [], []
+    pc = proxy_config()
+    out.append("proxy: " + conn_text())
+    if pc.get("password") and not state.get("proxy_on"):
+        mal.append("el proxy está configurado pero apagado")
+    try:
+        ok, why = engine_status("llama")
+        out.append(f"llama-server: {why}")
+    except Exception as e:
+        out.append(f"llama-server: sin dato ({type(e).__name__})")
+    try:
+        du = shutil.disk_usage(str(APP_DIR))
+        gb = du.free / 1e9
+        out.append(f"disco: {gb:.1f} GB libres en {APP_DIR.drive or APP_DIR}")
+        if gb < 10:
+            mal.append(f"quedan {gb:.1f} GB de disco")
+    except OSError as e:
+        out.append(f"disco: sin dato ({e})")
+    tun = GATEWAY.get("tunel") or {}
+    out.append(f"Tailscale: {tun.get('estado') or 'sin comprobar'}")
+    try:
+        cr = cola_resumen()
+        out.append(f"cola: {cr['pendiente']} pendiente(s)")
+    except Exception as e:
+        out.append(f"cola: sin dato ({type(e).__name__})")
+    return ("mal" if mal else "ok"), "; ".join(out), ("Salud: " + mal[0]) if mal else None
+
+
+def _auto_cuota():
+    """Chequeo barato contra logs locales (result.json de 7 días), nunca contra
+    el modelo. Sin límite semanal puesto por ti: sin dato (no se inventa)."""
+    lim = load_settings().get("aviso_cuota_semanal_usd")
+    desde = time.time() - 7 * 86400
+    total, n = 0.0, 0
+    for f in RESULTS.glob("*.result.json"):
+        try:
+            if f.stat().st_mtime < desde:
+                continue
+            d = json.loads(f.read_text(encoding="utf-8"))
+            c = d.get("cost_usd")
+            if isinstance(c, (int, float)):
+                total, n = total + c, n + 1
+        except (OSError, ValueError):
+            continue
+    base = f"7 días: ${total:.2f} en {n} resultado(s) (leído de {RESULTS.name}\\*.result.json)"
+    if not isinstance(lim, (int, float)) or lim <= 0:
+        return "sin_dato", base + "; sin límite semanal (aviso_cuota_semanal_usd): Anthropic no publica la cuota de " \
+                                  "Max y no se inventa", None
+    pct = total / lim * 100
+    return ("aviso" if pct >= 75 else "ok"), f"{base}; {pct:.0f} % de ${lim:.2f}", \
+        (f"Cuota: {pct:.0f} % de tu semana" if pct >= 75 else None)
+
+
+def _auto_vigia():
+    lim = time.time() - AUTO_VIGIA_MIN * 60
+    rows = _cola("SELECT id, actualizado_ts FROM tareas WHERE estado = 'en_curso' AND actualizado_ts < ?", (lim,),
+                 fetch=True) or []
+    paradas = [r["id"] for r in rows]
+    recup = [] if _AUTO.get("recup_avisadas") else list(GATEWAY.get("recuperadas") or [])
+    _AUTO["recup_avisadas"] = True
+    det = f"{len(paradas)} tarea(s) sin avanzar más de {AUTO_VIGIA_MIN} min" + \
+          (f" ({', '.join(paradas[:3])})" if paradas else "") + \
+          (f"; {len(recup)} re-encolada(s) tras un corte" if recup else "")
+    aviso = (f"Cola: {paradas[0]} no avanza" if paradas else
+             f"Cola: {len(recup)} tarea(s) recuperadas tras corte" if recup else None)
+    return ("aviso" if aviso else "ok"), det, aviso
+
+
+def _auto_resumen():
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    filas = _cola("SELECT id, estado, motor FROM tareas WHERE creado_en LIKE ? ORDER BY creado_en", (hoy + "%",),
+                  fetch=True) or []
+    lineas = [f"# Resumen del {hoy} (Growi Bridge, local)", "", f"{len(filas)} tarea(s) hoy."]
+    lineas += [f"- {r['id']}: {r['estado']} ({r['motor'] or '—'})" for r in filas]
+    dest = OUTBOX / f"resumen-{hoy}.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    return "ok", f"{len(filas)} tarea(s) en {dest.name}", None
+
+
+def auto_ejecutar(a):
+    """Corre un trabajo y lo apunta en el historial (costo $0: código local)."""
+    h = json.loads(a["horario"])
+    t0 = time.time()
+    try:
+        if a["tipo"] == "recordatorio":
+            res, det, msg = "ok", f"recordado: {a['encargo']}", "Recuerda: " + (a["encargo"] or "")
+        else:
+            res, det, msg = {"salud": _auto_salud, "cuota": _auto_cuota, "vigia": _auto_vigia,
+                             "resumen": _auto_resumen}[a["tipo"]]()
+    except Exception as e:
+        res, det, msg = "error", f"{type(e).__name__}: {e}", None
+    aviso = 0
+    if msg:
+        # Lo pedido por el usuario (recordatorio) siempre avisa; lo proactivo, 1 al día.
+        if a["tipo"] == "recordatorio" or (a["proactivo"] and _auto_aviso_ok()):
+            toast(msg)
+            aviso = 1 if a["tipo"] != "recordatorio" else 2
+        else:
+            det += " (aviso no mostrado: ya hubo el aviso proactivo de hoy)"
+    _cola("INSERT INTO automatizaciones_runs (auto_id, nombre, at, ts, resultado, detalle, motor, costo_usd, aviso) "
+          "VALUES (?,?,?,?,?,?,?,?,?)", (a["id"], a["nombre"], _now_iso(), t0, res, det[:1000], a["motor"], 0.0,
+                                         1 if aviso == 1 else 0))
+    if h.get("tipo") == "una_vez":
+        _cola("DELETE FROM automatizaciones WHERE id = ?", (a["id"],))  # se borra tras hacerlo
+    else:
+        _cola("UPDATE automatizaciones SET proxima = ? WHERE id = ?", (_auto_proxima(h), a["id"]))
+    log(f"automatizaciones: {a['id']} -> {res}: {det[:200]}")
+    return res, det
+
+
+def auto_tick(arranque=False):
+    ahora = time.time()
+    for a in auto_lista():
+        if not a["activo"]:
+            continue
+        h = json.loads(a["horario"])
+        toca = (h.get("tipo") == "al_arrancar" and arranque) or \
+               (a["proxima"] is not None and a["proxima"] <= ahora)
+        if toca:
+            auto_ejecutar(a)
+
+
+def _auto_loop():
+    time.sleep(20)  # que arranquen proxy, cola y túnel antes del chequeo de salud
+    try:
+        auto_tick(arranque=True)
+    except Exception as e:
+        log(f"automatizaciones: arranque falló ({type(e).__name__}: {e})")
+    while True:
+        time.sleep(AUTO_TICK_S)
+        try:
+            auto_tick()
+        except Exception as e:
+            log(f"automatizaciones: {type(e).__name__}: {e}")
+
+
+def automations_ui():
+    """Ventana: trabajos en palabras normales, interruptor, editar, borrar,
+    crear en lenguaje natural e historial con costo."""
+    top = tk.Toplevel(_root)
+    top.title("Automatizaciones")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(720)}x{S(620)}")
+    body = _scrollable(top)
+    try:
+        k = _KitCtk(body, global_setup=False) if _ctk_wanted() else _KitTk(body)
+    except Exception:
+        k = _KitTk(body)
+    _widgets["auto_top"] = top
+    nueva = k.section("Nueva", "Escríbelo como lo dirías: «recuérdame en 3 horas llamar a Ana», «cada lunes a las "
+                               "9 revisar la cola». Se guarda con su horario, no como texto.")
+    r = k.row(nueva)
+    ent = k.entry(r, width=52)
+    ent.pack(side="left", fill="x", expand=True)
+    msg = k.label(nueva, "", muted=True, wrap=620)
+    msg.pack(anchor="w", padx=16, pady=(0, 8))
+    edita = {"id": None}
+    lista = k.section("Trabajos", "Todos usan código local ($0), nunca el modelo principal. Lo proactivo avisa como "
+                                  "mucho una vez al día.")
+    hist = k.section("Historial", "Cuándo corrió cada uno, qué hizo y cuánto costó.")
+    _widgets["auto_ent"], _widgets["auto_msg"] = ent, msg
+
+    def pintar():
+        for card in (lista, hist):
+            for ch in list(card.winfo_children())[1:]:
+                if getattr(ch, "_auto_fila", False):
+                    ch.destroy()
+        for a in auto_lista():
+            h = json.loads(a["horario"])
+            f = k.row(lista)
+            f._auto_fila = True
+            k.label(f, f"{a['nombre']}: {a['encargo'] or ''}", bold=True, wrap=440).pack(anchor="w")
+            k.label(f, f"{auto_describir(h)} · {a['motor']} · {'encendido' if a['activo'] else 'APAGADO'}",
+                    muted=True, wrap=440).pack(anchor="w")
+            bt = k.frame(f)
+            bt.pack(anchor="w", pady=(4, 0))
+            if h.get("tipo") != "hueco":
+                k.button(bt, "Apagar" if a["activo"] else "Encender",
+                         lambda a=a: (auto_activar(a["id"], not a["activo"]), pintar())).pack(side="left")
+            if a["tipo"] == "recordatorio":
+                k.button(bt, "Editar", lambda a=a: (edita.__setitem__("id", a["id"]), ent.delete(0, "end"),
+                                                    ent.insert(0, a["texto_original"] or ""),
+                                                    k.set_label(msg, "Cambia el texto y pulsa Guardar."))).pack(
+                    side="left", padx=(8, 0))
+                k.button(bt, "Borrar", lambda a=a: (auto_borrar(a["id"]), pintar())).pack(side="left", padx=(8, 0))
+        for x in auto_historial(n=15):
+            f = k.row(hist)
+            f._auto_fila = True
+            k.label(f, f"{x['at'][:16].replace('T', ' ')} · {x['nombre']} · {x['resultado']} · "
+                       f"${x['costo_usd']:.2f} · {x['detalle']}", muted=True, wrap=620).pack(anchor="w")
+
+    def guardar():
+        ok, out = auto_crear(ent.get(), reemplaza=edita["id"])
+        edita["id"] = None
+        if ok:
+            ent.delete(0, "end")
+            k.set_label(msg, f"Guardado: «{out['encargo']}», {auto_describir(json.loads(out['horario']))}.")
+        else:
+            k.set_label(msg, out)
+        pintar()
+    k.button(r, "Guardar", guardar, accent=True).pack(side="left", padx=(8, 0))
+    ent.bind("<Return>", lambda _e: guardar())
+    _widgets["auto_pintar"], _widgets["auto_guardar"] = pintar, guardar
+    pintar()
+    return top
 
 
 def build_gui():
@@ -33003,6 +33383,8 @@ def main():
     # y gasto (cada 5 min); la configuracion inicial solo la primera vez.
     threading.Thread(target=_availability_loop, daemon=True).start()
     threading.Thread(target=_spend_loop, daemon=True).start()
+    if LANE == "a":  # el carril B no avisa ni programa nada
+        threading.Thread(target=_auto_loop, daemon=True).start()
     # Salida estable: IP de salida + comparación + Avast + vigía del túnel
     # (en un hilo: sin internet la ventana arranca igual).
     threading.Thread(target=_ipx_arranque, daemon=True).start()

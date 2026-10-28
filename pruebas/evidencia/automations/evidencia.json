@@ -1,0 +1,177 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-auto-82_b00kd",
+ "b_salud_al_arrancar": [
+  {
+   "n": 1,
+   "auto_id": "salud-arranque",
+   "nombre": "Chequeo de salud al arrancar",
+   "at": "2026-10-27T23:40:18-04:00",
+   "ts": 1793158816.4321578,
+   "resultado": "ok",
+   "detalle": "proxy: ● Conectado — sales por EEUU; llama-server: sin respuesta de 127.0.0.1:8080 en 2 s; disco: 83.9 GB libres en C:; Tailscale: activo; cola: 0 pendiente(s)",
+   "motor": "local (código, $0)",
+   "costo_usd": 0.0,
+   "aviso": 0
+  }
+ ],
+ "iniciales": [
+  {
+   "id": "salud-arranque",
+   "nombre": "Chequeo de salud al arrancar",
+   "motor": "local (código, $0)",
+   "activo": 1,
+   "proactivo": 1,
+   "horario": "cada vez que arranca la app"
+  },
+  {
+   "id": "cuota-max-75",
+   "nombre": "Aviso de cuota Max al 75 %",
+   "motor": "local (código, $0)",
+   "activo": 1,
+   "proactivo": 1,
+   "horario": "cada 30 minutos"
+  },
+  {
+   "id": "vigia-cola",
+   "nombre": "Vigía de la cola",
+   "motor": "local (código, $0)",
+   "activo": 1,
+   "proactivo": 1,
+   "horario": "cada 5 minutos"
+  },
+  {
+   "id": "resumen-2100",
+   "nombre": "Resumen del día (21:00)",
+   "motor": "local (código, $0)",
+   "activo": 1,
+   "proactivo": 0,
+   "horario": "todos los días a las 21:00"
+  },
+  {
+   "id": "brief-reunion",
+   "nombre": "Brief antes de una reunión",
+   "motor": "local (código, $0)",
+   "activo": 0,
+   "proactivo": 0,
+   "horario": "sin horario (hueco preparado)"
+  }
+ ],
+ "a_mensaje_ventana": "Guardado: «probar el gate de calidad», una vez, el 27/10 a las 23:41 (se borra al hacerlo).",
+ "a_guardado_estructurado": [
+  {
+   "id": "rec-20261027-234033-216",
+   "nombre": "Recordatorio",
+   "tipo": "recordatorio",
+   "horario": "{\"tipo\": \"una_vez\", \"ts\": 1793158893.580869}",
+   "encargo": "probar el gate de calidad",
+   "motor": "local (código, $0)",
+   "entrega": "aviso en la bandeja",
+   "texto_original": "recuérdame en 1 minuto probar el gate de calidad"
+  }
+ ],
+ "d_vigia_apagado_runs_antes_despues": [
+  0,
+  0
+ ],
+ "c_cuota_sin_limite": [
+  "sin_dato",
+  "7 días: $0.00 en 0 resultado(s) (leído de runner-results\\*.result.json); sin límite semanal (aviso_cuota_semanal_usd): Anthropic no publica la cuota de Max y no se inventa",
+  null
+ ],
+ "c_cuota_con_limite_10": [
+  "aviso",
+  "7 días: $8.00 en 1 resultado(s) (leído de runner-results\\*.result.json); 80 % de $10.00"
+ ],
+ "e_cuota_segunda_vez_mismo_dia": [
+  "aviso",
+  "7 días: $8.00 en 1 resultado(s) (leído de runner-results\\*.result.json); 80 % de $10.00 (aviso no mostrado: ya hubo el aviso proactivo de hoy)"
+ ],
+ "a_recordatorio_ejecutado_y_borrado": {
+  "sigue_en_la_lista": false,
+  "segundos_esperados": 73.2,
+  "historial": [
+   {
+    "n": 4,
+    "auto_id": "rec-20261027-234033-216",
+    "nombre": "Recordatorio",
+    "at": "2026-10-27T23:41:48-04:00",
+    "ts": 1793158908.4912739,
+    "resultado": "ok",
+    "detalle": "recordado: probar el gate de calidad",
+    "motor": "local (código, $0)",
+    "costo_usd": 0.0,
+    "aviso": 0
+   }
+  ]
+ },
+ "e_historial": [
+  {
+   "n": 4,
+   "auto_id": "rec-20261027-234033-216",
+   "nombre": "Recordatorio",
+   "at": "2026-10-27T23:41:48-04:00",
+   "ts": 1793158908.4912739,
+   "resultado": "ok",
+   "detalle": "recordado: probar el gate de calidad",
+   "motor": "local (código, $0)",
+   "costo_usd": 0.0,
+   "aviso": 0
+  },
+  {
+   "n": 3,
+   "auto_id": "cuota-max-75",
+   "nombre": "Aviso de cuota Max al 75 %",
+   "at": "2026-10-27T23:40:36-04:00",
+   "ts": 1793158836.4636705,
+   "resultado": "aviso",
+   "detalle": "7 días: $8.00 en 1 resultado(s) (leído de runner-results\\*.result.json); 80 % de $10.00 (aviso no mostrado: ya hubo el aviso proactivo de hoy)",
+   "motor": "local (código, $0)",
+   "costo_usd": 0.0,
+   "aviso": 0
+  },
+  {
+   "n": 2,
+   "auto_id": "cuota-max-75",
+   "nombre": "Aviso de cuota Max al 75 %",
+   "at": "2026-10-27T23:40:36-04:00",
+   "ts": 1793158836.4023643,
+   "resultado": "aviso",
+   "detalle": "7 días: $8.00 en 1 resultado(s) (leído de runner-results\\*.result.json); 80 % de $10.00",
+   "motor": "local (código, $0)",
+   "costo_usd": 0.0,
+   "aviso": 1
+  },
+  {
+   "n": 1,
+   "auto_id": "salud-arranque",
+   "nombre": "Chequeo de salud al arrancar",
+   "at": "2026-10-27T23:40:18-04:00",
+   "ts": 1793158816.4321578,
+   "resultado": "ok",
+   "detalle": "proxy: ● Conectado — sales por EEUU; llama-server: sin respuesta de 127.0.0.1:8080 en 2 s; disco: 83.9 GB libres en C:; Tailscale: activo; cola: 0 pendiente(s)",
+   "motor": "local (código, $0)",
+   "costo_usd": 0.0,
+   "aviso": 0
+  }
+ ],
+ "toasts": [
+  [
+   "23:40:36",
+   "Cuota: 80 % de tu semana"
+  ],
+  [
+   "23:41:48",
+   "Recuerda: probar el gate de calidad"
+  ]
+ ],
+ "llamadas_a_motores": 0,
+ "log": [
+  "2026-10-27T23:40:18-04:00 automatizaciones: salud-arranque -> ok: proxy: ● Conectado — sales por EEUU; llama-server: sin respuesta de 127.0.0.1:8080 en 2 s; disco: 83.9 GB libres en C:; Tailscale: activo; cola: 0 pendiente(s)",
+  "2026-10-27T23:40:33-04:00 automatizaciones: creado rec-20261027-234033-216: «probar el gate de calidad», una vez, el 27/10 a las 23:41 (se borra al hacerlo) (de «recuérdame en 1 minuto probar el gate de calidad»)",
+  "2026-10-27T23:40:36-04:00 automatizaciones: vigia-cola apagado",
+  "2026-10-27T23:40:36-04:00 automatizaciones: cuota-max-75 -> aviso: 7 días: $8.00 en 1 resultado(s) (leído de runner-results\\*.result.json); 80 % de $10.00",
+  "2026-10-27T23:40:36-04:00 automatizaciones: cuota-max-75 -> aviso: 7 días: $8.00 en 1 resultado(s) (leído de runner-results\\*.result.json); 80 % de $10.00 (aviso no mostrado: ya hubo el aviso proactivo de hoy)",
+  "2026-10-27T23:41:48-04:00 automatizaciones: rec-20261027-234033-216 -> ok: recordado: probar el gate de calidad"
+ ],
+ "tracebacks_en_log": 0
+}
