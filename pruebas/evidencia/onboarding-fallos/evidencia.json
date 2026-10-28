@@ -1,0 +1,119 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-ob-q5lnu89l",
+ "det": {
+  "plan": "B",
+  "internet": false,
+  "internet_detalle": "no responde (timed out)",
+  "vram_gb": 6.0,
+  "sin_comprobar": []
+ },
+ "a_plan_b": {
+  "paso": 2,
+  "nota": "Sin internet: empezamos con el modelo local. Cuando vuelva, conectamos la nube. Tu tarjeta tiene 6 GB: Hermes 3 8B (~8 GB) no cabe entero; te propongo un modelo de 3-4B (Llama 3.2 3B o Phi-4-mini), que sí cabe.",
+  "default_engine": "ollama:hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+  "pendientes": [
+   "instalar Claude Code e iniciar sesión",
+   "conectar la nube cuando vuelva internet"
+  ]
+ },
+ "g_siguiente_sin_cambiar": {
+  "antes": "delicado",
+  "despues": "delicado",
+  "preguntas": 0
+ },
+ "g_cambiar_y_decir_no": {
+  "guardrail": "delicado",
+  "pregunta": [
+   "Esto cambia los permisos: de «Solo lo delicado» a «Siempre pregunta» y solo podrá mirar (sin cambiar archivos). ¿Lo cambio?"
+  ]
+ },
+ "c_reabrir_sigue_en_paso": 2,
+ "c_saltar_queda_pendiente": [
+  "instalar Claude Code e iniciar sesión",
+  "conectar la nube cuando vuelva internet",
+  "elegir tus carpetas"
+ ],
+ "b_proxy_caido_paso4": {
+  "texto": "El proxy no responde ahora. Puedes seguir con el modelo local y reintentarlo luego.",
+  "botones_visibles": true
+ },
+ "b_seguir_sin_proxy": {
+  "texto": "Sigues sin proxy: el modelo local responde. Queda pendiente en Estado.",
+  "pendientes": [
+   "instalar Claude Code e iniciar sesión",
+   "conectar la nube cuando vuelva internet",
+   "elegir tus carpetas",
+   "conectar el proxy cuando responda"
+  ]
+ },
+ "f_ejemplo": "Mira mi carpeta de Descargas y dime cómo la ordenarías por tipo de archivo (no muevas nada todavía: solo dime el plan)",
+ "f_chat_trae_el_ejemplo": "Mira mi carpeta de Descargas y dime cómo la ordenarías por tipo de archivo (no muevas nada todavía: solo dime el plan)",
+ "f_paleta_primera_vez": [
+  [
+   "Para empezar, pídele algo real",
+   [
+    "Ordéname la carpeta de Descargas por tipo (dime el plan antes de mover nada)",
+    "Resúmeme en 5 líneas el PDF más reciente de mis Descargas",
+    "Hazme una lista de lo que tengo pendiente esta semana según mis notas"
+   ]
+  ]
+ ],
+ "f_paleta_segunda_vez": [
+  "Favoritos",
+  "Frecuentes"
+ ],
+ "b_otro": {
+  "asistente_otro": {
+   "nombre": "MiIA",
+   "comando": "miia -p \"{prompt}\"",
+   "listo": false
+  },
+  "pendientes": [
+   "instalar Claude Code e iniciar sesión",
+   "conectar la nube cuando vuelva internet",
+   "elegir tus carpetas",
+   "conectar el proxy cuando responda",
+   "configurar MiIA como motor (Modelos → Nuevo motor)"
+  ]
+ },
+ "d_checklist": [
+  {
+   "item": "instalar Claude Code e iniciar sesión",
+   "hecho": true
+  },
+  {
+   "item": "conectar la nube cuando vuelva internet",
+   "hecho": false
+  },
+  {
+   "item": "elegir tus carpetas",
+   "hecho": true
+  },
+  {
+   "item": "conectar el proxy cuando responda",
+   "hecho": false
+  },
+  {
+   "item": "configurar MiIA como motor (Modelos → Nuevo motor)",
+   "hecho": false
+  }
+ ],
+ "e_reinstalacion": {
+  "pregunta": "Ya tienes una configuración (asistente y carpetas). ¿La usamos tal cual?",
+  "onboarding_done": true,
+  "overlay_abierto": false
+ },
+ "log": [
+  "2026-10-28T02:03:36-04:00 configuración inicial: encontré ollama 0.40.10, claude 2.1.312, codex 0.160.1, gemini 0.64.0; Ollama 1 modelos",
+  "2026-10-28T02:04:48-04:00 configuración inicial: asistente principal Claude Code",
+  "2026-10-28T02:04:48-04:00 configuración inicial: plan B (sin internet): el paso «conectar» se salta solo",
+  "2026-10-28T02:04:48-04:00 configuración inicial: 2 carpetas, nivel «Mirar y cambiar»",
+  "2026-10-28T02:04:48-04:00 configuración inicial: permisos sin cambiar (no confirmado)",
+  "2026-10-28T02:04:48-04:00 configuración inicial: 2 carpetas, nivel «Solo mirar»",
+  "2026-10-28T02:04:49-04:00 configuración inicial: sigo donde quedó (paso 3)",
+  "2026-10-28T02:05:05-04:00 configuración inicial: terminada",
+  "2026-10-28T02:05:06-04:00 configuración inicial: asistente principal MiIA",
+  "2026-10-28T02:05:07-04:00 configuración inicial: reinstalación: se usa la configuración que ya había"
+ ],
+ "tracebacks_en_log": 0
+}

@@ -21656,11 +21656,133 @@ def onboarding_detect():
         if p.is_dir() and str(p) not in cands:
             cands.append(str(p))
     det["folders"] = [p for p in cands if Path(p).is_dir()]
+    try:  # plan A (con internet) o B (sin internet: solo local); nunca bloquea: 4 s
+        code_i, _b, _m, err_i = _probe("https://www.google.com/generate_204", False, timeout=4)
+        det["internet"] = code_i in (200, 204)
+        det["internet_detalle"] = f"HTTP {code_i}" if code_i else f"no responde ({err_i})"
+    except Exception as e:
+        det["internet"], det["internet_detalle"] = None, f"no se pudo comprobar ({type(e).__name__})"
+    det["plan"] = "B" if det["internet"] is False else "A"
+    det["vram_gb"] = _ob_vram_gb()
+    fin = time.time() + 15
     for t in ths:
-        t.join(15)
+        t.join(max(0.1, fin - time.time()))
+    det["sin_comprobar"] = [n for n in ("claude", "codex", "ollama", "gemini") if n not in det["cli"]]
     log("configuración inicial: encontré " + ", ".join(
         f"{k} {v}" for k, v in det["cli"].items() if v) + f"; Ollama {len(det['ollama_models'] or [])} modelos")
     return det
+
+
+OB_PASOS = ("elegir tu asistente", "conectar tu asistente", "elegir tus carpetas", "comprobar que todo anda")
+
+
+def _ob_vram_gb():
+    """VRAM total de la tarjeta (nvidia-smi, 5 s) o None."""
+    exe = shutil.which("nvidia-smi")
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, "--query-gpu=memory.total", "--format=csv,noheader,nounits"], capture_output=True,
+                           text=True, timeout=5, creationflags=_NO_WINDOW)
+        return round(int(r.stdout.strip().splitlines()[0]) / 1024, 1)
+    except Exception:
+        return None
+
+
+def ob_modelo_que_cabe(vram_gb):
+    """(texto, modelo o None): si el recomendado (Hermes 3 8B, ~8 GB) no cabe,
+    el más grande del catálogo que sí cabe, dicho en una frase."""
+    if not vram_gb:
+        return "No pude ver tu tarjeta gráfica: el modelo local se elige en Modelos → Comprobar mi PC.", None
+    if vram_gb >= 8:
+        return f"Tu tarjeta tiene {vram_gb:g} GB: cabe Hermes 3 8B, el recomendado.", "hermes3:8b"
+    cands = []
+    try:
+        for m in (load_catalog() or {}).get("models") or load_catalog() or []:
+            if not isinstance(m, dict):
+                continue
+            gb = m.get("size_gb") or m.get("vram_gb") or m.get("tam_gb")
+            if isinstance(gb, (int, float)) and gb <= vram_gb * 0.75:
+                cands.append((gb, m.get("name") or m.get("id")))
+    except Exception:
+        cands = []
+    pick = max(cands)[1] if cands else "un modelo de 3-4B (Llama 3.2 3B o Phi-4-mini)"
+    return (f"Tu tarjeta tiene {vram_gb:g} GB: Hermes 3 8B (~8 GB) no cabe entero; te propongo {pick}, "
+            "que sí cabe."), (pick if cands else None)
+
+
+def ob_pendientes():
+    """Lo que quedó por hacer de la configuración inicial, con su detección."""
+    s = load_settings()
+    out = []
+    for p in s.get("onboarding_pendientes") or []:
+        hecho = False
+        if p.startswith("instalar Claude"):
+            hecho = bool(shutil.which("claude")) and bool(_claude_plan())
+        elif p.startswith("conectar"):
+            hecho = conn_state() == "conectado"
+        elif p.startswith("elegir tus carpetas"):
+            hecho = (FOLDERS_FILE.exists() and bool(load_folders()))
+        elif p.startswith("descargar un modelo"):
+            hecho = bool(_mdl.get("installed")) or bool(lib_installed())
+        elif p.startswith("configurar"):
+            hecho = bool(s.get("asistente_otro", {}).get("listo"))
+        out.append({"item": p, "hecho": hecho})
+    return out
+
+
+def _ob_pendiente(item, quitar=False):
+    s = load_settings()
+    lst = [x for x in (s.get("onboarding_pendientes") or []) if x != item]
+    if not quitar:
+        lst.append(item)
+    s["onboarding_pendientes"] = lst[-6:]
+    save_settings(s)
+
+
+def _ob_checklist_build(page):
+    """Estado: lo que quedó de la configuración inicial (2-3 cosas), que se
+    tacha SOLO por detección. Sin pendientes no se muestra (nunca «0 de 5»)."""
+    card = tk.Frame(page, bg=THEME["card"])
+    _widgets["ob_check_card"] = card
+    tk.Label(card, text="Para terminar de configurar", font=SECTION_FONT, bg=THEME["card"],
+             fg=THEME["text"]).pack(anchor="w", padx=16, pady=(10, 2))
+    _widgets["ob_check_lineas"] = tk.Frame(card, bg=THEME["card"])
+    _widgets["ob_check_lineas"].pack(fill="x", padx=16, pady=(0, 10))
+    _ob_checklist_refresh()
+
+
+def _ob_checklist_refresh():
+    card, box = _widgets.get("ob_check_card"), _widgets.get("ob_check_lineas")
+    if card is None or not card.winfo_exists():
+        return
+    try:
+        items = ob_pendientes()
+    except Exception as e:
+        log(f"configuración inicial: checklist ({type(e).__name__}: {e})")
+        items = []
+    for ch in box.winfo_children():
+        ch.destroy()
+    vivos = [x for x in items if not x["hecho"]]
+    if not vivos:  # nada pendiente: la tarjeta no sale (ni «0 de 5»)
+        card.pack_forget()
+    else:
+        if not card.winfo_manager():
+            hijos = card.master.winfo_children()
+            card.pack(fill="x", padx=20, pady=(12, 0), before=hijos[0] if hijos and hijos[0] is not card else None)
+        hechos = [x for x in items if x["hecho"]]
+        for x in vivos[:3] + hechos[:max(0, 3 - len(vivos))]:
+            tk.Label(box, text=("✓ " if x["hecho"] else "○ ") + x["item"], font=(FONT, 10, "overstrike" if x["hecho"]
+                                                                                   else "normal"),
+                     bg=THEME["card"], fg=THEME["muted"] if x["hecho"] else THEME["text"], anchor="w").pack(anchor="w")
+        if len(vivos) > 3:
+            tk.Label(box, text=f"… y {len(vivos) - 3} más", font=(FONT, 10), bg=THEME["card"],
+                     fg=THEME["muted"], anchor="w").pack(anchor="w")
+    _widgets["ob_check_estado"] = items
+    try:
+        _root.after(5000, _ob_checklist_refresh)
+    except Exception:
+        pass
 
 
 def _ob_preselect(det):
@@ -21685,8 +21807,16 @@ def open_onboarding(root=None):
     ov = tk.Frame(root, bg=bg)
     ov.place(relx=0, rely=0, relwidth=1, relheight=1)
     ov.lift()
-    _OB.update(frame=ov, step=0, choice=tk.StringVar(value="claude"), other=tk.StringVar(),
-               level=tk.StringVar(value="preguntar"), folder_vars={}, det=_OB.get("det"))
+    _ss = load_settings()
+    _g = guardrail_level()  # el nivel por defecto es el ACTUAL: Siguiente no cambia los permisos
+    _lvl_ini = ("mirar" if "tool:Write" in (_ss.get("disabled_abilities") or []) else
+                "cambiar" if _g == "delicado" else "preguntar")
+    _OB.update(frame=ov, step=min(3, int(_ss.get("onboarding_paso") or 0)), choice=tk.StringVar(value="claude"),
+               other=tk.StringVar(), level=tk.StringVar(value=_lvl_ini), level_ini=_lvl_ini, folder_vars={},
+               det=_OB.get("det"), otro_nombre=tk.StringVar(), otro_cmd=tk.StringVar(),
+               otro_luego=tk.BooleanVar(value=False), nota="")
+    if _OB["step"]:
+        log(f"configuración inicial: sigo donde quedó (paso {_OB['step'] + 1})")
     col = tk.Frame(ov, bg=bg)
     col.place(relx=0.5, rely=0, anchor="n", relheight=1, width=min(S(680), max(S(480), root.winfo_width() - S(40))))
     _OB["col"] = col
@@ -21752,6 +21882,8 @@ def _ob_render():
     _OB["sub"].config(text=subs[step], fg=T["muted"])
     _OB["back"].config(state="normal" if step else "disabled")
     _OB["next"].config(text="Empezar a hablar" if step == 3 else "Siguiente")
+    if _OB.get("nota") and _OB.get("sub") is not None:
+        _OB["sub"].config(text=_OB["nota"])
     _OB["skip"].config(text="Lo haré más tarde" if step == 1 else "Saltar por ahora")
     body = _OB["body"]
     _clear(body)
@@ -21786,11 +21918,18 @@ def _ob_render():
             tk.Label(row, text=desc + extra, font=(FONT, 9), bg=cbg, fg=T["muted"], wraplength=S(560),
                      justify="left").pack(anchor="w", padx=(S(24), 0))
             if k == "otro" and _OB["choice"].get() == "otro":
-                cb = ttk.Combobox(row, textvariable=_OB["other"], width=36, state="readonly",
-                                  values=[c[0] for c in engine_choices()])
-                cb.pack(anchor="w", padx=(S(24), 0), pady=4)
-                if not _OB["other"].get():
-                    cb.current(0)
+                for lab_, var_ in (("Cómo se llama el programa", _OB["otro_nombre"]),
+                                   ("Cómo se le pide algo por línea de comandos (p. ej. miia -p \"{prompt}\")",
+                                    _OB["otro_cmd"])):
+                    tk.Label(row, text=lab_, font=(FONT, 9), bg=cbg, fg=T["muted"]).pack(anchor="w", padx=(S(24), 0))
+                    ttk.Entry(row, textvariable=var_, width=48).pack(anchor="w", padx=(S(24), 0), pady=(0, 4))
+                tk.Checkbutton(row, text="No lo sé: lo configuro luego (mientras, el modelo local)",
+                               variable=_OB["otro_luego"], bg=cbg, fg=T["text"], activebackground=cbg,
+                               selectcolor="#FFFFFF").pack(anchor="w", padx=(S(24), 0))
+            if k in ("claude", "codex") and det is not None and not (det.get("cli") or {}).get(k) \
+                    and _OB["choice"].get() == k:
+                tk.Label(row, text="Por instalar: puedes instalarlo luego; mientras, empiezas con el modelo local.",
+                         font=(FONT, 9, "bold"), bg=cbg, fg=T["orange_text"]).pack(anchor="w", padx=(S(24), 0))
             tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=12)
     elif step == 1:
         ch = _OB["choice"].get()
@@ -21890,6 +22029,15 @@ def _ob_render():
                            wraplength=S(540), justify="left")
             msg.pack(anchor="w")
             _OB["checks"][k] = (ic, msg)
+            if k == "proxy":
+                _OB["proxy_botones"] = tk.Frame(left, bg=cbg)
+                ttk.Button(_OB["proxy_botones"], text="Reintentar",
+                           command=lambda: proxy_test_ui(None, None, _OB.get("proxy_done"))).pack(side="left")
+                ttk.Button(_OB["proxy_botones"], text="Seguir sin proxy",
+                           command=lambda: (_ob_pendiente("conectar el proxy cuando responda"),
+                                            _ob_set("proxy", True, "Sigues sin proxy: el modelo local responde. "
+                                                                   "Queda pendiente en Estado."))).pack(
+                    side="left", padx=(8, 0))
             tk.Frame(card, bg=T["line"], height=S(1)).pack(fill="x", padx=16)
         ttk.Button(card, text="Volver a probar", command=_ob_run_checks).pack(anchor="w", padx=16, pady=10)
         ex = tk.Frame(body, bg=cbg)
@@ -21902,7 +22050,9 @@ def _ob_render():
 
 
 def _ob_example():
-    return "Dime qué archivos hay en mi Inbox y resúmeme el más reciente en 3 líneas"
+    """Una tarea REAL y útil (no un saludo): la primera victoria."""
+    return ("Mira mi carpeta de Descargas y dime cómo la ordenarías por tipo de archivo "
+            "(no muevas nada todavía: solo dime el plan)")
 
 
 def _ob_open_url(url):
@@ -21948,12 +22098,26 @@ def _ob_save_step(step):
         ch = _OB["choice"].get()
         s["assistant"] = ch
         s["assistant_name"] = dict((k, n) for k, n, _d in OB_ASSISTANTS)[ch]
+        det = _OB.get("det") or {}
+        local = next((m for _l, m, _d in engine_choices() if m.startswith("ollama:") or m == "motor:llama"),
+                     "motor:auto")
         if ch == "otro":
-            lab = _OB["other"].get()
-            model = dict((l, m) for l, m, _d in engine_choices()).get(lab)
-            if model:
-                s["default_engine"] = model
-                s["assistant_name"] = lab
+            nom, cmd_ = _OB["otro_nombre"].get().strip(), _OB["otro_cmd"].get().strip()
+            if nom and cmd_ and not _OB["otro_luego"].get():
+                s["asistente_otro"] = {"nombre": nom, "comando": cmd_, "listo": False}
+                s["assistant_name"] = nom
+                pend = f"configurar {nom} como motor (Modelos → Nuevo motor)"
+            else:
+                pend = "configurar tu asistente (Modelos → Nuevo motor)"
+            s["default_engine"] = local
+            save_settings(s)
+            _ob_pendiente(pend)
+            s = load_settings()
+        elif ch in ("claude", "codex") and det and not (det.get("cli") or {}).get(ch):
+            s["default_engine"] = local  # por instalar: mientras, el local (nunca un paso 4 que falla)
+            save_settings(s)
+            _ob_pendiente("instalar Claude Code e iniciar sesión" if ch == "claude" else "instalar Codex")
+            s = load_settings()
         elif ch in OB_ENGINE:
             s["default_engine"] = OB_ENGINE[ch]
         log(f"configuración inicial: asistente principal {s['assistant_name']}")
@@ -21975,11 +22139,23 @@ def _ob_save_step(step):
         lvl = _OB["level"].get()
         s = load_settings()
         s["folder_access"] = lvl
-        s["guardrail"] = {"mirar": "siempre", "cambiar": "delicado", "preguntar": "siempre"}[lvl]
-        off = set(s.get("disabled_abilities") or [])
-        for t in ("tool:Write", "tool:Edit"):
-            (off.add if lvl == "mirar" else off.discard)(t)
-        s["disabled_abilities"] = sorted(off)
+        if lvl != _OB.get("level_ini"):
+            # Los permisos solo cambian si TÚ cambiaste el nivel y lo confirmas.
+            nuevo = {"mirar": "siempre", "cambiar": "delicado", "preguntar": "siempre"}[lvl]
+            antes = guardrail_level()
+            if messagebox.askyesno("Permisos", f"Esto cambia los permisos: de «{GUARDRAIL_CORTO.get(antes, antes)}» "
+                                               f"a «{GUARDRAIL_CORTO.get(nuevo, nuevo)}»"
+                                               + (" y solo podrá mirar (sin cambiar archivos)" if lvl == "mirar" else "")
+                                               + ". ¿Lo cambio?", default="no"):
+                s["guardrail"] = nuevo
+                off = set(s.get("disabled_abilities") or [])
+                for t in ("tool:Write", "tool:Edit"):
+                    (off.add if lvl == "mirar" else off.discard)(t)
+                s["disabled_abilities"] = sorted(off)
+                log(f"configuración inicial: permisos cambiados a «{nuevo}» (confirmado)")
+            else:
+                s["folder_access"] = _OB.get("level_ini")
+                log("configuración inicial: permisos sin cambiar (no confirmado)")
         log(f"configuración inicial: {len(roots)} carpetas, nivel «{dict((k, l) for k, l, _e in OB_LEVELS)[lvl]}»")
     save_settings(s)
 
@@ -21993,10 +22169,22 @@ def _ob_next(skip=False):
             _ob_save_step(step)
         except Exception as e:
             log(f"configuración inicial: no se pudo guardar el paso {step + 1} ({e})")
+    if skip:
+        _ob_pendiente(OB_PASOS[step])
     if step >= 3:
         _ob_finish(start=not skip)
         return
     _OB["step"] = step + 1
+    det = _OB.get("det") or {}
+    if _OB["step"] == 1 and det.get("plan") == "B":
+        _OB["nota"] = ("Sin internet: empezamos con el modelo local. Cuando vuelva, conectamos la nube. "
+                       + ob_modelo_que_cabe(det.get("vram_gb"))[0])
+        _ob_pendiente("conectar la nube cuando vuelva internet")
+        _OB["step"] = 2
+        log("configuración inicial: plan B (sin internet): el paso «conectar» se salta solo")
+    s = load_settings()
+    s["onboarding_paso"] = _OB["step"]
+    save_settings(s)
     _ob_render()
 
 
@@ -22010,6 +22198,8 @@ def _ob_finish(start=True):
     s = load_settings()
     s["onboarding_done"] = True
     s["onboarding_at"] = _now_iso()
+    s.pop("onboarding_paso", None)
+    s["paleta_sugerencias"] = True  # la primera vez que abra la paleta: 3 peticiones concretas
     save_settings(s)
     log("configuración inicial: terminada" + ("" if start else " (saltada)"))
     try:
@@ -22052,7 +22242,13 @@ def _ob_run_checks():
 
     def _proxy_done():
         p = _AV["rows"].get("proxy") or {}
-        _ob_set("proxy", p.get("estado") == "ok", _proxy_result_text().lstrip("✓✗! "))
+        ok = p.get("estado") == "ok"
+        _ob_set("proxy", ok, _proxy_result_text().lstrip("✓✗! ") if ok else
+                "El proxy no responde ahora. Puedes seguir con el modelo local y reintentarlo luego.")
+        fr = _OB.get("proxy_botones")
+        if fr is not None and fr.winfo_exists():  # una fila en rojo no bloquea el paso
+            (fr.pack_forget if ok else lambda: fr.pack(anchor="w", pady=(4, 0)))()
+    _OB["proxy_done"] = _proxy_done
     proxy_test_ui(None, None, _proxy_done)
 
     def _motor():
@@ -22100,6 +22296,15 @@ def _ob_run_checks():
 
 def maybe_onboarding():
     if onboarding_needed():
+        s = load_settings()
+        if (s.get("assistant") or s.get("default_engine")) and FOLDERS_FILE.exists():
+            if messagebox.askyesno("Configuración inicial", "Ya tienes una configuración (asistente y carpetas). "
+                                                            "¿La usamos tal cual?"):
+                s["onboarding_done"] = True
+                s["onboarding_at"] = _now_iso()
+                save_settings(s)
+                log("configuración inicial: reinstalación: se usa la configuración que ya había")
+                return
         open_onboarding()
 
 
@@ -22563,6 +22768,15 @@ def _palette_sections(q):
     calc = _calc_item(q)
     if calc is not None:  # una cuenta (solo cifras y + - * / %): su resultado es el primer item
         return [("Calculadora", [calc])]
+    if not toks and load_settings().get("paleta_sugerencias"):
+        s = load_settings()
+        s.pop("paleta_sugerencias", None)  # una sola vez: no es un tour
+        save_settings(s)
+        sug = ["Ordéname la carpeta de Descargas por tipo (dime el plan antes de mover nada)",
+               "Resúmeme en 5 líneas el PDF más reciente de mis Descargas",
+               "Hazme una lista de lo que tengo pendiente esta semana según mis notas"]
+        return [("Para empezar, pídele algo real", [{"id": "_sug", "label": x, "fn": lambda x=x: _palette_ask_ai(x)}
+                                                    for x in sug])] + _palette_sections("")
     if not toks:
         by_id = {c["id"]: c for c in _PALETTE_CMDS}
         fav = [by_id[i] for i in favs if i in by_id]
@@ -35761,6 +35975,7 @@ def build_gui():
     # ================= pagina Ajustes (piloto CustomTkinter; si no, la clasica)
     _build_ajustes(pages["ajustes"])
     _build_claves(_widgets.get("aj_claves_slot") or pages["ajustes"], "ajustes")  # en «Motores y modelos»
+    _ob_checklist_build(pages["estado"])  # lo que quedó de la configuración inicial (t-onboarding-fallos)
 
 
     # ================= pagina Registro
