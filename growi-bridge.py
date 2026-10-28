@@ -1770,7 +1770,8 @@ UPDATE_FILES = ["growi-bridge.py", "growi.ico", "growi-tray.png", "growi-header.
                 "growi.png", "instalar-growi-bridge.bat", "iniciar-growi-bridge.bat",
                 "probar-growi-bridge.bat", "LEEME-growi-bridge.md", "VERSION",
                 "DESIGN.md", "notas-mobbin.md", "models-catalog.json", "README.md",
-                "engines.json", "availability.json", "riesgos.json"]
+                "engines.json", "availability.json", "riesgos.json", "PROTOCOLO-PRUEBA-CORTE.md",
+                "politicas.ejemplo.json"]
 
 
 def _update_repo():
@@ -1825,7 +1826,8 @@ def download_update(version):
     listo (actualizar.bat mueve cada .new a su sitio y relanza la app).
     True si quedo todo, False si algo fallo. Los archivos opcionales
     (catalogo de modelos, README) se saltan si el repo aun no los tiene."""
-    optional = {"models-catalog.json", "README.md", "riesgos.json"}
+    optional = {"models-catalog.json", "README.md", "riesgos.json", "PROTOCOLO-PRUEBA-CORTE.md",
+                "politicas.ejemplo.json"}
     got = []
     for name in UPDATE_FILES:
         url = f"https://raw.githubusercontent.com/{_update_repo()}/main/{name}"
@@ -27745,6 +27747,181 @@ def _skb_aprobar(carpeta, nombre):
     _skb_refrescar(reindexar=True)
 
 
+# ---------------------------------------------------------------- prueba de corte (t-prueba-corte)
+# No es codigo de resiliencia: es el procedimiento para MEDIRLA. El protocolo
+# esta en PROTOCOLO-PRUEBA-CORTE.md; aqui va su resumen, el checklist de
+# preparacion con lo que la app ve en este momento y el formulario que deja
+# una linea en resiliencia.log (acumulativo, nunca se borra). El corte lo
+# provoca Leandro (breaker o desenchufar): la app nunca apaga el PC.
+RESIL_LOG = APP_DIR / "resiliencia.log"
+PROTOCOLO_CORTE = APP_DIR / "PROTOCOLO-PRUEBA-CORTE.md"
+RESIL_TIPOS = (("real", "Real (breaker o desenchufar)"), ("simulado", "Simulado"),
+               ("sin prueba", "Sin prueba este mes"))
+RESIL_CAMPOS = (("cortado", "Qué se cortó"), ("perdido", "Qué se perdió"), ("solo", "Qué se reanudó solo"),
+                ("a_mano", "Qué hubo que hacer a mano"), ("notas", "Notas"))
+_RESIL_CAB = "# fecha | tipo (real / simulado / sin prueba) | qué se cortó | qué se perdió | qué se reanudó solo | " \
+             "qué hubo que hacer a mano | notas"
+
+
+def resiliencia_registrar(tipo, **campos):
+    """Una línea más en resiliencia.log. (ok, línea_o_motivo)."""
+    if tipo not in dict(RESIL_TIPOS):
+        return False, "elige si fue real, simulado o sin prueba"
+    if tipo == "sin prueba" and not str(campos.get("notas") or "").strip():
+        campos["notas"] = "sin prueba este mes: no había tarea larga"
+    if tipo != "sin prueba" and not str(campos.get("cortado") or "").strip():
+        return False, "di qué se cortó (p. ej. «breaker, con la tarea X a los 9 min»)"
+    limpio = [re.sub(r"\s+", " ", str(campos.get(k) or "").replace("|", "/")).strip() or "—"
+              for k, _t in RESIL_CAMPOS]
+    linea = " | ".join([datetime.now().strftime("%Y-%m-%d %H:%M"), tipo] + limpio)
+    nuevo = not RESIL_LOG.exists()
+    with open(RESIL_LOG, "a", encoding="utf-8") as f:
+        if nuevo:
+            f.write(_RESIL_CAB + "\n")
+        f.write(linea + "\n")
+    log(f"prueba de corte: registrada en {RESIL_LOG.name}: {linea[:200]}")
+    return True, linea
+
+
+def resiliencia_leer(n=12):
+    try:
+        lineas = [x for x in RESIL_LOG.read_text(encoding="utf-8").splitlines() if x.strip() and not x.startswith("#")]
+    except OSError:
+        return []
+    return lineas[-n:]
+
+
+def corte_checklist():
+    """[(listo, texto)] de la preparación, con lo que la app ve AHORA."""
+    out = []
+    tarea = state.get("current")
+    mins = None
+    try:
+        if tarea and _ACT.get("started_at"):
+            mins = (time.time() - datetime.fromisoformat(_ACT["started_at"]).timestamp()) / 60
+    except (TypeError, ValueError):
+        mins = None
+    if tarea and mins is not None and mins >= 5:
+        out.append((True, f"Hay una tarea larga en curso: {tarea} (lleva {int(mins)} min)."))
+    elif tarea:
+        out.append((False, f"Hay una tarea en curso ({tarea}), pero lleva menos de 5 min: espera un poco."))
+    else:
+        out.append((False, "No hay ninguna tarea en curso: sin tarea larga, la prueba no se hace (regístralo como "
+                           "«sin prueba este mes»)."))
+    try:
+        partes = sorted(p.name for p in MODELS_DIR.glob("*.part"))
+    except OSError:
+        partes = []
+    out.append((True, f"Descarga a medias: {', '.join(partes)}." if partes else
+                "Sin descarga de modelo a medias (se anota «sin descarga»)."))
+    pag = _widgets.get("pagina_actual") or "estado"
+    out.append((True, f"La app está en la pestaña «{pag}»: apúntalo (hoy la app no la recuerda tras un corte)."))
+    t = GATEWAY.get("tunel") or {}
+    out.append((t.get("estado") == "activo", "El túnel (Tailscale) está activo." if t.get("estado") == "activo" else
+                f"El túnel no está activo ({t.get('estado') or 'sin comprobar'}): apúntalo."))
+    out.append((True, f"Hora del PC: {datetime.now():%H:%M:%S}. Compárala con el móvil y apúntala."))
+    return out
+
+
+_CORTE = {"top": None}
+
+
+def prueba_corte_ui():
+    top = _CORTE.get("top")
+    if top is not None:
+        try:
+            top.deiconify()
+            top.lift()
+            _corte_render()
+            return top
+        except tk.TclError:
+            pass
+    top = tk.Toplevel(_root)
+    top.title("Prueba de corte")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(720)}x{S(660)}")
+    page = _scrollable(top)
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(page)
+        except Exception as e:
+            log(f"prueba de corte: CustomTkinter no disponible ({type(e).__name__}: {e}); ventana clásica")
+    k = k or _KitTk(page)
+    _CORTE.update(top=top, kit=k)
+    c = k.section("Protocolo", "Una vez al mes, a mitad de una tarea larga, cortas la luz de verdad (breaker o "
+                               "desenchufar; tú, nunca la app). Esperas 1 min, enciendes y no tocas nada 5 min: se "
+                               "mide qué vuelve solo. Si no es un corte de verdad, se registra como «simulado».")
+    r = k.row(c, pady=(2, 12))
+    k.button(r, "Abrir el protocolo completo", lambda: os.startfile(str(PROTOCOLO_CORTE))
+             if PROTOCOLO_CORTE.exists() else messagebox.showinfo("Prueba de corte", f"No encuentro {PROTOCOLO_CORTE}")
+             ).pack(side="left")
+    k.button(r, "Abrir resiliencia.log", lambda: os.startfile(str(RESIL_LOG)) if RESIL_LOG.exists() else None).pack(
+        side="left", padx=(8, 0))
+    c = k.section("Antes de cortar", "Lo que tiene que estar en su sitio para que la prueba mida algo.")
+    _CORTE["check"] = k.frame(c)
+    _CORTE["check"].pack(fill="x", padx=16, pady=(2, 4))
+    r = k.row(c, pady=(2, 12))
+    k.button(r, "Comprobar otra vez", _corte_render).pack(side="left")
+    k.button(r, "Registrar «sin prueba este mes»", _corte_sin_prueba).pack(side="left", padx=(8, 0))
+    c = k.section("Registrar la prueba", "Al volver la luz y tras 5 minutos sin tocar nada. Cada prueba es una línea "
+                                         "nueva de resiliencia.log.")
+    f = k.frame(c)
+    f.pack(fill="x", padx=16, pady=(2, 2))
+    _CORTE["tipo"] = k.segmented(f, list(RESIL_TIPOS), lambda _v: None)
+    _CORTE["tipo"].pack(side="left")
+    _CORTE["campos"] = {}
+    for key, tit in RESIL_CAMPOS:
+        f = k.frame(c)
+        f.pack(fill="x", padx=16, pady=2)
+        k.label(f, tit, muted=True, wrap=0).pack(anchor="w")
+        ent = k.entry(f, width=70)
+        ent.pack(anchor="w", fill="x")
+        _CORTE["campos"][key] = ent
+    r = k.row(c, pady=(6, 4))
+    k.button(r, "Guardar en resiliencia.log", _corte_guardar, accent=True).pack(side="left")
+    _CORTE["msg"] = k.label(c, "", wrap=640)
+    _CORTE["msg"].pack(fill="x", padx=16, pady=(2, 12))
+    c = k.section("Pruebas anteriores", "Para comparar: lo que se perdió y lo que hubo que hacer a mano, mes a mes.")
+    _CORTE["hist"] = k.frame(c)
+    _CORTE["hist"].pack(fill="x", padx=16, pady=(2, 12))
+    _corte_render()
+    return top
+
+
+def _corte_render():
+    k = _CORTE["kit"]
+    for box in (_CORTE["check"], _CORTE["hist"]):
+        for ch in box.winfo_children():
+            ch.destroy()
+    for ok, txt in corte_checklist():
+        k.label(_CORTE["check"], ("✓ " if ok else "○ ") + txt, wrap=640,
+                color="green_text" if ok else "orange_text").pack(anchor="w", pady=1)
+    filas = resiliencia_leer()
+    if not filas:
+        k.label(_CORTE["hist"], "Todavía no hay ninguna prueba registrada.", muted=True).pack(anchor="w")
+    for x in reversed(filas):
+        k.label(_CORTE["hist"], x, wrap=640, muted=True).pack(anchor="w", pady=1)
+
+
+def _corte_guardar():
+    k = _CORTE["kit"]
+    campos = {key: e.get() for key, e in _CORTE["campos"].items()}
+    ok, msg = resiliencia_registrar(k.seg_get(_CORTE["tipo"]), **campos)
+    k.set_label(_CORTE["msg"], text=("Guardado: " + msg) if ok else f"No se guardó: {msg}.",
+                color="green_text" if ok else "red")
+    if ok:
+        for e in _CORTE["campos"].values():
+            e.delete(0, "end")
+    _corte_render()
+
+
+def _corte_sin_prueba():
+    ok, msg = resiliencia_registrar("sin prueba")
+    _CORTE["kit"].set_label(_CORTE["msg"], text=("Guardado: " + msg) if ok else msg, color="green_text" if ok else "red")
+    _corte_render()
+
+
 # ---------------------------------------------------------------- Sobre mí (t-perfil-sobre-mi)
 # El perfil es lo que el usuario DECLARA (quién es, qué hace, cómo escribe, a
 # quién le habla, qué no hace), en palabras, en memory\PERFIL.md junto a la
@@ -37538,6 +37715,9 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("prueba_corte", "Prueba de corte de luz (protocolo, checklist y registro)",
+          "corte luz apagon resiliencia prueba breaker desenchufar registro protocolo",
+          lambda: (show_window(), prueba_corte_ui())),
         C("politicas", "Reglas permanentes (permitir, preguntar o no permitir)",
           "reglas politicas permisos permitir siempre preguntar negar auditoria registro aprobaciones",
           lambda: (show_window(), politicas_ui())),

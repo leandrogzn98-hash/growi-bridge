@@ -1,0 +1,40 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-corte-p2ncaxc4",
+ "a_paleta": "Prueba de corte de luz (protocolo, checklist y registro)",
+ "a_ventana": "Prueba de corte",
+ "a_protocolo_en_la_app": true,
+ "c_checklist": [
+  [
+   false,
+   "No hay ninguna tarea en curso: sin tarea larga, la prueba no se hace (regístralo como «sin prueba este mes»)."
+  ],
+  [
+   true,
+   "Sin descarga de modelo a medias (se anota «sin descarga»)."
+  ],
+  [
+   true,
+   "La app está en la pestaña «estado»: apúntalo (hoy la app no la recuerda tras un corte)."
+  ],
+  [
+   true,
+   "El túnel (Tailscale) está activo."
+  ],
+  [
+   true,
+   "Hora del PC: 03:41:36. Compárala con el móvil y apúntala."
+  ]
+ ],
+ "b_real_sin_datos": "No se guardó: di qué se cortó (p. ej. «breaker, con la tarea X a los 9 min»).",
+ "b_mensaje": "Guardado: 2026-10-28 03:41 | simulado | SIMULADO en la prueba automática: no se cortó la luz | nada (no hubo corte) | — | — | línea de ejemplo de la prueba del formulario; no es una prueba de corte",
+ "b_resiliencia_log": [
+  "# fecha | tipo (real / simulado / sin prueba) | qué se cortó | qué se perdió | qué se reanudó solo | qué hubo que hacer a mano | notas",
+  "2026-10-28 03:41 | sin prueba | — | — | — | — | sin prueba este mes: no había tarea larga",
+  "2026-10-28 03:41 | simulado | SIMULADO en la prueba automática: no se cortó la luz | nada (no hubo corte) | — | — | línea de ejemplo de la prueba del formulario; no es una prueba de corte"
+ ],
+ "log": [
+  "2026-10-28T03:41:37-04:00 prueba de corte: registrada en resiliencia.log: 2026-10-28 03:41 | sin prueba | — | — | — | — | sin prueba este mes: no había tarea larga",
+  "2026-10-28T03:41:37-04:00 prueba de corte: registrada en resiliencia.log: 2026-10-28 03:41 | simulado | SIMULADO en la prueba automática: no se cortó la luz | nada (no hubo corte) | — | — | línea de ejemplo de la prueba del formulario; no es una prueba de corte"
+ ],
+ "tracebacks_en_log": 0
+}
