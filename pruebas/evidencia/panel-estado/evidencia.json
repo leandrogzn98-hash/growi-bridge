@@ -1,0 +1,190 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-panel-a795tn6_",
+ "congelado_muestras": {
+  "_configure:18662 < main:36714": 10,
+  "main:36714": 112,
+  "_wrap_soon:34374 < main:36714": 1,
+  "_clear:25762 < _render_models:25924 < _apply_models_list:25612 < _models_poll:25678": 1,
+  "_configure:18662 < refresh_ui:16846 < _tick:16954 < main:36714": 1,
+  "_configure:18662 < refresh_ui:16822 < _tick:16954 < main:36714": 2,
+  "_configure:18662 < set_label:26824 < _gw_render:27600 < <lambda>:27244": 1,
+  "_configure:18662 < _rewrap:34368 < main:36714": 1,
+  "_clear:25762 < _render_models:25924 < _apply:25748 < _drain_ui_queue:25542": 1,
+  "log:221 < _done:25714 < _drain_ui_queue:25542 < _models_poll:25647": 1,
+  "_clear:25762 < _render_models:25924 < _done:25715 < _drain_ui_queue:25542": 1,
+  "__init__:18655 < label:26813 < _mdl_fila:26311 < _render_models:25935": 1
+ },
+ "reposo_antes_ms": {
+  "max": 64130.4,
+  "n": 1,
+  "s": 64.2
+ },
+ "cambio_superficie": "motor:auto",
+ "d_reposo_antes_ms": [
+  687,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  9,
+  0,
+  0,
+  117,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "d_muestras_ms": {
+  "antes_de_desplazar": [
+   12,
+   666,
+   0,
+   1,
+   0,
+   0,
+   1,
+   3,
+   0,
+   0
+  ],
+  "despues": [
+   121,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "d_mientras_comprueba": {
+  "s_desde_reintentar": 1.3,
+  "motores": "Motores: comprobando… (las demás secciones no esperan)",
+  "cola": "Tareas: 0 pendientes, 0 en ejecución, 0 fallidas",
+  "skills": "Cargadas: 3 de 3 activas: hypit, reverse-engineer-anything, synced",
+  "canales": "El chat de Muse: conectado por el puente"
+ },
+ "d_motores_llegan": {
+  "llegaron": true,
+  "s": 11.3
+ },
+ "d_ventana_sin_congelar_ms": {
+  "max": 665.9,
+  "n": 32,
+  "p95": 121.4
+ },
+ "a_secciones": [
+  "## Gateway",
+  "## Canales",
+  "## Skills",
+  "## Cadena de modelos y respaldo",
+  "## Motores",
+  "## Cola"
+ ],
+ "a_filas": {
+  "h_proc": "## Gateway",
+  "gw_vivo": "Estado: vivo desde las 02:56 (hace 1 min); una sola instancia",
+  "gw_tunel": "Acceso remoto: por Tailscale, solo desde tu red",
+  "gw_runner": "Runner: parado",
+  "gw_det_off": "Detalle técnico: proceso, puertos y token (plegado)",
+  "h_can": "## Canales",
+  "can_whatsapp": "WhatsApp: conectado por el puente",
+  "can_chat": "El chat de Muse: conectado por el puente",
+  "can_mascota": "La cajita de la mascota: apagada",
+  "h_sk": "## Skills",
+  "sk": "Cargadas: 3 de 3 activas: hypit, reverse-engineer-anything, synced",
+  "sk_b": "De Bridge: sin datos: no encuentro la carpeta C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-panel-a795tn6_\\app\\skills",
+  "h_mod": "## Cadena de modelos y respaldo",
+  "mod_act": "Modelo activo: claude (el de por defecto)",
+  "mod_cad": "Orden: claude → el modelo local si cae la nube",
+  "mod_cam": "Último cambio: a las 02:57: motor:inexistente → Automático, porque Chat de Tareas: ya no está en la lista de modelos disponibles",
+  "mod_jue": "Revisión: llama y si no, ollama y si no, claude",
+  "mod_decl": "Respaldo por motor: gemini pasa a llama",
+  "mod_loc2": "En tu PC: hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+  "h_mot": "## Motores",
+  "m_claude": "Claude (por defecto): disponible: programa instalado",
+  "m_claude_c": "    Credencial: no usa clave",
+  "m_codex": "Codex: disponible: programa instalado",
+  "m_codex_c": "    Credencial: no usa clave",
+  "m_llama": "Local Hermes 3 directo $0: no disponible: sin respuesta del servidor local en 2 s",
+  "m_llama_c": "    Credencial: no usa clave",
+  "m_ollama": "Ollama · Hermes 3 8B (local $0): disponible: responde",
+  "m_ollama_c": "    Credencial: no usa clave",
+  "m_meshy": "Meshy (3D): no disponible: sin credencial: la clave «meshy-personal» de meshy no está guardada",
+  "m_meshy_c": "    Credencial: meshy, clave «meshy-personal», no está guardada",
+  "m_gemini": "Gemini (Antigravity CLI): no disponible: sin credencial: la clave «gemini-personal» de gemini no está guardada",
+  "m_gemini_c": "    Credencial: gemini, clave «gemini-personal», no está guardada",
+  "h_cola": "## Cola",
+  "cola_n": "Tareas: 0 pendientes, 0 en ejecución, 0 fallidas",
+  "cola_esp": "Esperan: 1 tu aprobación (no frenan la cola), 0 tu decisión"
+ },
+ "a_sin_puertos_en_vista": {
+  "127.0.0.1": false,
+  "8797": false,
+  "token": false
+ },
+ "b_llama": "Local Hermes 3 directo $0: no disponible: sin respuesta del servidor local en 2 s",
+ "b_boton_comprobar": true,
+ "b_cola_sin_datos": "Cola: sin datos: no se pudo leer (OperationalError: database is locked (simulado en la prueba)). Las tareas siguen guardadas en la cola",
+ "b_cola_reintentar": true,
+ "c_reintentar_vuelve": true,
+ "detalle_abierto": {
+  "gw_vivo": "Estado: vivo desde las 02:56 (hace 1 min); una sola instancia",
+  "gw_tunel": "Acceso remoto: por Tailscale, solo desde tu red",
+  "gw_runner": "Runner: parado",
+  "gw_det": "Detalle técnico: proceso, puertos y token",
+  "gw_pid": "    Proceso: pid 6076, carril a; mutex Local\\GrowiBridgePruebaPanel, lockfile C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-panel-a795tn6_\\app\\gateway.lock (pid 6076)",
+  "gw_port": "    Plano de control: 127.0.0.1:8797, 100.100.225.88:8797. Con token; Origin y Host validados",
+  "gw_tok": "    Token: migrado de secret.txt, en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-panel-a795tn6_\\token\\plano-control-a.dpapi",
+  "gw_tip": "    Túnel: 100.100.225.88:8797"
+ },
+ "detalle_cerrado": true,
+ "c_ver_tarea": {
+  "pagina": "tareas",
+  "seleccion": [
+   "t-panel-prueba"
+  ],
+  "detalle": "t-panel-prueba, pendiente, Ollama, ronda 0/3\nEncargo: Dime cómo ordenarías mis Descargas (prueba del panel)"
+ },
+ "c_ir_a_modelos": "modelos",
+ "c_comprobar_de_nuevo": {
+  "releido": true,
+  "llama": "Local Hermes 3 directo $0: no disponible: sin respuesta del servidor local en 2 s"
+ },
+ "log": [
+  "2026-10-28T02:56:17-04:00 gateway: panel de Estado con CustomTkinter 6.0.0 (110 ms)",
+  "2026-10-28T02:56:20-04:00 motores: tarjetas con CustomTkinter 6.0.0 (1776 ms, importacion incluida)",
+  "2026-10-28T02:56:28-04:00 gateway: token del plano de control migrado de secret.txt y guardado cifrado en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-panel-a795tn6_\\token\\plano-control-a.dpapi (secret.txt sigue en la carpeta: la app ya no lo lee, pero el servidor del navegador sí; no lo borres hasta que ese también lea el token)",
+  "2026-10-28T02:56:28-04:00 gateway: túnel Tailscale escuchando en 100.100.225.88:8797 (solo esa IP; token y Origin igual)",
+  "2026-10-28T02:56:31-04:00 motores: claude sí, codex sí, llama no, ollama sí, meshy no, gemini no",
+  "2026-10-28T02:57:38-04:00 superficies: el modelo motor:inexistente ya no está (ya no está en la lista de modelos disponibles): Chat de Tareas usa «Automático»",
+  "2026-10-28T02:57:57-04:00 gateway: desde Estado, detalle de la tarea t-panel-prueba",
+  "2026-10-28T02:58:09-04:00 gateway: comprobando de nuevo los motores (desde el panel de Estado)"
+ ],
+ "tracebacks_en_log": 0
+}

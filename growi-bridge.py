@@ -6809,6 +6809,8 @@ def superficie_modelo(sup, avisar=True):
     nom = next((lab for lab, mm, _d in engine_choices() if mm == m), m)
     msg = f"el modelo {nom} ya no está ({why}): {dict(SUPERFICIES).get(sup, sup)} usa «Automático»"
     log(f"superficies: {msg}")
+    _CAMBIOS_MOTOR.append({"at": _now_iso(), "de": str(m), "a": "Automático",
+                           "motivo": f"{dict(SUPERFICIES).get(sup, sup)}: {why}"})
     if avisar:
         try:
             toast(f"{nom[:20]} ya no está: uso Automático")
@@ -14395,6 +14397,7 @@ def ck_preparar(task, row_cola):
         if not puede:
             _ck_degradar(task, plan, f"el motor {task.get('motor')} no puede continuar una sesión")
         elif m_antes and m_antes != task.get("motor"):
+            motor_cambio(m_antes, task.get("motor"), f"la tarea {task.get('id')} cambió de motor entre rondas")
             _ck_degradar(task, plan, f"cambio de motor entre rondas ({m_antes} → {task.get('motor')}): "
                                      "el motor nuevo no puede continuar la sesión del anterior")
         elif antes and antes[-1]["cwd"] and Path(antes[-1]["cwd"]).is_dir():
@@ -15984,24 +15987,27 @@ def _escucha():
 
 
 # ---- estado en vivo (lo que lee la pestana Estado por el plano de control)
-def _motores_estado():
+def _motores_estado(esperar=True):
     """Cada motor con su estado, base_url y credencial (proveedor + etiqueta
     + 4 ultimos), leidos de su descriptor. Comprobar un motor HTTP cuesta
     hasta 2 s: se sirve lo ultimo leido (de hace <= 10 s) y se vuelve a leer
-    en segundo plano; tras una recarga de config se lee en el momento."""
+    en segundo plano; tras una recarga de config se lee en el momento (o,
+    con esperar=False, se lanza la lectura y se devuelve None = «comprobando»)."""
     c = _GW_ESTADO_CACHE
-    if c["motores"] is not None:
-        if time.time() - c["t"] >= 10 and not c.get("leyendo"):
-            c["leyendo"] = True
+    if c["motores"] is None and esperar:
+        return _motores_estado_leer()
+    if (c["motores"] is None or time.time() - c["t"] >= 10) and not c.get("leyendo"):
+        c["leyendo"] = True
 
-            def _bg():
-                try:
-                    _motores_estado_leer()
-                finally:
-                    c["leyendo"] = False
-            threading.Thread(target=_bg, daemon=True).start()
-        return c["motores"]
-    return _motores_estado_leer()
+        def _bg():
+            try:
+                _motores_estado_leer()
+            except Exception as e:
+                log(f"gateway: no se pudieron comprobar los motores ({type(e).__name__}: {e})")
+            finally:
+                c["leyendo"] = False
+        threading.Thread(target=_bg, daemon=True).start()
+    return c["motores"]
 
 
 def _motores_estado_leer():
@@ -16046,6 +16052,9 @@ def gateway_estado():
                     fallidas=cu.get("fallida", 0), esperando_aprobacion=cu.get("esperando_aprobacion", 0),
                     necesita_decision=cu.get("necesita_decision", 0), terminadas=cu.get("terminada", 0),
                     proximo_reintento=r.get("proximo_reintento"))
+        esp = _cola("SELECT id FROM tareas WHERE estado IN ('esperando_aprobacion', 'necesita_decision') "
+                    "ORDER BY actualizado_ts LIMIT 1", fetch=True)
+        cola["primera_esperando"] = esp[0]["id"] if esp else None
     except Exception as e:
         cola["error"] = f"{type(e).__name__}: {e}"
     if _cola_err[0]:
@@ -16058,6 +16067,10 @@ def gateway_estado():
         on = bool(state.get("mascot")) if key == "mascota" else state.get("bridge") == "corriendo"
         canales.append({"id": key, "nombre": name, "conectado": on})
     lk = GATEWAY.get("lock") or {}
+    mot = _motores_estado(esperar=False)
+    lv = read_live() or {}
+    vivo = ({k: lv.get(k) for k in ("motor", "modelo", "tokens_in", "tokens_out", "elapsed_s", "actualizado")}
+            if lv and lv.get("estado") != "terminado" and state.get("current") else None)
     return {
         "gateway": {"vivo": True, "pid": os.getpid(), "carril": LANE, "puerto": BRIDGE_PORT,
                     "escucha": _escucha(), "tunel": GATEWAY.get("tunel"),
@@ -16074,8 +16087,11 @@ def gateway_estado():
                      "at": GATEWAY.get("arranque_at")},
         "skills": skills,
         "skills_bridge": skills_resumen(),
-        "motores": _motores_estado(),
+        "motores": mot or [],
+        "comprobando": ["motores"] if mot is None else [],
         "respaldo": _cadena_respaldo(),
+        "cambios_motor": list(_CAMBIOS_MOTOR)[-5:],
+        "vivo": vivo,
         "modelos_locales": [m.get("name") for m in (_mdl.get("installed") or [])],
         "canales": canales,
         "recarga": list(_RECARGA["hist"])[-5:],
@@ -21407,13 +21423,27 @@ def _refresh_conn_widgets():
                 "Sin conexión: ni la nube ni el modelo local responden. Mira el mapa en Estado.")
 
 
+# ---- cambios de motor (t-panel-estado-gateway): cada vez que algo pasa de
+# un motor a otro (la nube cae y va al local, un modelo de una superficie deja
+# de estar, una ronda cambia de motor) queda aqui con su motivo; el panel de
+# Estado enseña el ultimo. En memoria: «desde que arrancó», sin inventar.
+_CAMBIOS_MOTOR = deque(maxlen=20)
+
+
+def motor_cambio(de, a, motivo):
+    _CAMBIOS_MOTOR.append({"at": _now_iso(), "de": str(de), "a": str(a), "motivo": str(motivo)})
+    log(f"motores: cambio de {de} a {a} ({motivo})")
+
+
 def local_fallback_model(model):
     """Si la nube cayo, lo que pide la app va al modelo local (aviso claro)."""
     if not state.get("nube_caida") or conn_state() != "local":
         return model, False
     if model.startswith("ollama:") or model in ("motor:llama", "motor:ollama"):
         return model, False
-    return "ollama:" + (default_ollama_model() or OLLAMA_MODEL), True
+    nuevo = "ollama:" + (default_ollama_model() or OLLAMA_MODEL)
+    motor_cambio(model, nuevo, "la nube no responde: lo que pides desde la app va al modelo local")
+    return nuevo, True
 
 
 # ---- bandeja: icono con distintivo de conexion y numero de cuota
@@ -27183,7 +27213,7 @@ def _gw_fetch():
             raise ValueError("respuesta sin la sección gateway")
     except ValueError as e:
         return "error", f"respuesta que no se entiende ({e})"
-    if not d.get("motores"):
+    if not d.get("motores") and not d.get("comprobando"):
         return "vacio", d
     return "contenido", d
 
@@ -27250,8 +27280,8 @@ def _build_gateway_panel(tab):
 def _build_gateway_con(k):
     W = _widgets
     _GW["kit"] = k
-    card = k.section("Gateway", "Un solo proceso hace de puente, runner y cola. Esto se lee en vivo del "
-                                "plano de control (solo 127.0.0.1, con token) cada 3 s.")
+    card = k.section("Gateway", "Un solo proceso hace de puente, runner y cola. Se lee en vivo cada 3 s, sin "
+                                "congelar la ventana; lo que tarda dice «comprobando…» y no frena lo demás.")
     r = k.row(card, pady=(6, 4))
     W["gw_msg"] = k.label(r, "", wrap=520)
     W["gw_msg"].pack(side="left", fill="x", expand=True)
@@ -27275,46 +27305,84 @@ def _gw_body_nuevo():
     return body
 
 
+def _gw_hace(seg):
+    seg = int(seg or 0)
+    if seg < 90:
+        return f"{seg} s"
+    if seg < 5400:
+        return f"{seg // 60} min"
+    return f"{seg // 3600} h {seg % 3600 // 60} min"
+
+
+_GW_PUERTO_RE = re.compile(r"(?:https?://)?(?:127\.0\.0\.1|localhost|\d{1,3}(?:\.\d{1,3}){3}):\d+")
+
+
+def _gw_sin_puertos(txt):
+    """La vista principal habla en palabras: «127.0.0.1:8080» -> «el servidor
+    local» (el detalle técnico sí enseña direcciones y puertos)."""
+    return _GW_PUERTO_RE.sub(lambda m: "el servidor local" if ("127.0.0.1" in m.group(0) or "localhost" in m.group(0))
+                             else "su dirección", str(txt or "")).replace("de el servidor", "del servidor")
+
+
 def _gw_rows(d, est):
-    """(clave, etiqueta, valor, color_o_None, negrita). Todo sale de d."""
+    """(clave, etiqueta, valor, color_o_None, negrita[, (boton, accion)]). Todo
+    sale de d. Orden (t-panel-estado-gateway): gateway, canales, skills, cadena
+    de modelos y respaldo, motores y cola. Puertos, pid y token solo en el
+    detalle técnico plegable, nunca en la vista principal."""
     g, c = d["gateway"], d["cola"]
-    rows = [("h_proc", "Proceso", "", None, True)]
+    rows = [("h_proc", "Gateway", "", None, True)]
     t = g.get("tunel") or {}
-    tunel_txt = (f"Tailscale en {t.get('ip')}:{t.get('puerto')}, solo esa IP" if t.get("estado") == "activo"
-                 else f"{t.get('estado') or 'sin comprobar'}: {t.get('motivo') or ''}".strip(": "))
-    rows += [
-        ("gw_vivo", "Gateway", f"proceso único vivo, pid {g['pid']}, desde las {str(g.get('inicio'))[11:19]}",
-         "green_text", False),
-        ("gw_port", "Plano de control", (", ".join(g.get("escucha") or []) or "no escucha")
-         + ". Con token; Origin y Host validados", None, False),
-        ("gw_tunel", "Acceso remoto", tunel_txt, "green_text" if t.get("estado") == "activo" else "orange_text",
-         False),
-        ("gw_runner", "Runner", ("trabajando en " + str(d["runner"].get("tarea"))) if d["runner"].get("tarea")
-         else ("esperando tareas" if d["runner"].get("estado") == "corriendo" else "parado"),
-         "green_text" if d["runner"].get("estado") == "corriendo" else "red", False),
-    ]
-    rows.append(("h_cola", "Cola", "", None, True))
-    if c.get("error"):
-        rows.append(("cola_err", "Cola", f"no se pudo leer: {c['error']}", "red", False))
+    unica = (g.get("instancia_unica") or {}).get("mutex")
+    desde = str(g.get("inicio"))[11:16]
+    rows.append(("gw_vivo", "Estado", f"vivo desde las {desde} (hace {_gw_hace(g.get('uptime_s'))})"
+                 + ("; una sola instancia" if unica else "; no pude comprobar que sea la única instancia"),
+                 "green_text" if unica else "orange_text", False))
+    t_on = t.get("estado") == "activo"
+    rows.append(("gw_tunel", "Acceso remoto", "por Tailscale, solo desde tu red" if t_on
+                 else _gw_sin_puertos(f"{t.get('estado') or 'sin comprobar'}: {t.get('motivo') or ''}".strip(": ")),
+                 "green_text" if t_on else "orange_text", False))
+    ru = d.get("runner") or {}
+    rows.append(("gw_runner", "Runner", ("trabajando en " + str(ru.get("tarea"))) if ru.get("tarea")
+                 else ("esperando tareas" if ru.get("estado") == "corriendo" else "parado"),
+                 "green_text" if ru.get("estado") == "corriendo" else "red", False,
+                 ("Ver la tarea", lambda: _gw_ver_tarea("runner")) if ru.get("tarea") else None))
+    lv = d.get("vivo")
+    if lv:
+        rows.append(("gw_vivo_uso", "Ahora mismo", f"{lv.get('motor')} ({lv.get('modelo') or 'sin modelo'}): "
+                     f"{lv.get('tokens_in') or 0} tokens de entrada, {lv.get('tokens_out') or 0} de salida, "
+                     f"{_gw_hace(lv.get('elapsed_s'))} trabajando", None, False))
+    if _GW.get("detalle"):
+        lk = g.get("instancia_unica") or {}
+        tok = g.get("token") or {}
+        rows += [
+            ("gw_det", "Detalle técnico", "proceso, puertos y token", "muted", False, ("Ocultar", _gw_detalle)),
+            ("gw_pid", "    Proceso", f"pid {g.get('pid')}, carril {g.get('carril')}; mutex {lk.get('mutex')}, "
+                                    f"lockfile {lk.get('lockfile')} (pid {lk.get('lock_pid')})", None, False),
+            ("gw_port", "    Plano de control", (", ".join(g.get("escucha") or []) or "no escucha")
+             + ". Con token; Origin y Host validados", None, False),
+            ("gw_tok", "    Token", f"{tok.get('origen') or 'sin dato'}, en {tok.get('donde')}", None, False),
+        ]
+        if t.get("ip"):
+            rows.append(("gw_tip", "    Túnel", f"{t.get('ip')}:{t.get('puerto')}", None, False))
+        rch = g.get("rechazos_recientes") or []
+        if rch:
+            rows.append(("gw_rch", "    Rechazos", f"{len(rch)} reciente(s); el último: {rch[-1]}"[:240],
+                         "orange_text", False))
     else:
-        rows.append(("cola_n", "Tareas", f"{c['pendientes']} pendientes, {c['en_curso']} en curso, "
-                                         f"{c['fallidas']} fallidas", None, False))
-        rows.append(("cola_esp", "Esperan", f"{c['esperando_aprobacion']} tu aprobación (no frenan la cola), "
-                                            f"{c['necesita_decision']} tu decisión",
-                     "orange_text" if c["esperando_aprobacion"] or c["necesita_decision"] else None, False))
-        if c.get("proximo_reintento"):
-            rows.append(("cola_prox", "Próximo reintento", str(c["proximo_reintento"])[11:19], None, False))
-    a = d.get("arranque") or {}
-    if a.get("recuperadas"):
-        n = len(a["recuperadas"])
-        rows.append(("cola_rec", "Al arrancar", (f"se re-encoló 1 tarea que quedó en curso: " if n == 1 else
-                                                 f"se re-encolaron {n} tareas que quedaron en curso: ")
-                     + ", ".join(a["recuperadas"])[:200], "orange_text", False))
+        rows.append(("gw_det_off", "Detalle técnico", "proceso, puertos y token (plegado)", "muted", False,
+                     ("Mostrar", _gw_detalle)))
+    rows.append(("h_can", "Canales", "", None, True))
+    for ch in d.get("canales") or []:
+        if ch["id"] == "mascota":
+            txt, col = ("encendida", "green_text") if ch["conectado"] else ("apagada", "muted")
+        else:
+            txt, col = ("conectado por el puente", "green_text") if ch["conectado"] else ("sin conexión", "red")
+        rows.append((f"can_{ch['id']}", ch["nombre"], txt, col, False))
     rows.append(("h_sk", "Skills", "", None, True))
     sk = d.get("skills") or []
-    on = [s["nombre"] for s in sk if s.get("activa")]
-    rows.append(("sk", "Cargadas", (f"{len(on)} de {len(sk)}: " + ", ".join(on)[:300]) if sk
-                 else "ninguna instalada en ~/.claude/skills", None if sk else "orange_text", False))
+    on = [x["nombre"] for x in sk if x.get("activa")]
+    rows.append(("sk", "Cargadas", (f"{len(on)} de {len(sk)} activas: " + ", ".join(on)[:300]) if sk
+                 else "sin datos: no hay ninguna en ~/.claude/skills", None if sk else "orange_text", False))
     sb = d.get("skills_bridge") or {}
     if sb:
         nb = sb.get("cargadas") or []
@@ -27323,37 +27391,50 @@ def _gw_rows(d, est):
                + (f"; {sb['borradores_pendientes']} borrador(es) esperan tu revisión"
                   if sb.get("borradores_pendientes") else ""))
         if sb.get("estado") == "sin_carpeta":
-            txt = f"no encuentro la carpeta {sb.get('carpeta')}"
+            txt = f"sin datos: no encuentro la carpeta {sb.get('carpeta')}"
         elif sb.get("estado") == "carga":
-            txt = "leyendo la carpeta skills\…"
+            txt = "comprobando…"
         rows.append(("sk_b", "De Bridge", txt,
                      "red" if sb.get("estado") in ("sin_carpeta", "error") else
+                     "blue" if sb.get("estado") == "carga" else
                      "orange_text" if sb.get("no_cargadas") or sb.get("borradores_pendientes") else None, False))
-    rows.append(("h_mod", "Modelos y respaldo", "", None, True))
+    rows.append(("h_mod", "Cadena de modelos y respaldo", "", None, True))
     rs = d.get("respaldo") or {}
-    rows.append(("mod_def", "Por defecto", str(rs.get("por_defecto")), None, False))
-    rows.append(("mod_jue", "Revisión", " y si no, ".join(rs.get("jueces") or []) or "sin jueces", None, False))
-    rows.append(("mod_loc", "Si cae la nube", str(rs.get("nube_a_local") or ""), None, False))
+    pd = str(rs.get("por_defecto"))
     decl = rs.get("declarados") or {}
+    activo = ru.get("motor") if ru.get("tarea") and ru.get("motor") else pd
+    rows.append(("mod_act", "Modelo activo", activo + (" (en la tarea en curso)" if activo != pd
+                                                      else " (el de por defecto)"), None, False,
+                 ("Ir a Modelos", lambda: _widgets["show_page"]("modelos"))))
+    cadena = [pd] + list(decl.get(pd) or []) + ["el modelo local si cae la nube"]
+    rows.append(("mod_cad", "Orden", " → ".join(cadena), None, False))
+    cm = d.get("cambios_motor") or []
+    if cm:
+        u = cm[-1]
+        rows.append(("mod_cam", "Último cambio", (f"a las {str(u['at'])[11:16]}: {u['de']} → {u['a']}, porque "
+                                                 f"{u['motivo']}")[:300], "orange_text", False))
+    else:
+        rows.append(("mod_cam", "Último cambio", "ninguno desde que arrancó: se usa el orden de arriba", None, False))
+    rows.append(("mod_jue", "Revisión", " y si no, ".join(rs.get("jueces") or []) or "sin jueces", None, False))
     rows.append(("mod_decl", "Respaldo por motor", "; ".join(f"{k} pasa a {', '.join(v)}" for k, v in decl.items())
                  if decl else "ningún motor declara respaldo en engines.json", None if decl else "orange_text", False))
     ml = d.get("modelos_locales") or []
-    rows.append(("mod_loc2", "En tu PC", ", ".join(ml)[:240] if ml else "sin leer todavía (abre Modelos)",
+    rows.append(("mod_loc2", "En tu PC", ", ".join(ml)[:240] if ml else "sin datos todavía (abre Modelos)",
                  None, False))
-    rows.append(("h_can", "Canales", "", None, True))
-    for ch in d.get("canales") or []:
-        if ch["id"] == "mascota":
-            txt, col = ("encendida", "green_text") if ch["conectado"] else ("apagada", "muted")
-        else:
-            txt, col = ("conectado por el puente", "green_text") if ch["conectado"] else ("sin conexión", "red")
-        rows.append((f"can_{ch['id']}", ch["nombre"], txt, col, False))
     rows.append(("h_mot", "Motores", "", None, True))
-    if est == "vacio":
-        rows.append(("mot_vacio", "Motores", "no hay ningún motor descrito en engines.json", "orange_text", False))
+    if "motores" in (d.get("comprobando") or []):
+        rows.append(("mot_comp", "Motores", "comprobando… (las demás secciones no esperan)", "blue", False))
+    elif est == "vacio":
+        rows.append(("mot_vacio", "Motores", "no hay ningún motor descrito en engines.json", "orange_text", False,
+                     ("Ir a Modelos", lambda: _widgets["show_page"]("modelos"))))
     for m in d.get("motores") or []:
         rows.append((f"m_{m['id']}", m["nombre"] + (" (por defecto)" if m.get("por_defecto") else ""),
-                     ("disponible: " if m["disponible"] else "no disponible: ") + str(m.get("motivo") or "")[:160],
-                     "green_text" if m["disponible"] else "red", False))
+                     ("disponible: " if m["disponible"] else "no disponible: ")
+                     + (str(m.get("motivo") or "") if _GW.get("detalle") else
+                        "programa instalado" if str(m.get("motivo") or "").startswith("binario")
+                        else _gw_sin_puertos(m.get("motivo")))[:160],
+                     "green_text" if m["disponible"] else "red", False,
+                     None if m["disponible"] else ("Comprobar", _gw_recomprobar)))
         cr = m.get("credencial")
         if cr:
             ctext = (f"{cr['proveedor']}, clave «{cr['activa']}»"
@@ -27362,7 +27443,31 @@ def _gw_rows(d, est):
             rows.append((f"m_{m['id']}_c", "    Credencial", ctext, None if cr["guardada"] else "red", False))
         else:
             rows.append((f"m_{m['id']}_c", "    Credencial", "no usa clave", None, False))
-        rows.append((f"m_{m['id']}_u", "    Base URL", m.get("base_url") or "sin URL (programa local)", None, False))
+        if _GW.get("detalle"):
+            rows.append((f"m_{m['id']}_u", "    Base URL", m.get("base_url") or "sin URL (programa local)", None,
+                         False))
+    rows.append(("h_cola", "Cola", "", None, True))
+    if c.get("error"):
+        rows.append(("cola_err", "Cola", f"sin datos: no se pudo leer ({_gw_sin_puertos(c['error'])}). "
+                                         "Las tareas siguen guardadas en la cola", "red", False,
+                     ("Reintentar", _gw_reintentar)))
+    else:
+        rows.append(("cola_n", "Tareas", f"{c['pendientes']} pendientes, {c['en_curso']} en ejecución, "
+                                         f"{c['fallidas']} fallidas", None, False,
+                     ("Ver tareas", lambda: _widgets["show_page"]("tareas"))))
+        rows.append(("cola_esp", "Esperan", f"{c['esperando_aprobacion']} tu aprobación (no frenan la cola), "
+                                            f"{c['necesita_decision']} tu decisión",
+                     "orange_text" if c["esperando_aprobacion"] or c["necesita_decision"] else None, False,
+                     ("Ver la tarea", lambda: _gw_ver_tarea("esperando")) if c.get("primera_esperando") else None))
+        if c.get("proximo_reintento"):
+            rows.append(("cola_prox", "Próximo reintento", str(c["proximo_reintento"])[11:19], None, False))
+    a = d.get("arranque") or {}
+    if a.get("recuperadas"):
+        n = len(a["recuperadas"])
+        rows.append(("cola_rec", "Al arrancar", ("se re-encoló 1 tarea que quedó en curso (no se perdió): "
+                                                 if n == 1 else
+                                                 f"se re-encolaron {n} tareas que quedaron en curso (no se perdieron): ")
+                     + ", ".join(a["recuperadas"])[:200], "orange_text", False))
     rec = d.get("recarga") or []
     if rec:
         u = rec[-1]
@@ -27373,6 +27478,42 @@ def _gw_rows(d, est):
                                          else "") + (f". AVISO: {u['error']}" if u.get("error") else ""),
                      "orange_text" if u.get("error") else None, False))
     return rows
+
+
+def _gw_detalle():
+    _GW["detalle"] = not _GW.get("detalle")
+    if _GW.get("data") is not None:
+        _gw_render(_GW["estado"] if _GW["estado"] in ("contenido", "vacio") else "contenido", _GW["data"])
+
+
+def _gw_recomprobar():
+    """«Comprobar de nuevo» un motor que falló: se relee ya (sin esperar a los 10 s)."""
+    _GW_ESTADO_CACHE["motores"] = None
+    log("gateway: comprobando de nuevo los motores (desde el panel de Estado)")
+    _gw_reintentar()
+
+
+def _gw_ver_tarea(cual):
+    """Va a Tareas con la tarea elegida y su detalle abierto."""
+    d = _GW.get("data") or {}
+    tid = ((d.get("runner") or {}).get("tarea") if cual == "runner"
+           else (d.get("cola") or {}).get("primera_esperando"))
+    _widgets["show_page"]("tareas")
+    tree = _widgets.get("tasks_tree")
+    if not tid or tree is None:
+        return
+    try:
+        _tasks_fp[0] = None
+        _refresh_tasks_ui()
+    except Exception as e:
+        log(f"gateway: no se pudo refrescar Tareas ({type(e).__name__}: {e})")
+    if tree.exists(tid):
+        tree.selection_set(tid)
+        tree.see(tid)
+        _show_task_detail()
+        log(f"gateway: desde Estado, detalle de la tarea {tid}")
+    else:
+        log(f"gateway: la tarea {tid} no está en la lista de Tareas")
 
 
 def _gw_render(est, d):
@@ -27386,7 +27527,7 @@ def _gw_render(est, d):
     else:
         _GW["motivo"] = d if isinstance(d, str) else ""
     textos = {
-        "carga": ("Cargando el estado del gateway…", "blue"),
+        "carga": ("Comprobando de nuevo…" if _GW["keys"] else "Cargando el estado del gateway…", "blue"),
         "sin_conexion": (f"Sin conexión con el gateway: {_GW['motivo']}. Si apagaste el puente, enciéndelo "
                          "arriba; si no, pulsa Reintentar.", "red"),
         "error": (f"No se pudo leer el estado del gateway: {_GW['motivo']}.", "red"),
@@ -27403,28 +27544,58 @@ def _gw_render(est, d):
     elif retry.winfo_ismapped():
         retry.pack_forget()
     if est not in ("contenido", "vacio"):
-        if _GW["keys"] is not None:
+        # «carga» al reintentar: las filas de antes se quedan hasta que llegue
+        # lo nuevo (borrarlas y rehacerlas congela la ventana un segundo)
+        if _GW["keys"] is not None and est != "carga":
             _gw_body_nuevo()
         return
-    rows = _gw_rows(d, est)
-    keys = [r[0] for r in rows]
+    rows = [tuple(r) + (None,) * (6 - len(r)) for r in _gw_rows(d, est)]
+    keys = [r[0] + "|" + (r[5][0] if r[5] else "") for r in rows]
     if keys != _GW["keys"]:
-        body = _gw_body_nuevo()
-        for i, (key, lab, val, col, head) in enumerate(rows):
+        # Incremental: las filas que siguen se reusan y se recolocan; solo se
+        # crean las nuevas (rehacer ~70 filas CTk de golpe congela ~1 s).
+        body = _widgets.get("gw_body") if _GW["keys"] is not None else None
+        if body is None:
+            body = _gw_body_nuevo()
+        viejas, nuevas = _GW["rows"], {}
+        quedan = {r[0]: (r[5][0] if r[5] else None, bool(r[4])) for r in rows}
+        for key, w in viejas.items():
+            if quedan.get(key) != (w[3], w[1] is None):
+                for x in (w[0], w[4]):
+                    if x is not None:
+                        x.destroy()
+        for i, (key, lab, val, col, head, acc) in enumerate(rows):
+            w = viejas.get(key)
+            if w is not None and quedan[key] == (w[3], w[1] is None):
+                a, b, bt, _al, celda = w
+                if b is not None:
+                    k.set_label(a, text=lab)
+                    k.set_label(b, text=val, color=col or "text")
+            else:
+                bt = None
+                if head:
+                    a, b, celda = k.label(body, lab, bold=True, wrap=0), None, None
+                else:
+                    a = k.label(body, lab, muted=True, wrap=0)
+                    if acc:  # el boton va al lado del valor (una 3.ª columna se sale de la tarjeta)
+                        celda = k.frame(body)
+                        b = k.label(celda, val, wrap=290, color=col)
+                        b.pack(side="left", anchor="w")
+                        bt = k.button(celda, acc[0], acc[1])
+                        bt.pack(side="left", padx=(12, 0))
+                    else:
+                        b = celda = k.label(body, val, wrap=430, color=col)
             if head:
-                a = k.label(body, lab, bold=True, wrap=0)
                 a.grid(row=i, column=0, columnspan=2, sticky="w", pady=(10 if i else 2, 2))
-                _GW["rows"][key] = (a, None)
-                continue
-            a = k.label(body, lab, muted=True, wrap=0)
-            a.grid(row=i, column=0, sticky="nw", padx=(0, 14), pady=1)
-            b = k.label(body, val, wrap=470, color=col)
-            b.grid(row=i, column=1, sticky="w", pady=1)
-            _GW["rows"][key] = (a, b)
+            else:
+                a.grid(row=i, column=0, sticky="nw", padx=(0, 14), pady=(5, 1) if bt is not None else 1)
+                celda.grid(row=i, column=1, sticky="w", pady=1)
+            nuevas[key] = (a, b, bt, acc[0] if acc else None, celda)
+        _GW["rows"] = nuevas
         _GW["keys"] = keys
     else:
-        for key, lab, val, col, head in rows:
-            a, b = _GW["rows"][key]
+        for key, lab, val, col, head, _acc in rows:
+            a, b = _GW["rows"][key][:2]
             if b is not None:
                 k.set_label(a, text=lab)
                 k.set_label(b, text=val, color=col or "text")
