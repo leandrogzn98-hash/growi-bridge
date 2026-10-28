@@ -1,0 +1,227 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-estado-tarjetas-1wqvb309",
+ "variante": "clasica",
+ "dpi": "100",
+ "build_gui_s": 2.54,
+ "kit": "_KitTk",
+ "a_salud": {
+  "puente": {
+   "nombre": "Puente",
+   "color": "green",
+   "texto": "Encendido, puerto 8781",
+   "punto": "●"
+  },
+  "runner": {
+   "nombre": "Runner",
+   "color": "green",
+   "texto": "Encendido · 0 en cola",
+   "punto": "●"
+  },
+  "proxy": {
+   "nombre": "Proxy",
+   "color": "green",
+   "texto": "Conectado — sales por EEUU. (875 ms)",
+   "punto": "●"
+  },
+  "motor:claude": {
+   "nombre": "Claude",
+   "color": "green",
+   "texto": "Disponible · 2.1.312 · comprobado 15:08",
+   "punto": "●"
+  },
+  "motor:codex": {
+   "nombre": "Codex",
+   "color": "green",
+   "texto": "Disponible · codex-cli 0.160.1 · comprobado 15:08",
+   "punto": "●"
+  },
+  "motor:llama": {
+   "nombre": "Local Hermes 3 directo $0",
+   "color": "red",
+   "texto": "No disponible: sin respuesta de 127.0.0.1:8080 en 2 s · 15:08",
+   "punto": "●"
+  },
+  "motor:ollama": {
+   "nombre": "Ollama · Hermes 3 8B (local $0)",
+   "color": "green",
+   "texto": "Disponible · ollama version is 0.40.10 · comprobado 15:08",
+   "punto": "●"
+  },
+  "motor:meshy": {
+   "nombre": "Meshy (3D)",
+   "color": "muted",
+   "texto": "sin datos: aún no se comprobó",
+   "punto": "●"
+  },
+  "motor:gemini": {
+   "nombre": "Gemini (Antigravity CLI)",
+   "color": "red",
+   "texto": "No disponible: sin credencial: no hay ninguna clave de gemini guardada (Ajustes → Claves) · 15:09",
+   "punto": "●"
+  }
+ },
+ "a_puente_cuadra": true,
+ "a_tarjeta_tipo": "Frame",
+ "b_metricas_pantalla": {
+  "tareas": [
+   "3",
+   "6 en 7 días"
+  ],
+  "mediana_s": [
+   "1:00",
+   "por tarea terminada hoy"
+  ],
+  "real": [
+   "$0.00",
+   "$0.00 en 7 días (dinero pagado)"
+  ],
+  "equiv": [
+   "$0.35",
+   "$0.80 en 7 días (no es dinero real)"
+  ]
+ },
+ "b_fuente": {
+  "dias": [
+   "2026-10-22",
+   "2026-10-23",
+   "2026-10-24",
+   "2026-10-25",
+   "2026-10-26",
+   "2026-10-27",
+   "2026-10-28"
+  ],
+  "tareas": [
+   0,
+   1,
+   0,
+   0,
+   0,
+   2,
+   3
+  ],
+  "mediana_s": [
+   null,
+   20.0,
+   null,
+   null,
+   null,
+   45.0,
+   60.0
+  ],
+  "real": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "equiv": [
+   0,
+   0.15,
+   0,
+   0,
+   0,
+   0.3,
+   0.35
+  ],
+  "day_by_model_hoy": {
+   "real": 0,
+   "equiv": 0.35
+  }
+ },
+ "b_esperado_sembrado": {
+  "tareas_hoy": 3,
+  "mediana_hoy_s": 60,
+  "tareas_7_dias": 6
+ },
+ "c_spark": {
+  "tareas": {
+   "serie": [
+    0,
+    1,
+    0,
+    0,
+    0,
+    2,
+    3
+   ],
+   "puntos": 7,
+   "items_canvas": 2,
+   "y_hoy": 4.0
+  },
+  "mediana_s": {
+   "serie": [
+    null,
+    20.0,
+    null,
+    null,
+    null,
+    45.0,
+    60.0
+   ],
+   "puntos": 3,
+   "items_canvas": 2,
+   "y_hoy": 4.0
+  },
+  "real": {
+   "serie": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "puntos": 7,
+   "items_canvas": 2,
+   "y_hoy": 34.0
+  },
+  "equiv": {
+   "serie": [
+    0,
+    0.15,
+    0,
+    0,
+    0,
+    0.3,
+    0.35
+   ],
+   "puntos": 7,
+   "items_canvas": 2,
+   "y_hoy": 4.0
+  }
+ },
+ "d_mapa": {
+  "existe": true,
+  "borde": "2",
+  "color": "#0A84FF",
+  "resaltados": 85
+ },
+ "e_banner": {
+  "decision": {
+   "mostrar": false,
+   "texto": "",
+   "tipo": ""
+  },
+  "probe": {
+   "estado": "nube",
+   "motor": "claude",
+   "modelo": "claude-opus-5-5",
+   "fuente": "última ejecución t-met-5",
+   "fallo_red": false
+  },
+  "visible": false,
+  "cuadra": true
+ },
+ "e_dpi": {
+  "minsize_ancho": 820,
+  "contenido": 510,
+  "media_columna": 247,
+  "texto_mas_ancho_con_margen": 238,
+  "dos_columnas_caben": true
+ },
+ "tracebacks_en_log": 0
+}

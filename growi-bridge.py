@@ -19739,6 +19739,11 @@ def refresh_ui():
             pass
     # Contadores de la barra lateral (Plain) y pagina Tareas, cada 10 s.
     if _tick_n[0] % 10 == 0:
+        if w.get("pagina_actual") == "estado":
+            try:
+                _est_pintar()  # tarjetas de salud y de métrica (t-estado-tarjetas-045)
+            except Exception as e:
+                log(f"estado: no se pudieron repintar las tarjetas ({type(e).__name__}: {e})")
         try:
             w["nav_count_carpetas"].config(text=str(len(load_folders())))
             w["nav_count_skills"].config(text=str(len(list_skills())))
@@ -24512,9 +24517,11 @@ def _refresh_cloud_banner():
         probe = {"estado": "ilegible", "motivo": type(e).__name__}
     mostrar, txt, tipo = cloud_banner_decidir(probe, _AV.get("nube_fallos", 0))
     _AV["banner"] = {"probe": probe, "mostrar": mostrar, "texto": txt, "tipo": tipo}
-    if mostrar and not b.winfo_ismapped():
+    # winfo_manager (empaquetado o no), no winfo_ismapped: con otra página a la vista nada está «mapeado» y un banner
+    # que dejaba de tocar se quedaba puesto al volver a Estado (visto en t-estado-tarjetas-045).
+    if mostrar and not b.winfo_manager():
         b.pack(fill="x", padx=20, pady=(12, 0))
-    elif not mostrar and b.winfo_ismapped():
+    elif not mostrar and b.winfo_manager():
         b.pack_forget()
         b.master.configure(height=1)
     if mostrar:
@@ -29835,6 +29842,282 @@ def _barra_pintar():
         n = d.get("n")
         w["sb_gr_cola"].config(text=("No se pudo leer cuántas esperan" if d.get("error") else
                                      "Leyendo…" if n is None else f"{n} en espera de tu aprobación"))
+
+
+# ---- Estado: tarjetas de salud y de métrica (t-estado-tarjetas-045). Salud: una tarjeta por servicio (puente,
+# runner, proxy) y por motor de engines.json, con punto + estado REAL (el del servicio, la fila del mapa o el
+# último healthcheck de motores-salud.json); sin dato, «sin datos». Métricas: número grande + sparkline de los
+# últimos 7 días, de los resultados reales (tareas terminadas, tiempo mediano, gasto real y equivalente Max, con
+# day_by_model, la misma fuente que el consumo vivo). La gráfica es un Canvas (no se convierte: solo se dibuja).
+# El banner de la nube y el mapa no se tocan. CustomTkinter con la versión clásica de respaldo.
+_EST: dict = {"kit": None, "ctk": False, "salud": {}, "metricas": {}, "fp": None, "ms": None}
+EST_DIAS = 7
+
+
+def estado_salud_filas():
+    """[(clave, nombre, color, texto)] de cada servicio y motor, con su estado real o «sin datos»."""
+    out = []
+    br = state.get("bridge") == "corriendo"
+    out.append(("puente", "Puente", "green" if br else "muted",
+                f"Encendido, puerto {BRIDGE_PORT}" if br else "Apagado"))
+    rn = state.get("runner") == "corriendo"
+    try:
+        cola = cola_resumen().get("pendiente") or 0
+    except Exception:
+        cola = None
+    out.append(("runner", "Runner", "green" if rn else "muted",
+                ("Encendido" if rn else "Apagado") + (f" · {cola} en cola" if cola is not None else "")))
+    p = _AV["rows"].get("proxy") or {}
+    if not p:
+        out.append(("proxy", "Proxy", "muted", "sin datos: todavía no se probó"))
+    else:
+        col = {"ok": "green", "aviso": "orange", "falla": "red"}.get(p.get("estado"), "muted")
+        out.append(("proxy", "Proxy", col, str(p.get("frase") or p.get("estado") or "sin datos")
+                    + (f" ({p['ms']} ms)" if p.get("ms") else "")))
+    sal = _salud()
+    for mid in engine_ids():
+        if mid.startswith("_"):
+            continue
+        nombre = str((engine_raw(mid) or {}).get("nombre") or mid)
+        rec = sal.get(mid) if isinstance(sal.get(mid), dict) else None
+        if mid in motores_apagados():
+            out.append((f"motor:{mid}", nombre, "muted", "Desactivado por ti"))
+        elif rec is None:
+            out.append((f"motor:{mid}", nombre, "muted", "sin datos: aún no se comprobó"))
+        else:
+            hora = str(rec.get("hora") or "")[11:16]
+            if rec.get("disponible"):
+                txt = "Disponible" + (f" · {rec['version']}" if rec.get("version") else "")
+                out.append((f"motor:{mid}", nombre, "green", txt + (f" · comprobado {hora}" if hora else "")))
+            else:
+                out.append((f"motor:{mid}", nombre, "red", f"No disponible: {str(rec.get('motivo') or '')[:120]}"
+                            + (f" · {hora}" if hora else "")))
+    return out
+
+
+def estado_metricas(hoy=None):
+    """Series de los últimos EST_DIAS días (de más viejo a hoy), de los resultados reales:
+    {"dias": [...], "tareas": [n], "mediana_s": [s o None], "real": [$], "equiv": [$]}."""
+    hoy = hoy or datetime.now().astimezone().date()
+    dias = [(hoy - timedelta(days=i)).isoformat() for i in range(EST_DIAS - 1, -1, -1)]
+    n = {d: 0 for d in dias}
+    durs = {d: [] for d in dias}
+    for f in RESULTS.glob("*.result.json"):
+        try:
+            r = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(r, dict) or r.get("ollama_action"):
+            continue
+        d = str(r.get("finished_at") or "")[:10]
+        if d in n:
+            n[d] += 1
+            if isinstance(r.get("duration_s"), (int, float)):
+                durs[d].append(float(r["duration_s"]))
+    real, equiv = [], []
+    for d in dias:
+        dm = day_by_model(d)
+        real.append(round(sum(b["cost"] for k, b in dm.items() if k[0] == "real"), 4))
+        equiv.append(round(sum(b["cost"] for k, b in dm.items() if k[0] == "equiv"), 4))
+
+    def _mediana(xs):
+        xs = sorted(xs)
+        if not xs:
+            return None
+        m = len(xs) // 2
+        return xs[m] if len(xs) % 2 else (xs[m - 1] + xs[m]) / 2
+    return {"dias": dias, "tareas": [n[d] for d in dias], "mediana_s": [_mediana(durs[d]) for d in dias],
+            "real": real, "equiv": equiv}
+
+
+def _est_lbl(parent, text, color="text", bold=False, size=10, wrap=180):
+    """Texto de las tarjetas: tk.Label con el fondo de la tarjeta (un CTkLabel por renglón alargaba el arranque
+    ~2 s: Estado es la página que se ve al abrir). La tarjeta en sí sí es CTk (esquinas 10, borde de 1 px)."""
+    return tk.Label(parent, text=text, bg=THEME["card"], fg=THEME.get(color, color), anchor="w", justify="left",
+                    font=(FONT, size, "bold" if bold else "normal"), wraplength=S(wrap) if wrap else 0)
+
+
+def _est_ajustar(card, *labels, margen=32):
+    """El texto se parte al ancho real de su tarjeta (dos columnas a ventana mínima, también a 150 %)."""
+    def _cfg(e):
+        for lb in labels:
+            try:
+                lb.configure(wraplength=max(S(90), e.width - S(margen)))
+            except tk.TclError:
+                pass
+    getattr(card, "_canvas", card).bind("<Configure>", _cfg, add=True)
+    return _cfg
+
+
+def _est_construir(tab):
+    """El sitio de las tarjetas se reserva ya; se dibujan nada más abrir la ventana (como t-carga-300ms): Estado es
+    la página que se ve al arrancar y dibujarlas dentro de build_gui lo alargaba."""
+    holder = tk.Frame(tab, bg=THEME["bg"])
+    holder.pack(fill="x")
+    _EST["holder"] = holder
+    tk.Label(holder, text="⠋ Cargando la salud y las métricas…", font=(FONT, 10), bg=THEME["bg"],
+             fg=THEME["muted"]).pack(anchor="w", padx=22, pady=(10, 4))
+    tab.after(600, lambda: _est_construir_ya(holder))
+
+
+def _est_construir_ya(holder):
+    for ch in holder.winfo_children():
+        ch.destroy()
+    t0 = time.perf_counter()
+    if _ctk_wanted():
+        try:
+            _teclado_ctk_patch()
+            k = _KitCtk(holder, global_setup=False)
+            _est_con(k)
+            _EST.update(kit=k, ctk=True)
+            _est_pintar(forzar=True)
+            _EST["ms"] = round((time.perf_counter() - t0) * 1000)
+            log(f"estado: tarjetas con CustomTkinter ({_EST['ms']} ms)")
+            return
+        except Exception as e:
+            log(f"estado: tarjetas sin CustomTkinter ({type(e).__name__}: {e}); se usan las clásicas")
+            for ch in holder.winfo_children():
+                try:
+                    ch.destroy()
+                except Exception:
+                    pass
+    k = _KitTk(holder)
+    _est_con(k)
+    _EST.update(kit=k, ctk=False)
+    _est_pintar(forzar=True)
+    _EST["ms"] = round((time.perf_counter() - t0) * 1000)
+    log(f"estado: tarjetas clásicas (tkinter) ({_EST['ms']} ms)")
+
+
+def _est_con(k):
+    sec = k.section("Salud", "El estado real de cada servicio y motor: el del propio servicio, la última prueba "
+                             "del proxy o el último healthcheck del motor. Sin dato, lo dice.")
+    _EST["salud_box"] = k.frame(sec)
+    _EST["salud_box"].pack(fill="x", padx=12, pady=(0, 12))
+    sec2 = k.section("Métricas", f"Los últimos {EST_DIAS} días, de los resultados reales de la cola.")
+    box = k.frame(sec2)
+    box.pack(fill="x", padx=12, pady=(0, 12))
+    box.grid_columnconfigure(0, weight=1, uniform="m")
+    box.grid_columnconfigure(1, weight=1, uniform="m")
+    _EST["metricas"] = {}
+    for i, (key, titulo) in enumerate((("tareas", "Tareas terminadas hoy"), ("mediana_s", "Tiempo mediano hoy"),
+                                       ("real", "Gasto real hoy"), ("equiv", "Equivalente Max hoy"))):
+        c = k.card(box)
+        c.grid(row=i // 2, column=i % 2, sticky="nsew", padx=4, pady=4)
+        _est_lbl(c, titulo, color="muted", size=9, wrap=0).pack(anchor="w", padx=12, pady=(10, 0))
+        num = _est_lbl(c, "…", bold=True, size=20, wrap=0)
+        num.pack(anchor="w", fill="x", padx=12)
+        sub = _est_lbl(c, "", color="muted", size=9)
+        sub.pack(anchor="w", fill="x", padx=12)
+        _EST.setdefault("ajustes", []).append(_est_ajustar(c, sub))
+        cv = tk.Canvas(c, height=S(38), bg=THEME["card"], highlightthickness=0, bd=0)
+        cv.pack(fill="x", padx=12, pady=(4, 10))
+        cv.bind("<Configure>", lambda e, kk=key: _est_spark(kk, e.width), add=True)
+        _EST["metricas"][key] = {"num": num, "sub": sub, "cv": cv, "serie": [], "ancho": S(200)}
+
+
+def _est_spark(key, ancho=None):
+    """La sparkline de una métrica: los 7 días reales, con el de hoy marcado. Sin ningún dato: «sin datos»."""
+    m = _EST["metricas"].get(key)
+    if not m:
+        return
+    cv = m["cv"]
+    if ancho:
+        m["ancho"] = ancho
+    w, h, pad = max(m["ancho"], S(60)), S(38), S(4)
+    cv.delete("all")
+    serie = m["serie"]
+    vals = [v for v in serie if v is not None]
+    if not vals:
+        cv.create_text(pad, h // 2, text="sin datos", anchor="w", fill=THEME["muted"], font=(FONT, 9))
+        return
+    hi = max(vals) or 1
+    paso = (w - 2 * pad) / max(1, len(serie) - 1)
+    pts = []
+    for i, v in enumerate(serie):
+        if v is None:
+            continue
+        pts.append((pad + i * paso, h - pad - (v / hi) * (h - 2 * pad)))
+    col = THEME["blue"]
+    if len(pts) >= 2:
+        cv.create_line(*[c for p in pts for c in p], fill=col, width=max(1, S(2)), smooth=False)
+    x, y = pts[-1]
+    r = S(3)
+    cv.create_oval(x - r, y - r, x + r, y + r, fill=col, outline=col)
+    m["puntos"] = pts
+
+
+def _est_pintar(forzar=False):
+    k = _EST.get("kit")
+    if k is None:
+        return
+    box = _EST["salud_box"]
+    filas = estado_salud_filas()
+    firma = tuple(filas)
+    if forzar or firma != _EST.get("salud_firma"):
+        _EST["salud_firma"] = firma
+        for ch in box.winfo_children():
+            ch.destroy()
+        box.grid_columnconfigure(0, weight=1, uniform="s")
+        box.grid_columnconfigure(1, weight=1, uniform="s")
+        _EST["salud"] = {}
+        for i, (key, nombre, col, txt) in enumerate(filas):
+            c = k.card(box)
+            c.grid(row=i // 2, column=i % 2, sticky="nsew", padx=4, pady=4)
+            r = tk.Frame(c, bg=THEME["card"])
+            r.pack(fill="x", padx=12, pady=(10, 0))
+            punto = _est_lbl(r, "●", color=col, wrap=0)
+            punto.pack(side="left")
+            nom = _est_lbl(r, nombre, bold=True, wrap=0)
+            nom.pack(side="left", padx=(6, 0))
+            t = _est_lbl(c, txt, size=9, color="muted" if col == "muted" else
+                         {"green": "green_text", "orange": "orange_text", "red": "red"}.get(col, "text"))
+            t.pack(anchor="w", fill="x", padx=12, pady=(2, 10))
+            _est_ajustar(c, t)
+            _est_ajustar(c, nom, margen=56)  # el nombre va detrás del punto
+            _EST["salud"][key] = {"nombre": nombre, "color": col, "texto": txt, "punto": punto, "label": t}
+    try:
+        files = list(RESULTS.glob("*.json"))
+        fp = (len(files), max((f.stat().st_mtime for f in files), default=0),
+              datetime.now().astimezone().date().isoformat())
+    except OSError:
+        fp = None
+    if not forzar and fp == _EST.get("fp"):
+        return
+    _EST["fp"] = fp
+    try:
+        met = estado_metricas()
+    except Exception as e:
+        log(f"estado: no se pudieron leer las métricas ({type(e).__name__}: {e})")
+        met = None
+    _EST["datos"] = met
+    M = _EST["metricas"]
+    if met is None:
+        for m in M.values():
+            m["num"].config(text="sin datos")
+            m["sub"].config(text="no se pudieron leer los resultados")
+            m["serie"] = []
+            _est_spark_todas()
+        return
+    hoy_med = met["mediana_s"][-1]
+    textos = {
+        "tareas": (str(met["tareas"][-1]), f"{sum(met['tareas'])} en {EST_DIAS} días"),
+        "mediana_s": (_fmt_secs(hoy_med) if hoy_med is not None else "sin datos",
+                      "por tarea terminada hoy" if hoy_med is not None else "hoy no terminó ninguna tarea"),
+        "real": (f"${met['real'][-1]:.2f}", f"${sum(met['real']):.2f} en {EST_DIAS} días (dinero pagado)"),
+        "equiv": (f"${met['equiv'][-1]:.2f}", f"${sum(met['equiv']):.2f} en {EST_DIAS} días (no es dinero real)"),
+    }
+    for key, m in M.items():
+        num, sub = textos[key]
+        m["num"].config(text=num)
+        m["sub"].config(text=sub)
+        m["serie"] = list(met[key])
+        _est_spark(key)
+
+
+def _est_spark_todas():
+    for key in _EST["metricas"]:
+        _est_spark(key)
 
 
 def _ui_call(fn):
@@ -42907,6 +43190,11 @@ def build_gui():
                 _widgets[f"nav_count_{n}"].config(bg=fondo)
         if name == "modelos":
             _on_models_open()
+        if name == "estado" and _EST.get("kit") is not None:
+            try:
+                _est_pintar()
+            except Exception as e:
+                log(f"estado: no se pudieron pintar las tarjetas ({type(e).__name__}: {e})")
         if name in ("ajustes", "apis"):
             _claves_abrir(name)
         if name == "ajustes":
@@ -43088,6 +43376,7 @@ def build_gui():
                                        font=(FONT, 13, "bold"),
                                        bg=THEME["bg"], fg=THEME["muted"])
     _widgets["power_label"].pack()
+    _est_construir(tab)  # Salud y Métricas en tarjetas (t-estado-tarjetas-045)
 
     status = tk.Frame(tab, bg=THEME["card"])
     status.pack(fill="x", padx=20, pady=8)
