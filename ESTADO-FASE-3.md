@@ -64,3 +64,5 @@ construye sobre lo que sí existe en el código.
 | 6 | t-portapapeles | **LISTO** (FALTA: heurística de secretos en frases; editor de apps sensibles) | `6fdd4d3`, `ESTADO-PORTAPAPELES.md` |
 | 7 | t-brief-reunion | **LISTO** (FALTA: con la MEMORY.md real y el calendario real — hay que pegar la dirección iCal) | `f5aa242`, `ESTADO-BRIEF-REUNION.md` |
 | 8 | t-pendientes-por-persona | **LISTO** (FALTA: con encargos reales en la app) | `644ec3e`, `ESTADO-PENDIENTES-POR-PERSONA.md` |
+| 9 | t-proxy-alquiler | **BLOQUEADO** (túnel cifrado, consulta legal y plan del VPS sin resolver): solo plan documentado, nada construido | `55376c2`, `ESTADO-PROXY-ALQUILER.md`, `PROXY-ALQUILER-PLAN.md` |
+| 10 | t-mcp-streamable-http | **LISTO** (FALTA: probar con un cliente MCP de terceros; el diseño es PROPUESTA sin aprobar) | ver commit, `ESTADO-MCP-STREAMABLE-HTTP.md`, `DISENO-MCP.md` |

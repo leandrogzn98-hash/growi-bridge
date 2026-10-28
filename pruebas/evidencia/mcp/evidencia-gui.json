@@ -1,0 +1,29 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mcpgui-bhfjhuts",
+ "c_filas_mcp_en_que_puede_hacer": [
+  "MCP · deepwiki: ask_wiki_question",
+  "MCP · deepwiki: read_wiki_contents",
+  "MCP · deepwiki: read_wiki_structure"
+ ],
+ "c_tras_clic": {
+  "fila": "MCP · deepwiki: ask_wiki_question",
+  "apagadas_en_settings": [
+   "deepwiki:ask_wiki_question"
+  ],
+  "lo_que_ve_el_runner": [
+   null,
+   "la herramienta deepwiki:ask_wiki_question está apagada: no se usa"
+  ]
+ },
+ "servidor_mcp": {
+  "escucha": [
+   "127.0.0.1",
+   8817
+  ]
+ },
+ "log": [
+  "2026-10-28T06:07:06-04:00 mcp: servidor Streamable HTTP (2026-07-28) en http://127.0.0.1:8817/mcp (con token y Origin)",
+  "2026-10-28T06:09:32-04:00 mcp: herramienta deepwiki:ask_wiki_question apagada"
+ ],
+ "tracebacks_en_log": 0
+}

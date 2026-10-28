@@ -1,0 +1,119 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-mcp-_5p186g5",
+ "servidor_arranca": true,
+ "b_sin_token": [
+  401,
+  "{\"jsonrpc\": \"2.0\", \"error\": {\"code\": -32600, \"message\": \"falta el token o no es el bueno\"}}"
+ ],
+ "b_origin_ajeno": [
+  403,
+  "{\"jsonrpc\": \"2.0\", \"error\": {\"code\": -32600, \"message\": \"Origin no permitido: https://atacante.example\"}}"
+ ],
+ "b_cabecera_no_coincide": [
+  400,
+  "{\"jsonrpc\": \"2.0\", \"error\": {\"code\": -32020, \"message\": \"Mcp-Method no coincide con el cuerpo\"}, \"id\": 1}"
+ ],
+ "b_get": 405,
+ "b_con_token": {
+  "http": 200,
+  "herramientas": [
+   "bridge_estado",
+   "bridge_cola",
+   "bridge_memoria_buscar",
+   "bridge_encolar_tarea"
+  ]
+ },
+ "b_escucha_en": [
+  "127.0.0.1",
+  8817
+ ],
+ "b_desde_la_lan": "no conecta por 192.168.100.80: TimeoutError",
+ "cliente_contra_bridge": {
+  "era": "2026-07-28",
+  "error": null,
+  "resultado": {
+   "resultType": "complete",
+   "content": [
+    {
+     "type": "text",
+     "text": "{}"
+    }
+   ],
+   "structuredContent": {},
+   "isError": false
+  }
+ },
+ "c_deepwiki_herramientas": {
+  "error": null,
+  "era": "2025-06-18 (legado)",
+  "tools": [
+   [
+    "ask_wiki_question",
+    true
+   ],
+   [
+    "read_wiki_contents",
+    true
+   ],
+   [
+    "read_wiki_structure",
+    true
+   ]
+  ]
+ },
+ "c_apagada_no_se_usa": [
+  null,
+  "la herramienta deepwiki:ask_wiki_question está apagada: no se usa"
+ ],
+ "c_tras_apagar": [
+  [
+   "ask_wiki_question",
+   false
+  ],
+  [
+   "read_wiki_contents",
+   true
+  ],
+  [
+   "read_wiki_structure",
+   true
+  ]
+ ],
+ "c_desde_el_runner": {
+  "status": "ok",
+  "motor": "mcp:deepwiki (herramienta)",
+  "error": null,
+  "resultado": "Available pages for modelcontextprotocol/python-sdk:\n\n- 1 Overview\n  - 1.1 Installation & Dependencies\n  - 1.2 Key Concepts & Architecture\n- 2 FastMCP / MCPServer Framework\n  - 2.1 Creating a FastMCP Server\n  - 2.2 Tool System\n  - 2.3 Resources & Prompts\n  - 2.4 Function Metadata & Schema Generation\n  - 2.5 Context Injection & Lifespan Management\n  - 2.6 Extensions, Apps & Middleware\n  - 2.7 Subscriptions & Caching\n- 3 Client Framework\n  - 3.1 Client & ClientSession API\n  - 3.2 Making Requests\n "
+ },
+ "d_r2": {
+  "http": 200,
+  "tarea": "t-mcp-20261028-060203-652a",
+  "estado": "esperando_aprobacion",
+  "aprobacion": "pendiente",
+  "motivo": "borrar archivos (R2, deducido del encargo: «borra»)",
+  "motor_llamado": false
+ },
+ "d_r3": {
+  "http": 200,
+  "tarea": "t-mcp-20261028-060203-b499",
+  "estado": "necesita_decision",
+  "aprobacion": "denegada",
+  "motivo": "R3 pedida por canal remoto (mcp): denegada al instante; R3 solo se aprueba en la app",
+  "motor_llamado": false
+ },
+ "log": [
+  "2026-10-28T06:01:48-04:00 mcp: servidor Streamable HTTP (2026-07-28) en http://127.0.0.1:8817/mcp (con token y Origin)",
+  "2026-10-28T06:01:49-04:00 mcp: rechazada una petición (401): falta el token o no es el bueno",
+  "2026-10-28T06:01:49-04:00 mcp: rechazada una petición (403): Origin no permitido: https://atacante.example",
+  "2026-10-28T06:01:49-04:00 mcp: rechazada una petición (400): Mcp-Method no coincide con el cuerpo",
+  "2026-10-28T06:01:52-04:00 mcp: tools/call bridge_cola",
+  "2026-10-28T06:01:55-04:00 mcp: herramienta deepwiki:ask_wiki_question apagada",
+  "2026-10-28T06:02:02-04:00 runner [t-mcp-deepwiki]: MCP deepwiki:read_wiki_structure: ok",
+  "2026-10-28T06:02:03-04:00 mcp: tarea t-mcp-20261028-060203-652a encolada por MCP (canal mcp): pasa por el guardrail y las políticas como cualquiera",
+  "2026-10-28T06:02:03-04:00 mcp: tools/call bridge_encolar_tarea",
+  "2026-10-28T06:02:03-04:00 mcp: tarea t-mcp-20261028-060203-b499 encolada por MCP (canal mcp): pasa por el guardrail y las políticas como cualquiera",
+  "2026-10-28T06:02:03-04:00 mcp: tools/call bridge_encolar_tarea",
+  "2026-10-28T06:02:04-04:00 mcp: servidor parado"
+ ],
+ "tracebacks_en_log": 0
+}

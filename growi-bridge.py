@@ -8444,10 +8444,390 @@ def transcribe_ui():
     return tid
 
 
+# ---------------------------------------------------------------- MCP Streamable HTTP (t-mcp-streamable-http)
+# PROPUESTA (la investigacion 0.3.0 no traia diseño; ver DISENO-MCP.md, con
+# fuentes): servidor y cliente MCP segun la especificacion vigente leida en
+# vivo (revision 2026-07-28: un solo endpoint POST, sin sesiones ni GET; los
+# metadatos van en _meta y se reflejan en cabeceras que se validan).
+# Servidor: SOLO 127.0.0.1, con el token del plano de control en cada
+# peticion y Origin validado (ninguno permitido por defecto). Expone pocas
+# herramientas descritas con datos (MCP_HERRAMIENTAS); nunca secretos,
+# credenciales, cambios de permisos/politicas ni control de escritorio. Lo
+# sensible (encolar una tarea) pasa por el runner: guardrail, politicas y
+# aprobacion como cualquier tarea; por MCP un R3 se deniega (canal no-app).
+# Cliente: llama a servidores MCP externos elegidos (por defecto DeepWiki,
+# publico y de solo lectura), con interruptor por herramienta.
+MCP_VERSION = "2026-07-28"
+MCP_VERSION_LEGADO = "2025-06-18"
+MCP_SERVIDOR_INFO = {"name": "growi-bridge", "version": VERSION}
+MCP_HERRAMIENTAS = {  # descritas con datos (adenda §14): qué hace, su esquema y su nivel
+    "bridge_estado": {"title": "Estado de Growi Bridge", "nivel": "R0",
+                      "description": "Si el gateway, el runner y la cola están vivos (sin secretos ni rutas de token).",
+                      "inputSchema": {"type": "object", "additionalProperties": False}},
+    "bridge_cola": {"title": "Cola de tareas", "nivel": "R0",
+                    "description": "Cuántas tareas hay en cola, en curso, esperando aprobación o fallidas.",
+                    "inputSchema": {"type": "object", "additionalProperties": False}},
+    "bridge_memoria_buscar": {"title": "Buscar en la memoria", "nivel": "R0",
+                              "description": "Busca por palabras en la memoria del usuario (líneas con su origen).",
+                              "inputSchema": {"type": "object", "properties": {"q": {"type": "string"}},
+                                              "required": ["q"], "additionalProperties": False}},
+    "bridge_encolar_tarea": {"title": "Encolar una tarea", "nivel": "según el encargo",
+                             "description": "Deja un encargo en la cola del runner. Lo sensible espera la aprobación del "
+                                            "usuario en la app (como cualquier tarea); un R3 por MCP se deniega.",
+                             "inputSchema": {"type": "object", "properties": {
+                                 "prompt": {"type": "string"},
+                                 "cwd": {"type": "string", "description": "carpeta de trabajo (una de las permitidas)"}},
+                                 "required": ["prompt"], "additionalProperties": False}},
+}
+MCP_NUNCA = ("secretos ni tokens", "credenciales ni claves de API", "cambiar permisos, guardrail o políticas",
+             "control de escritorio por clics o capturas de pantalla", "acciones sensibles sin aprobación")
+MCP_CLIENTES_DEF = [{"id": "deepwiki", "url": "https://mcp.deepwiki.com/mcp",
+                     "para": "documentación pública de repos de GitHub (solo lectura, sin cuenta)"}]
+_MCP: dict = {"server": None, "puerto": None, "legado": {}}
+
+
+def mcp_puerto():
+    return int(load_settings().get("mcp_puerto") or (BRIDGE_PORT + 20))
+
+
+def _mcp_resp(h, code, obj=None):
+    body = b"" if obj is None else json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    h.send_response(code)
+    if obj is not None:
+        h.send_header("Content-Type", "application/json")
+    h.send_header("Content-Length", str(len(body)))
+    h.end_headers()
+    if body:
+        h.wfile.write(body)
+
+
+def _mcp_err(id_, code, msg):
+    d = {"jsonrpc": "2.0", "error": {"code": code, "message": msg}}
+    if id_ is not None:
+        d["id"] = id_
+    return d
+
+
+def _mcp_texto(obj):
+    t = json.dumps(obj, ensure_ascii=False, indent=1) if not isinstance(obj, str) else obj
+    return {"resultType": "complete", "content": [{"type": "text", "text": t}],
+            **({"structuredContent": obj} if not isinstance(obj, str) else {}), "isError": False}
+
+
+def mcp_ejecutar_herramienta(nombre, args):
+    """Lo que hace cada herramienta del servidor (nunca devuelve secretos)."""
+    if nombre == "bridge_estado":
+        d = gateway_estado()
+        g = d.get("gateway") or {}
+        return _mcp_texto({"vivo": g.get("vivo"), "desde": g.get("inicio"), "runner": (d.get("runner") or {}).get("estado"),
+                           "tarea_en_curso": (d.get("runner") or {}).get("tarea"),
+                           "motores": [{"id": m["id"], "disponible": m["disponible"]} for m in d.get("motores") or []]})
+    if nombre == "bridge_cola":
+        return _mcp_texto(cola_resumen()["cuenta"])
+    if nombre == "bridge_memoria_buscar":
+        hits, _m = mem_buscar_ordenado(str(args.get("q") or ""))
+        return _mcp_texto([{"texto": h["texto"], "origen": h["origen"]} for h in hits[:10]])
+    if nombre == "bridge_encolar_tarea":
+        prompt = str(args.get("prompt") or "").strip()
+        if not prompt:
+            return {"resultType": "complete", "content": [{"type": "text", "text": "falta el encargo (prompt)"}],
+                    "isError": True}
+        tid = "t-mcp-" + datetime.now().strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
+        TASKS.mkdir(parents=True, exist_ok=True)
+        # la carpeta la valida el runner como en cualquier tarea; sin carpeta, la primera permitida
+        cwd = str(args.get("cwd") or "").strip() or load_folders()[0]
+        (TASKS / f"{tid}.task.json").write_text(json.dumps({"id": tid, "prompt": prompt, "canal": "mcp", "cwd": cwd},
+                                                           ensure_ascii=False), encoding="utf-8")
+        log(f"mcp: tarea {tid} encolada por MCP (canal mcp): pasa por el guardrail y las políticas como cualquiera")
+        return _mcp_texto({"tarea": tid, "nota": "En cola. Si es sensible, espera la aprobación del usuario en la app; "
+                                                 "un R3 pedido por MCP se deniega."})
+    return None
+
+
+class McpHandler(BaseHTTPRequestHandler):
+    server_version = "GrowiBridgeMCP"
+
+    def log_message(self, *a):
+        pass
+
+    def _rechazo(self, code, motivo, id_=None, rpc=-32600):
+        log(f"mcp: rechazada una petición ({code}): {motivo}")
+        _mcp_resp(self, code, _mcp_err(id_, rpc, motivo))
+
+    def do_GET(self):
+        _mcp_resp(self, 405, _mcp_err(None, -32600, "GET no existe en esta revisión (2026-07-28)"))
+
+    def do_DELETE(self):
+        self.do_GET()
+
+    def do_POST(self):
+        if self.client_address[0] != "127.0.0.1":
+            return self._rechazo(403, "solo desde este PC (127.0.0.1)")
+        origen = self.headers.get("Origin")
+        if origen and origen not in gateway_origenes():
+            return self._rechazo(403, f"Origin no permitido: {origen}")
+        if not gateway_host_ok(self.headers.get("Host") or ""):
+            return self._rechazo(403, "Host no es este PC (DNS rebinding)")
+        tok, _o = gateway_token(crear=False)
+        auth = self.headers.get("Authorization") or ""
+        if not tok or not hmac.compare_digest(auth, f"Bearer {tok}"):
+            return self._rechazo(401, "falta el token o no es el bueno")
+        if self.path.split("?")[0] != "/mcp":
+            return self._rechazo(404, "el endpoint MCP es /mcp")
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            msg = json.loads(self.rfile.read(min(n, 1048576)).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._rechazo(400, "JSON inválido", rpc=-32700)
+        id_, metodo, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
+        if "id" not in msg:
+            return _mcp_resp(self, 202)  # una notificación: aceptada, sin cuerpo
+        ver_h = self.headers.get("MCP-Protocol-Version")
+        ver_b = ((params.get("_meta") or {}).get("io.modelcontextprotocol/protocolVersion"))
+        if not ver_h or ver_h != ver_b:
+            return self._rechazo(400, "MCP-Protocol-Version falta o no coincide con _meta", id_, -32020)
+        if ver_h != MCP_VERSION:
+            return _mcp_resp(self, 400, {"jsonrpc": "2.0", "id": id_, "error": {
+                "code": -32000, "message": "versión no soportada", "data": {"supported": [MCP_VERSION]}}})
+        if self.headers.get("Mcp-Method") != metodo:
+            return self._rechazo(400, "Mcp-Method no coincide con el cuerpo", id_, -32020)
+        nombre = params.get("name") or params.get("uri")
+        if metodo in ("tools/call", "resources/read", "prompts/get") and self.headers.get("Mcp-Name") != nombre:
+            return self._rechazo(400, "Mcp-Name no coincide con el cuerpo", id_, -32020)
+        if metodo == "tools/list":
+            tools = [{"name": k, "title": v["title"], "description": v["description"] + f" (nivel {v['nivel']})",
+                      "inputSchema": v["inputSchema"]} for k, v in MCP_HERRAMIENTAS.items()]
+            return _mcp_resp(self, 200, {"jsonrpc": "2.0", "id": id_, "result": {"resultType": "complete",
+                                                                                "tools": tools}})
+        if metodo == "tools/call":
+            if nombre not in MCP_HERRAMIENTAS:
+                return _mcp_resp(self, 200, _mcp_err(id_, -32602, f"herramienta desconocida: {nombre}"))
+            res = mcp_ejecutar_herramienta(nombre, params.get("arguments") or {})
+            log(f"mcp: tools/call {nombre}")
+            return _mcp_resp(self, 200, {"jsonrpc": "2.0", "id": id_, "result": res})
+        if metodo == "server/discover":
+            return _mcp_resp(self, 200, {"jsonrpc": "2.0", "id": id_, "result": {
+                "resultType": "complete", "serverInfo": MCP_SERVIDOR_INFO, "capabilities": {"tools": {}},
+                "supportedVersions": [MCP_VERSION]}})
+        return _mcp_resp(self, 404, _mcp_err(id_, -32601, f"método no implementado: {metodo}"))
+
+
+def mcp_servidor_arrancar():
+    """Solo si está encendido en settings («mcp_servidor»). Siempre en 127.0.0.1."""
+    if _MCP["server"] is not None or not load_settings().get("mcp_servidor"):
+        return False
+    gateway_token(crear=True)
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", mcp_puerto()), McpHandler)
+    except OSError as e:
+        log(f"mcp: no se pudo abrir 127.0.0.1:{mcp_puerto()} ({e})")
+        return False
+    _MCP.update(server=srv, puerto=mcp_puerto())
+    threading.Thread(target=srv.serve_forever, daemon=True, name="mcp").start()
+    log(f"mcp: servidor Streamable HTTP ({MCP_VERSION}) en http://127.0.0.1:{mcp_puerto()}/mcp (con token y Origin)")
+    return True
+
+
+def mcp_servidor_parar():
+    if _MCP["server"] is not None:
+        _MCP["server"].shutdown()
+        _MCP["server"].server_close()
+        _MCP["server"] = None
+        log("mcp: servidor parado")
+
+
+# ---- cliente
+def mcp_clientes():
+    v = load_settings().get("mcp_clientes")
+    return v if isinstance(v, list) and v else list(MCP_CLIENTES_DEF)
+
+
+def _mcp_post(url, msg, cab, sesion=None):
+    """(status, cabeceras, json_o_None, texto). Entiende application/json y SSE."""
+    h = dict({"Content-Type": "application/json", "Accept": "application/json, text/event-stream",
+              "User-Agent": "GrowiBridge"}, **cab)
+    if sesion:
+        h["Mcp-Session-Id"] = sesion
+    req = urllib.request.Request(url, data=json.dumps(msg).encode("utf-8"), method="POST", headers=h)
+    op = urllib.request.build_opener(urllib.request.ProxyHandler({}) if "127.0.0.1" in url else urllib.request.ProxyHandler())
+    try:
+        r = op.open(req, timeout=40)
+        code, hdr, raw = r.status, dict(r.headers), r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        code, hdr, raw = e.code, dict(e.headers or {}), e.read().decode("utf-8", "replace")
+    obj = None
+    if "event-stream" in (hdr.get("Content-Type") or hdr.get("content-type") or ""):
+        for linea in raw.splitlines():
+            if linea.startswith("data:"):
+                try:
+                    d = json.loads(linea[5:].strip())
+                except ValueError:
+                    continue
+                if isinstance(d, dict) and ("result" in d or "error" in d):
+                    obj = d
+    else:
+        try:
+            obj = json.loads(raw) if raw.strip() else None
+        except ValueError:
+            obj = None
+    return code, hdr, obj, raw
+
+
+def mcp_llamar(url, metodo, params=None, token=None):
+    """Una llamada MCP: primero la revisión vigente; si el servidor es de la era
+    anterior (initialize + sesión), cae a esa. (resultado, error, era)."""
+    params = dict(params or {})
+    auth = {"Authorization": f"Bearer {token}"} if token else {}
+    meta = {"io.modelcontextprotocol/protocolVersion": MCP_VERSION,
+            "io.modelcontextprotocol/clientInfo": {"name": "growi-bridge", "version": VERSION},
+            "io.modelcontextprotocol/clientCapabilities": {}}
+    if url not in _MCP["legado"]:
+        msg = {"jsonrpc": "2.0", "id": 1, "method": metodo, "params": dict(params, _meta=meta)}
+        cab = dict(auth, **{"MCP-Protocol-Version": MCP_VERSION, "Mcp-Method": metodo})
+        if params.get("name"):
+            cab["Mcp-Name"] = params["name"]
+        code, _h, obj, raw = _mcp_post(url, msg, cab)
+        moderno = isinstance(obj, dict) and isinstance(obj.get("error"), dict) and obj["error"].get("code") in (
+            -32020, -32601, -32602, -32000)
+        if code == 200 and isinstance(obj, dict) and "result" in obj:
+            return obj["result"], None, MCP_VERSION
+        if code in (400, 404, 405) and not moderno:
+            _MCP["legado"][url] = None  # era anterior: initialize + sesión
+        else:
+            return None, (obj or {}).get("error") or f"HTTP {code}: {raw[:200]}", MCP_VERSION
+    ses = _MCP["legado"].get(url)
+    cab = dict(auth, **{"MCP-Protocol-Version": MCP_VERSION_LEGADO})
+    if ses is None:
+        code, hdr, obj, raw = _mcp_post(url, {"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+            "protocolVersion": MCP_VERSION_LEGADO, "capabilities": {},
+            "clientInfo": {"name": "growi-bridge", "version": VERSION}}}, auth)
+        if code != 200 or not obj or "result" not in obj:
+            return None, f"initialize falló: HTTP {code} {raw[:200]}", MCP_VERSION_LEGADO
+        ses = next((v for k, v in hdr.items() if k.lower() == "mcp-session-id"), "")
+        _MCP["legado"][url] = ses
+        _mcp_post(url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, cab, ses)
+    code, _h, obj, raw = _mcp_post(url, {"jsonrpc": "2.0", "id": 2, "method": metodo, "params": params}, cab, ses)
+    if obj and "result" in obj:
+        return obj["result"], None, MCP_VERSION_LEGADO
+    return None, (obj or {}).get("error") or f"HTTP {code}: {raw[:200]}", MCP_VERSION_LEGADO
+
+
+def mcp_herramientas_cliente(cid):
+    """[(nombre, descripcion, activa)] de un servidor externo, con su interruptor."""
+    c = next((x for x in mcp_clientes() if x["id"] == cid), None)
+    if c is None:
+        return [], "no existe ese servidor"
+    res, err, era = mcp_llamar(c["url"], "tools/list")
+    if err:
+        return [], f"{err} ({era})"
+    st = load_settings()
+    apagadas = set(st.get("mcp_herramientas_apagadas") or [])
+    tools = [(t["name"], (t.get("description") or "")[:160]) for t in res.get("tools") or []]
+    cache = dict(st.get("mcp_cache") or {})
+    if cache.get(cid) != [list(t) for t in tools]:  # «Qué puede hacer» las pinta sin red
+        cache[cid] = [list(t) for t in tools]
+        st["mcp_cache"] = cache
+        save_settings(st)
+    return [(n, d, f"{cid}:{n}" not in apagadas) for n, d in tools], None
+
+
+def mcp_herramientas_conocidas():
+    """[(cid, nombre, descripcion, activa)] de la última lista vista de cada servidor (sin red)."""
+    st = load_settings()
+    apagadas = set(st.get("mcp_herramientas_apagadas") or [])
+    return [(cid, n, d, f"{cid}:{n}" not in apagadas)
+            for cid, tools in (st.get("mcp_cache") or {}).items() for n, d in tools]
+
+
+def mcp_herramienta_interruptor(cid, nombre, activa):
+    s = load_settings()
+    ap = set(s.get("mcp_herramientas_apagadas") or [])
+    (ap.discard if activa else ap.add)(f"{cid}:{nombre}")
+    s["mcp_herramientas_apagadas"] = sorted(ap)
+    save_settings(s)
+    log(f"mcp: herramienta {cid}:{nombre} {'encendida' if activa else 'apagada'}")
+
+
+def mcp_usar(cid, nombre, args):
+    """Desde el runner: una herramienta de un servidor externo (si está encendida)."""
+    if f"{cid}:{nombre}" in set(load_settings().get("mcp_herramientas_apagadas") or []):
+        return None, f"la herramienta {cid}:{nombre} está apagada: no se usa"
+    c = next((x for x in mcp_clientes() if x["id"] == cid), None)
+    if c is None:
+        return None, "no existe ese servidor MCP"
+    res, err, _era = mcp_llamar(c["url"], "tools/call", {"name": nombre, "arguments": args or {}})
+    if err:
+        return None, str(err)[:300]
+    txt = "\n".join(x.get("text", "") for x in res.get("content") or [] if x.get("type") == "text")
+    return txt, None
+
+
+def mcp_de_tarea(task):
+    h = task.get("herramienta") if isinstance(task.get("herramienta"), dict) else None
+    return h if h and h.get("id") == "mcp" else None
+
+
+def mcp_correr(task, pedido):
+    result = _base_result(task, f"mcp:{pedido.get('servidor')} (herramienta)")
+    t0 = time.time()
+    txt, err = mcp_usar(pedido.get("servidor"), pedido.get("tool"), pedido.get("args") or {})
+    result.update(cost_usd=0.0, finished_at=_now_iso(), duration_s=round(time.time() - t0, 1),
+                  herramienta={"id": "mcp", "servidor": pedido.get("servidor"), "tool": pedido.get("tool")})
+    if err:
+        result.update(status="error", error=err, error_tipo="definitivo")
+    else:
+        result.update(status="ok", result=txt[:20000])
+    log(f"runner [{task['id']}]: MCP {pedido.get('servidor')}:{pedido.get('tool')}: {'ok' if not err else err}")
+    return result
+
+
+def mcp_ui():
+    """El servidor MCP (encender/apagar) y las herramientas de los servidores externos, con interruptor."""
+    top = tk.Toplevel(_root)
+    top.title("MCP")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(660)}x{S(560)}")
+    page = _scrollable(top)
+    k = _KitTk(page)
+    c = k.section("Servidor MCP de Bridge", f"Streamable HTTP ({MCP_VERSION}), solo en 127.0.0.1, con token y Origin. "
+                                            "Nunca expone: " + "; ".join(MCP_NUNCA) + ".")
+    est = k.label(c, "", wrap=600)
+    est.pack(anchor="w", padx=16)
+
+    def pintar_srv():
+        k.set_label(est, text=(f"Encendido en http://127.0.0.1:{_MCP['puerto']}/mcp" if _MCP["server"] else "Apagado."))
+
+    def alternar():
+        s_ = load_settings()
+        s_["mcp_servidor"] = not bool(_MCP["server"])
+        save_settings(s_)
+        mcp_servidor_arrancar() if s_["mcp_servidor"] else mcp_servidor_parar()
+        pintar_srv()
+    k.button(c, "Encender / apagar", alternar).pack(anchor="w", padx=16, pady=(4, 12))
+    pintar_srv()
+    for cli in mcp_clientes():
+        c2 = k.section(f"Servidor externo: {cli['id']}", f"{cli['url']} — {cli.get('para', '')}")
+        box = k.frame(c2)
+        box.pack(fill="x", padx=16, pady=(2, 12))
+        tools, err = mcp_herramientas_cliente(cli["id"])
+        if err:
+            k.label(box, f"No responde: {err}", color="red").pack(anchor="w")
+        for nombre, desc, activa in tools:
+            v = tk.BooleanVar(value=activa)
+            tk.Checkbutton(box, text=f"{nombre} — {desc[:70]}", variable=v, bg=THEME["card"], fg=THEME["text"],
+                           justify="left",
+                           anchor="w", command=lambda n=nombre, v=v, cid=cli["id"]: mcp_herramienta_interruptor(
+                               cid, n, v.get())).pack(anchor="w", fill="x")
+    return top
+
+
 def run_engine(task, prompt=None, eng=None):
     """Corre una tarea con su motor, leyendo SOLO su descriptor (eng: un
     descriptor ya traducido que aun no esta en engines.json, para la prueba
     de «Nuevo motor»)."""
+    pedido_m = mcp_de_tarea(task) if eng is None else None
+    if pedido_m:  # una herramienta de un servidor MCP externo (t-mcp-streamable-http)
+        return mcp_correr(task, pedido_m)
     pedido_t = transcribe_de_tarea(task) if eng is None else None
     if pedido_t:  # transcribir audio/video: faster-whisper local (herramienta), no un motor
         return transcribe_correr(task, pedido_t)
@@ -28699,6 +29079,18 @@ def _render_abilities():
         make_switch(row, a["on"], lambda on, k=a["key"], n=a["name"]: _toggle_ability(k, n, on),
                     bg=bg).pack(side="right")
         tk.Frame(box, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
+    # herramientas de servidores MCP externos, cada una con su interruptor (t-mcp-streamable-http)
+    for cid, nombre, desc, on in mcp_herramientas_conocidas():
+        row = tk.Frame(box, bg=bg)
+        row.pack(fill="x", padx=16, pady=5)
+        left = tk.Frame(row, bg=bg)
+        left.pack(side="left", fill="x", expand=True)
+        tk.Label(left, text=f"MCP · {cid}: {nombre}", font=(FONT, 10, "bold"), bg=bg,
+                 fg=THEME["text"]).pack(anchor="w")
+        tk.Label(left, text=desc[:110], font=(FONT, 9), bg=bg, fg=THEME["muted"]).pack(anchor="w")
+        make_switch(row, on, lambda v, c=cid, n=nombre: mcp_herramienta_interruptor(c, n, v),
+                    bg=bg).pack(side="right")
+        tk.Frame(box, bg=THEME["line"], height=S(1)).pack(fill="x", padx=16)
 
 
 def _refresh_channels():
@@ -41072,6 +41464,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("mcp", "MCP: servidor de Bridge y herramientas externas",
+          "mcp model context protocol servidor cliente herramientas deepwiki streamable", lambda: (show_window(), mcp_ui())),
         C("pendientes", "Qué falta por responder (por persona)",
           "pendientes por persona responder contestar deber respuesta resumen", lambda: (show_window(), pendientes_ui())),
         C("portapapeles", "Historial del portapapeles (ver o borrar)",
@@ -41124,6 +41518,10 @@ def build_gui():
     root.bind_all("<KeyPress>", _atajo_tecla_tk, add="+")
     root.bind_all("<Alt-KeyPress>", _atajo_tecla_tk, add="+")
     pp_iniciar()  # historial del portapapeles: solo mira si está encendido en Ajustes (t-portapapeles)
+    try:
+        mcp_servidor_arrancar()  # solo si «mcp_servidor» está encendido; siempre en 127.0.0.1 (t-mcp-streamable-http)
+    except Exception as e:
+        log(f"mcp: {type(e).__name__}: {e}")
     threading.Thread(target=brief_vigia, daemon=True, name="brief").start()  # 30 min antes (t-brief-reunion)
     try:
         teclado_init(root)  # Alt+0..9, «?», flechas, Esc y un solo anillo de foco (t-teclado-foco)
