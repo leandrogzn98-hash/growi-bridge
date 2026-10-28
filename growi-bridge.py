@@ -11971,9 +11971,14 @@ def prompt_de_tarea(task):
         perfil_ojo = ""
     if SLOT2_MODO["activo"]:  # agente del 2.º hueco: encargo + archivos + perfil, sin la memoria larga
         mem_txt = ""
-    contexto_apuntar(task, {"reglas": rules_prefix(), "asistente": asis_txt, "memoria": mem_txt, "skills": skills_txt,
-                            "perfil": perfil_txt, "encargo": task["prompt"]})
-    return (rules_prefix() + asis_txt + mem_txt + skills_txt + perfil_txt + task["prompt"] + perfil_ojo
+    try:
+        proy_txt = proyecto_bloque_prompt(task)  # t-proyectos: el de la tarea, no el activo ahora
+    except Exception as e:
+        log(f"proyectos [{task.get('id')}]: no se pudo adjuntar ({type(e).__name__}: {e})")
+        proy_txt = ""
+    contexto_apuntar(task, {"reglas": rules_prefix(), "proyecto": proy_txt, "asistente": asis_txt, "memoria": mem_txt,
+                            "skills": skills_txt, "perfil": perfil_txt, "encargo": task["prompt"]})
+    return (rules_prefix() + proy_txt + asis_txt + mem_txt + skills_txt + perfil_txt + task["prompt"] + perfil_ojo
             + autocritica_txt(task))
 
 
@@ -12956,8 +12961,18 @@ def mem_buscar_ordenado(q, mostrar=30):
                 fecha = fecha_archivo or fecha_seccion
                 origen = (f"nota diaria del {fecha_archivo}" if fecha_archivo else
                           f"{p.name} (sección del {fecha_seccion})" if fecha_seccion else p.name)
-                hits.append({"texto": line.strip()[:240], "archivo": _mem_rel(p), "ruta": str(p), "linea": i,
-                             "fecha": fecha, "origen": origen if fecha else f"{p.name}: sin origen registrado"})
+                h_ = {"texto": line.strip()[:240], "archivo": _mem_rel(p), "ruta": str(p), "linea": i,
+                      "fecha": fecha, "origen": origen if fecha else f"{p.name}: sin origen registrado"}
+                try:  # t-proyectos: lo de otro proyecto sale marcado, nunca como si fuera de este
+                    partes = p.relative_to(MEMORY_DIR).parts
+                except ValueError:
+                    partes = ()
+                if len(partes) > 2 and partes[0] == "proyectos":
+                    h_["proyecto"] = partes[1]
+                    pa = proyecto_activo()
+                    if not pa or pa["id"] != partes[1]:
+                        h_["origen"] += f" — de OTRO proyecto ({(proyecto_get(partes[1]) or {}).get('nombre', partes[1])})"
+                hits.append(h_)
     # refuerzo: el mismo hecho mencionado en varios sitios sube
     claves = [" ".join(sorted(set(_norm(h["texto"]).split()))[:8]) for h in hits]
     for h, k in zip(hits, claves):
@@ -14786,7 +14801,7 @@ def _after_run(task, result):
     raiz, n = task["raiz"], task.get("ronda", 0)
     ya_sumado = result.pop("_costo_ya_sumado", False)  # se corto revisando: el motor ya conto
     _family_update(raiz, sumar_costo=None if ya_sumado else result.get("cost_usd"), ultimo_resultado=task["id"],
-                   session_id=result.get("session_id"), en_curso=None)
+                   session_id=result.get("session_id"), en_curso=None, solo_si_falta_proyecto=task.get("proyecto"))
     rev = None
     tope = _tope_superado(task, result)
     if tope:  # tope de gasto (con reintentos y rondas): se para y decides tu
@@ -23137,7 +23152,9 @@ def _after_spend():
 def _tray_title():
     """Tooltip de la bandeja: las lineas de gasto; en el carril B, primero
     «Growi Bridge — carril B» para distinguirlo del A."""
-    lines = _tray_espera_lines() + _tray_asis_lineas() + list(spend_lines())  # el guardrail primero (no se corta)
+    _pa = proyecto_activo()
+    lines = (_tray_espera_lines() + ([f"Proyecto: {_pa['nombre']}"] if _pa else []) + _tray_asis_lineas()
+             + list(spend_lines()))  # el guardrail primero (no se corta)
     if LANE == "b":
         lines.insert(0, "Growi Bridge — carril B")
     # Windows admite 127 letras: se quitan lineas enteras del final (nunca
@@ -24875,8 +24892,11 @@ def _palette_sections(q):
         rest = [c for c in rest if not c.get("cmdscr")]
         asis = [c for c in rest if c.get("asis")]  # asistentes (perfiles): su propia seccion
         rest = [c for c in rest if not c.get("cmdia") and not c.get("asis")]
-        return [("Favoritos", fav), ("Frecuentes", freq), ("Asistentes", asis), ("Comandos de IA", cmdia),
-                ("Mis comandos", scripts), ("Todas las acciones", rest)]
+        _pa = proyecto_activo()
+        proy = [{"id": "_proyecto", "label": (f"Proyecto activo: {_pa['nombre']} (cambiar)" if _pa else
+                                              "Sin proyecto activo (elegir uno)"), "fn": proyectos_ui}]
+        return [("Proyecto", proy), ("Favoritos", fav), ("Frecuentes", freq), ("Asistentes", asis),
+                ("Comandos de IA", cmdia), ("Mis comandos", scripts), ("Todas las acciones", rest)]
     scored = []
     for c in _PALETTE_CMDS:
         total = 0.0
@@ -25258,6 +25278,9 @@ def _send_ask():
     _asis = asis_activo()
     if _asis is not None:
         data["asistente"] = _asis["id"]  # la tarea queda con el asistente con el que se mando
+    _proy = proyecto_activo()
+    if _proy is not None:
+        data["proyecto"] = _proy["nombre"]  # y con su proyecto: cambiar de proyecto después no la mueve
     if model == "motor:auto":
         # Elige el runner; los permisos quedan por si elige Claude.
         data.pop("model")
@@ -25376,7 +25399,7 @@ def _task_rows():
         motor = data.get("motor") or ("ollama" if str(data.get("model") or "").startswith("ollama:")
                                       else "claude")
         rows.append({"id": tid, "estado": "pendiente", "motor": motor, "ronda": 0, "costo": None,
-                     "rev": {}, "fam": {"encargo": data.get("prompt"),
+                     "rev": {}, "fam": {"encargo": data.get("prompt"), "proyecto": data.get("proyecto"),
                                         "criterios": data.get("criterios") or []},
                      "t": datetime.fromtimestamp(p.stat().st_mtime).astimezone().isoformat(timespec="seconds")})
     total = today_total = 0.0
@@ -26124,6 +26147,9 @@ def _refresh_tasks_ui():
         # Filtro «solo las que esperan tu aprobacion» (clic en el contador o
         # en la bandeja); la fila fija de arriba dice que esta puesto.
         vista = [r for r in rows if _espera_de_verdad(r)] if _ESP["filtro"] else rows
+        _pa = proyecto_activo()
+        if _pa is not None:  # t-proyectos: solo las del proyecto activo (las de otros no se mezclan)
+            vista = [r for r in vista if (r.get("fam") or {}).get("proyecto") == _pa["nombre"]]
         for r in vista[:40]:
             iid = r["id"]
             _tasks_rows[iid] = r
@@ -26145,8 +26171,10 @@ def _refresh_tasks_ui():
         if w.get("tasks_summary") is not None:
             waiting = sum(1 for r in rows if r["estado"] == "esperando_aprobacion")
             cola = cola_resumen()
+            _pa2 = proyecto_activo()
             w["tasks_summary"].config(
-                text=f"{len(rows)} tareas. El gasto, separado en real, equivalente Max y local, "
+                text=(f"Proyecto: {_pa2['nombre']} (solo sus tareas). " if _pa2 else "")
+                     + f"{len(rows)} tareas. El gasto, separado en real, equivalente Max y local, "
                      "va en la tarjeta Gasto."
                      + (f" {waiting} esperan tu aprobación." if waiting else "")
                      + (f" En cola: {cola['pendiente']}." if cola["pendiente"] else "")
@@ -29830,6 +29858,291 @@ def _corte_sin_prueba():
     ok, msg = resiliencia_registrar("sin prueba")
     _CORTE["kit"].set_label(_CORTE["msg"], text=("Guardado: " + msg) if ok else msg, color="green_text" if ok else "red")
     _corte_render()
+
+
+# ---------------------------------------------------------------- proyectos (t-proyectos)
+# Proyecto = sus tareas y chats + instrucciones + carpeta + guardrail (+ modelo
+# y asistente), por cliente (Aqualine, Summit Maker, HAYAI…). Un solo usuario:
+# no son perfiles de usuario. Activar uno cambia todo en un gesto; el activo se
+# ve en la paleta, en la bandeja y en Tareas. Cada proyecto tiene su memoria
+# (memory\proyectos\<id>\MEMORY.md) aparte de la general: el runner usa la del
+# proyecto de la tarea + la general, sin mezclar. Una tarea pertenece a su
+# proyecto (campo «proyecto»): cambiar de proyecto a mitad no la mueve.
+PROYECTOS_DIR = APP_DIR / "proyectos"
+PROYECTOS_INICIALES = ("Aqualine", "Summit Maker", "HAYAI")
+
+
+def _proy_slug(nombre):
+    return re.sub(r"[^a-z0-9]+", "-", _sin_acentos(nombre).lower()).strip("-")[:40] or "proyecto"
+
+
+def proyectos_lista():
+    out = []
+    for f in sorted(PROYECTOS_DIR.glob("*.json")):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(d, dict) and d.get("id"):
+                out.append(d)
+        except (OSError, ValueError):
+            continue
+    return out
+
+
+def proyecto_get(pid_o_nombre):
+    k = str(pid_o_nombre or "")
+    return next((p for p in proyectos_lista() if p["id"] == k or p["nombre"] == k), None)
+
+
+def proyecto_activo():
+    return proyecto_get(load_settings().get("proyecto_activo")) if load_settings().get("proyecto_activo") else None
+
+
+def proyecto_memoria_dir(p):
+    return MEMORY_DIR / "proyectos" / p["id"]
+
+
+def proyecto_guardar(nombre, cliente="", carpeta="", instrucciones="", guardrail=None, modelo=None, asistente=None,
+                     pid=None):
+    """Crea o actualiza un proyecto. (proyecto, aviso)."""
+    nombre = str(nombre or "").strip()
+    if not nombre:
+        return None, "ponle un nombre"
+    pid = pid or _proy_slug(nombre)
+    viejo = proyecto_get(pid) or {}
+    carpeta = str(carpeta or "").strip()
+    falta = None
+    if carpeta and not Path(carpeta).is_dir():
+        falta, carpeta = f"FALTA: la carpeta {carpeta} no existe en este PC", ""
+    elif not carpeta:
+        falta = viejo.get("carpeta_falta") or "FALTA: sin carpeta de trabajo"
+    p = dict(viejo, id=pid, nombre=nombre, cliente=str(cliente or "").strip(), carpeta=carpeta or None,
+             carpeta_falta=falta if not carpeta else None, instrucciones=str(instrucciones or "").strip(),
+             guardrail=guardrail if guardrail in ("siempre", "delicado", "nunca") else viejo.get("guardrail"),
+             modelo=modelo or viejo.get("modelo"), asistente=asistente or viejo.get("asistente"),
+             creado=viejo.get("creado") or _now_iso(), actualizado=_now_iso())
+    PROYECTOS_DIR.mkdir(parents=True, exist_ok=True)
+    (PROYECTOS_DIR / f"{pid}.json").write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
+    md = proyecto_memoria_dir(p)
+    md.mkdir(parents=True, exist_ok=True)
+    if not (md / "MEMORY.md").exists():
+        (md / "MEMORY.md").write_text(f"# Memoria del proyecto {nombre}\n\n(Lo de este proyecto; no se mezcla con "
+                                      "la memoria general ni con la de otros proyectos.)\n", encoding="utf-8")
+    log(f"proyectos: guardado «{nombre}» (carpeta: {carpeta or falta})")
+    return p, falta
+
+
+def _proy_buscar_carpeta(nombre):
+    """La carpeta REAL del proyecto en este PC (o None): OneDrive, Documentos, Escritorio, el perfil."""
+    clave = re.sub(r"[^a-z0-9]", "", _sin_acentos(nombre).lower())
+    bases = [HOME_DIR / "OneDrive", HOME_DIR / "OneDrive" / "Documentos", HOME_DIR / "OneDrive" / "Documents",
+             HOME_DIR / "Documents", HOME_DIR / "Documentos", HOME_DIR / "Desktop", HOME_DIR / "Escritorio", HOME_DIR]
+    for b in bases:
+        try:
+            for d in b.iterdir():
+                if d.is_dir() and re.sub(r"[^a-z0-9]", "", _sin_acentos(d.name).lower()) == clave:
+                    return str(d)
+        except OSError:
+            continue
+    return None
+
+
+def _proy_instrucciones_de_memoria(nombre):
+    """Las líneas de MEMORY.md que hablan de ese proyecto (no se inventa nada)."""
+    try:
+        txt = (MEMORY_DIR / "MEMORY.md").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    k = _sin_acentos(nombre).lower()
+    lineas = [re.sub(r"^[\s>*\-#]+", "", x).strip() for x in txt.splitlines() if k in _sin_acentos(x).lower()]
+    return "\n".join(f"- {x}" for x in lineas if x)[:1500]
+
+
+def proyectos_iniciales():
+    """Aqualine, Summit Maker y HAYAI, si no hay ninguno: carpeta real o FALTA; instrucciones de MEMORY.md."""
+    if proyectos_lista():
+        return []
+    hechos = []
+    for nombre in PROYECTOS_INICIALES:
+        carpeta = _proy_buscar_carpeta(nombre)
+        instr = _proy_instrucciones_de_memoria(nombre)
+        p, falta = proyecto_guardar(nombre, cliente=nombre, carpeta=carpeta or "", instrucciones=instr)
+        if not carpeta:
+            p["carpeta_falta"] = f"FALTA: no encontré la carpeta de {nombre} en este PC (OneDrive, Documentos, Escritorio)"
+            (PROYECTOS_DIR / f"{p['id']}.json").write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
+        if not instr:
+            p["instrucciones_nota"] = "MEMORY.md no dice nada de este proyecto: sin instrucciones todavía"
+            (PROYECTOS_DIR / f"{p['id']}.json").write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
+        hechos.append(p)
+    log(f"proyectos: iniciales creados: {', '.join(p['nombre'] for p in hechos)}")
+    return hechos
+
+
+def proyecto_activar(pid):
+    """Un gesto: proyecto activo + su guardrail, modelo, asistente y carpeta. (ok, cambios)."""
+    s = load_settings()
+    if not pid:
+        s.pop("proyecto_activo", None)
+        save_settings(s)
+        log("proyectos: sin proyecto activo (todo lo general)")
+        _proy_refrescar_avisos()
+        return True, ["sin proyecto"]
+    p = proyecto_get(pid)
+    if p is None:
+        return False, ["ese proyecto no existe"]
+    cambios = [f"proyecto: {p['nombre']}"]
+    s["proyecto_activo"] = p["id"]
+    if p.get("guardrail"):
+        s["guardrail"] = p["guardrail"]
+        cambios.append(f"permisos: {p['guardrail']}")
+    if p.get("asistente"):
+        s["asistente_activo"] = p["asistente"]
+        cambios.append(f"asistente: {p['asistente']}")
+    save_settings(s)
+    if p.get("modelo"):
+        superficie_poner("chat", p["modelo"])
+        cambios.append(f"modelo del chat: {p['modelo']}")
+    cambios.append(f"carpeta: {p['carpeta']}" if p.get("carpeta") else (p.get("carpeta_falta") or "sin carpeta"))
+    log(f"proyectos: activo «{p['nombre']}» → " + "; ".join(cambios[1:]))
+    _proy_refrescar_avisos()
+    return True, cambios
+
+
+def _proy_refrescar_avisos():
+    try:
+        _update_tray_title()
+    except Exception:
+        pass
+    try:
+        _tasks_fp[0] = None
+        _refresh_tasks_ui()
+    except Exception:
+        pass
+
+
+def proyecto_bloque_prompt(task):
+    """Instrucciones + memoria del proyecto de la TAREA (no el activo ahora: la tarea es de su proyecto)."""
+    p = proyecto_get(task.get("proyecto")) if task.get("proyecto") else None
+    if p is None:
+        return ""
+    try:
+        mem = (proyecto_memoria_dir(p) / "MEMORY.md").read_text(encoding="utf-8").strip()[:3000]
+    except OSError:
+        mem = ""
+    return (f"PROYECTO {p['nombre']}" + (f" (cliente {p['cliente']})" if p.get("cliente") else "")
+            + ":\n" + (p.get("instrucciones") or "(sin instrucciones propias)") + "\n"
+            + (f"--- Memoria del proyecto {p['nombre']} (solo de este proyecto) ---\n{mem}\n" if mem else "")
+            + "--- Fin del proyecto ---\n\n")
+
+
+def proyecto_tareas(nombre):
+    """Las tareas (familias) de un proyecto: solo las suyas."""
+    out = []
+    for f in RESULTS.glob("*.orquestacion.json"):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if d.get("proyecto") == nombre:
+            out.append(d.get("raiz"))
+    return sorted(out)
+
+
+_PRUI: dict = {"top": None}
+
+
+def _proy_elegir_carpeta():
+    d = filedialog.askdirectory(title="Carpeta del proyecto")
+    if d:
+        _PRUI["campos"]["carpeta"].delete(0, "end")
+        _PRUI["campos"]["carpeta"].insert(0, os.path.normpath(d))
+
+
+def proyectos_ui():
+    """Lista + formulario en palabras (nombre, cliente, carpeta, instrucciones) + Activar."""
+    if not proyectos_lista():
+        proyectos_iniciales()
+    top = _PRUI.get("top")
+    if top is not None:
+        try:
+            top.deiconify()
+            top.lift()
+            _proyectos_render()
+            return top
+        except tk.TclError:
+            pass
+    top = tk.Toplevel(_root)
+    top.title("Proyectos")
+    top.configure(bg=THEME["bg"])
+    top.geometry(f"{S(680)}x{S(640)}")
+    page = _scrollable(top)
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(page)
+        except Exception as e:
+            log(f"proyectos: CustomTkinter no disponible ({type(e).__name__}: {e}); ventana clásica")
+    k = k or _KitTk(page)
+    _PRUI.update(top=top, kit=k)
+    c = k.section("Tus proyectos", "Cada uno con sus tareas, su carpeta, sus instrucciones, su memoria y sus "
+                                   "permisos. Activar uno lo cambia todo a la vez.")
+    _PRUI["lista"] = k.frame(c)
+    _PRUI["lista"].pack(fill="x", padx=16, pady=(2, 10))
+    c = k.section("Nuevo proyecto (o editar)", None)
+    _PRUI["campos"] = {}
+    for key, tit in (("nombre", "Nombre"), ("cliente", "Cliente"), ("carpeta", "Carpeta de trabajo")):
+        f = k.frame(c)
+        f.pack(fill="x", padx=16, pady=2)
+        k.label(f, tit, muted=True, wrap=0).pack(anchor="w")
+        ent = k.entry(f, width=60)
+        ent.pack(anchor="w", fill="x")
+        _PRUI["campos"][key] = ent
+    k.button(c, "Elegir carpeta…", _proy_elegir_carpeta).pack(anchor="w", padx=16, pady=(2, 4))
+    k.label(c, "Instrucciones (se le dan al asistente en cada tarea del proyecto)", muted=True, wrap=0).pack(
+        anchor="w", padx=16)
+    _PRUI["instr"] = tk.Text(c, height=5, font=(FONT, 10), bg=THEME["field"], fg=THEME["text"], wrap="word",
+                             insertbackground=THEME["text"], borderwidth=1, relief="solid")
+    _PRUI["instr"].pack(fill="x", padx=16, pady=2)
+    f = k.frame(c)
+    f.pack(fill="x", padx=16, pady=4)
+    _PRUI["guardrail"] = k.segmented(f, [(kk, lab) for kk, lab, _e in GUARDRAIL_LEVELS], lambda _v: None)
+    _PRUI["guardrail"].pack(side="left")
+    r = k.row(c, pady=(6, 4))
+    k.button(r, "Guardar proyecto", _proyecto_guardar_ui, accent=True).pack(side="left")
+    _PRUI["msg"] = k.label(c, "", wrap=600)
+    _PRUI["msg"].pack(anchor="w", padx=16, pady=(2, 12))
+    _proyectos_render()
+    return top
+
+
+def _proyecto_guardar_ui():
+    k = _PRUI["kit"]
+    c = _PRUI["campos"]
+    p, falta = proyecto_guardar(c["nombre"].get(), c["cliente"].get(), c["carpeta"].get(),
+                                _PRUI["instr"].get("1.0", "end"), k.seg_get(_PRUI["guardrail"]))
+    k.set_label(_PRUI["msg"], text=(f"Guardado «{p['nombre']}»." + (f" {falta}" if falta else "")) if p
+                else f"No se guardó: {falta}.", color="green_text" if p and not falta else "orange_text")
+    _proyectos_render()
+
+
+def _proyectos_render():
+    k = _PRUI["kit"]
+    box = _PRUI["lista"]
+    for ch in box.winfo_children():
+        ch.destroy()
+    act = (proyecto_activo() or {}).get("id")
+    for p in proyectos_lista():
+        f = k.frame(box)
+        f.pack(fill="x", pady=2)
+        k.label(f, f"{p['nombre']}" + (" (activo)" if p["id"] == act else "") + " · "
+                + (p.get("carpeta") or p.get("carpeta_falta") or "sin carpeta") + " · "
+                + f"{len(proyecto_tareas(p['nombre']))} tarea(s)", wrap=440,
+                color="green_text" if p["id"] == act else ("orange_text" if not p.get("carpeta") else None)).pack(
+            side="left", anchor="w")
+        if p["id"] != act:
+            k.button(f, "Activar", lambda i=p["id"]: (proyecto_activar(i), _proyectos_render())).pack(side="right")
+    if act:
+        k.button(box, "Sin proyecto (todo lo general)", lambda: (proyecto_activar(None), _proyectos_render())).pack(
+            anchor="w", pady=(6, 0))
 
 
 # ---------------------------------------------------------------- teclado y foco (t-teclado-foco)
@@ -36952,6 +37265,11 @@ def asis_orden_revision(task, orden):
 
 
 def asis_cwd_envio():
+    p = proyecto_activo()  # t-proyectos: la carpeta del proyecto activo, si está permitida
+    if p and p.get("carpeta") and Path(p["carpeta"]).is_dir():
+        if _inside_any(Path(p["carpeta"]).resolve(), load_folders()):
+            return p["carpeta"]
+        log(f"proyectos: la carpeta de «{p['nombre']}» no está en Carpetas: la tarea va a la de siempre")
     """La carpeta de una tarea mandada desde Tareas (o la paleta)."""
     try:
         return asis_cwd_defecto(asis_activo()) or str(INBOX)
@@ -40085,6 +40403,9 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("proyectos", "Proyectos: cambiar de proyecto o crear uno",
+          "proyecto proyectos cliente aqualine summit maker hayai cambiar activar carpeta instrucciones",
+          lambda: (show_window(), proyectos_ui())),
         C("voz", "Narrar con voz (ElevenLabs, tu clave)",
           "voz narrar narracion elevenlabs tts audio anuncio tutorial demo locucion", lambda: (show_window(), voz_ui())),
         C("verificar_nubes", "Verificar Groq y Gemini (llamada real, medida)",

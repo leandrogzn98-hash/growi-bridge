@@ -1,0 +1,127 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa",
+ "iniciales": [
+  {
+   "nombre": "Aqualine",
+   "carpeta": null,
+   "carpeta_falta": "FALTA: no encontré la carpeta de Aqualine en este PC (OneDrive, Documentos, Escritorio)",
+   "instrucciones": "",
+   "instrucciones_nota": "MEMORY.md no dice nada de este proyecto: sin instrucciones todavía"
+  },
+  {
+   "nombre": "Summit Maker",
+   "carpeta": null,
+   "carpeta_falta": "FALTA: no encontré la carpeta de Summit Maker en este PC (OneDrive, Documentos, Escritorio)",
+   "instrucciones": "- Summit Maker con Angelis: talleres hands-on.",
+   "instrucciones_nota": null
+  },
+  {
+   "nombre": "HAYAI",
+   "carpeta": null,
+   "carpeta_falta": "FALTA: no encontré la carpeta de HAYAI en este PC (OneDrive, Documentos, Escritorio)",
+   "instrucciones": "- HAYAI: implementación de IA y automatización.",
+   "instrucciones_nota": null
+  }
+ ],
+ "b_cambio": {
+  "antes": {
+   "guardrail": "delicado",
+   "modelo_chat": "",
+   "carpeta_tareas_nuevas": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\share\\inbox"
+  },
+  "aqualine": [
+   [
+    "proyecto: Aqualine",
+    "permisos: siempre",
+    "modelo del chat: haiku",
+    "carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Aqualine"
+   ],
+   {
+    "guardrail": "siempre",
+    "modelo_chat": "haiku",
+    "carpeta_tareas_nuevas": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Aqualine",
+    "bandeja": "Leyendo las tareas en espera…\nPermisos: Siempre pregunta\nProyecto: Aqualine\nAsistente: Growi\nGasto: calculando…"
+   }
+  ],
+  "summit": [
+   [
+    "proyecto: Summit Maker",
+    "permisos: nunca",
+    "modelo del chat: sonnet",
+    "carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Summit Maker"
+   ],
+   {
+    "guardrail": "nunca",
+    "modelo_chat": "sonnet",
+    "carpeta_tareas_nuevas": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Summit Maker",
+    "bandeja": "Leyendo las tareas en espera…\nPermisos: Sin preguntar\nProyecto: Summit Maker\nAsistente: Growi\nGasto: calculando…"
+   }
+  ]
+ },
+ "a_tareas": {
+  "Aqualine": [
+   "t-aq-1",
+   "t-aq-2"
+  ],
+  "Summit Maker": [
+   "t-sm-1"
+  ]
+ },
+ "a_prompt_aqualine": "PROYECTO Aqualine (cliente Aqualine):\nEscribe en tono comercial y breve.\n--- Memoria del proyecto Aqualine (solo de este proyecto) ---\n# Memoria del proyecto Aqualine\n- El precio del filtro X es 120 (dato de prueba).\n--- Fin del proyecto ---\n\nASISTENTE ACTIVO: «Growi» (perfil de Growi Bridge: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\app\\asistentes\\growi.md). Para qué sirve",
+ "c_prompt_summit_sin_aqualine": true,
+ "c_prompt_aqualine_con_su_memoria": true,
+ "c_buscar_en_summit": [
+  [
+   "- El precio del filtro X es 120 (dato de prueba).",
+   "MEMORY.md: sin origen registrado — de OTRO proyecto (Aqualine)"
+  ]
+ ],
+ "c_buscar_en_aqualine": [
+  [
+   "- El precio del filtro X es 120 (dato de prueba).",
+   "MEMORY.md: sin origen registrado"
+  ]
+ ],
+ "d_gasto_por_proyecto": {
+  "Aqualine": {
+   "real": 0.0,
+   "equiv": 0.04,
+   "local": 0,
+   "n": 2,
+   "dias": [
+    "2026-10-28"
+   ],
+   "modelos": [
+    "claude"
+   ]
+  },
+  "Summit Maker": {
+   "real": 0.0,
+   "equiv": 0.02,
+   "local": 0,
+   "n": 1,
+   "dias": [
+    "2026-10-28"
+   ],
+   "modelos": [
+    "claude"
+   ]
+  }
+ },
+ "palette": [
+  "Proyecto",
+  "Favoritos"
+ ],
+ "log": [
+  "2026-10-28T05:35:23-04:00 proyectos: guardado «Aqualine» (carpeta: FALTA: sin carpeta de trabajo)",
+  "2026-10-28T05:35:23-04:00 proyectos: guardado «Summit Maker» (carpeta: FALTA: sin carpeta de trabajo)",
+  "2026-10-28T05:35:23-04:00 proyectos: guardado «HAYAI» (carpeta: FALTA: sin carpeta de trabajo)",
+  "2026-10-28T05:35:23-04:00 proyectos: iniciales creados: Aqualine, Summit Maker, HAYAI",
+  "2026-10-28T05:35:24-04:00 proyectos: guardado «Aqualine» (carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Aqualine)",
+  "2026-10-28T05:35:24-04:00 proyectos: guardado «Summit Maker» (carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Summit Maker)",
+  "2026-10-28T05:35:24-04:00 proyectos: activo «Aqualine» → permisos: siempre; modelo del chat: haiku; carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Aqualine",
+  "2026-10-28T05:35:27-04:00 proyectos: activo «Summit Maker» → permisos: nunca; modelo del chat: sonnet; carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Summit Maker",
+  "2026-10-28T05:35:34-04:00 proyectos: activo «Aqualine» → permisos: siempre; modelo del chat: haiku; carpeta: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-proyectos-v3bz3rfa\\clientes\\Aqualine"
+ ],
+ "tracebacks_en_log": 0
+}
