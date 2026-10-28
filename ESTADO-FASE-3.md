@@ -29,6 +29,8 @@ raíz y su commit.
 | 23 | t-matriz-estados | **SALTADO (dependencia)** | Depende de t-estados-vacios y t-estados-error (fase A), que **no se han hecho**: no están en el código ni en la cadena enviada (CADENA-ESTADO.json). Es una auditoría que usa esos componentes |
 | 24 | t-memoria-buscable | **LISTO** | `c7e8625`, `ESTADO-MEMORIA-BUSCABLE.md` |
 | 25 | t-modelo-por-superficie-auto | **LISTO** | `1d21404`, `ESTADO-MODELO-POR-SUPERFICIE.md` |
+| 26 | t-motor-opencode | **SALTADO (permiso)** | El spec pide **instalar OpenCode** (`npm install -g opencode-ai`, vía oficial). El clasificador de permisos de esta sesión **denegó** instalar código externo, y sin el binario no se puede verificar en vivo ni su nombre, ni su sintaxis, ni su salida, ni la prueba corta (el spec prohíbe inventar el descriptor). Para retomar: que Leandro autorice la instalación |
+| 27 | t-movimiento-contraste | **LISTO** (FALTA: la sesión real en Night Sky, con el procedimiento) | `deac949`, `ESTADO-MOVIMIENTO-CONTRASTE.md` |
 
 **Prerrequisito general:** la fase A (opus-tasks-030) no está completa en la
 cadena: 24 de 28 enviados, parada en `t-temas-oscuro-sistema`. Cada spec
