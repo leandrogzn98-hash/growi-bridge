@@ -27175,6 +27175,415 @@ def _skb_aprobar(carpeta, nombre):
     _skb_refrescar(reindexar=True)
 
 
+# ---------------------------------------------------------------- Pedir cosecha (t-pedir-cosecha)
+# El Bridge NO ejecuta Apify: arma el pedido, lo estima con la tarifa real y,
+# solo con tu OK explicito (un segundo paso, con su costo a la vista), lo deja
+# como archivo para la VM en outbox\cosecha\<id>.json. La VM lo corre con
+# Apify y devuelve inbox\cosecha\<id>.resultado.json. Si la VM publica
+# inbox\cosecha\estado-vm.json, de ahi salen el token de TikTok y el gasto del
+# mes; si no, el gasto se suma de los pedidos que pasaron por aqui (y se dice).
+COSECHA_OUT = OUTBOX / "cosecha"
+COSECHA_IN = INBOX / "cosecha"
+COSECHA_LOCAL = SETTINGS_FILE.parent / "cosecha-pedidos.json"
+COSECHA_FREE_USD = 5.0  # Apify Free: $5/mes de uso prepago, no acumulable
+COSECHA_REDES = {
+    "tiktok": {"nombre": "TikTok", "actor": "GdWCkxBtKWOsKjdch", "actor_nombre": "TikTok Scraper (oficial)",
+               "usd_por_mil": 3.70, "token": True},
+    "instagram": {"nombre": "Instagram", "actor": None, "actor_nombre": "Instagram Scraper",
+                  "usd_por_mil": None, "token": False},
+}
+COSECHA_BRIEFS = (("C1", "Brief C1"), ("C2", "Brief C2"), ("C3", "Brief C3"), ("C4", "Brief C4"),
+                  ("otro", "Otro"))
+COSECHA_SIN_RESPUESTA_S = 2 * 3600
+_COSECHA_LOCK = threading.Lock()
+
+
+def _cosecha_leer():
+    try:
+        d = json.loads(COSECHA_LOCAL.read_text(encoding="utf-8"))
+        return d if isinstance(d, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _cosecha_guardar(lista):
+    COSECHA_LOCAL.write_text(json.dumps(lista, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def cosecha_estado_vm():
+    """Lo que la VM dice de si misma (o None si no ha publicado nada)."""
+    try:
+        d = json.loads((COSECHA_IN / "estado-vm.json").read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def cosecha_token():
+    """(hay_token, de_donde). El cosechador corre en la VM: manda lo que diga
+    la VM; si no ha dicho nada, vale la variable TIKTOK_MS_TOKEN de aqui."""
+    vm = cosecha_estado_vm()
+    if vm is not None and "tiktok_ms_token" in vm:
+        return bool(vm["tiktok_ms_token"]), "según la VM"
+    if os.environ.get("TIKTOK_MS_TOKEN"):
+        return True, "variable TIKTOK_MS_TOKEN de este PC"
+    return False, "ni la VM ni este PC lo tienen"
+
+
+def _cosecha_tarifa(red):
+    t = (load_settings().get("cosecha_tarifas") or {}).get(red)
+    return float(t) if isinstance(t, (int, float)) and t > 0 else COSECHA_REDES[red]["usd_por_mil"]
+
+
+def cosecha_gasto_mes():
+    """(usd_usados_o_comprometidos, de_donde)."""
+    vm = cosecha_estado_vm() or {}
+    usado = (vm.get("apify") or {}).get("usado_mes_usd")
+    mes = datetime.now().strftime("%Y-%m")
+    pend = sum(float((p.get("estimacion") or {}).get("usd") or 0) for p in _cosecha_leer()
+               if p.get("estado") == "enviado" and str(p.get("enviado_at", ""))[:7] == mes)
+    if isinstance(usado, (int, float)):
+        return round(float(usado) + pend, 2), "Apify según la VM, más lo enviado sin resultado"
+    real = sum(float(p.get("costo_real_usd") or 0) for p in _cosecha_leer()
+               if p.get("estado") == "terminado" and str(p.get("terminado_at", ""))[:7] == mes)
+    return round(real + pend, 2), "sumado de los pedidos que pasaron por esta app; la VM no ha dicho su gasto"
+
+
+def cosecha_estimar(red, n):
+    """La estimación que se enseña ANTES de enviar. None en usd = sin tarifa conocida."""
+    tarifa = _cosecha_tarifa(red)
+    usado, fuente = cosecha_gasto_mes()
+    queda = round(COSECHA_FREE_USD - usado, 2)
+    usd = round(n * tarifa / 1000, 2) if tarifa else None
+    return {"resultados": n, "usd": usd, "usd_por_mil": tarifa, "free_mes_usd": COSECHA_FREE_USD,
+            "usado_mes_usd": usado, "queda_usd": queda, "fuente_gasto": fuente,
+            "alcanza": usd is not None and usd <= queda, "calculado": _now_iso()}
+
+
+def cosecha_estimacion_txt(e, red):
+    if e["usd"] is None:
+        return (f"No sé la tarifa de {COSECHA_REDES[red]['nombre']} (no la invento): sin estimación no se envía. "
+                f"Ponla en settings.json, en cosecha_tarifas.{red} ($ por 1.000 resultados).")
+    t = (f"Unos {e['resultados']} resultados ≈ ${e['usd']:.2f} (a ${e['usd_por_mil']:.2f} por 1.000). "
+         f"Del Free de ${e['free_mes_usd']:.0f}/mes quedan ${max(e['queda_usd'], 0):.2f} ({e['fuente_gasto']}).")
+    if not e["alcanza"]:
+        t += " NO alcanza: Apify se bloquea al agotarse hasta el ciclo siguiente."
+    return t
+
+
+def cosecha_crear(red, tema, n, brief):
+    """Crea el pedido local (nunca lo envía). (pedido, mensaje)."""
+    if red not in COSECHA_REDES:
+        return None, "elige TikTok o Instagram"
+    tema = str(tema or "").strip()
+    if not tema:
+        return None, "di el tema o las cuentas (p. ej. «#recetasfaciles» o «@cuenta1, @cuenta2»)"
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        return None, "cuántos resultados: un número"
+    if not 1 <= n <= 5000:
+        return None, "cuántos resultados: entre 1 y 5000"
+    p = {"id": "cosecha-" + datetime.now().strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2), "red": red, "tema": tema,
+         "resultados": n, "brief": brief, "creado_at": _now_iso(), "estimacion": cosecha_estimar(red, n)}
+    tok, donde = cosecha_token()
+    if COSECHA_REDES[red]["token"] and not tok:
+        p.update(estado="falta_token", motivo=f"falta el token de TikTok (TIKTOK_MS_TOKEN), lo pone Leandro; {donde}")
+        msg = "Falta el token de TikTok, lo pone Leandro. El pedido queda anotado como FALTA y no se envía."
+    elif p["estimacion"]["usd"] is None:
+        p.update(estado="sin_estimacion", motivo="sin tarifa conocida para esta red")
+        msg = "Sin tarifa conocida no hay estimación, y sin estimación no se envía nada."
+    else:
+        p["estado"] = "pendiente_ok"
+        msg = "Pedido guardado. Revisa la estimación y pulsa «Dar el OK y enviar» si te parece bien."
+    with _COSECHA_LOCK:
+        lista = _cosecha_leer()
+        lista.append(p)
+        _cosecha_guardar(lista)
+    log(f"cosecha: pedido {p['id']} ({COSECHA_REDES[red]['nombre']}, «{tema}», {n} resultados, brief {brief}): "
+        f"{p['estado']}" + (f", estimado ${p['estimacion']['usd']:.2f}" if p["estimacion"]["usd"] is not None else ""))
+    return p, msg
+
+
+def cosecha_aprobar(pid):
+    """El OK explícito: re-estima y deja el archivo para la VM. (ok, mensaje)."""
+    with _COSECHA_LOCK:
+        lista = _cosecha_leer()
+        p = next((x for x in lista if x["id"] == pid), None)
+        if p is None or p.get("estado") != "pendiente_ok":
+            return False, "ese pedido no está esperando tu OK"
+        tok, _d = cosecha_token()
+        if COSECHA_REDES[p["red"]]["token"] and not tok:
+            return False, "falta el token de TikTok, lo pone Leandro: no se envía"
+        e = cosecha_estimar(p["red"], p["resultados"])
+        if e["usd"] is None:
+            return False, "sin estimación no se envía nada"
+        red = COSECHA_REDES[p["red"]]
+        p.update(estimacion=e, estado="enviado", enviado_at=_now_iso(), ok_at=_now_iso(),
+                 ok_por="Leandro, en la app (botón «Dar el OK y enviar» + confirmación)")
+        pedido = {"id": p["id"], "tipo": "cosecha", "red": p["red"], "tema": p["tema"],
+                  "resultados": p["resultados"], "brief": p["brief"], "estimacion": e,
+                  "actor": {"id": red["actor"], "nombre": red["actor_nombre"]}, "ok_explicito": True,
+                  "ok_at": p["ok_at"], "ok_por": p["ok_por"], "devolver_en": f"inbox/cosecha/{p['id']}.resultado.json",
+                  "nota": "Correr el Actor GASTA créditos de Apify: este pedido trae el OK explícito de Leandro."}
+        COSECHA_OUT.mkdir(parents=True, exist_ok=True)
+        tmp = COSECHA_OUT / f"{p['id']}.tmp"
+        tmp.write_text(json.dumps(pedido, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, COSECHA_OUT / f"{p['id']}.json")
+        p["archivo"] = str(COSECHA_OUT / f"{p['id']}.json")
+        _cosecha_guardar(lista)
+    log(f"cosecha: OK de Leandro al pedido {pid}: enviado a la VM ({p['archivo']}), estimado ${e['usd']:.2f}")
+    return True, f"Enviado a la VM con tu OK (estimado ${e['usd']:.2f})."
+
+
+def cosecha_descartar(pid):
+    with _COSECHA_LOCK:
+        lista = _cosecha_leer()
+        p = next((x for x in lista if x["id"] == pid), None)
+        if p is None or p.get("estado") in ("enviado", "terminado"):
+            return False
+        p.update(estado="descartado", descartado_at=_now_iso())
+        _cosecha_guardar(lista)
+    log(f"cosecha: pedido {pid} descartado (no se envió)")
+    return True
+
+
+def cosecha_revisar():
+    """Lee los resultados que devolvió la VM. True si algo cambió."""
+    cambio = False
+    with _COSECHA_LOCK:
+        lista = _cosecha_leer()
+        for p in lista:
+            if p.get("estado") != "enviado":
+                continue
+            f = COSECHA_IN / f"{p['id']}.resultado.json"
+            try:
+                r = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(r, dict):
+                continue
+            p.update(estado="terminado" if not r.get("error") else "fallido", terminado_at=_now_iso(),
+                     resultados_reales=r.get("resultados"), costo_real_usd=r.get("costo_usd"),
+                     dataset=r.get("dataset"), error=r.get("error"))
+            cambio = True
+            est = (p.get("estimacion") or {}).get("usd")
+            log(f"cosecha: volvió {p['id']}: {r.get('resultados')} resultados, costo real "
+                f"${float(r.get('costo_usd') or 0):.2f} (estimado ${float(est or 0):.2f}), dataset {r.get('dataset')}"
+                + (f"; ERROR {r['error']}" if r.get("error") else ""))
+        if cambio:
+            _cosecha_guardar(lista)
+    return cambio
+
+
+def cosecha_fila_txt(p):
+    red = COSECHA_REDES.get(p.get("red"), {}).get("nombre", p.get("red"))
+    cab = f"{red}: «{p.get('tema')}», {p.get('resultados')} resultados, brief {p.get('brief')}"
+    e = p.get("estimacion") or {}
+    est = f"${e['usd']:.2f}" if e.get("usd") is not None else "sin estimación"
+    st = p.get("estado")
+    if st == "pendiente_ok":
+        return cab, f"Esperando tu OK. Estimado {est}; quedarían ${max(e.get('queda_usd', 0) - (e.get('usd') or 0), 0):.2f} del Free.", "orange_text"
+    if st == "falta_token":
+        return cab, "FALTA: falta el token de TikTok, lo pone Leandro. No se envió.", "red"
+    if st == "sin_estimacion":
+        return cab, "FALTA: sin tarifa conocida no hay estimación; no se envió.", "red"
+    if st == "enviado":
+        try:
+            hace = time.time() - datetime.fromisoformat(p["enviado_at"]).timestamp()
+        except (KeyError, ValueError):
+            hace = 0
+        if hace > COSECHA_SIN_RESPUESTA_S:
+            return cab, f"Pedido enviado hace {_gw_hace(hace)}, sin respuesta de la VM.", "red"
+        return cab, f"Enviado a la VM hace {_gw_hace(hace)} (estimado {est}); esperando el resultado.", "blue"
+    if st == "terminado":
+        real = p.get("costo_real_usd")
+        return cab, (f"Listo: {p.get('resultados_reales')} resultados, costó "
+                     + (f"${float(real):.2f}" if real is not None else "sin dato") + f" (estimado {est}). "
+                     f"Guardado en {p.get('dataset') or 'sin dato'}"), "green_text"
+    if st == "fallido":
+        return cab, f"La VM no pudo: {p.get('error')}", "red"
+    return cab, "Descartado (no se envió).", "muted"
+
+
+_COS = {"kit": None}
+
+
+def _cosecha_build(page):
+    holder = tk.Frame(page, bg=THEME["bg"])
+    holder.pack(fill="x")
+    kit = None
+    if _ctk_wanted():
+        try:
+            kit = _KitCtk(holder)
+        except Exception as e:
+            log(f"cosecha: CustomTkinter no disponible ({type(e).__name__}: {e}); tarjeta clásica")
+    kit = kit or _KitTk(holder)
+    _COS["kit"] = k = kit
+    card = k.section("Cosecha de tendencias", "Pide a la VM tendencias reales de TikTok o Instagram para un brief. "
+                                              "Aquí no se corre nada: ves el costo antes y solo se envía con tu OK.")
+    r = k.row(card, pady=(4, 4))
+    _COS["token"] = k.label(r, "", wrap=470)
+    _COS["token"].pack(side="left", fill="x", expand=True)
+    k.button(r, "Pedir cosecha", _cosecha_form_toggle, accent=True).pack(side="right")
+    form = k.frame(card)
+    _COS["form"] = form
+    f1 = k.frame(form)
+    f1.pack(fill="x", padx=16, pady=(4, 2))
+    k.label(f1, "Red", muted=True, wrap=0).pack(side="left", padx=(0, 10))
+    _COS["red"] = k.segmented(f1, [("tiktok", "TikTok"), ("instagram", "Instagram")], lambda _v: _cosecha_estimar_ui())
+    _COS["red"].pack(side="left")
+    f2 = k.frame(form)
+    f2.pack(fill="x", padx=16, pady=2)
+    k.label(f2, "Tema o cuentas", muted=True, wrap=0).pack(side="left", padx=(0, 10))
+    _COS["tema"] = k.entry(f2, width=38)
+    _COS["tema"].pack(side="left")
+    f3 = k.frame(form)
+    f3.pack(fill="x", padx=16, pady=2)
+    k.label(f3, "Cuántos resultados", muted=True, wrap=0).pack(side="left", padx=(0, 10))
+    _COS["n"] = k.entry(f3, width=8)
+    _COS["n"].insert(0, "200")
+    _COS["n"].pack(side="left")
+    _COS["n"].bind("<KeyRelease>", lambda _e: _cosecha_estimar_ui())
+    f4 = k.frame(form)
+    f4.pack(fill="x", padx=16, pady=2)
+    k.label(f4, "Para qué brief", muted=True, wrap=0).pack(side="left", padx=(0, 10))
+    _COS["brief"] = k.segmented(f4, list(COSECHA_BRIEFS), lambda _v: None)
+    _COS["brief"].pack(side="left")
+    _COS["est"] = k.label(form, "", wrap=560)
+    _COS["est"].pack(fill="x", padx=16, pady=(6, 2))
+    f5 = k.frame(form)
+    f5.pack(fill="x", padx=16, pady=(2, 4))
+    k.button(f5, "Guardar pedido (queda esperando tu OK)", _cosecha_crear_ui).pack(side="left")
+    _COS["detalle_btn"] = k.button(f5, "Detalle técnico", _cosecha_detalle)
+    _COS["detalle_btn"].pack(side="left", padx=(10, 0))
+    _COS["detalle"] = k.label(form, "", muted=True, wrap=560)
+    _COS["msg"] = k.label(card, "", wrap=560)
+    _COS["msg"].pack(fill="x", padx=16, pady=(2, 2))
+    _COS["lista"] = k.frame(card)
+    _COS["lista"].pack(fill="x", padx=16, pady=(2, 12))
+    _COS["filas_fp"] = None
+    _cosecha_refrescar()
+    holder.after(10000, _cosecha_loop)
+
+
+def _cosecha_form_toggle():
+    form = _COS["form"]
+    if form.winfo_manager():
+        form.pack_forget()
+        return
+    form.pack(fill="x", before=_COS["msg"])
+    _cosecha_estimar_ui()
+    try:
+        _COS["tema"].focus_set()
+    except Exception:
+        pass
+
+
+def _cosecha_estimar_ui():
+    k, red = _COS["kit"], _COS["kit"].seg_get(_COS["red"])
+    try:
+        n = int(_COS["n"].get())
+    except ValueError:
+        k.set_label(_COS["est"], text="Cuántos resultados: un número.", color="orange_text")
+        return
+    e = cosecha_estimar(red, n)
+    tok, _d = cosecha_token()
+    txt = cosecha_estimacion_txt(e, red)
+    if COSECHA_REDES[red]["token"] and not tok:
+        txt = "Falta el token de TikTok, lo pone Leandro: el pedido quedará como FALTA y no se enviará. " + txt
+    k.set_label(_COS["est"], text=txt, color="red" if e["usd"] is None or not e["alcanza"] else "text")
+    if _COS["detalle"].winfo_manager():
+        _cosecha_detalle(mostrar=True)
+
+
+def _cosecha_detalle(mostrar=None):
+    lbl = _COS["detalle"]
+    if mostrar is None and lbl.winfo_manager():
+        lbl.pack_forget()
+        return
+    red = COSECHA_REDES[_COS["kit"].seg_get(_COS["red"])]
+    _COS["kit"].set_label(lbl, text=f"Actor de Apify: {red['actor_nombre']} ({red['actor'] or 'sin id conocido'}); "
+                                    f"el pedido va a {COSECHA_OUT} y el resultado vuelve a {COSECHA_IN}.")
+    if not lbl.winfo_manager():
+        lbl.pack(fill="x", padx=16, pady=(0, 4), after=_COS["est"])
+
+
+def _cosecha_crear_ui():
+    k = _COS["kit"]
+    p, msg = cosecha_crear(k.seg_get(_COS["red"]), _COS["tema"].get(), _COS["n"].get(), k.seg_get(_COS["brief"]))
+    k.set_label(_COS["msg"], text=msg, color="red" if p is None or p["estado"] != "pendiente_ok" else "text")
+    if p is not None:
+        _COS["form"].pack_forget()
+    _cosecha_refrescar()
+
+
+def _cosecha_ok_ui(pid):
+    p = next((x for x in _cosecha_leer() if x["id"] == pid), None)
+    if p is None:
+        return
+    e = cosecha_estimar(p["red"], p["resultados"])
+    if not messagebox.askyesno("Dar el OK", f"Esto GASTA créditos de Apify en la VM.\n\n{cosecha_estimacion_txt(e, p['red'])}"
+                                            "\n\n¿Lo envío a la VM?"):
+        log(f"cosecha: OK no dado al pedido {pid} (sigue esperando)")
+        return
+    ok, msg = cosecha_aprobar(pid)
+    _COS["kit"].set_label(_COS["msg"], text=msg, color="text" if ok else "red")
+    _cosecha_refrescar()
+
+
+def _cosecha_refrescar():
+    k = _COS.get("kit")
+    if k is None:
+        return
+    tok, donde = cosecha_token()
+    k.set_label(_COS["token"], text=("Token de TikTok: listo (" + donde + ")") if tok else
+                "Falta el token de TikTok, lo pone Leandro (TIKTOK_MS_TOKEN): TikTok queda sin cosecha real. "
+                "Instagram no lo necesita.", color="green_text" if tok else "orange_text")
+    cosecha_revisar()
+    lista = [p for p in _cosecha_leer() if p.get("estado") != "descartado"][-6:]
+    filas = [(p["id"], p.get("estado")) + cosecha_fila_txt(p) for p in lista]
+    if filas == _COS["filas_fp"]:
+        return
+    _COS["filas_fp"] = filas
+    box = _COS["lista"]
+    for ch in box.winfo_children():
+        ch.destroy()
+    for pid, st, cab, txt, col in reversed(filas):
+        f = k.frame(box)
+        f.pack(fill="x", pady=(4, 0))
+        k.label(f, cab, bold=True, wrap=560).pack(anchor="w")
+        fila = k.frame(f)
+        fila.pack(fill="x")
+        k.label(fila, txt, wrap=420, color=col).pack(side="left", anchor="w")
+        if st == "pendiente_ok":
+            k.button(fila, "Descartar", lambda i=pid: (cosecha_descartar(i), _cosecha_refrescar())).pack(
+                side="right", padx=(6, 0))
+            k.button(fila, "Dar el OK y enviar", lambda i=pid: _cosecha_ok_ui(i), accent=True).pack(side="right")
+
+
+def _cosecha_loop():
+    try:
+        _cosecha_refrescar()
+    except Exception as e:
+        log(f"cosecha: {type(e).__name__}: {e}")
+    try:
+        _COS["lista"].after(10000, _cosecha_loop)
+    except Exception:
+        pass
+
+
+def cosecha_abrir():
+    """Desde la paleta: Tareas con el formulario abierto."""
+    _widgets["show_page"]("tareas")
+    if _COS.get("form") is not None and not _COS["form"].winfo_manager():
+        _cosecha_form_toggle()
+    try:
+        _scroll_a(_COS["form"])
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------- Estado: panel del gateway
 # Superficie nueva (t-gateway-unificado-030): filas y controles con
 # CustomTkinter y la version clasica de respaldo (el mismo codigo, distinto
@@ -36137,6 +36546,10 @@ def build_gui():
     _widgets["ask_status"] = tk.Label(ask, text="", font=(FONT, 9),
                                       bg=THEME["card"], fg=THEME["green_text"])
     _widgets["ask_status"].pack(anchor="w", padx=16, pady=(0, 12))
+    try:
+        _cosecha_build(tabt)  # «Pedir cosecha» a la VM (t-pedir-cosecha)
+    except Exception as e:
+        log(f"cosecha: no se pudo dibujar la tarjeta ({type(e).__name__}: {e})")
     # Fila fija del guardrail: nivel + «N esperando tu aprobación» + Cambiar nivel
     _build_guardrail_fila(pages["tareas_holder"])
 
@@ -36308,6 +36721,8 @@ def build_gui():
         C("nota_hoy", "Nota de hoy", "nota diaria hoy notas", lambda: (nota_diaria(), notas_ui(),
                                                                       _widgets["notas_ui"]["abrir"](
                                                                           mem_hoy().isoformat()))),
+        C("pedir_cosecha", "Pedir cosecha de tendencias (TikTok / Instagram, por la VM)",
+          "cosecha apify tiktok instagram tendencias radar brief summit", lambda: (show_window(), cosecha_abrir())),
         C("mis_comandos", "Mis comandos (scripts)", "scripts comandos carpeta activar desactivar bat ps1 py",
           lambda: (show_window(), comandos_ui())),
         C("reanudar_cola", "Reanudar la cola (tras 3 fallos seguidos)", "circuit breaker pausa cola reanudar fallos",

@@ -1,0 +1,121 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cosecha-eoae4cuc",
+ "a_pagina": "tareas",
+ "a_formulario_abierto": true,
+ "a_textos_formulario": [
+  "Red",
+  "Red",
+  "TikTok",
+  "TikTok",
+  "Instagram",
+  "Instagram",
+  "Tema o cuentas",
+  "Tema o cuentas",
+  "",
+  "Cuántos resultados",
+  "Cuántos resultados",
+  "",
+  "Para qué brief",
+  "Para qué brief",
+  "Brief C1",
+  "Brief C1",
+  "Brief C2",
+  "Brief C2",
+  "Brief C3",
+  "Brief C3",
+  "Brief C4",
+  "Brief C4",
+  "Otro",
+  "Otro",
+  "Falta el token de TikTok, lo pone Leandro: el pedido quedará como FALTA y no se enviará. Unos 200 resultados ≈ $0.74 (a $3.70 por 1.000). Del Free de $5/mes quedan $5.00 (sumado de los pedidos que pasaron por esta app; la VM no ha dicho su gasto).",
+  "Falta el token de TikTok, lo pone Leandro: el pedido quedará como FALTA y no se enviará. Unos 200 resultados ≈ $0.74 (a $3.70 por 1.000). Del Free de $5/mes quedan $5.00 (sumado de los pedidos que pasaron por esta app; la VM no ha dicho su gasto).",
+  "Guardar pedido (queda esperando tu OK)",
+  "Guardar pedido (queda esperando tu OK)",
+  "Detalle técnico",
+  "Detalle técnico",
+  "",
+  ""
+ ],
+ "a_actor_visible_sin_detalle": false,
+ "e_linea_token": "Falta el token de TikTok, lo pone Leandro (TIKTOK_MS_TOKEN): TikTok queda sin cosecha real. Instagram no lo necesita.",
+ "e_estimacion_sin_token": "Falta el token de TikTok, lo pone Leandro: el pedido quedará como FALTA y no se enviará. Unos 500 resultados ≈ $1.85 (a $3.70 por 1.000). Del Free de $5/mes quedan $5.00 (sumado de los pedidos que pasaron por esta app; la VM no ha dicho su gasto).",
+ "e_mensaje": "Falta el token de TikTok, lo pone Leandro. El pedido queda anotado como FALTA y no se envía.",
+ "e_lista": [
+  "TikTok: «#recetasfaciles», 500 resultados, brief C1 | TikTok: «#recetasfaciles», 500 resultados, brief C1 | FALTA: falta el token de TikTok, lo pone Leandro. No se envió. | FALTA: falta el token de TikTok, lo pone Leandro. No se envió."
+ ],
+ "e_archivos_para_la_vm": [],
+ "b_estimacion": "Unos 500 resultados ≈ $1.85 (a $3.70 por 1.000). Del Free de $5/mes quedan $4.40 (Apify según la VM, más lo enviado sin resultado).",
+ "b_estimacion_datos": {
+  "resultados": 500,
+  "usd": 1.85,
+  "usd_por_mil": 3.7,
+  "free_mes_usd": 5.0,
+  "usado_mes_usd": 0.6,
+  "queda_usd": 4.4,
+  "fuente_gasto": "Apify según la VM, más lo enviado sin resultado",
+  "alcanza": true,
+  "calculado": "2026-10-28T03:07:07-04:00"
+ },
+ "b_detalle_tecnico": "Actor de Apify: TikTok Scraper (oficial) (GdWCkxBtKWOsKjdch); el pedido va a C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cosecha-eoae4cuc\\share\\outbox\\cosecha y el resultado vuelve a C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cosecha-eoae4cuc\\share\\inbox\\cosecha.",
+ "b_mensaje": "Pedido guardado. Revisa la estimación y pulsa «Dar el OK y enviar» si te parece bien.",
+ "b_nada_enviado_sin_ok": [],
+ "c_dijo_no": {
+  "pregunta": "Esto GASTA créditos de Apify en la VM.\n\nUnos 500 resultados ≈ $1.85 (a $3.70 por 1.000). Del Free de $5/mes quedan $4.40 (Apify según la VM, más lo enviado sin resultado).\n\n¿Lo envío a la VM?",
+  "archivos": []
+ },
+ "c_archivo_para_la_vm": [
+  "cosecha-20261028-030708-cc79.json"
+ ],
+ "c_contenido": {
+  "id": "cosecha-20261028-030708-cc79",
+  "tipo": "cosecha",
+  "red": "tiktok",
+  "tema": "#recetasfaciles",
+  "resultados": 500,
+  "brief": "C1",
+  "estimacion": {
+   "resultados": 500,
+   "usd": 1.85,
+   "usd_por_mil": 3.7,
+   "free_mes_usd": 5.0,
+   "usado_mes_usd": 0.6,
+   "queda_usd": 4.4,
+   "fuente_gasto": "Apify según la VM, más lo enviado sin resultado",
+   "alcanza": true,
+   "calculado": "2026-10-28T03:07:09-04:00"
+  },
+  "actor": {
+   "id": "GdWCkxBtKWOsKjdch",
+   "nombre": "TikTok Scraper (oficial)"
+  },
+  "ok_explicito": true,
+  "ok_at": "2026-10-28T03:07:09-04:00",
+  "ok_por": "Leandro, en la app (botón «Dar el OK y enviar» + confirmación)",
+  "devolver_en": "inbox/cosecha/cosecha-20261028-030708-cc79.resultado.json",
+  "nota": "Correr el Actor GASTA créditos de Apify: este pedido trae el OK explícito de Leandro."
+ },
+ "c_lista": [
+  "TikTok: «#recetasfaciles», 500 resultados, brief C1 | TikTok: «#recetasfaciles», 500 resultados, brief C1 | Enviado a la VM hace 0 s (estimado $1.85); esperando el resultado. | Enviado a la VM hace 0 s (estimado $1.85); esperando el resultado.",
+  "TikTok: «#recetasfaciles», 500 resultados, brief C1 | TikTok: «#recetasfaciles», 500 resultados, brief C1 | FALTA: falta el token de TikTok, lo pone Leandro. No se envió. | FALTA: falta el token de TikTok, lo pone Leandro. No se envió."
+ ],
+ "d_lista": [
+  "TikTok: «#recetasfaciles», 500 resultados, brief C1 | TikTok: «#recetasfaciles», 500 resultados, brief C1 | Listo: 487 resultados, costó $1.80 (estimado $1.85). Guardado en https://api.apify.com/v2/datasets/(simulado)/items | Listo: 487 resultados, costó $1.80 (estimado $1.85). Guardado en https://api.apify.com/v2/datasets/(simulado)/items",
+  "TikTok: «#recetasfaciles», 500 resultados, brief C1 | TikTok: «#recetasfaciles», 500 resultados, brief C1 | FALTA: falta el token de TikTok, lo pone Leandro. No se envió. | FALTA: falta el token de TikTok, lo pone Leandro. No se envió."
+ ],
+ "d_gasto_mes": [
+  0.6,
+  "Apify según la VM, más lo enviado sin resultado"
+ ],
+ "d_sin_respuesta": [
+  "TikTok: «@cuenta1», 100 resultados, brief C2 | TikTok: «@cuenta1», 100 resultados, brief C2 | Pedido enviado hace 3 h 0 min, sin respuesta de la VM. | Pedido enviado hace 3 h 0 min, sin respuesta de la VM."
+ ],
+ "instagram": "No sé la tarifa de Instagram (no la invento): sin estimación no se envía. Ponla en settings.json, en cosecha_tarifas.instagram ($ por 1.000 resultados).",
+ "log": [
+  "2026-10-28T03:07:07-04:00 cosecha: pedido cosecha-20261028-030707-dacc (TikTok, «#recetasfaciles», 500 resultados, brief C1): falta_token, estimado $1.85",
+  "2026-10-28T03:07:08-04:00 cosecha: pedido cosecha-20261028-030708-cc79 (TikTok, «#recetasfaciles», 500 resultados, brief C1): pendiente_ok, estimado $1.85",
+  "2026-10-28T03:07:08-04:00 cosecha: OK no dado al pedido cosecha-20261028-030708-cc79 (sigue esperando)",
+  "2026-10-28T03:07:09-04:00 cosecha: OK de Leandro al pedido cosecha-20261028-030708-cc79: enviado a la VM (C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-cosecha-eoae4cuc\\share\\outbox\\cosecha\\cosecha-20261028-030708-cc79.json), estimado $1.85",
+  "2026-10-28T03:07:09-04:00 cosecha: volvió cosecha-20261028-030708-cc79: 487 resultados, costo real $1.80 (estimado $1.85), dataset https://api.apify.com/v2/datasets/(simulado)/items"
+ ],
+ "tracebacks_en_log": 0
+}
