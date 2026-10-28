@@ -16324,6 +16324,9 @@ def _animate_power(on):
     draw_power() no redibuja (lo hace la animacion)."""
     if _root is None:
         return
+    if not movimiento_permitido():  # reducir movimiento: sin animación, el estado se dibuja ya
+        draw_power()
+        return
     job = _power_anim.get("job")
     if job is not None:
         try:
@@ -16350,7 +16353,7 @@ def _animate_power(on):
 def _pulse_loop():
     if _root is None:
         return
-    if state["power"]:
+    if state["power"] and movimiento_permitido():  # sin movimiento: el botón no late
         _pulse[0] = 1 - _pulse[0]
         try:
             draw_power()
@@ -17014,7 +17017,7 @@ def _mascot_play(name):
     """Reproduce un juego de animacion una vez (saludo, celebracion)."""
     frames = _mascot_sets().get(name) or []
     label = _mascot["label"]
-    if not frames or label is None:
+    if not frames or label is None or not movimiento_permitido():  # sin movimiento: fotograma fijo
         return
     _mascot["animating"] = True
     idx = [0]
@@ -17041,7 +17044,7 @@ def _mascot_micro():
     unico que se mueve cuando nadie toca a la mascota."""
     frames = _mascot_sets().get("idle") or []
     label = _mascot["label"]
-    if not frames or label is None or _mascot["animating"]:
+    if not frames or label is None or _mascot["animating"] or not movimiento_permitido():
         return
     _mascot["animating"] = True
     idx = [0]
@@ -17090,7 +17093,7 @@ def _mascot_loop():
         if state.get("current"):
             # Trabajando: el loop de tecleo, continuo (tiene sentido).
             frames = _mascot_sets().get("working") or []
-            if frames:
+            if frames and movimiento_permitido():
                 _mascot["frame_idx"] = (_mascot["frame_idx"] + 1) % len(frames)
                 try:
                     _mascot["label"].config(image=frames[_mascot["frame_idx"]])
@@ -18112,6 +18115,88 @@ def _filter_kw(cnf):
     return cnf
 
 
+# ---- movimiento y alto contraste (t-movimiento-contraste)
+# Reducir movimiento: settings «reducir_movimiento» = sistema (por defecto: lo
+# que diga Windows, SPI_GETCLIENTAREAANIMATION) / animar / nunca. Sin
+# movimiento: nada depende de algo que se mueve (botón y mascota quietos, el
+# estado sigue escrito). Alto contraste: si Windows tiene un tema de contraste
+# (SPI_GETHIGHCONTRAST), la app usa los colores DEL SISTEMA (GetSysColor) para
+# texto, fondo, botones y foco en vez de los de marca.
+MOVIMIENTO_OPCIONES = (("sistema", "Seguir el sistema"), ("animar", "Siempre animar"), ("nunca", "Nunca animar"))
+
+
+def animaciones_sistema():
+    """True si Windows tiene los efectos de animación encendidos (o si no se puede leer)."""
+    try:
+        import ctypes
+        v = ctypes.c_int(1)
+        ok = ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(v), 0)  # SPI_GETCLIENTAREAANIMATION
+        return bool(v.value) if ok else True
+    except Exception:
+        return True
+
+
+def movimiento_permitido():
+    pref = load_settings().get("reducir_movimiento") or "sistema"
+    if pref == "animar":
+        return True
+    if pref == "nunca":
+        return False
+    return animaciones_sistema()
+
+
+def movimiento_poner(pref):
+    if pref not in dict(MOVIMIENTO_OPCIONES):
+        return
+    s = load_settings()
+    s["reducir_movimiento"] = pref
+    save_settings(s)
+    log(f"apariencia: movimiento «{dict(MOVIMIENTO_OPCIONES)[pref]}» → "
+        f"{'anima' if movimiento_permitido() else 'sin animaciones'} (Windows: "
+        f"{'animaciones encendidas' if animaciones_sistema() else 'animaciones apagadas'})")
+
+
+def alto_contraste_sistema():
+    """True si Windows tiene puesto un tema de contraste (Night Sky, Aquatic…)."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class HIGHCONTRASTW(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.UINT), ("dwFlags", wintypes.DWORD), ("lpszDefaultScheme", wintypes.LPWSTR)]
+        hc = HIGHCONTRASTW(ctypes.sizeof(HIGHCONTRASTW), 0, None)
+        ok = ctypes.windll.user32.SystemParametersInfoW(0x0042, ctypes.sizeof(hc), ctypes.byref(hc), 0)
+        return bool(ok and hc.dwFlags & 0x1)  # HCF_HIGHCONTRASTON
+    except Exception:
+        return False
+
+
+def _sys_color(idx):
+    import ctypes
+    c = ctypes.windll.user32.GetSysColor(idx)
+    return f"#{c & 0xFF:02x}{(c >> 8) & 0xFF:02x}{(c >> 16) & 0xFF:02x}"
+
+
+def tema_alto_contraste():
+    """Un tema hecho con los colores del sistema (los del tema de contraste)."""
+    fondo, texto = _sys_color(5), _sys_color(8)           # COLOR_WINDOW, COLOR_WINDOWTEXT
+    cara, cara_txt = _sys_color(15), _sys_color(18)       # COLOR_BTNFACE, COLOR_BTNTEXT
+    sel, sel_txt = _sys_color(13), _sys_color(14)         # COLOR_HIGHLIGHT, COLOR_HIGHLIGHTTEXT
+    gris, enlace = _sys_color(17), _sys_color(26)         # COLOR_GRAYTEXT, COLOR_HOTLIGHT
+    lum = sum(int(fondo[i:i + 2], 16) for i in (1, 3, 5)) / 3
+    t = json.loads(json.dumps(_TEMA_BASE))
+    t.update(nombre="Contraste del sistema", tipo="oscuro" if lum < 128 else "claro", archivo="(Windows)",
+             descripcion="Colores del tema de contraste de Windows (texto, fondo, botones y foco del sistema).")
+    t["tokens"].update(bg=fondo, sidebar=cara, card=fondo, field=fondo, text=texto, muted=texto, line=texto,
+                       green=sel, green_text=enlace, blue=enlace, orange=sel, orange_text=texto, red=texto)
+    t["fijos"].update(seg_bg=cara, seg_sel=sel, seg_hover=sel, accent=sel, accent_hover=enlace, off_track=cara,
+                      on_accent=sel_txt)
+    t["mapa"] = {k: cara for k in t.get("mapa") or {}}
+    t["sistema"] = {"fondo": fondo, "texto": texto, "boton": cara, "boton_texto": cara_txt, "seleccion": sel,
+                    "seleccion_texto": sel_txt, "gris": gris, "enlace": enlace}
+    return t
+
+
 def _theme_init():
     """Antes de crear la ventana: lee temas\\, elige el tema (settings.json o
     Windows) y pone el filtro de colores y tamanos minimos de letra en la
@@ -18125,6 +18210,9 @@ def _theme_init():
     except Exception as e:  # nunca un traceback por un tema
         log(f"temas: no se pudo elegir el tema ({type(e).__name__}: {e}); se usa el claro")
         t, por = _TEMA_BASE, ""
+    if alto_contraste_sistema():  # Windows en contraste alto: colores del sistema, no los de marca
+        t, por = tema_alto_contraste(), "Windows tiene un tema de contraste"
+        _TEMA["alto_contraste"] = True
     _tema_poner(t)
     globals()["FONT"] = t["fuente"]["familia"]
     globals()["SECTION_FONT"] = (FONT, t["fuente"]["seccion"], "bold")
@@ -33696,10 +33784,18 @@ def _build_ajustes_ctk(tab_aj):
     # ---- 2. Apariencia
     ap = section("Apariencia")
     r = row(ap)
-    text_block(r, "Tema", "Claro, oscuro o el que use Windows. Cambia al momento, sin reiniciar.")
+    text_block(r, "Tema", "Claro, oscuro o el que use Windows. Cambia al momento, sin reiniciar."
+               + (" Ahora: los colores del tema de contraste de Windows." if _TEMA.get("alto_contraste") else ""))
     _t_tema = time.perf_counter()
     tema_seccion(_KitCtk(tab_aj, global_setup=False), r)
     log(f"ajustes: apariencia con CustomTkinter ({(time.perf_counter() - _t_tema) * 1000:.0f} ms)")
+    r = row(ap)
+    text_block(r, "Reducir movimiento", "Sin animaciones, el botón y la mascota se quedan quietos y todo sigue "
+                                        "escrito. «Seguir el sistema» hace lo que diga Windows (Accesibilidad → "
+                                        "Efectos visuales → Efectos de animación).")
+    _mv = tk.StringVar(value=load_settings().get("reducir_movimiento") or "sistema")
+    segmented(r, _mv, MOVIMIENTO_OPCIONES, movimiento_poner).pack(anchor="w", pady=(10, 0))
+    _widgets["aj_movimiento"] = _mv
 
     # ---- 3. Conexion (los campos del proxy siguen plegados en Estado)
     con = section("Conexión")

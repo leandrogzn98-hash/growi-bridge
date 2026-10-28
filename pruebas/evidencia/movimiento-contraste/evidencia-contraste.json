@@ -1,0 +1,24 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-acc-sqsuvo6_",
+ "d_alto_contraste": {
+  "detectado": true,
+  "sistema": {
+   "fondo": "#ffffff",
+   "texto": "#000000",
+   "boton": "#f0f0f0",
+   "seleccion": "#0078d7"
+  },
+  "tema_app": {
+   "bg": "#ffffff",
+   "text": "#000000",
+   "sidebar": "#f0f0f0",
+   "blue": "#0066cc",
+   "line": "#000000"
+  }
+ },
+ "d_tokens_son_del_sistema": true,
+ "log": [
+  "2026-10-28T01:42:54-04:00 temas: Contraste del sistema ((Windows), modo claro, Windows tiene un tema de contraste)"
+ ],
+ "tracebacks_en_log": 0
+}

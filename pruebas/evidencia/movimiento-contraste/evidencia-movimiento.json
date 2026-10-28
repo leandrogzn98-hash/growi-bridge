@@ -1,0 +1,24 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-acc-n2gseee6",
+ "a_sin_animaciones_windows": {
+  "preferencia": "sistema",
+  "windows_anima": false,
+  "mascota_animada_alguna_vez": false,
+  "boton_animado_alguna_vez": false
+ },
+ "a_boton_al_cambiar_sin_job": true,
+ "b_tres_valores": {
+  "sistema": false,
+  "animar": true,
+  "nunca": false
+ },
+ "b_con_animar_la_mascota_se_mueve": true,
+ "log": [
+  "2026-10-28T01:40:06-04:00 temas: Claro (claro.json, modo claro)",
+  "2026-10-28T01:42:30-04:00 apariencia: movimiento «Seguir el sistema» → sin animaciones (Windows: animaciones apagadas)",
+  "2026-10-28T01:42:30-04:00 apariencia: movimiento «Siempre animar» → anima (Windows: animaciones apagadas)",
+  "2026-10-28T01:42:30-04:00 apariencia: movimiento «Nunca animar» → sin animaciones (Windows: animaciones apagadas)",
+  "2026-10-28T01:42:30-04:00 apariencia: movimiento «Siempre animar» → anima (Windows: animaciones apagadas)"
+ ],
+ "tracebacks_en_log": 0
+}
