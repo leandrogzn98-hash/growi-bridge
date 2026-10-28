@@ -1,0 +1,114 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-dag-8s71faca",
+ "a_tras_registrar": {
+  "fases": {
+   "A": "en_cola",
+   "B": "en_cola",
+   "C": "pendiente"
+  },
+  "texto": "Plan p-orden (en curso). Fase 1 (A): en cola; Fase 2 (B): en cola; Fase 3 (C): sin arrancar — espera a Fase 1 y Fase 2.",
+  "en_cola": [
+   "p-orden-A.task",
+   "p-orden-B.task"
+  ]
+ },
+ "a_orden_ejecutado": [
+  "p-orden-A.task",
+  "p-orden-B.task",
+  "p-orden-C.task"
+ ],
+ "a_final": {
+  "fases": {
+   "A": "terminada",
+   "B": "terminada",
+   "C": "terminada"
+  },
+  "plan": "terminado",
+  "texto": "Plan p-orden (terminado). Fase 1 (A): terminada; Fase 2 (B): terminada; Fase 3 (C): terminada."
+ },
+ "b_pedir_decision": {
+  "fases": {
+   "A": "terminada",
+   "B": "necesita_decision",
+   "C": "pendiente"
+  },
+  "plan": "necesita_decision",
+  "texto": "Plan p-decision (necesita tu decisión). Lo bloquea la Fase 2 (B). Fase 1 (A): terminada; Fase 2 (B): necesita decisión (la tarea terminó fallida); Fase 3 (C): sin arrancar — espera a Fase 2."
+ },
+ "c_fanin_dep_fallida": {
+  "fases": {
+   "A": "terminada",
+   "B": "necesita_decision",
+   "C": "pendiente"
+  },
+  "texto": "Plan p-fanin (necesita tu decisión). Lo bloquea la Fase 2 (B). Fase 1 (A): terminada; Fase 2 (B): necesita decisión (la tarea terminó fallida); Fase 3 (C): sin arrancar — espera a Fase 2.",
+  "C_corrio": false
+ },
+ "c2_fanin_validacion": {
+  "fases": {
+   "A": "terminada",
+   "B": "terminada",
+   "C": "fallida"
+  },
+  "plan": "abortado",
+  "texto": "Plan p-validacion (abortado). Lo bloquea la Fase 3 (C). Fase 1 (A): terminada; Fase 2 (B): terminada; Fase 3 (C): fallida (sus dependencias no pasan la validación: «B»: falta el marcador «dato» en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba)."
+ },
+ "e_ciclo": "El plan no se ejecutó: el plan tiene un ciclo: A ↔ B dependen unas de otras y ninguna podría empezar nunca. Rompe el ciclo y vuelve a mandarlo.",
+ "e_rota": "El plan no se ejecutó: la fase «A» depende de «Z», que no existe en el plan",
+ "e_no_se_ejecuto_nada": true,
+ "d_tras_matar": {
+  "corridas_del_plan": [
+   "fase A del corte"
+  ],
+  "en_cola": [
+   "p-corte-B.task"
+  ]
+ },
+ "d_supervisor": [
+  "plan p-corte: hechas A; a medias B (vuelta a la cola); sin arrancar C"
+ ],
+ "d_final": {
+  "fases": {
+   "A": "terminada",
+   "B": "terminada",
+   "C": "terminada"
+  },
+  "plan": "terminado",
+  "corridas_del_plan": [
+   "fase A del corte",
+   "fase B del corte",
+   "fase C del corte"
+  ]
+ },
+ "f_fila_tareas": {
+  "p-orden": "Plan p-orden (terminado). Fase 1 (A): terminada; Fase 2 (B): terminada; Fase 3 (C): terminada.",
+  "p-decision": "Plan p-decision (necesita tu decisión). Lo bloquea la Fase 2 (B). Fase 1 (A): terminada; Fase 2 (B): necesita decisión (la tarea terminó fallida); Fase 3 (C): sin arrancar — espera a Fase 2."
+ },
+ "log": [
+  "2026-10-28T00:30:32-04:00 plan [p-decision]: fase B falló: necesita tu decisión; el resto del plan queda como estaba",
+  "2026-10-28T00:30:32-04:00 plan [p-fanin]: registrado con 3 fase(s) en orden A → B → C",
+  "2026-10-28T00:30:32-04:00 plan [p-fanin]: fase A en cola",
+  "2026-10-28T00:30:32-04:00 plan [p-fanin]: fase B en cola",
+  "2026-10-28T00:30:40-04:00 plan [p-fanin]: fase A terminada",
+  "2026-10-28T00:30:43-04:00 plan [p-fanin]: fase B falló: necesita tu decisión; el resto del plan queda como estaba",
+  "2026-10-28T00:30:43-04:00 plan [p-validacion]: registrado con 3 fase(s) en orden A → B → C",
+  "2026-10-28T00:30:43-04:00 plan [p-validacion]: fase A en cola",
+  "2026-10-28T00:30:43-04:00 plan [p-validacion]: fase B en cola",
+  "2026-10-28T00:30:51-04:00 plan [p-validacion]: fase A terminada",
+  "2026-10-28T00:30:59-04:00 plan [p-validacion]: fase B terminada",
+  "2026-10-28T00:30:59-04:00 plan [p-validacion]: fase C no arranca: la validación de sus dependencias falla: «B»: falta el marcador «dato» en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-dag-8s71faca\\trabajo\\b2.txt (no está en ninguna de sus 1 líneas)",
+  "2026-10-28T00:30:59-04:00 plan [p-validacion]: abortado por la fase C (sus dependencias no pasan la validación: «B»: falta el marcador «dato» en C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba)",
+  "2026-10-28T00:30:59-04:00 plan [p-ciclo]: rechazado antes de ejecutar: el plan tiene un ciclo: A ↔ B dependen unas de otras y ninguna podría empezar nunca. Rompe el ciclo y vuelve a mandarlo.",
+  "2026-10-28T00:30:59-04:00 plan [p-rota]: rechazado antes de ejecutar: la fase «A» depende de «Z», que no existe en el plan",
+  "2026-10-28T00:30:59-04:00 plan [p-corte]: registrado con 3 fase(s) en orden A → B → C",
+  "2026-10-28T00:30:59-04:00 plan [p-corte]: fase A en cola",
+  "2026-10-28T00:31:10-04:00 plan [p-corte]: fase A terminada",
+  "2026-10-28T00:31:10-04:00 plan [p-corte]: fase B en cola",
+  "2026-10-28T00:31:10-04:00 plan [p-corte]: fase B en cola",
+  "2026-10-28T00:31:10-04:00 supervisor: plan p-corte: hechas A; a medias B (vuelta a la cola); sin arrancar C",
+  "2026-10-28T00:31:22-04:00 plan [p-corte]: fase B terminada",
+  "2026-10-28T00:31:22-04:00 plan [p-corte]: fase C en cola",
+  "2026-10-28T00:31:30-04:00 plan [p-corte]: fase C terminada",
+  "2026-10-28T00:31:30-04:00 plan [p-corte]: terminado"
+ ]
+}

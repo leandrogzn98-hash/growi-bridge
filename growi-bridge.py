@@ -4463,6 +4463,7 @@ def validate_task(data):
                     else data.get("revisar", True) is not False),
         "memoria": data.get("memoria", True) is not False,
         "herramienta": data.get("herramienta") if isinstance(data.get("herramienta"), dict) else None,
+        "dag": data.get("dag") if isinstance(data.get("dag"), dict) else None,
         "enrutado": enrutado,
         "asistente": asis["id"] if asis else None,
         "lane": LANE if LANE == "b" else (data.get("lane") or None),
@@ -12731,6 +12732,7 @@ def _after_run(task, result):
     _write_result(result)
     _family_update(raiz, estado=estado, reporte=reporte)
     log(f"runner [{raiz}]: {ESTADOS[estado]}: {reporte[:160]}")
+    dag_fase_terminada(task, estado)  # si es fase de un plan con grafo: avanza el plan
 
 
 # ---------------------------------------------------------------- cola persistente
@@ -12809,6 +12811,7 @@ def cola_init():
     checkpoint_init()
     calibracion_init()
     automations_init()
+    dag_init()
 
 
 def cola_get(tid):
@@ -13733,6 +13736,314 @@ def process_one(task_file):
         _CFG_LOCAL.snap = None
 
 
+# ---- planes con grafo de fases (t-dag-fases-030): DAG MINIMO, sin motor de
+# grafos. El grafo es un campo del plan y la verdad es una tabla (cola.db):
+# dag_planes + dag_fases. Las fases corren de una en una por la cola de
+# siempre (sin paralelo: eso es t-paralelo-seguro-030). La cadena lineal de
+# antes (siguiente_fase) sigue igual.
+DAG_AL_FALLAR = ("reintentar_una_vez", "saltar_con_aviso", "abortar_plan", "pedir_decision")
+DAG_OK = ("terminada", "saltada")
+DAG_MAL = ("fallida", "necesita_decision", "cancelada", "bloqueada")
+_DAG_NOM = {"pendiente": "sin arrancar", "en_cola": "en cola", "terminada": "terminada", "saltada": "saltada",
+            "fallida": "fallida", "necesita_decision": "necesita decisión", "cancelada": "cancelada",
+            "bloqueada": "bloqueada"}
+
+
+def dag_init():
+    _cola("""CREATE TABLE IF NOT EXISTS dag_planes (
+        plan_id TEXT PRIMARY KEY, estado TEXT NOT NULL, orden TEXT, cwd TEXT, motor TEXT,
+        creado_en TEXT NOT NULL, actualizado_en TEXT NOT NULL, motivo TEXT, revisar TEXT)""")
+    _cola("""CREATE TABLE IF NOT EXISTS dag_fases (
+        plan_id TEXT NOT NULL, fase_id TEXT NOT NULL, n INTEGER NOT NULL, prompt TEXT, depende_de TEXT,
+        al_fallar TEXT NOT NULL, criterios TEXT, estado TEXT NOT NULL, task_id TEXT, reintentos INTEGER DEFAULT 0,
+        motivo TEXT, actualizado_en TEXT NOT NULL, PRIMARY KEY (plan_id, fase_id))""")
+
+
+def dag_validar(data):
+    """(orden, None) u (None, motivo en palabras normales). Antes de ejecutar:
+    ids, dependencias que existen, al_fallar valido y SIN ciclos."""
+    fases = data.get("fases")
+    if not isinstance(fases, list) or not fases:
+        return None, "el plan no trae fases"
+    ids = [str((f or {}).get("id") or "") for f in fases]
+    for f, fid in zip(fases, ids):
+        if not isinstance(f, dict) or not _safe_id(fid):
+            return None, f"cada fase necesita un id corto sin espacios raros (tengo «{fid}»)"
+        if not str(f.get("prompt") or "").strip():
+            return None, f"la fase «{fid}» no dice qué hacer (falta prompt)"
+        if (f.get("al_fallar") or "pedir_decision") not in DAG_AL_FALLAR:
+            return None, f"la fase «{fid}»: al_fallar debe ser {', '.join(DAG_AL_FALLAR)}"
+    if len(set(ids)) != len(ids):
+        return None, "hay dos fases con el mismo id"
+    deps = {fid: [str(d) for d in (f.get("depende_de") or [])] for f, fid in zip(fases, ids)}
+    for fid, ds in deps.items():
+        for d in ds:
+            if d not in deps:
+                return None, f"la fase «{fid}» depende de «{d}», que no existe en el plan"
+            if d == fid:
+                return None, f"la fase «{fid}» depende de sí misma"
+    orden, grado = [], {fid: len(ds) for fid, ds in deps.items()}
+    listas = [fid for fid in ids if grado[fid] == 0]
+    while listas:
+        x = listas.pop(0)
+        orden.append(x)
+        for fid in ids:
+            if x in deps[fid]:
+                grado[fid] -= 1
+                if grado[fid] == 0:
+                    listas.append(fid)
+    if len(orden) != len(ids):
+        ciclo = [fid for fid in ids if grado[fid] > 0]
+        return None, ("el plan tiene un ciclo: " + " ↔ ".join(ciclo) + " dependen unas de otras y ninguna "
+                      "podría empezar nunca. Rompe el ciclo y vuelve a mandarlo.")
+    return orden, None
+
+
+def _dag_fases(pid):
+    return [dict(r) for r in _cola("SELECT * FROM dag_fases WHERE plan_id=? ORDER BY n", (pid,), fetch=True) or []]
+
+
+def _dag_plan(pid):
+    r = _cola("SELECT * FROM dag_planes WHERE plan_id=?", (pid,), fetch=True)
+    return dict(r[0]) if r else None
+
+
+def _dag_set(pid, fid, **kw):
+    kw["actualizado_en"] = _now_iso()
+    _cola(f"UPDATE dag_fases SET {', '.join(k + '=?' for k in kw)} WHERE plan_id=? AND fase_id=?",
+          tuple(kw.values()) + (pid, fid))
+
+
+def _dag_plan_set(pid, **kw):
+    kw["actualizado_en"] = _now_iso()
+    _cola(f"UPDATE dag_planes SET {', '.join(k + '=?' for k in kw)} WHERE plan_id=?", tuple(kw.values()) + (pid,))
+
+
+def dag_ingestar(task_file, data):
+    """Un .task.json con «fases»: se valida el grafo, se registra en SQLite
+    (antes de ejecutar nada) y se encolan las fases que ya pueden empezar."""
+    pid = str(data.get("id") or task_file.stem)
+    DONE.mkdir(parents=True, exist_ok=True)
+    orden, motivo = (None, f"id de plan inválido: {pid}") if not _safe_id(pid) else dag_validar(data)
+    if motivo:
+        log(f"plan [{pid}]: rechazado antes de ejecutar: {motivo}")
+        shutil.move(str(task_file), str(DONE / task_file.name))
+        res = _error_result(pid, f"plan rechazado: {motivo}")
+        res.update(raiz=pid, estado="fallida", reporte=f"El plan no se ejecutó: {motivo}")
+        _write_result(res)
+        _family_update(pid, estado="fallida", reporte=res["reporte"], error=motivo)
+        return True
+    now = _now_iso()
+    _cola("INSERT OR REPLACE INTO dag_planes (plan_id, estado, orden, cwd, motor, creado_en, actualizado_en, revisar) "
+          "VALUES (?,?,?,?,?,?,?,?)", (pid, "en_curso", json.dumps(orden), data.get("cwd"), data.get("motor"), now,
+                                       now, json.dumps(data["revisar"]) if "revisar" in data else None))
+    por_id = {str(f["id"]): f for f in data["fases"]}
+    for n, fid in enumerate(orden, 1):
+        f = por_id[fid]
+        _cola("INSERT OR REPLACE INTO dag_fases (plan_id, fase_id, n, prompt, depende_de, al_fallar, criterios, estado, "
+              "task_id, reintentos, actualizado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+              (pid, fid, n, f["prompt"], json.dumps([str(d) for d in f.get("depende_de") or []]),
+               f.get("al_fallar") or "pedir_decision", json.dumps(f.get("criterios") or []), "pendiente",
+               f"{pid}-{fid}"[:80], 0, now))
+    shutil.move(str(task_file), str(DONE / task_file.name))
+    log(f"plan [{pid}]: registrado con {len(orden)} fase(s) en orden {' → '.join(orden)}")
+    dag_avanzar(pid)
+    return True
+
+
+def _dag_validacion_deps(pid, fase, por_id):
+    """Fan-in: las dependencias en ok Y sus criterios tipados en verde ($0)."""
+    plan = _dag_plan(pid) or {}
+    fallos = []
+    for d in json.loads(fase["depende_de"] or "[]"):
+        dep = por_id[d]
+        if dep["estado"] == "saltada":
+            continue
+        _f, tip, _err = separar_criterios(json.loads(dep["criterios"] or "[]"), plan.get("cwd") or str(INBOX))
+        for c in tip or []:
+            ch = _check_tipado(c, plan.get("cwd") or str(INBOX))
+            if ch.get("falla"):
+                fallos.append(f"«{d}»: {'; '.join(ch['falla'])[:200]}")
+    return fallos
+
+
+def _dag_encolar(pid, fase):
+    plan = _dag_plan(pid) or {}
+    t = {"id": fase["task_id"], "prompt": fase["prompt"], "fase": f"fase {fase['n']} ({fase['fase_id']})",
+         "dag": {"plan": pid, "fase": fase["fase_id"]}, "criterios": json.loads(fase["criterios"] or "[]")}
+    for k in ("cwd", "motor"):
+        if plan.get(k):
+            t[k] = plan[k]
+    if plan.get("revisar") is not None:
+        t["revisar"] = json.loads(plan["revisar"])  # el plan dice como se revisan sus fases
+    TASKS.mkdir(parents=True, exist_ok=True)
+    (TASKS / f"{fase['task_id']}.task.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
+    _dag_set(pid, fase["fase_id"], estado="en_cola")
+    log(f"plan [{pid}]: fase {fase['fase_id']} en cola")
+
+
+def dag_avanzar(pid):
+    """Encola lo que ya puede empezar; bloquea lo que depende de algo roto; cierra el plan."""
+    plan = _dag_plan(pid)
+    if not plan or plan["estado"] != "en_curso":
+        dag_reflejar(pid)
+        return
+    fases = _dag_fases(pid)
+    por_id = {f["fase_id"]: f for f in fases}
+    for f in fases:
+        if f["estado"] != "pendiente":
+            continue
+        deps = json.loads(f["depende_de"] or "[]")
+        est = [por_id[d]["estado"] for d in deps]
+        if any(e in DAG_MAL for e in est):
+            rotas = [d for d in deps if por_id[d]["estado"] in DAG_MAL]
+            _dag_set(pid, f["fase_id"], estado="bloqueada", motivo=f"depende de {', '.join(rotas)}, que no terminó bien")
+            f["estado"] = "bloqueada"
+            continue
+        if not all(e in DAG_OK for e in est):
+            continue  # espera a sus dependencias
+        fallos = _dag_validacion_deps(pid, f, por_id) if deps else []
+        if fallos:
+            _dag_set(pid, f["fase_id"], motivo="validación de sus dependencias: " + " | ".join(fallos))
+            log(f"plan [{pid}]: fase {f['fase_id']} no arranca: la validación de sus dependencias falla: {fallos[0]}")
+            dag_fallo(pid, f["fase_id"], "sus dependencias no pasan la validación: " + " | ".join(fallos), encolar=False)
+            return
+        _dag_encolar(pid, f)
+        f["estado"] = "en_cola"
+    fases = _dag_fases(pid)
+    if all(f["estado"] in DAG_OK for f in fases):
+        _dag_plan_set(pid, estado="terminado")
+        log(f"plan [{pid}]: terminado")
+    elif not any(f["estado"] in ("pendiente", "en_cola") for f in fases):
+        _dag_plan_set(pid, estado="detenido", motivo="ninguna fase puede seguir")
+    dag_reflejar(pid)
+
+
+def dag_fallo(pid, fid, motivo, encolar=True):
+    """Lo que dice al_fallar de la fase."""
+    f = next(x for x in _dag_fases(pid) if x["fase_id"] == fid)
+    accion = f["al_fallar"]
+    if accion == "reintentar_una_vez" and not f["reintentos"] and encolar:
+        _dag_set(pid, fid, reintentos=1, motivo=f"reintento: {motivo}"[:300])
+        _dag_encolar(pid, dict(f, reintentos=1))
+        log(f"plan [{pid}]: fase {fid} falló ({motivo[:120]}); se reintenta una vez")
+        return
+    if accion == "reintentar_una_vez":
+        accion = "pedir_decision"  # el reintento ya se gasto: decide Leandro
+    if accion == "saltar_con_aviso":
+        _dag_set(pid, fid, estado="saltada", motivo=motivo[:300])
+        toast(f"Plan {pid}: se saltó la fase {fid}")
+        log(f"plan [{pid}]: fase {fid} falló y se salta con aviso ({motivo[:120]})")
+    elif accion == "abortar_plan":
+        _dag_set(pid, fid, estado="fallida", motivo=motivo[:300])
+        for x in _dag_fases(pid):
+            if x["estado"] in ("pendiente", "en_cola"):
+                _dag_set(pid, x["fase_id"], estado="cancelada", motivo=f"plan abortado por la fase {fid}")
+                tf = TASKS / f"{x['task_id']}.task.json"
+                if tf.exists():
+                    shutil.move(str(tf), str(DONE / tf.name))
+        _dag_plan_set(pid, estado="abortado", motivo=f"fase {fid}: {motivo}"[:300])
+        log(f"plan [{pid}]: abortado por la fase {fid} ({motivo[:120]})")
+    else:
+        _dag_set(pid, fid, estado="necesita_decision", motivo=motivo[:300])
+        _dag_plan_set(pid, estado="necesita_decision", motivo=f"fase {fid}: {motivo}"[:300])
+        log(f"plan [{pid}]: fase {fid} falló: necesita tu decisión; el resto del plan queda como estaba")
+    dag_avanzar(pid)
+
+
+def dag_fase_terminada(task, estado):
+    """Lo llama _after_run cuando una fase de un plan termina (estado final)."""
+    d = task.get("dag") if isinstance(task.get("dag"), dict) else None
+    if not d or estado not in ("aprobada", "sin_revision", "fallida", "rechazada", "necesita_decision"):
+        return
+    pid, fid = d.get("plan"), d.get("fase")
+    try:
+        if estado in ("aprobada", "sin_revision"):
+            _dag_set(pid, fid, estado="terminada", motivo=None)
+            log(f"plan [{pid}]: fase {fid} terminada")
+            dag_avanzar(pid)
+        else:
+            dag_fallo(pid, fid, f"la tarea terminó {ESTADOS.get(estado, estado)}")
+    except Exception as e:
+        log(f"plan [{pid}]: no se pudo apuntar la fase {fid} ({type(e).__name__}: {e})")
+
+
+def dag_supervisor():
+    """Al arrancar: recompone los planes a medias desde cola.db. Las fases
+    hechas no se repiten; las que estaban en cola o a medias siguen con su
+    checkpoint (la cola las repone); las que nunca arrancaron se encolan
+    cuando les toca. Si una fase ya tenia resultado final pero el plan no lo
+    apunto (corte justo despues), se apunta ahora."""
+    out = []
+    for p in _cola("SELECT plan_id FROM dag_planes WHERE estado='en_curso'", fetch=True) or []:
+        pid = p["plan_id"]
+        hechas, a_medias, sin = [], [], []
+        for f in _dag_fases(pid):
+            if f["estado"] in DAG_OK:
+                hechas.append(f["fase_id"])
+            elif f["estado"] == "en_cola":
+                rf = RESULTS / f"{f['task_id']}.result.json"
+                fam = load_family(f["task_id"]) or {}
+                if rf.exists() and fam.get("estado") in ("aprobada", "sin_revision", "fallida", "rechazada",
+                                                         "necesita_decision"):
+                    dag_fase_terminada({"dag": {"plan": pid, "fase": f["fase_id"]}}, fam["estado"])
+                    hechas.append(f["fase_id"] + " (apuntada ahora)")
+                elif not (TASKS / f"{f['task_id']}.task.json").exists() and not any(
+                        r["estado"] in ("en_cola", "en_curso") for r in _cola(
+                            "SELECT estado FROM tareas WHERE id=?", (f["task_id"],), fetch=True) or []):
+                    _dag_encolar(pid, f)
+                    a_medias.append(f["fase_id"] + " (vuelta a la cola)")
+                else:
+                    a_medias.append(f["fase_id"] + " (sigue con su checkpoint)")
+            elif f["estado"] == "pendiente":
+                sin.append(f["fase_id"])
+        dag_avanzar(pid)
+        txt = (f"plan {pid}: hechas {', '.join(hechas) or '—'}; a medias {', '.join(a_medias) or '—'}; "
+               f"sin arrancar {', '.join(sin) or '—'}")
+        log(f"supervisor: {txt}")
+        out.append(txt)
+    return out
+
+
+def dag_txt(pid):
+    """El plan en palabras: cada fase con su estado y de quién depende, y qué lo bloquea."""
+    plan = _dag_plan(pid)
+    if not plan:
+        return ""
+    fases = _dag_fases(pid)
+    por_id = {f["fase_id"]: f for f in fases}
+    partes = []
+    for f in fases:
+        deps = json.loads(f["depende_de"] or "[]")
+        s = f"Fase {f['n']} ({f['fase_id']}): {_DAG_NOM.get(f['estado'], f['estado'])}"
+        esperando = [d for d in deps if por_id[d]["estado"] not in DAG_OK]
+        if f["estado"] == "pendiente" and esperando:
+            s += " — espera a " + " y ".join(f"Fase {por_id[d]['n']}" for d in esperando)
+        if f.get("motivo") and f["estado"] not in ("terminada",):
+            s += f" ({f['motivo'][:120]})"
+        partes.append(s)
+    bloquea = [f for f in fases if f["estado"] in ("fallida", "necesita_decision")]
+    cab = {"en_curso": "en curso", "terminado": "terminado", "necesita_decision": "necesita tu decisión",
+           "abortado": "abortado", "detenido": "detenido"}.get(plan["estado"], plan["estado"])
+    return (f"Plan {pid} ({cab})" + (f". Lo bloquea la Fase {bloquea[0]['n']} ({bloquea[0]['fase_id']})" if bloquea
+                                     else "") + ". " + "; ".join(partes) + ".")
+
+
+def dag_reflejar(pid):
+    """La fila del plan en Tareas: estado y reporte con las fases."""
+    plan = _dag_plan(pid)
+    if not plan:
+        return
+    est = {"en_curso": "en_curso", "terminado": "aprobada", "necesita_decision": "necesita_decision",
+           "abortado": "fallida", "detenido": "fallida"}.get(plan["estado"], "en_curso")
+    txt = dag_txt(pid)
+    res = {"runner": f"growi-bridge/{VERSION}", "id": pid, "raiz": pid, "status": "ok", "estado": est,
+           "reporte": txt, "result": txt, "motor": "plan (fases)", "cost_usd": None,
+           "started_at": plan["creado_en"], "finished_at": _now_iso() if est != "en_curso" else None}
+    _write_result(res)
+    _family_update(pid, estado=est, reporte=txt, solo_si_falta_encargo=f"Plan con {len(_dag_fases(pid))} fases")
+
+
 def _process_one_impl(task_file):
     try:
         data = json.loads(task_file.read_text(encoding="utf-8"))
@@ -13744,6 +14055,8 @@ def _process_one_impl(task_file):
         cola_set(cid, estado="fallida", archivo=str(DONE / task_file.name), motivo=f"JSON invalido: {e}")
         _write_result(_error_result(task_file.stem, f"JSON invalido: {e}"))
         return True
+    if isinstance(data, dict) and isinstance(data.get("fases"), list):
+        return dag_ingestar(task_file, data)  # un plan con grafo de fases (t-dag-fases-030)
     cid = cola_registrar(task_file, data)
     task, error = validate_task(data)
     task_id = data.get("id") if isinstance(data.get("id"), str) else task_file.stem
@@ -14089,6 +14402,10 @@ def runner_loop(stop_event):
         supervisor_arranque()
     except Exception as e:
         log(f"supervisor ERROR al arrancar (el runner sigue): {type(e).__name__}: {e}")
+    try:
+        dag_supervisor()  # planes con grafo a medias (t-dag-fases-030)
+    except Exception as e:
+        log(f"supervisor: planes con fases: {type(e).__name__}: {e}")
     try:
         rec, _av = cola_recuperar()
         cola_archivar()
