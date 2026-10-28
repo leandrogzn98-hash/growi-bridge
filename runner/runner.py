@@ -408,8 +408,28 @@ def _pulse():
         time.sleep(1)
 
 
+# Ruta absoluta de Claude Code (t-runner-path-045): el comando pelado depende del
+# PATH del proceso, y un proceso elevado relanzado desde una terminal vieja
+# hereda un PATH sin .localin. Primero la ruta conocida; el PATH es respaldo.
+CLAUDE_ABS = Path(os.environ.get("USERPROFILE") or Path.home()) / ".local" / "bin" / "claude.exe"
+
+
+def claude_exe():
+    """(ruta, origen): 'ruta absoluta' | 'PATH' | None si no hay claude."""
+    if CLAUDE_ABS.is_file():
+        return str(CLAUDE_ABS), "ruta absoluta"
+    w = shutil.which("claude")
+    return (w, "PATH") if w else (None, None)
+
+
 def _build_cmd(task, fmt):
-    cmd = ["claude", "-p", task["prompt"]] + fmt
+    exe, origen = claude_exe()
+    if exe is None:
+        raise FileNotFoundError("claude")
+    if not _CUR.get("claude_logged") == origen:
+        _CUR["claude_logged"] = origen
+        log(f"claude se lanza por {origen}: {exe}")
+    cmd = [exe, "-p", task["prompt"]] + fmt
     if task["model"]:
         cmd += ["--model", task["model"]]
     if task["allowed_tools"]:
@@ -705,7 +725,8 @@ def heartbeat(tasks_done, current):
         "last_poll": now_iso(),
         "tasks_done": tasks_done,
         "current": current,
-        "claude": shutil.which("claude"),
+        "claude": claude_exe()[0],
+        "claude_origen": claude_exe()[1],
         "pid": os.getpid(),
         "vivo": LIVE_FILE.name,
     }
@@ -719,8 +740,8 @@ def main():
         sys.exit(2)
     for d in (TASKS, PROCESSING, DONE, RESULTS):
         d.mkdir(parents=True, exist_ok=True)
-    claude = shutil.which("claude")
-    log(f"Growi Runner {VERSION} arrancado. python={sys.version.split()[0]} claude={claude or 'NO ENCONTRADO'}")
+    claude, origen = claude_exe()
+    log(f"Growi Runner {VERSION} arrancado. python={sys.version.split()[0]} claude={claude or 'NO ENCONTRADO'} ({origen or 'ni ruta absoluta ni PATH'})")
     log(f"tasks en: {TASKS}")
     log(f"resultados en: {RESULTS}")
     if not claude:

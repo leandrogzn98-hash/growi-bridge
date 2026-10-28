@@ -5633,11 +5633,20 @@ def _engine_env(eng, task=None, rol=None):
     return _ensure_no_proxy(env)
 
 
+def _claude_abs():
+    """Ruta absoluta de Claude Code si existe (t-runner-path-045). El PATH del
+    proceso puede no traer .local\bin (app elevada relanzada desde una terminal
+    vieja); la ruta conocida no depende de el. Si no existe, el PATH es respaldo."""
+    p = Path(os.environ.get("USERPROFILE") or Path.home()) / ".local" / "bin" / "claude.exe"
+    return str(p) if p.is_file() else None
+
+
 def _resolve_binary(eng):
     """Ruta del binario como lista de argumentos. Un .cmd de npm (codex) se
     lanza con node + su script: un .cmd con argumentos pasaria por cmd.exe,
     y un prompt con & o | podria colarse como comando."""
-    exe = shutil.which(str(eng.get("binario") or ""))
+    exe = _claude_abs() if str(eng.get("binario") or "") == "claude" else None
+    exe = exe or shutil.which(str(eng.get("binario") or ""))
     if not exe:
         return None
     if exe.lower().endswith((".cmd", ".bat")):
