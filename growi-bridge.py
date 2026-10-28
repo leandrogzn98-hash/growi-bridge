@@ -18863,6 +18863,88 @@ def _ipx_latido(tunel):
         _ipx_guardar(reg)
 
 
+# ---- Tailscale atascado en «Starting…» (t-detector-avast, lo que faltaba
+# tras t-ip-estable): el vigia lee `tailscale status --json` (BackendState);
+# si lleva mas de TS_STARTING_MIN en Starting, avisa con la causa probable y
+# ofrece reiniciar el servicio (con confirmacion). Nunca reinicia solo.
+TS_STARTING_MIN = 5
+TS_SERVICIO = "Tailscale"
+
+
+def _ts_exe():
+    exe = shutil.which("tailscale") or str(Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+                                           / "Tailscale" / "tailscale.exe")
+    return exe if Path(exe).is_file() else None
+
+
+def tailscale_backend():
+    """BackendState de Tailscale (Running / Starting / NeedsLogin / Stopped…) o None."""
+    exe = _ts_exe()
+    if not exe:
+        return None
+    try:
+        rc, out, _e = _run_capture([exe, "status", "--json"], 10)
+        return json.loads(out).get("BackendState") if out.strip().startswith("{") else None
+    except Exception:
+        return None
+
+
+def _ts_vigia(estado=None, ahora=None):
+    """Un paso del vigia (lo llama _ipx_vigia_paso). estado/ahora: para pruebas."""
+    estado = estado if estado is not None else tailscale_backend()
+    ahora = ahora or time.time()
+    _IPX["ts_estado"] = estado
+    if estado == "Starting":
+        _IPX.setdefault("ts_starting_desde", ahora)
+        mins = (ahora - _IPX["ts_starting_desde"]) / 60
+        if mins >= TS_STARTING_MIN and not _IPX.get("ts_aviso"):
+            av = [s["nombre"] for s in (avast_servicios() or []) if s.get("estado") == "running"]
+            causa = (f"Avast VPN («{', '.join(av)}») está activo y compite por las rutas" if av
+                     else "el servicio de Tailscale se quedó colgado arrancando")
+            _IPX["ts_aviso"] = {"desde": _IPX["ts_starting_desde"], "causa": causa, "min": round(mins, 1)}
+            tunel_registrar("Tailscale (VM↔PC)", causa, f"lleva {mins:.0f} min en «Starting…»")
+            toast("Tailscale atascado arrancando", ("estado",))
+            log(f"salida: Tailscale lleva {mins:.0f} min en Starting (causa probable: {causa})")
+    else:
+        if _IPX.get("ts_aviso") and estado == "Running":
+            _ipx_append(TUNEL_LOG, f"{_ipx_ahora()} | volvió: Tailscale (VM↔PC) | estaba en «Starting…»")
+        _IPX.pop("ts_starting_desde", None)
+        _IPX["ts_aviso"] = None
+    return _IPX.get("ts_aviso")
+
+
+def tailscale_reiniciar_ui():
+    """Solo si Leandro lo pide: confirma, reinicia el servicio y dice el resultado real."""
+    if not messagebox.askyesno("Reiniciar Tailscale",
+                               f"Voy a reiniciar el servicio «{TS_SERVICIO}» de Windows (Restart-Service). El túnel "
+                               "se corta unos segundos y vuelve a arrancar. Hace falta administrador.\n\n¿Lo reinicio?",
+                               default="no"):
+        return
+    rc, out, err = _run_capture(["powershell", "-NoProfile", "-Command",
+                                 f"Restart-Service -Name '{TS_SERVICIO}' -Force -ErrorAction Stop"], 60)
+    ok = rc == 0
+    log(f"salida: reiniciar el servicio {TS_SERVICIO}: " + ("hecho" if ok else f"falló ({(err or out)[:200]})"))
+    messagebox.showinfo("Reiniciar Tailscale", "Servicio reiniciado. En un minuto vuelvo a mirar el túnel." if ok
+                        else f"No pude reiniciarlo: {(err or out).strip()[:300]}")
+
+
+def tunel_caidas_ui():
+    """El registro de caídas (tunel-caidas.log), lo más nuevo arriba."""
+    lineas = list(reversed(_ipx_lineas(TUNEL_LOG, "|")))
+    top = tk.Toplevel(_root)
+    top.title("Caídas del túnel")
+    top.configure(bg=THEME["bg"])
+    tk.Label(top, text=f"{len([x for x in lineas if '| cayó:' in x])} caída(s) en {TUNEL_LOG}. Cada una con su causa "
+                       "probable (Avast, apagón, red…).", bg=THEME["bg"], fg=THEME["muted"], font=(FONT, 10),
+             wraplength=S(640), justify="left").pack(anchor="w", padx=16, pady=(12, 4))
+    txt = tk.Text(top, height=18, width=100, font=("Consolas", 9))
+    txt.insert("1.0", "\n".join(lineas) or "Ninguna caída registrada todavía.")
+    txt.configure(state="disabled")
+    txt.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+    _widgets["tunel_caidas_top"] = top
+    return top
+
+
 def _ipx_vigia_paso(n):
     t = _ipx_tunel_arriba()
     prev = _IPX.get("tunel")
@@ -18875,6 +18957,7 @@ def _ipx_vigia_paso(n):
         _IPX["tunel_caido_at"] = None
     _IPX["tunel"] = t
     if n % 2 == 0:  # cada ~60 s
+        _ts_vigia()  # Tailscale atascado en «Starting…»
         avast_comprobar()
         if _IPX["forzar"] and not _IPX["busy"]:
             vivo, info = _ipx_proxy_vivo()
@@ -19053,6 +19136,11 @@ def _build_ipx_card(k, holder):
     W["ipx_medir"].pack(side="left")
     W["ipx_av_off"] = k.button(r2, "Deshabilitar Avast VPN…", lambda: _avast_accion("disabled"))
     W["ipx_av_off"].pack(side="left", padx=(8, 0))
+    r3 = k.row(card, pady=(0, 14))  # t-detector-avast: caidas consultables + reinicio de Tailscale
+    W["ipx_caidas"] = k.button(r3, "Ver caídas del túnel", tunel_caidas_ui)
+    W["ipx_caidas"].pack(side="left")
+    W["ipx_ts_reiniciar"] = k.button(r3, "Reiniciar el servicio de Tailscale…", tailscale_reiniciar_ui)
+    W["ipx_ts_reiniciar"].pack(side="left", padx=(8, 0))
     W["ipx_av_manual"] = k.button(r2, "Avast VPN a Manual…", lambda: _avast_accion("demand"))
     W["ipx_av_manual"].pack(side="left", padx=(8, 0))
 
@@ -19129,6 +19217,12 @@ def _ipx_pintar():
                 else "Túnel Tailscale: apagado en ajustes o sin comprobar.")
         ttxt += (f" Caídas registradas en tunel-caidas.log: {n_caidas}." if n_caidas
                  else " Ninguna caída registrada todavía.")
+        tsa = _IPX.get("ts_aviso")
+        if tsa:
+            ttxt += (f" ⚠ Tailscale lleva más de {TS_STARTING_MIN} min en «Starting…». Causa probable: {tsa['causa']}. "
+                     "Puedes reiniciar su servicio aquí.")
+        if W.get("ipx_ts_reiniciar") is not None:
+            k.set_enabled(W["ipx_ts_reiniciar"], bool(tsa))
         k.set_label(W["ipx_tunel"], ttxt)
         k.set_enabled(W["ipx_medir"], not _IPX["busy"])
         # ---- avisos (arriba en Estado; se quedan hasta que eliges)

@@ -1,0 +1,44 @@
+{
+ "real_tailscale_backend": "Running",
+ "real_avast_servicios": [
+  {
+   "nombre": "SecureLine",
+   "visible": "Avast VPN",
+   "estado": "stopped",
+   "inicio": "manual"
+  }
+ ],
+ "paso_1_starting_min0": null,
+ "paso_2_starting_min3": null,
+ "toasts": [
+  "Tailscale atascado arrancando"
+ ],
+ "paso_3_starting_min6": {
+  "desde": 1793162169.003545,
+  "causa": "el servicio de Tailscale se quedó colgado arrancando",
+  "min": 6.0
+ },
+ "paso_4_running": null,
+ "tunel_caidas_log": [
+  "2026-10-28 00:36:09 | cayó: Tailscale (VM↔PC) | causa probable: el servicio de Tailscale se quedó colgado arrancando | lleva 6 min en «Starting…»",
+  "2026-10-28 00:36:09 | volvió: Tailscale (VM↔PC) | estaba en «Starting…»"
+ ],
+ "ventana_caidas": {
+  "titulo": "Caídas del túnel",
+  "texto": [
+   "2026-10-28 00:36:09 | volvió: Tailscale (VM↔PC) | estaba en «Starting…»",
+   "2026-10-28 00:36:09 | cayó: Tailscale (VM↔PC) | causa probable: el servicio de Tailscale se quedó colgado arrancando | lleva 6 min en «Starting…»"
+  ]
+ },
+ "reiniciar_dijo_no": {
+  "pregunta": {
+   "titulo": "Reiniciar Tailscale",
+   "texto": "Voy a reiniciar el servicio «Tailscale» de Windows (Restart-Service). El túnel se corta unos segundos y vuelve a arrancar. Hace falta administrador.\n\n¿Lo reinicio?"
+  },
+  "comandos_lanzados": 0
+ },
+ "log": [
+  "2026-10-28T00:36:09-04:00 salida: caída de Tailscale (VM↔PC) (causa probable: el servicio de Tailscale se quedó colgado arrancando) apuntada en tunel-caidas.log",
+  "2026-10-28T00:36:09-04:00 salida: Tailscale lleva 6 min en Starting (causa probable: el servicio de Tailscale se quedó colgado arrancando)"
+ ]
+}
