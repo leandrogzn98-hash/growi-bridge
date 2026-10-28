@@ -60,3 +60,4 @@ construye sobre lo que sí existe en el código.
 | 2 | t-idempotencia-cuarentena-030 | **LISTO** (FALTA: efectos que el motor hace por su cuenta dentro de su corrida; escalada por tiempo) | `7598c07`, `ESTADO-IDEMPOTENCIA-CUARENTENA.md` |
 | 3 | t-paralelo-seguro-030 | **LISTO** (FALTA: solapamiento descubierto a mitad — sin rastreo de escrituras por proceso) | `8fc3100`, `ESTADO-PARALELO-SEGURO.md` |
 | 4 | t-agentes-paralelos-030 | **LISTO** (FALTA: VRAM por tamaño de modelo — hoy es la regla «nunca dos locales») | `63749a6`, `ESTADO-AGENTES-PARALELOS.md` |
+| 5 | t-proyectos | **LISTO** (FALTA: las carpetas reales de Aqualine / Summit Maker / HAYAI no están en este PC: quedan como FALTA) | `0578a82`, `ESTADO-PROYECTOS.md` |
