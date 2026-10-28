@@ -19,3 +19,8 @@ share/
 sesiones/
 _prueba-orquestacion/
 cred-ayudante/
+
+# Gate de calidad: logs, estado de sesion y caches (los lee la revision en disco)
+gate-calidad/
+# ...salvo el de Claude Code del proyecto (hooks del gate de calidad)
+!.claude/settings.json

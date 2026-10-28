@@ -5568,8 +5568,13 @@ def acceso_motor(eng, fresca=False):
                       + (". Cómo entrar: lo dice la ficha del motor (Modelos → Motores)" if como else "")}
 
 
-def _engine_env(eng):
+def _engine_env(eng, task=None, rol=None):
     env = dict(os.environ)
+    if task is not None:
+        # Para el gate de calidad (Stop hook de Claude Code, gate-calidad.py):
+        # nombra su log gate-calidad-<id>.log y no corre en la sesion del juez.
+        env["GROWI_TAREA_ID"] = str(task.get("id") or "")
+        env["GROWI_TAREA_ROL"] = str(rol or "tarea")
     for k, v in (eng.get("entorno") or {}).items():
         if k not in ("NO_PROXY", "no_proxy"):
             env[str(k)] = str(v)
@@ -7270,7 +7275,7 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
             proc = subprocess.Popen(
                 cmd, cwd=task["cwd"], stdout=subprocess.PIPE, stderr=err,
                 stdin=subprocess.PIPE if stdin_mode else subprocess.DEVNULL,
-                env=_engine_env(eng), **_oculto())
+                env=_engine_env(eng, task, rol), **_oculto())
         except FileNotFoundError:
             result["error"] = f"{motor_id} no esta en el PATH de este usuario"
             return True
@@ -7390,7 +7395,7 @@ def _run_cli_plain(task, motor_id, eng, result, prompt, cmd, rol="tarea"):
             proc = subprocess.Popen(
                 cmd, cwd=task["cwd"], stdout=out, stderr=err,
                 stdin=subprocess.PIPE if stdin_mode else subprocess.DEVNULL,
-                env=_engine_env(eng), **_oculto())
+                env=_engine_env(eng, task, rol), **_oculto())
         except FileNotFoundError:
             result["error"] = f"{motor_id} no esta en el PATH de este usuario"
             return
@@ -9855,6 +9860,38 @@ def _review_prompt(task, result, checks, touched, can_read, nivel=None):
     return _armar_prompt_juez(task, result, checks, touched, can_read, (5000, 2500, 6), None)
 
 
+def _gate_para_revision(task, tope=1500):
+    """Lineas del gate de calidad local (gate-calidad.py, Stop hook de Claude
+    Code) para el prompt del juez: su log gate-calidad-<id>.log en la carpeta
+    gate-calidad/ de la tarea (o de una carpeta de arriba, la raiz del repo).
+    El gate es un filtro previo: la revision por criterios sigue igual, pero
+    no repite a mano lo que el gate ya comprobo. [] si ahi no hay gate."""
+    try:
+        cwd = Path(task.get("cwd") or "")
+    except TypeError:
+        return []
+    for d in [cwd, *cwd.parents][:6]:
+        g = d / "gate-calidad"
+        if (d / "gate-calidad.py").is_file() or g.is_dir():
+            break
+    else:
+        return []
+    f = g / f"gate-calidad-{task.get('id')}.log"
+    try:
+        txt = f.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return ["", "GATE DE CALIDAD LOCAL: no hay log para esta tarea "
+                f"({f}); el gate no corrió. Compruébalo tú si hace falta."]
+    primera = txt.splitlines()[0] if txt else ""
+    out = ["", f"GATE DE CALIDAD LOCAL (comprobado por código, $0; log completo en {f}). Ya comprobó "
+               "sintaxis (py_compile), lint (ruff), tipos (mypy), tests (pytest) y arranque (smoke): NO lo "
+               "vuelvas a comprobar a mano; céntrate en los criterios del encargo."]
+    if "FALLA" in primera:
+        out.append("El gate FALLÓ y el agente no lo corrigió: es un HECHO que FALLA, la tarea NO se aprueba.")
+    out.append(txt[:tope] + (f"\n[... log recortado: {len(txt)} caracteres ...]" if len(txt) > tope else ""))
+    return out
+
+
 def _armar_prompt_juez(task, result, checks, touched, can_read, lim, nota_recorte):
     lim_res, lim_arch, max_arch = lim
     fam = load_family(task["raiz"]) or {}
@@ -9870,6 +9907,7 @@ def _armar_prompt_juez(task, result, checks, touched, can_read, lim, nota_recort
         for ch in checks:
             parts.append(f"- [{'PASA' if not ch['falla'] else 'FALLA'}] {ch['criterio']}: "
                          + "; ".join(ch["detalle"])[:500])
+    parts += _gate_para_revision(task, 1500 if lim_res >= 800 else 600)
     res_txt = (result.get("result") or "").strip()
     parts += ["", "PARTE DEL MOTOR (lo que él dice que hizo; puede exagerar):",
               (res_txt[:lim_res] + (f"\n[... recortado: {len(res_txt)} caracteres en total ...]"

@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"C:/Users/forte/source/growi-bridge/gate-calidad.py\" --registrar-base",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"C:/Users/forte/source/growi-bridge/gate-calidad.py\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
