@@ -20397,6 +20397,80 @@ def _palette_toggle_fav(cid):
     save_settings(s)
 
 
+# ---- calculadora en la paleta (t-calculadora-paleta): solo aritmetica, con
+# un recorrido propio del AST (nodos permitidos); nunca eval(). Sin divisas
+# ni funciones cientificas: «100 USD a Bs» sigue siendo una busqueda.
+_CALC_CHARS = re.compile(r"^[\d\s.,+\-*/%()]+$")
+_CALC_OP = re.compile(r"\d\s*[)]*\s*[+\-*/%]\s*[(]*\s*[\d.,(]")
+_CALC_MAX = 1e15
+
+
+def _calc_nodo(n):
+    import ast
+    import operator as op
+    ops = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul, ast.Div: op.truediv, ast.Mod: op.mod}
+    if isinstance(n, ast.Expression):
+        return _calc_nodo(n.body)
+    if isinstance(n, ast.Constant) and type(n.value) in (int, float):
+        return n.value
+    if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.USub, ast.UAdd)):
+        v = _calc_nodo(n.operand)
+        return -v if isinstance(n.op, ast.USub) else v
+    if isinstance(n, ast.BinOp) and type(n.op) in ops:
+        a, b = _calc_nodo(n.left), _calc_nodo(n.right)
+        if abs(a) > _CALC_MAX or abs(b) > _CALC_MAX:
+            raise OverflowError
+        return ops[type(n.op)](a, b)
+    raise ValueError("no es aritmética")
+
+
+def calc_evaluar(q):
+    """None si el texto no es una cuenta; si no (expresion, texto_resultado,
+    valor_para_copiar o None si hubo error). La coma decimal vale (279,58)."""
+    s = (q or "").strip()
+    if not s or len(s) > 120 or not _CALC_CHARS.match(s) or not _CALC_OP.search(s):
+        return None
+    coma = "," in s and "." not in s
+    expr = s.replace(",", ".") if coma else s.replace(",", "")
+    try:
+        import ast
+        v = _calc_nodo(ast.parse(expr, mode="eval"))
+    except ZeroDivisionError:
+        return s, "no se puede dividir entre cero", None
+    except OverflowError:
+        return s, "el número es demasiado grande", None
+    except (SyntaxError, ValueError, RecursionError):
+        return None  # no es una cuenta bien escrita: la paleta busca como siempre
+    if abs(v) > _CALC_MAX:
+        return s, "el número es demasiado grande", None
+    txt = str(int(v)) if float(v).is_integer() else f"{v:.10f}".rstrip("0").rstrip(".")
+    if coma:
+        txt = txt.replace(".", ",")
+    return s, txt, txt
+
+
+def _calc_copiar(valor):
+    try:
+        _root.clipboard_clear()
+        _root.clipboard_append(valor)
+        _root.update()
+        toast(f"Copiado: {valor}")
+        log(f"paleta: calculadora: copiado {valor}")
+    except Exception as e:
+        log(f"paleta: calculadora: no se pudo copiar ({type(e).__name__})")
+
+
+def _calc_item(q):
+    r = calc_evaluar(q)
+    if r is None:
+        return None
+    expr, txt, valor = r
+    if valor is None:
+        return {"id": "_calc", "label": f"{expr}: {txt}", "fn": lambda: None, "chip": "—"}
+    return {"id": "_calc", "label": f"{expr} = {txt}", "fn": lambda v=valor: _calc_copiar(v),
+            "chip": "Enter copia"}
+
+
 def _palette_sections(q):
     """Lo que muestra la paleta. Vacia: favoritos, frecuentes y el resto.
     Con texto: los resultados de la busqueda difusa, del mejor al peor."""
@@ -20412,6 +20486,9 @@ def _palette_sections(q):
                "fn": lambda q=q: mem_comando_ui(q, "paleta")}
     if mem is not None:
         return [("Memoria", [mem] + (asis_mem_filas(q) if mem["label"].startswith("Recordar") else []))]
+    calc = _calc_item(q)
+    if calc is not None:  # una cuenta (solo cifras y + - * / %): su resultado es el primer item
+        return [("Calculadora", [calc])]
     if not toks:
         by_id = {c["id"]: c for c in _PALETTE_CMDS}
         fav = [by_id[i] for i in favs if i in by_id]
@@ -20619,6 +20696,8 @@ def _open_palette():
             w_.bind("<Button-1>", lambda _e, i=idx: (_select(i), _run()))
             w_.bind("<Motion>", lambda _e, i=idx: st["sel"] != i and _select(i, see=False))
         st["rows"].append((row, parts, item))
+
+    _palette["st"] = st  # para las pruebas: las filas que se ven
 
     def _render():
         for child in inner.winfo_children():

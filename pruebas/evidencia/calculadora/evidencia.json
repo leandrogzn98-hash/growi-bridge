@@ -1,0 +1,35 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-calc-iae4vwi8",
+ "a_120x0.4": [
+  "120*0.4 = 48"
+ ],
+ "b_portapapeles_tras_enter": "48",
+ "a2_coma_decimal_279,58/1070": [
+  "279,58/1070 = 0,2612897196"
+ ],
+ "a3_split_40_40_20": [
+  "1500*0.4 = 600"
+ ],
+ "c_codigo_no_se_evalua": [
+  "Pedírselo a la IA: «__import__('os').system('calc')»"
+ ],
+ "c2_division_por_cero": [
+  "120/0: no se puede dividir entre cero"
+ ],
+ "c3_numero_enorme": [
+  "99999999999999999*99999999999: el número es demasiado grande"
+ ],
+ "d_divisas_no_inventa": [
+  "Pedírselo a la IA: «100 USD a Bs»"
+ ],
+ "e_busqueda_normal_ajustes": [
+  "Ir a Ajustes"
+ ],
+ "e2_numero_solo_no_es_cuenta": [
+  "Pedírselo a la IA: «2026»"
+ ],
+ "log": [
+  "2026-10-27T23:57:13-04:00 paleta: calculadora: copiado 48"
+ ],
+ "tracebacks_en_log": 0
+}
