@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plantilla del agente de launchd del supervisor. La rellena instalar-supervisor-macos.sh (@...@). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>@ETIQUETA@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@PYTHON@</string>
+    <string>@SCRIPT@</string>
+    <string>--config</string>
+    <string>@CONFIG@</string>
+  </array>
+  <key>WorkingDirectory</key><string>@AQUI@</string>
+  <key>StartInterval</key><integer>@SEGUNDOS@</integer>
+  <key>RunAtLoad</key><false/>
+  <key>StandardErrorPath</key><string>@DATOS@/launchd-error.log</string>
+</dict>
+</plist>

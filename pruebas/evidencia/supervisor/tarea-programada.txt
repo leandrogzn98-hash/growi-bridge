@@ -1,0 +1,32 @@
+== instalar-supervisor.ps1 -Config supervisor\_prueba\config.yaml  (2026-10-29T16:06:03)
+
+TaskName : GrowiSupervisor-prueba
+State    : Ready
+Accion   : C:\Users\forte\source\growi-bridge\supervisor\.venv\Scripts\pythonw.exe "C:\Users\forte\source\growi-bridge\supervisor\supervisor.py" --config "C:\Users\forte\source\growi-bridge\supervisor\_prueba\config.yaml"
+Oculta   : True
+
+
+
+LastRunTime    : 29/10/2026 4:05:33 PM
+LastTaskResult : 0
+
+
+== supervisor.log
+2026-10-29T16:05:36-04:00 TURNO estado=14e3bea9acf954f5 veredicto=TODO_BIEN confianza=0.9 fuente=modelo (intento 1) proveedor=mock
+2026-10-29T16:05:36-04:00 FIN TODO_BIEN alertas=[] enviadas=[] - Nada que decidir.
+== --verificar --sin-llamadas
+[OK] configuración: config.yaml válido y completo
+[OK] clave del proveedor: no hace falta
+[OK] proveedor alcanzable: no probado (--sin-llamadas)
+[FAIL] Resend: falta la clave de Resend en la variable de entorno RESEND_API_KEY
+[OK] tarea programada: «GrowiSupervisor-prueba» en Programador de tareas
+codigo de salida: 1
+== despues: tarea desactivada (no se borra)
+Disabled
+== 2026-10-29T16:06:30-04:00 tras marcar lo no probado como [OMITIDO] (antes salía [OK] arriba): --verificar --sin-llamadas
+[OK] configuración: config.yaml válido y completo
+[OK] clave del proveedor: no hace falta
+[OMITIDO] proveedor alcanzable: no probado (--sin-llamadas)
+[FAIL] Resend: falta la clave de Resend en la variable de entorno RESEND_API_KEY
+[OK] tarea programada: «GrowiSupervisor-prueba» en Programador de tareas
+codigo de salida: 1

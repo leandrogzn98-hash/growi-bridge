@@ -1,0 +1,52 @@
+# Supervisor local de Growi Bridge ("subgerente"). Todo lo que se puede cambiar vive aquí.
+# Para cambiar de proveedor basta con editar la sección "subgerente" (o correr: supervisor.py --configurar).
+# Las claves NUNCA van en este archivo: aquí solo se dice DÓNDE están (variable de entorno o llavero del sistema).
+
+subgerente:
+  proveedor: deepseek          # deepseek | openai | anthropic | gemini | ollama  (mock = solo para pruebas)
+  modelo: deepseek-chat
+  clave:
+    origen: entorno            # entorno = variable de entorno | llavero = Credential Manager / Keychain / Secret Service
+    nombre: DEEPSEEK_API_KEY   # nombre de la variable, o de la entrada del llavero (servicio "growi-supervisor")
+  intervalo_minutos: 60
+  tiempo_maximo_s: 60
+
+gerente_general:
+  nombre: Growi                # solo informativo: quién orquesta las tareas
+  reportes:                    # canal por el que el subgerente avisa (correo vía Resend)
+    from: growi@summitmaker.co
+    to: duet@summitmaker.co
+    prefijo_asunto: "[GROWI-BRIDGE]"
+    clave_resend:
+      origen: entorno
+      nombre: RESEND_API_KEY
+
+bridge:
+  carpeta: ~/growi-bridge      # donde está instalada la app
+  share: ~/growi-bridge/share  # su carpeta share (inbox / outbox)
+  puerto_gateway: 8787
+  logs:                        # rutas relativas a "carpeta"
+    - growi-bridge.log
+    - runner/runner.log
+  cadenas:                     # CADENA-ESTADO*.json que se revisan (patrones relativos a "share")
+    - outbox/CADENA-ESTADO*.json
+    - inbox/**/CADENA-ESTADO*.json
+
+juez:                          # el supervisor desconfía del modelo por diseño
+  debounce_s: 300              # ante NECESITA_DECISION, espera esto, vuelve a leer y solo escala lo que persiste
+  tope_estado_caracteres: 8000 # estado más largo que esto se recorta (y queda el aviso en el log)
+  max_llamadas_dia: 48         # pasadas al modelo por día (reintentos incluidos); al pasarse, solo reglas locales
+  tope_gasto_diario_usd: 0.50  # solo actúa si pones el precio de tu proveedor aquí abajo
+  precio_usd_por_millon_tokens: null   # p. ej. el precio de entrada de tu modelo; null = no se estima gasto
+
+escalacion:
+  reaviso_horas: 6             # la misma alerta, sin cambios, no se repite antes de esto
+  ventana_horas: 24            # qué tan atrás se miran los resultados del runner
+  latido_runner_min: 10        # runner-status.json sin latido más viejo que esto = runner parado
+  app_abierta_min: 15          # log de la app tocado hace menos que esto = la app debería estar abierta
+  lineas_log: 40
+
+programacion:
+  nombre_tarea: GrowiSupervisor
+
+datos: ~/.growi-supervisor     # log del supervisor y memoria de alertas ya enviadas

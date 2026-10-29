@@ -39,3 +39,7 @@ cosecha-pedidos.json
 /portapapeles.json
 /pendientes-hechos.json
 /gadget.log
+
+# Supervisor local: entorno virtual y pruebas de cada PC
+supervisor/.venv/
+supervisor/_prueba/
