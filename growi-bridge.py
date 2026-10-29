@@ -19519,17 +19519,19 @@ def draw_power():
     if c is None:
         return
     c.delete("all")
-    on = state["power"]
+    nivel = (_EU or {}).get("nivel")
+    on = state["power"] and nivel in ("arriba", "parcial", "comprobando", None)
+    verde = THEME["orange"] if nivel == "parcial" else THEME["green"]  # parcial: nunca verde completo
     cx, cy, r = 85, 85, 62
     # Anillo fijo (antes parpadeaba a 1 Hz). Con el foco (Tab) es azul.
     if getattr(c, "_focus", False):
         c.create_oval(4, 4, 166, 166, outline=foco_color(), width=S(3))
     if on:
-        c.create_oval(8, 8, 162, 162, outline=THEME["green"], width=S(3))
+        c.create_oval(8, 8, 162, 162, outline=verde, width=S(3))
         c.create_oval(cx - r - 2, cy - r + 4, cx + r + 2, cy + r + 8,
                       fill="#E5E5EA", outline="#E5E5EA")
         c.create_oval(cx - r, cy - r, cx + r, cy + r,
-                      fill=THEME["green"], outline="#2DB84C", width=S(2))
+                      fill=verde, outline="#2DB84C" if verde == THEME["green"] else verde, width=S(2))
         sym = "white"
     else:
         c.create_oval(cx - r - 2, cy - r + 4, cx + r + 2, cy + r + 8,
@@ -19666,13 +19668,17 @@ def refresh_ui():
     w = _widgets
     if not w:
         return
-    # Puente / Runner / Proxy: punto + pildora de valor + interruptor propio.
-    dot, color = _dot(state["bridge"])
+    # Puente / Runner / Proxy: punto + pildora de valor + interruptor propio. Los colores salen del estado
+    # único (t-estado-consistencia-045): verde solo si de verdad responde.
+    eu = estado_unico()
+    _ver = {"arriba": THEME["green"], "comprobando": THEME["muted"]}
+    dot, color = "●", (_ver.get(eu["puente"]) or (THEME["red"] if eu["puente"] == "no_responde" else "#5A7086"))
     w["bridge_dot"].config(text=dot, fg=color)
     w["bridge_pill"].config(
         text=f"puerto {BRIDGE_PORT}" if state["bridge"] == "corriendo" else "parado")
     set_switch(w.get("bridge_sw"), state["bridge"] == "corriendo")
-    dot, color = _dot(state["runner"])
+    dot, color = "●", (THEME["green"] if eu["nivel"] in ("arriba", "parcial") and eu["runner"] == "arriba"
+                       else "#5A7086")
     w["runner_dot"].config(text=dot, fg=color)
     pill = f"{state['tasks_done']} tareas"
     if state["current"]:
@@ -19682,7 +19688,8 @@ def refresh_ui():
     w["runner_pill"].config(text=pill)
     set_switch(w.get("runner_sw"), state["runner"] == "corriendo")
     cfg = proxy_config()
-    dot, color = ("●", THEME["green"]) if state["proxy_on"] else ("●", "#5A7086")
+    dot, color = "●", {"arriba": THEME["green"] if eu["nivel"] != "abajo" else "#5A7086",
+                       "no_responde": THEME["orange"], "comprobando": THEME["muted"]}.get(eu["proxy"], "#5A7086")
     w["proxy_dot"].config(text=dot, fg=color)
     if state["proxy_on"] and cfg["host"]:
         w["proxy_pill"].config(text=f"{cfg['host']}:{cfg['port']}")
@@ -19694,9 +19701,20 @@ def refresh_ui():
     if w.get("px_aviso") is not None:
         w["px_aviso"].config(fg=THEME["orange_text"] if state["proxy_on"] else THEME["muted"],
                              font=(FONT, 9, "bold" if state["proxy_on"] else "normal"))
-    w["power_label"].config(
-        text="Todo encendido" if state["power"] else "Todo apagado",
-        fg=THEME["green_text"] if state["power"] else THEME["muted"])
+    if not state["power"]:
+        _pl = ("Todo apagado", THEME["muted"])
+    elif eu["nivel"] == "arriba":
+        _pl = ("Todo encendido", THEME["green_text"])
+    elif eu["nivel"] == "parcial":
+        _pl = ("Encendido, pero: " + eu["texto"].split(": ", 1)[-1], THEME["orange"])
+    elif eu["nivel"] == "abajo":
+        _pl = (eu["texto"].lstrip("● "), THEME["red"])
+    else:
+        _pl = ("Comprobando…", THEME["muted"])
+    w["power_label"].config(text=_pl[0], fg=_pl[1])
+    if _widgets.get("_power_nivel") != eu["nivel"]:
+        _widgets["_power_nivel"] = eu["nivel"]
+        draw_power()
     w["sync_text"].config(text=_sync_text())
     w["admin_text"].config(
         text=f"Versión {VERSION}" + (" · carril A" if LANE == "a" else "") + "\n"
@@ -22663,13 +22681,17 @@ def _after_availability():
             t.start()
     elif st == "conectado":
         _AV["nube_fallos"] = 0
+    # el aviso sale del estado único: con el runner trabajando en la nube ahora mismo no hay alarma (t-estado-consistencia-045)
+    callar = _runner_en_nube_ahora()
     if st == "local" and prev != "local":
         state["nube_caida"] = True
         log("conexión: sin nube; las preguntas de la app van al modelo local")
-        toast("Sin nube: uso el modelo local", ("estado",))
+        if not callar:
+            toast("Sin nube: uso el modelo local", ("estado",))
     elif st == "sin" and prev not in ("sin", None):
         state["nube_caida"] = True
-        toast("Sin conexión: ni nube ni modelo local", ("estado",))
+        if not callar:
+            toast("Sin conexión: ni nube ni modelo local", ("estado",))
     elif st == "conectado":
         if state.get("nube_caida"):
             log("conexión: la nube volvió")
@@ -24659,7 +24681,8 @@ def _toggle_px_advanced(force=None):
 
 
 def _refresh_conn_widgets():
-    txt, col = conn_text(), _conn_color()
+    eu = estado_unico()  # t-estado-consistencia-045: la pastilla dice lo mismo que el resto de la pantalla
+    txt, col = eu["texto"], eu["color"]
     for key in ("conn_chip", "px_state"):
         lbl = _widgets.get(key)
         if lbl is not None:
@@ -24678,12 +24701,9 @@ def _refresh_cloud_banner():
     b = _widgets.get("cloud_banner")
     if b is None:
         return
-    try:
-        probe = runner_modelo_probe()
-    except Exception as e:  # nunca un banner falso por un fallo del propio probe
-        probe = {"estado": "ilegible", "motivo": type(e).__name__}
-    mostrar, txt, tipo = cloud_banner_decidir(probe, _AV.get("nube_fallos", 0))
-    _AV["banner"] = {"probe": probe, "mostrar": mostrar, "texto": txt, "tipo": tipo}
+    # la misma decisión que usa el estado único (no una sonda paralela): t-estado-consistencia-045
+    _AV["banner"] = dict(estado_unico()["banner"])
+    mostrar, txt, tipo = _AV["banner"]["mostrar"], _AV["banner"]["texto"], _AV["banner"]["tipo"]
     # winfo_manager (empaquetado o no), no winfo_ismapped: con otra página a la vista nada está «mapeado» y un banner
     # que dejaba de tocar se quedaba puesto al volver a Estado (visto en t-estado-tarjetas-045).
     if mostrar and not b.winfo_manager():
@@ -24724,8 +24744,8 @@ def local_fallback_model(model):
 def _tray_kind():
     if state["bridge"] != "corriendo":
         base = "sin"
-    else:
-        base = {"conectado": "ok", "local": "local", "sin": "sin"}.get(conn_state(), "idle")
+    else:  # el último estado único calculado (t-estado-consistencia-045), no la sonda por su lado
+        base = {"arriba": "ok", "parcial": "local", "abajo": "sin"}.get(_EU.get("nivel"), "idle")
     sync = False
     if TRANSFERS:
         try:
@@ -24879,7 +24899,7 @@ def _patch_tray_clicks(icon):
 
 
 def _tray_proxy_label(_item=None):
-    return "Estado del proxy: " + conn_text().lstrip("●○ ").strip()
+    return "Estado del proxy: " + (_EU.get("texto") or conn_text()).lstrip("●○ ").strip()
 
 
 def _tray_open_proxy():
@@ -30163,21 +30183,32 @@ EST_DIAS = 7
 def estado_salud_filas():
     """[(clave, nombre, color, texto)] de cada servicio y motor, con su estado real o «sin datos»."""
     out = []
-    br = state.get("bridge") == "corriendo"
-    out.append(("puente", "Puente", "green" if br else "muted",
-                f"Encendido, puerto {BRIDGE_PORT}" if br else "Apagado"))
-    rn = state.get("runner") == "corriendo"
+    eu = estado_unico()  # t-estado-consistencia-045: lo mismo que la barra lateral y el botón
+    br = eu["puente"] == "arriba"
+    out.append(("puente", "Puente", "green" if br else "red" if eu["puente"] == "no_responde" else "muted",
+                f"Encendido, puerto {BRIDGE_PORT}" if br else {"no_responde": "No responde",
+                                                              "comprobando": "Comprobando…"}.get(eu["puente"],
+                                                                                                 "Apagado")))
+    rn = eu["runner"] == "arriba" and eu["nivel"] != "abajo"
+    abajo = eu["nivel"] == "abajo"  # con el puente abajo ninguna tarjeta de servicio va en verde
     try:
         cola = cola_resumen().get("pendiente") or 0
     except Exception:
         cola = None
     out.append(("runner", "Runner", "green" if rn else "muted",
-                ("Encendido" if rn else "Apagado") + (f" · {cola} en cola" if cola is not None else "")))
+                ("No se puede comprobar: el puente está apagado" if abajo and eu["runner"] == "arriba" else
+                 "Encendido" if rn else "Apagado") + (f" · {cola} en cola" if cola is not None else "")))
     p = _AV["rows"].get("proxy") or {}
-    if not p:
+    if eu["proxy"] == "no_se_usa":
+        out.append(("proxy", "Proxy", "muted", "No se usa (apagado o «Sin proxy»)"))
+    elif not p:
         out.append(("proxy", "Proxy", "muted", "sin datos: todavía no se probó"))
+    elif abajo:
+        out.append(("proxy", "Proxy", "muted", "No se comprueba con el puente apagado (última prueba: "
+                    + str(p.get("frase") or p.get("estado") or "sin datos") + ")"))
     else:
-        col = {"ok": "green", "aviso": "orange", "falla": "red"}.get(p.get("estado"), "muted")
+        # sin responder = aviso (#FA5102), lo mismo que su punto en Servicios y la pastilla «Parcial»
+        col = {"ok": "green", "aviso": "orange", "falla": "orange"}.get(p.get("estado"), "muted")
         out.append(("proxy", "Proxy", col, str(p.get("frase") or p.get("estado") or "sin datos")
                     + (f" ({p['ms']} ms)" if p.get("ms") else "")))
     sal = _salud()
@@ -34568,6 +34599,93 @@ _GW = {"kit": None, "estado": "carga", "keys": None, "rows": {}, "data": None, "
 GW_POLL_S = 3
 
 
+# ---- Estado único (t-estado-consistencia-045, pedido de Leandro 27 oct, captura de las 09:20: «Todo encendido» y
+# «Sin conexión» a la vez). UNA función calcula la conectividad y TODO lo que la pinta la lee de aquí: la pastilla
+# de la barra lateral, el botón de encendido y su texto, los puntos de Servicios, el banner y las tarjetas de salud.
+# Fuentes: el plano de control del gateway (GET /gateway/estado por 127.0.0.1 con token, cada GW_POLL_S s), el
+# runner, la última prueba del proxy y, como UN dato más, la nube (la decisión del banner: runner_modelo_probe +
+# cloud_banner_decidir, donde el runner trabajando manda sobre la sonda). Regla: arriba → nadie dice «Sin
+# conexión»; abajo → nadie dice «Todo encendido» ni pinta verde; parcial → se nombra lo que cayó.
+EU_FRESCO_S = GW_POLL_S * 3 + 6  # una lectura del gateway más vieja que esto ya no prueba que el puente responda
+
+
+def estado_unico():
+    """{"nivel": comprobando|arriba|parcial|abajo, "puente", "runner", "proxy", "nube": bool|None/str, "caidos": [..],
+    "texto", "color", "banner": {...}}."""
+    gw_est, t_ok = _GW.get("estado"), _GW.get("t_ok")
+    fresco = bool(t_ok) and time.time() - t_ok <= EU_FRESCO_S
+    if state.get("bridge") != "corriendo":
+        puente = "apagado"
+    elif gw_est in ("contenido", "vacio") and fresco:
+        puente = "arriba"
+    elif gw_est == "carga" or (gw_est in ("contenido", "vacio") and not t_ok):
+        puente = "comprobando"
+    else:
+        puente = "no_responde"
+    gw_runner = (((_GW.get("data") or {}).get("runner") or {}).get("estado")) if fresco else None
+    runner = "arriba" if (gw_runner or state.get("runner")) == "corriendo" else "parado"
+    p = _AV["rows"].get("proxy") or {}
+    if not state.get("proxy_on"):
+        proxy = "no_se_usa"
+    elif not p:
+        proxy = "comprobando"
+    else:
+        proxy = "arriba" if p.get("estado") in ("ok", "aviso") else "no_responde"
+    try:
+        probe = runner_modelo_probe()
+    except Exception as e:  # nunca una alarma falsa por un fallo del propio probe
+        probe = {"estado": "ilegible", "motivo": type(e).__name__}
+    mostrar, txt_b, tipo = cloud_banner_decidir(probe, _AV.get("nube_fallos", 0))
+    if mostrar and tipo == "alarma" and _probe_runner_en_nube(probe):
+        mostrar, txt_b, tipo = False, "", ""  # el runner trabajando en la nube ahora mismo manda sobre la sonda
+    banner = {"probe": probe, "mostrar": mostrar, "texto": txt_b, "tipo": tipo}
+    nube_caida = bool(mostrar and tipo == "alarma")
+    out = {"puente": puente, "runner": runner, "proxy": proxy, "nube_caida": nube_caida, "banner": banner}
+    if puente == "comprobando":
+        nivel, caidos = "comprobando", []
+        texto, color = "○ Comprobando la conexión…", THEME["muted"]
+    elif puente in ("apagado", "no_responde"):
+        nivel, caidos = "abajo", ["Puente"]
+        texto = ("● Sin conexión: el puente está apagado" if puente == "apagado"
+                 else "● Sin conexión: el puente no responde")
+        color = THEME["red"]
+    else:
+        caidos = (["Runner"] if runner != "arriba" else []) + (["Proxy"] if proxy == "no_responde" else []) \
+            + (["Nube"] if nube_caida else [])
+        if caidos:
+            nivel = "parcial"
+            nombres = " y ".join(caidos)
+            texto = f"● Parcial: {nombres} sin responder" if caidos != ["Nube"] else \
+                "● Parcial: la nube no responde (solo el modelo local)"
+            if caidos == ["Runner"] and state.get("runner") != "corriendo":
+                texto = "● Parcial: el runner está apagado"
+            color = THEME["orange"]
+        else:
+            nivel = "arriba"
+            texto, color = conn_text(), THEME["green_text"]
+            if not texto.startswith("● Conectado"):  # la sonda sin confirmar no contradice: arriba es «Conectado»
+                texto = "● Conectado"
+    out.update(nivel=nivel, caidos=caidos, texto=texto, color=color)
+    _EU.update(out)
+    return out
+
+
+_EU: dict = {}
+
+
+def _probe_runner_en_nube(probe):
+    """True si el runner tiene AHORA una tarea en la nube sin fallo de red: eso manda sobre la sonda."""
+    return bool(probe.get("estado") == "nube" and not probe.get("fallo_red")
+                and str(probe.get("fuente") or "").startswith("tarea en curso"))
+
+
+def _runner_en_nube_ahora():
+    try:
+        return _probe_runner_en_nube(runner_modelo_probe())
+    except Exception:
+        return False
+
+
 def _gw_fetch():
     """(estado, datos_o_motivo). Sin proxy (el proxy local devuelve un 500
     falso a lo que va a 127.0.0.1) y en UTF-8."""
@@ -34607,8 +34725,7 @@ def _gw_poll_loop():
         time.sleep(0.3)
     while True:
         try:
-            if _widgets.get("pagina_actual", "estado") == "estado" or _GW["data"] is None:
-                _gw_refrescar_ahora()
+            _gw_refrescar_ahora()  # siempre: es la fuente del estado único (t-estado-consistencia-045)
         except Exception as e:
             log(f"gateway (panel): {type(e).__name__}: {e}")
         time.sleep(GW_POLL_S)
@@ -34900,13 +35017,13 @@ def _gw_ver_tarea(cual):
 def _gw_render(est, d):
     k, W = _GW.get("kit"), _widgets
     msg, body = W.get("gw_msg"), W.get("gw_body")
-    if k is None or msg is None:
-        return
-    _GW["estado"] = est
+    _GW["estado"] = est  # primero el dato (lo lee estado_unico), aunque el panel no esté dibujado
     if est in ("contenido", "vacio"):
         _GW["data"], _GW["t_ok"] = d, time.time()
     else:
         _GW["motivo"] = d if isinstance(d, str) else ""
+    if k is None or msg is None:
+        return
     textos = {
         "carga": ("Comprobando de nuevo…" if _GW["keys"] else "Cargando el estado del gateway…", "blue"),
         "sin_conexion": (f"Sin conexión con el gateway: {_GW['motivo']}. Si apagaste el puente, enciéndelo "
@@ -43063,7 +43180,7 @@ def _auto_aviso_ok():
 def _auto_salud():
     out, mal = [], []
     pc = proxy_config()
-    out.append("proxy: " + conn_text())
+    out.append("proxy: " + (_EU.get("texto") or conn_text()))
     if pc.get("password") and not state.get("proxy_on"):
         mal.append("el proxy está configurado pero apagado")
     try:

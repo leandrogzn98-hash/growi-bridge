@@ -1,0 +1,202 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-estado-consistencia-cnw_jep8",
+ "variante": "ctk",
+ "dpi": "150",
+ "build_gui_s": 14.95,
+ "a_arriba": {
+  "estado_unico": {
+   "nivel": "arriba",
+   "puente": "arriba",
+   "runner": "arriba",
+   "proxy": "no_se_usa",
+   "nube_caida": false,
+   "caidos": [],
+   "texto": "● Conectado"
+  },
+  "barra_lateral": "● Conectado",
+  "banner_visible": false,
+  "banner_texto": "",
+  "boton_texto": "Todo encendido",
+  "boton_color": "#4CD964",
+  "puntos": {
+   "bridge": "#34C759",
+   "runner": "#34C759",
+   "proxy": "#8E9BAA"
+  },
+  "bandeja": "ok",
+  "tarjetas": {
+   "puente": [
+    "green",
+    "Encendido, puerto 8773"
+   ],
+   "runner": [
+    "green",
+    "Encendido · 0 en cola"
+   ],
+   "proxy": [
+    "muted",
+    "No se usa (apagado o «Sin proxy»)"
+   ]
+  },
+  "regla": {
+   "dice_sin_conexion": false,
+   "dice_todo_encendido": true,
+   "puntos_verdes": [
+    "bridge",
+    "runner"
+   ]
+  }
+ },
+ "b_abajo": {
+  "estado_unico": {
+   "nivel": "abajo",
+   "puente": "apagado",
+   "runner": "arriba",
+   "proxy": "no_se_usa",
+   "nube_caida": false,
+   "caidos": [
+    "Puente"
+   ],
+   "texto": "● Sin conexión: el puente está apagado"
+  },
+  "barra_lateral": "● Sin conexión: el puente está apagado",
+  "banner_visible": false,
+  "banner_texto": "",
+  "boton_texto": "Sin conexión: el puente está apagado",
+  "boton_color": "#E64C51",
+  "puntos": {
+   "bridge": "#8E9BAA",
+   "runner": "#8E9BAA",
+   "proxy": "#8E9BAA"
+  },
+  "bandeja": "sin",
+  "tarjetas": {
+   "puente": [
+    "muted",
+    "Apagado"
+   ],
+   "runner": [
+    "muted",
+    "No se puede comprobar: el puente está apagado · 0 en cola"
+   ],
+   "proxy": [
+    "muted",
+    "No se usa (apagado o «Sin proxy»)"
+   ]
+  },
+  "regla": {
+   "dice_sin_conexion": true,
+   "dice_todo_encendido": false,
+   "puntos_verdes": []
+  }
+ },
+ "c_parcial": {
+  "estado_unico": {
+   "nivel": "parcial",
+   "puente": "arriba",
+   "runner": "arriba",
+   "proxy": "no_responde",
+   "nube_caida": false,
+   "caidos": [
+    "Proxy"
+   ],
+   "texto": "● Parcial: Proxy sin responder"
+  },
+  "barra_lateral": "● Parcial: Proxy sin responder",
+  "banner_visible": false,
+  "banner_texto": "",
+  "boton_texto": "Encendido, pero: Proxy sin responder",
+  "boton_color": "#FA5102",
+  "puntos": {
+   "bridge": "#34C759",
+   "runner": "#34C759",
+   "proxy": "#FA5102"
+  },
+  "bandeja": "local",
+  "tarjetas": {
+   "puente": [
+    "green",
+    "Encendido, puerto 8773"
+   ],
+   "runner": [
+    "green",
+    "Encendido · 0 en cola"
+   ],
+   "proxy": [
+    "orange",
+    "el proxy no responde (prueba)"
+   ]
+  },
+  "regla": {
+   "dice_sin_conexion": false,
+   "dice_todo_encendido": false,
+   "puntos_verdes": [
+    "bridge",
+    "runner"
+   ]
+  }
+ },
+ "d_opus": {
+  "estado_unico": {
+   "nivel": "arriba",
+   "puente": "arriba",
+   "runner": "arriba",
+   "proxy": "arriba",
+   "nube_caida": false,
+   "caidos": [],
+   "texto": "● Conectado"
+  },
+  "barra_lateral": "● Conectado",
+  "banner_visible": false,
+  "banner_texto": "",
+  "boton_texto": "Todo encendido",
+  "boton_color": "#4CD964",
+  "puntos": {
+   "bridge": "#34C759",
+   "runner": "#34C759",
+   "proxy": "#34C759"
+  },
+  "bandeja": "ok",
+  "tarjetas": {
+   "puente": [
+    "green",
+    "Encendido, puerto 8773"
+   ],
+   "runner": [
+    "green",
+    "Encendido · 0 en cola"
+   ],
+   "proxy": [
+    "orange",
+    "No hay proxy guardado en este PC. Ponlo en Ajustes avanzados del proxy."
+   ]
+  },
+  "regla": {
+   "dice_sin_conexion": false,
+   "dice_todo_encendido": true,
+   "puntos_verdes": [
+    "bridge",
+    "runner",
+    "proxy"
+   ]
+  },
+  "toasts_de_conexion": [],
+  "sonda": {
+   "conn_state": "sin",
+   "nube_fallos": 4,
+   "probe": {
+    "estado": "nube",
+    "motor": "claude",
+    "modelo": "claude-opus-5-5",
+    "fuente": "tarea en curso t-opus-en-curso",
+    "fallo_red": false
+   }
+  }
+ },
+ "log": [
+  "puente: escuchando en puerto 8773 (plano de control solo en 127.0.0.1, con token)",
+  "puente: parado",
+  "puente: escuchando en puerto 8773 (plano de control solo en 127.0.0.1, con token)"
+ ],
+ "tracebacks_en_log": 0
+}
