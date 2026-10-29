@@ -1003,7 +1003,7 @@
       "no_puede": [
         "comparte la VRAM con Ollama (mismo Hermes 3 8B, otro programa): con los dos cargados en la RTX 3060 de 6 GB quedan 111 MiB libres y va más lento (medido el 26 oct 2026: carga 28,5 s en vez de 15,2 s, 34 tok/s en vez de 45). El router usa uno a la vez"
       ],
-      "convive": "Mismo Hermes 3 8B que «Ollama · Hermes 3 8B» (127.0.0.1:11434). Aquí el .gguf vive en models\\ y lo trae el descargador GGUF (catálogo curado); contexto 8192 (preset). El router lo prefiere para lo simple y cae a Ollama si no está. No corren bien a la vez en 6 GB de VRAM.",
+      "convive": "Mismo Hermes 3 8B que «Hermes 3 8B en Ollama» (127.0.0.1:11434). Aquí el .gguf vive en models\\ y lo trae el descargador GGUF (catálogo curado); contexto 8192 (preset). El router lo prefiere para lo simple y cae a Ollama si no está. No corren bien a la vez en 6 GB de VRAM.",
       "fallback": [],
       "_compat_v1": "Las claves tipo, binario, script_npm, comando, comando_reanudar, prompt_por, salida, sesion, url, cuerpo, crear, estado, descargar, clave_api y healthcheck.url de este motor son la forma v1: solo las lee la app 0.2.0 hasta que se reinicie. El runner nuevo lee solo los campos v2 (invocacion, formato_salida, extraer, reanudar, errores, requisitos, base_url, credencial_ref, capacidades). Se pueden borrar despues del reinicio.",
       "contexto": {
@@ -1020,7 +1020,7 @@
     },
     "ollama": {
       "id": "ollama",
-      "nombre": "Ollama · Hermes 3 8B (local $0)",
+      "nombre": "Hermes 3 8B en Ollama (local $0)",
       "tipo": "api_sincrona",
       "descripcion": "Ollama 0.40.10 por su API (POST /api/chat con stream:false, sin ollama run) con Hermes 3 8B (Q4_K_M). Corre en tu PC, gratis. Es el mismo modelo que «Local Hermes 3 directo» (llama-server), servido por otro programa.",
       "url": "http://127.0.0.1:11434/api/chat",

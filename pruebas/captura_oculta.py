@@ -81,7 +81,7 @@ def preparar(root, ancho, alto, bombear):
 
 def capturar(root, ruta, bombear, durante=None):
     """PNG de la ventana entera. durante(): se llama con la ventana mostrada (para medir lo que se ve).
-    Devuelve {"ruta", "ancho", "alto", "printwindow", "foco_igual"}."""
+    Devuelve {"ruta", "ancho", "alto", "printwindow", "foco_igual", "foco_nuestro"}."""
     hwnd = _marco(root)
     antes = u32.GetForegroundWindow()
     _en_hilo(lambda: u32.ShowWindowAsync(hwnd, SW_SHOWNOACTIVATE), bombear)  # ShowWindow síncrona a veces se cuelga
@@ -91,7 +91,10 @@ def capturar(root, ruta, bombear, durante=None):
         out["medido"] = durante()
     _en_hilo(lambda: u32.ShowWindowAsync(hwnd, SW_HIDE), bombear)
     bombear(0.3)
-    out["foco_igual"] = antes == u32.GetForegroundWindow()
+    despues = u32.GetForegroundWindow()
+    out["foco_igual"] = antes == despues
+    # lo que de verdad importa: que la ventana activa nunca sea la nuestra (si cambió, fue otra ventana del usuario)
+    out["foco_nuestro"] = despues == hwnd or antes == hwnd
     return out
 
 

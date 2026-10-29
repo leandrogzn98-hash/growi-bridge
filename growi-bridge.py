@@ -3890,7 +3890,7 @@ def tripo_gens_txt(st, creditos=None):
         aprox, enteras = tripo_gens(cr, costo)
         partes.append(f"~{aprox} a {TRIPO_CALIDAD_TXT[q]} (~{_tripo_num(costo)} créditos c/u"
                       + (f"; {enteras} completas" if enteras != aprox else "") + ")")
-    return " · ".join(partes)
+    return ", ".join(partes)
 
 
 def tripo_costo_texto(st, calidad, tipo=None):
@@ -5946,7 +5946,7 @@ def srv_estado_texto(eng, fresco=True):
         return None, f"router apagado: ningún modelo cargado ({e})"[:200]
     if not est:
         return {}, "el router no ve ningún .gguf en models\\"
-    return est, " · ".join(f"{k}: {SRV_ESTADO_TXT.get(v, v)} ({v})" for k, v in est.items())
+    return est, ", ".join(f"{k}: {SRV_ESTADO_TXT.get(v, v)} ({v})" for k, v in est.items())
 
 
 def _srv_post(eng, que, model, timeout=10):
@@ -9746,7 +9746,7 @@ def ficha_motor(motor_id, vivo=False):
             if apagado else srv_estado_texto(eng)
         listo = bool(est) and "loaded" in est.values()
         col = "ok" if listo else ("aviso" if est is not None else None)
-        txt = (f"{SRV_LOCAL_LISTO} · " if listo else f"todavía no es {SRV_LOCAL_LISTO} · ") + txt
+        txt = (f"{SRV_LOCAL_LISTO}: " if listo else f"todavía no es {SRV_LOCAL_LISTO}: ") + txt
         rows.append(("Modelos del router", txt, col))
         if state.get("paso") and str(state["paso"]).startswith(SRV_AVISO_CARGA):
             rows.append(("Ahora", state["paso"], "aviso"))
@@ -10486,7 +10486,7 @@ def estimar_gasto(task):
             return "sin precio para este modelo (no se inventa)"
         real = v if dinero == "real" else 0.0
         eq = v if dinero in ("equiv", "otro") else 0.0
-        return f"${real:.2f} real · ${eq:.2f} equivalente Max · $0 local"
+        return f"${real:.2f} real, ${eq:.2f} equivalente Max, $0 local"
     e["texto"] = (f"Estimado ({tipo}, {motor}{' ' + str(e['modelo']) if e['modelo'] else ''}): entrada {n_in} tokens "
                   f"({como}), reserva de salida {salida} tokens. Una ronda: {_tres(una)}. Revisión: {_tres(rev)} "
                   f"({e['revision_nota']}). Peor caso, 3 rondas: {_tres(e['peor_caso'])}."
@@ -10812,25 +10812,25 @@ def politicas_auditoria(n=40):
         ev = d.get("evento")
         cuando = str(d.get("at") or "")[5:16].replace("T", " ")
         if ev in ("politica_allow", "politica_deny", "politica_ask"):
-            txt = (f"{cuando} · {d.get('tarea')}: {d.get('accion')} → {d.get('decision_txt')} por la regla "
+            txt = (f"{cuando}, {d.get('tarea')}: {d.get('accion')} → {d.get('decision_txt')} por la regla "
                    f"«{d.get('regla_frase')}» (puesta por {d.get('regla_quien')})")
         elif ev in ("aprobada", "rechazada"):
-            txt = (f"{cuando} · {d.get('quien') or d.get('canal')} {'aprobó' if ev == 'aprobada' else 'rechazó'} "
+            txt = (f"{cuando}, {d.get('quien') or d.get('canal')} {'aprobó' if ev == 'aprobada' else 'rechazó'} "
                    f"{d.get('approval_id')} ({d.get('nivel')}) desde {d.get('canal') or 'app'}; vio: "
                    f"«{str(d.get('motivo') or '')[:140]}»; política: {d.get('politica') or 'ninguna (nivel de permisos)'}")
         elif ev == "pedido":
-            txt = (f"{cuando} · pedido {d.get('approval_id')} ({d.get('nivel')}) para {d.get('tarea')}: "
+            txt = (f"{cuando}, pedido {d.get('approval_id')} ({d.get('nivel')}) para {d.get('tarea')}: "
                    f"{str(d.get('motivo') or '')[:160]}")
         elif ev == "aprobacion_invalidada":
-            txt = (f"{cuando} · {d.get('tarea')}: la aprobación {d.get('approval_id')} ya no vale — la acción cambió "
+            txt = (f"{cuando}, {d.get('tarea')}: la aprobación {d.get('approval_id')} ya no vale — la acción cambió "
                    f"({d.get('hash_aprobado')} → {d.get('hash_ahora')}); se vuelve a pedir")
         elif ev in ("politicas_intento", "politicas_cambio_rechazado"):
-            txt = f"{cuando} · {d.get('quien')}: intentó cambiar las políticas → {d.get('resultado')}"
+            txt = f"{cuando}, {d.get('quien')}: intentó cambiar las políticas → {d.get('resultado')}"
         elif ev in ("regla_creada", "regla_editada", "regla_revocada"):
             verbo = {"regla_creada": "creó", "regla_editada": "editó", "regla_revocada": "revocó"}[ev]
-            txt = f"{cuando} · {d.get('quien')} {verbo} la regla «{d.get('regla_frase')}»"
+            txt = f"{cuando}, {d.get('quien')} {verbo} la regla «{d.get('regla_frase')}»"
         else:
-            txt = f"{cuando} · {ev}: {d.get('tarea') or ''} {str(d.get('resultado') or d.get('motivo') or '')[:120]}"
+            txt = f"{cuando}, {ev}: {d.get('tarea') or ''} {str(d.get('resultado') or d.get('motivo') or '')[:120]}"
         out.append((ev, txt))
         if len(out) >= n:
             break
@@ -13689,7 +13689,7 @@ def _mem_paleta_items(q):
     items = []
     for h in hits[:12]:
         cuando = h["fecha"] or "sin fecha"
-        items.append({"id": "_mem_hit", "label": f"{h['texto'][:70]}  ·  {h['origen']} ({cuando})",
+        items.append({"id": "_mem_hit", "label": f"{h['texto'][:70]}, {h['origen']} ({cuando})",
                       "fn": lambda r=h["ruta"]: os.startfile(r)})
     if len(hits) > 12:
         items.append({"id": "_mem_mas", "label": f"… y {len(hits) - 12} más (lo viejo sigue abajo, no se borra)",
@@ -13995,8 +13995,8 @@ def notas_ui():
         idx = notas_indice()
         st["actual"] = n["titulo"]
         titulo.config(text=n["titulo"])
-        meta.config(text=f"{n['fecha'] or 'sin fecha'} · etiquetas: {', '.join(n['etiquetas']) or '—'} · proyecto: "
-                         f"{n['proyecto'] or '—'} · {p}")
+        meta.config(text=f"{n['fecha'] or 'sin fecha'}, etiquetas: {', '.join(n['etiquetas']) or '—'}, proyecto: "
+                         f"{n['proyecto'] or '—'}, {p}")
         ed.delete("1.0", "end")
         ed.insert("1.0", p.read_text(encoding="utf-8"))
         bl = idx["backlinks"].get(n["titulo"]) or []
@@ -14851,7 +14851,7 @@ def _build_export_card(k, holder):
                      "importar a otra cuenta: es un archivo de consulta). Bridge no exporta por ti: te guía, "
                      "apunta la fecha y comprueba que el ZIP se puede leer.")
     r = k.row(card, pady=(6, 6))
-    W["exp_btn"] = k.button(r, "Exportar mis conversaciones", export_guia_ui, accent=True)
+    W["exp_btn"] = k.button(r, "Exportar mis conversaciones", export_guia_ui)
     W["exp_btn"].pack(side="left")
     W["exp_ult"] = k.label(r, "", wrap=360)
     W["exp_ult"].pack(side="left", padx=(12, 0), fill="x", expand=True)
@@ -16133,7 +16133,7 @@ def _cadena_render():
         est, col = _cadena_estado(mid)
         d = info.get(mid) or {}
         k.label(r, f"{i + 1}. {_nombre_motor(mid)}", wrap=0).pack(side="left")
-        k.label(r, f"  {d.get('rol') or ('principal' if i == 0 else 'respaldo')} · {d.get('coste') or 'sin dato'} · ",
+        k.label(r, f"  {d.get('rol') or ('principal' if i == 0 else 'respaldo')}, {d.get('coste') or 'sin dato'}: ",
                 muted=True, wrap=0).pack(side="left")
         k.label(r, est, wrap=0, color=col).pack(side="left")
         if i < len(cad) - 1:
@@ -18202,11 +18202,11 @@ def _agentes_refrescar():
         filas, cola = agentes_vista()
         txt = []
         for f in filas:
-            txt.append((f"Hueco {f['hueco']}: {f['tarea']} · {MOTOR_CORTO.get(str(f['motor']), f['motor'])}"
-                        + (f" · rama {f['worktree']}" if f.get("worktree") else "")
-                        + f" · {f['estado']} · " + (f"${f['costo']:.4f}" if isinstance(f.get("costo"), (int, float))
+            txt.append((f"Hueco {f['hueco']}: {f['tarea']}, {MOTOR_CORTO.get(str(f['motor']), f['motor'])}"
+                        + (f", rama {f['worktree']}" if f.get("worktree") else "")
+                        + f", {f['estado']}, " + (f"${f['costo']:.4f}" if isinstance(f.get("costo"), (int, float))
                                                      else "costo sin dato")
-                        + (f" · {f['tokens']} tokens" if f.get("tokens") else "") + f" · {f['progreso']}"[:160], "text"))
+                        + (f", {f['tokens']} tokens" if f.get("tokens") else "") + f", {f['progreso']}"[:160], "text"))
         if not filas:
             txt.append(("Ningún agente trabajando ahora.", "muted"))
         for tid, motivo in cola[:4]:
@@ -19717,7 +19717,7 @@ def refresh_ui():
         draw_power()
     w["sync_text"].config(text=_sync_text())
     w["admin_text"].config(
-        text=f"Versión {VERSION}" + (" · carril A" if LANE == "a" else "") + "\n"
+        text=f"Versión {VERSION}" + (", carril A" if LANE == "a" else "") + "\n"
         + ("Con permisos de administrador" if state["admin"] else "Sin permisos de administrador"))
     if state["update_available"]:
         w["update_label"].config(
@@ -21719,7 +21719,7 @@ _TTK_OSCURO = {"TButton": ("lightcolor", "darkcolor"),
                               "lightcolor", "darkcolor"),
                "Vertical.TScrollbar": ("background", "troughcolor", "arrowcolor", "bordercolor",
                                        "lightcolor", "darkcolor"),
-               "TEntry": ("insertcolor",),
+               "TEntry": ("insertcolor", "lightcolor", "darkcolor"),
                "Treeview": ("bordercolor", "lightcolor", "darkcolor"),
                "Treeview.Heading": ("bordercolor", "lightcolor", "darkcolor")}
 
@@ -21796,8 +21796,9 @@ def _theme_styles(style):
                     bordercolor=bd, lightcolor=T["card"], darkcolor=T["card"])
     style.map("TButton", background=[("active", _C("#E8E8ED")), ("disabled", T["bg"])],
               foreground=[("disabled", "#8E8E93")])
+    # lightcolor/darkcolor: el clam pinta un filo blanco por dentro del borde (el campo Ctrl+K de Tareas, auditoría F12)
     style.configure("TEntry", fieldbackground=T["field"], foreground=T["text"],
-                    insertcolor=T["text"], bordercolor=bd)
+                    insertcolor=T["text"], bordercolor=T["line"], lightcolor=T["field"], darkcolor=T["field"])
     style.configure("TCombobox", fieldbackground=T["field"], foreground=T["text"],
                     background=T["card"], arrowcolor=T["text"], bordercolor=bd)
     style.map("TCombobox", fieldbackground=[("readonly", T["field"])],
@@ -23498,7 +23499,7 @@ def _build_ipx_avisos(k, holder):
         target=ipx_forzar, args=(True, "reintentar"), daemon=True).start())
     W["ipx_btn_reintentar"].pack(side="left")
     r = _ipx_aviso_card(k, holder, "avast", "orange_text")
-    W["ipx_btn_parar"] = k.button(r, "Pararlo", lambda: _avast_accion("parar"), accent=True)
+    W["ipx_btn_parar"] = k.button(r, "Pararlo", lambda: _avast_accion("parar"))
     W["ipx_btn_parar"].pack(side="left")
     W["ipx_btn_dejar"] = k.button(r, "Dejarlo", lambda: _avast_accion("dejar"))
     W["ipx_btn_dejar"].pack(side="left", padx=(8, 0))
@@ -24091,13 +24092,13 @@ def spend_lines():
     l1 = f"Hoy ${h['real']:.2f} real / ${h['equiv']:.2f} equivalente Max"
     q = d.get("cuota") or {}
     if q.get("disponible"):
-        l2 = (f"Max 5h {q['h5']:.0f}% · Semana {q['semana']:.0f}% · Opus {q['opus']:.0f}%"
+        l2 = (f"Max 5h {q['h5']:.0f}%, Semana {q['semana']:.0f}%, Opus {q['opus']:.0f}%"
               f" — reinicio {q.get('reinicio', '?')}")
     elif d.get("limite") and d["limite"]["at"][:10] == datetime.now().date().isoformat():
         l2 = f"Max: tope alcanzado a las {d['limite']['at'][11:16]}"
     else:
         l2 = "Max: cuota no disponible"
-    l3 = f"Local $0 · {h['local']} tareas{stale}"
+    l3 = f"Local $0, {h['local']} tareas{stale}"
     return [l1, l2, l3]
 
 
@@ -24218,10 +24219,10 @@ def _render_spend():
                                       "desbocando en rondas." if pk["pico"] else ""),
                                 fg=THEME["orange_text"])
             pp = gasto_por_proyecto_7d(filas)
-            lineas = ["Últimos 7 días por proyecto ($ real · $ equivalente Max · tareas $0 local · tareas · días · modelos):"]
+            lineas = ["Últimos 7 días por proyecto ($ real, $ equivalente Max, tareas $0 local, tareas, días, modelos):"]
             for nom, x in sorted(pp.items(), key=lambda kv: -(kv[1]["real"] + kv[1]["equiv"]))[:8]:
-                lineas.append(f"  {nom[:24]:<24} ${x['real']:>6.2f} real · ${x['equiv']:>6.2f} equiv. Max · "
-                              f"{x['local']:>3} local · {x['n']:>3} tareas · {len(x['dias'])} días · "
+                lineas.append(f"  {nom[:24]:<24} ${x['real']:>6.2f} real, ${x['equiv']:>6.2f} equiv. Max, "
+                              f"{x['local']:>3} local, {x['n']:>3} tareas, {len(x['dias'])} días, "
                               f"{', '.join(sorted(x['modelos']))[:40]}")
             w["sp_7d"].config(text="\n".join(lineas) if pp else "Últimos 7 días: sin tareas con gasto todavía.")
         except Exception as e:
@@ -24388,8 +24389,8 @@ def _render_gasto_historial():
         return
     d0 = tot["desde"]
     lab.config(text=(f"Total acumulado desde {d0[8:10]}/{d0[5:7]}/{d0[:4]} ({tot['dias']} días): "
-                     f"real ${tot['real']:.2f} · equivalente Max ${tot['equiv']:.2f} (no se cobra aparte: va en tu "
-                     f"Max) · local {tot['local']} tareas ($0)"))
+                     f"real ${tot['real']:.2f}, equivalente Max ${tot['equiv']:.2f} (no se cobra aparte: va en tu "
+                     f"Max), local {tot['local']} tareas ($0)"))
     for dia in sorted(hist, reverse=True):
         f = hist[dia]
         tree.insert("", "end", iid=dia, values=(f"{dia[8:10]}/{dia[5:7]}/{dia[:4]}", f"${(f.get('real') or 0):.2f}",
@@ -28405,7 +28406,7 @@ def tareas_estadisticas(rows):
         data = day_by_model()
         real = sum(b["cost"] for k, b in data.items() if k[0] == "real")
         equiv = sum(b["cost"] for k, b in data.items() if k[0] == "equiv")
-        gasto = f"${real:.2f}", f"real · ${equiv:.2f} equivalente Max · local $0"
+        gasto = f"${real:.2f}", f"real, ${equiv:.2f} equivalente Max, local $0"
     except Exception as e:
         gasto = "sin dato", f"no se pudo leer el gasto ({type(e).__name__})"
     return {"en_curso": len(en_curso), "aprobadas_hoy": aprob, "gasto": gasto}
@@ -28531,7 +28532,7 @@ def _tareas045_fijada(rows=None):
     t1, t2 = _T45["fijada"]
     if f:
         k.set_label(t1, text=f"● Trabajando ahora: {f['id']}", color="blue")
-        k.set_label(t2, text=f"{f['motor']} · lleva {f['tiempo']} · {f['costo']} ({f['fuente']})")
+        k.set_label(t2, text=f"{f['motor']}, lleva {f['tiempo']}, {f['costo']} ({f['fuente']})")
     else:
         k.set_label(t1, text="Ninguna tarea corriendo ahora.", color="muted")
         k.set_label(t2, text="Cuando el runner empiece una, se fija aquí con su motor, su tiempo y su coste.")
@@ -29471,8 +29472,8 @@ def lib_progress_text(job):
     txt = f"{_fmt_mb(b)} de {_fmt_mb(t)} MB ({pct:.1f} %)"
     if job.get("estado") == "descargando":
         sp = job.get("speed")
-        txt += (f" · {sp / 1048576:.1f} MB/s · faltan {_fmt_eta(job.get('eta'))}"
-                if sp else " · midiendo la velocidad…")
+        txt += (f", {sp / 1048576:.1f} MB/s, faltan {_fmt_eta(job.get('eta'))}"
+                if sp else ", midiendo la velocidad…")
     return txt
 
 
@@ -30085,7 +30086,7 @@ def barra_consumo_hoy():
     equiv = sum(b["cost"] for k, b in data.items() if k[0] == "equiv")
     n = sum(b["n"] for k, b in data.items() if not k[2])
     # Real y equivalente Max no se suman: el equivalente no es dinero pagado.
-    return f"${real:.2f} real", f"equivalente Max ${equiv:.2f} · {n} tareas terminadas"
+    return f"${real:.2f} real", f"equivalente Max ${equiv:.2f}, {n} tareas terminadas"
 
 
 def barra_estado_fallos():
@@ -30197,7 +30198,7 @@ def estado_salud_filas():
         cola = None
     out.append(("runner", "Runner", "green" if rn else "muted",
                 ("No se puede comprobar: el puente está apagado" if abajo and eu["runner"] == "arriba" else
-                 "Encendido" if rn else "Apagado") + (f" · {cola} en cola" if cola is not None else "")))
+                 "Encendido" if rn else "Apagado") + (f", {cola} en cola" if cola is not None else "")))
     p = _AV["rows"].get("proxy") or {}
     if eu["proxy"] == "no_se_usa":
         out.append(("proxy", "Proxy", "muted", "No se usa (apagado o «Sin proxy»)"))
@@ -30224,11 +30225,11 @@ def estado_salud_filas():
         else:
             hora = str(rec.get("hora") or "")[11:16]
             if rec.get("disponible"):
-                txt = "Disponible" + (f" · {rec['version']}" if rec.get("version") else "")
-                out.append((f"motor:{mid}", nombre, "green", txt + (f" · comprobado {hora}" if hora else "")))
+                txt = "Disponible" + (f", {rec['version']}" if rec.get("version") else "")
+                out.append((f"motor:{mid}", nombre, "green", txt + (f", comprobado {hora}" if hora else "")))
             else:
                 out.append((f"motor:{mid}", nombre, "red", f"No disponible: {str(rec.get('motivo') or '')[:120]}"
-                            + (f" · {hora}" if hora else "")))
+                            + (f", {hora}" if hora else "")))
     return out
 
 
@@ -30840,7 +30841,7 @@ def _render_models():
                                "qué contexto le cabe")}
         right = _mdl_fila(k, box, plan, friendly_model_name(m["name"], catalog),
                           sub=f"{m['size']} en disco, instalado {m['modified']}".strip(", ")
-                          + " · en Ollama (no en models\\)")
+                          + ", en Ollama (no en models\\)")
         if plan["color"] == "red":
             # Un modelo que no cabe no se ofrece como si cupiera: sin «Usar por defecto».
             k.label(right, "No cabe en tu tarjeta", bold=True, color="red", wrap=0).pack(
@@ -30865,7 +30866,7 @@ def _render_models():
         is_inst = bool(installed) and any(_same_model(c["id"], m["name"]) for m in installed)
         plan = model_vram_plan(c, specs, free, installed=is_inst)
         need = plan.get("need")
-        sub = (f"{_gb(c['size_gb'])} GB en disco · necesita ~{_gb(need['total'] / 1024)} GB de VRAM "
+        sub = (f"{_gb(c['size_gb'])} GB en disco, necesita ~{_gb(need['total'] / 1024)} GB de VRAM "
                f"con {ctx_k(plan['ctx_anuncio'])} ({_mdl_desglose(need)})" if need else
                f"{_gb(c['size_gb'])} GB en disco")
         right = _mdl_fila(k, box, plan, c["name"], desc=c["use"], sub=sub)
@@ -30882,7 +30883,7 @@ def _render_models():
             k.set_enabled(b, False)
             b.pack(side="left")
         else:
-            k.button(right, "Instalar", lambda e=c: _install_model_ui(e), accent=True).pack(side="left")
+            k.button(right, "Instalar", lambda e=c: _install_model_ui(e)).pack(side="left")
     _lib_render_scan(k)
     _lib_ui_tick(force=True)
 
@@ -30903,12 +30904,12 @@ def _lib_fila_instalado(k, box, e, catalog, specs, free):
     vis = " + visión (mmproj)" if e.get("mmproj") else ""
     loaded = _LIB.get("loaded") or {}
     ant = e.get("anterior")
-    sub = (f"{_gb(e['size_bytes'] / 1e9)} GB en disco{vis} · {e.get('filename')} · "
-           f"{e.get('quant') or 'cuantización desconocida'} · revisión {str(e.get('revision'))[:8]} · "
-           f"sha256 comprobado · {_lib_origen(e.get('source'))}"
-           + (" · cargado ahora" if "cargado" in (loaded.get(str(e.get("filename")).lower()) or "")
+    sub = (f"{_gb(e['size_bytes'] / 1e9)} GB en disco{vis}, {e.get('filename')}, "
+           f"{e.get('quant') or 'cuantización desconocida'}, revisión {str(e.get('revision'))[:8]}, "
+           f"sha256 comprobado, {_lib_origen(e.get('source'))}"
+           + (", cargado ahora" if "cargado" in (loaded.get(str(e.get("filename")).lower()) or "")
               else "")
-           + (" · guarda la versión anterior hasta que esta arranque una vez"
+           + (", guarda la versión anterior hasta que esta arranque una vez"
               if ant and not ant.get("arranco_nuevo") else ""))
     right = _mdl_fila(k, box, plan, e.get("name") or e.get("filename"), sub=sub)
     if ant and ant.get("arranco_nuevo"):
@@ -30936,9 +30937,9 @@ def _lib_boton_libreria(k, right, c, plan, instalado):
         part = lib_partial(c)
         if part and part[1]:
             k.button(right, f"Reanudar ({100.0 * part[0] / part[1]:.0f} %)",
-                     lambda e=c: _lib_download_ui(e), accent=True).pack(side="left")
+                     lambda e=c: _lib_download_ui(e)).pack(side="left")
         else:
-            k.button(right, "Descargar", lambda e=c: _lib_download_ui(e), accent=True).pack(side="left")
+            k.button(right, "Descargar", lambda e=c: _lib_download_ui(e)).pack(side="left")
 
 
 def _lib_cat_for_meta(meta):
@@ -30970,11 +30971,11 @@ def _lib_render_scan(k):
             k.label(mid, s["file"], bold=True, wrap=0).pack(anchor="w")
             cat = s["cat"]
             if cat and not lib_catalog_problem(cat):
-                txt = (f"{_gb(s['size'] / 1e9)} GB · parece {cat['name']} (el catálogo tiene su "
+                txt = (f"{_gb(s['size'] / 1e9)} GB, parece {cat['name']} (el catálogo tiene su "
                        f"sha256 y su revisión {cat['gguf']['revision'][:8]}). Sin registrar: no "
                        "cuenta como instalado.")
             else:
-                txt = (f"{_gb(s['size'] / 1e9)} GB · no está en la librería: no tengo su sha256 "
+                txt = (f"{_gb(s['size'] / 1e9)} GB, no está en la librería: no tengo su sha256 "
                        "para comprobarlo, así que no se registra.")
             k.label(mid, txt, muted=True, wrap=520).pack(anchor="w")
             lbl = k.label(mid, "", muted=True, color="blue", wrap=520)
@@ -31171,7 +31172,7 @@ def _lib_register_ui(s):
         "Registrar modelo",
         f"Registrar {s['file']} como {cat['name']} sin volver a bajarlo: calculo su sha256 "
         f"({_gb(s['size'] / 1e9)} GB, tarda un poco) y lo comparo con el del catálogo.\n\n"
-        "¿Lo copiaste de Ollama?\nSí = copiado de Ollama · No = lo pusiste a mano · Cancelar = no registrar")
+        "¿Lo copiaste de Ollama?\nSí = copiado de Ollama; No = lo pusiste a mano; Cancelar = no registrar")
     if ans is None:
         return
     src = "copia-ollama" if ans else "manual"
@@ -31215,7 +31216,7 @@ def _mdl_lineas(plan):
     «cabe en tu PC» frente a «cabe ahora mismo», motivo y aviso."""
     out = []
     if plan.get("pasos"):
-        chips = " · ".join(f"{ctx_k(p['ctx'])} {'✓' if p['color'] != 'red' else '✗'} "
+        chips = ", ".join(f"{ctx_k(p['ctx'])} {'✓' if p['color'] != 'red' else '✗'} "
                            f"{'~' if not p['exacto'] else ''}{round(p['pct'])} %"
                            for p in plan["pasos"])
         out.append((f"Contexto en tu tarjeta: {chips}", None))
@@ -31296,9 +31297,9 @@ def engine_choices():
     ofrase = str((engine_raw("ollama") or {}).get("frase_selector") or "")
     for n in names:
         fn = friendly_model_name(n, catalog)
-        label = f"{fn} · Ollama (en tu PC) $0"
+        label = f"{fn}, Ollama (en tu PC) $0"
         if label in labels:
-            label = f"{fn} · Ollama ({n})"
+            label = f"{fn}, Ollama ({n})"
         labels.add(label)
         out.append((label, "ollama:" + n, ofrase if ofrase and _same_model(n, default)
                     else f"{fn} por Ollama: corre en tu PC, gratis y privado."))
@@ -31508,7 +31509,7 @@ def _render_abilities():
     filas = [(a["name"], a["desc"], a["on"], lambda on, ky=a["key"], n=a["name"]: _toggle_ability(ky, n, on))
              for a in list_abilities()]
     # herramientas de servidores MCP externos, cada una con su interruptor (t-mcp-streamable-http)
-    filas += [(f"MCP · {cid}: {nombre}", desc[:110], on,
+    filas += [(f"MCP, {cid}: {nombre}", desc[:110], on,
                lambda v, c=cid, n=nombre: mcp_herramienta_interruptor(c, n, v))
               for cid, nombre, desc, on in mcp_herramientas_conocidas()]
     for nombre, desc, on, cmd in filas:
@@ -32229,7 +32230,7 @@ def revisor_ui():
 def _revisor_render():
     k = _REVUI["kit"]
     u = _umbral_rubrica()
-    k.set_label(_REVUI["rubrica"], text=("completitud · corrección · no-regresión · evidencia, de 1 a 5. Aprobada "
+    k.set_label(_REVUI["rubrica"], text=("completitud, corrección, no-regresión, evidencia, de 1 a 5. Aprobada "
                                          f"solo si todas llegan a {u} (umbral), ningún check falla y no falta nada; cada "
                                          "debilidad viene con su arreglo concreto. Segundo juez (Haiku) solo si un check "
                                          "falló o la tarea es R2/R3, nunca en R0; si no coinciden, decides tú."))
@@ -33190,7 +33191,7 @@ def _pp_paleta_items(q):
     items = []
     for x in pp_buscar(q, 5):
         corto = re.sub(r"\s+", " ", x["texto"]).strip()
-        items.append({"id": "_pp", "label": f"{corto[:60]}{'…' if len(corto) > 60 else ''}  ·  {str(x['at'])[:16].replace('T', ' ')}",
+        items.append({"id": "_pp", "label": f"{corto[:60]}{'…' if len(corto) > 60 else ''}, {str(x['at'])[:16].replace('T', ' ')}",
                       "fn": lambda t=x["texto"]: (_pp_poner(t), log("portapapeles: copiado de vuelta desde la paleta"),
                                                   toast("Copiado"))})
     return items
@@ -33219,7 +33220,7 @@ def pp_ui():
             f = k.frame(box)
             f.pack(fill="x", pady=1)
             corto = " ".join(x["texto"].split())[:70]
-            k.label(f, f"{str(x['at'])[:16].replace('T', ' ')} · {corto}", wrap=380).pack(side="left", anchor="w")
+            k.label(f, f"{str(x['at'])[:16].replace('T', ' ')}, {corto}", wrap=380).pack(side="left", anchor="w")
             k.button(f, "No guardar nunca esto", lambda i=x["id"]: (pp_borrar(i, nunca=True), pintar())).pack(side="right")
             k.button(f, "Borrar", lambda i=x["id"]: (pp_borrar(i), pintar())).pack(side="right", padx=(0, 6))
     k.button(c, "Borrar todo", lambda: (messagebox.askyesno("Historial", "¿Borro todo lo guardado?") and (
@@ -33501,8 +33502,8 @@ def _proyectos_render():
     for p in proyectos_lista():
         f = k.frame(box)
         f.pack(fill="x", pady=2)
-        k.label(f, f"{p['nombre']}" + (" (activo)" if p["id"] == act else "") + " · "
-                + (p.get("carpeta") or p.get("carpeta_falta") or "sin carpeta") + " · "
+        k.label(f, f"{p['nombre']}" + (" (activo)" if p["id"] == act else "") + ", "
+                + (p.get("carpeta") or p.get("carpeta_falta") or "sin carpeta") + ", "
                 + f"{len(proyecto_tareas(p['nombre']))} tarea(s)", wrap=440,
                 color="green_text" if p["id"] == act else ("orange_text" if not p.get("carpeta") else None)).pack(
             side="left", anchor="w")
@@ -33857,7 +33858,7 @@ def atajos_todos():
                      "paleta)", "listas"),
            ("Alt + 1..9 (en la paleta)", "elegir la fila 1..9 de la paleta", "paleta")]
     for i, pag in enumerate(TECLADO_PAGINAS):
-        out.append((f"Alt + {i}  ·  Ctrl + {i}", f"ir a {TECLADO_NOMBRES[pag]}", "Bridge"))
+        out.append((f"Alt + {i} o Ctrl + {i}", f"ir a {TECLADO_NOMBRES[pag]}", "Bridge"))
     for aid, a in ATAJO_ACCIONES.items():
         for amb in a.get("ambitos") or ():
             try:
@@ -34428,7 +34429,7 @@ def _cosecha_build(page):
     r = k.row(card, pady=(4, 4))
     _COS["token"] = k.label(r, "", wrap=470)
     _COS["token"].pack(side="left", fill="x", expand=True)
-    k.button(r, "Pedir cosecha", _cosecha_form_toggle, accent=True).pack(side="right")
+    k.button(r, "Pedir cosecha", _cosecha_form_toggle).pack(side="right")
     form = k.frame(card)
     _COS["form"] = form
     f1 = k.frame(form)
@@ -35208,7 +35209,7 @@ def _build_claves_con(k, inst):
     tope = k.entry(r3, width=8)
     tope.pack(side="left", padx=8)
     r4 = k.row(f, pady=(4, 4))
-    g = k.button(r4, "Guardar", lambda i=inst: _claves_guardar(i), accent=True)
+    g = k.button(r4, "Guardar", lambda i=inst: _claves_guardar(i))
     g.pack(side="left")
     k.button(r4, "Añadir por WhatsApp", add_api_whatsapp).pack(side="left", padx=(8, 0))
     est = k.label(f, "", wrap=560)
@@ -35395,7 +35396,7 @@ def claves_conexion_estado(prov, lista=None, pr=None):
         pr = pr if isinstance(pr, dict) else {}
     cs = [c for c in lista if c["proveedor"] == prov]
     if not cs:
-        return "sin_clave", "Sin clave · pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",             "muted", "Poner clave"
+        return "sin_clave", "Sin clave: pon tu clave en APIs (abajo, «Añadir o reemplazar una clave»).",             "muted", "Poner clave"
     act = next((c for c in cs if c["activa"]), None)
     if act is None:
         return "sin_activa", (f"{len(cs)} clave(s) guardada(s), ninguna activa: sus motores salen «no disponible» "
@@ -35409,8 +35410,8 @@ def claves_conexion_estado(prov, lista=None, pr=None):
     cuando = str(p.get("at") or "")
     cuando = f" ({cuando[8:10]}/{cuando[5:7]} {cuando[11:16]})" if len(cuando) >= 16 else ""
     if p.get("ok"):
-        return "conectada", f"Conectada · {q}{cuando}. {p.get('texto') or ''}".strip(), "green_text", "Probar"
-    return "error", f"Error · {q}{cuando}: {p.get('texto') or 'falló la prueba'}", "red", "Probar"
+        return "conectada", f"Conectada: {q}{cuando}. {p.get('texto') or ''}".strip(), "green_text", "Probar"
+    return "error", f"Error: {q}{cuando}: {p.get('texto') or 'falló la prueba'}", "red", "Probar"
 
 
 _CONEX_PUNTO = {"sin_clave": "muted", "sin_activa": "orange", "sin_probar": "muted", "probando": "blue",
@@ -35668,7 +35669,7 @@ def _build_motores_con(k):
     W["nm_cred_hint"] = k.label(rr, "", muted=True)
     W["nm_cred_hint"].pack(anchor="w", pady=(4, 0))
     rr = k.row(card, pady=(12, 4))
-    W["nm_probar"] = k.button(rr, "Probar", _nm_probar_ui, accent=True)
+    W["nm_probar"] = k.button(rr, "Probar", _nm_probar_ui)
     W["nm_probar"].pack(side="left")
     W["nm_estado"] = k.label(rr, "", muted=True, wrap=440)
     W["nm_estado"].pack(side="left", padx=(12, 0))
@@ -35991,7 +35992,7 @@ def _mdl4_construir(tab, nombre, con_kit):
 def _mdl4_tu_pc(k):
     card = k.section("Tu PC")
     row = k.row(card, pady=(4, 2))
-    _widgets["mdl_check_btn"] = k.button(row, "Comprobar mi PC", start_pc_check, accent=True)
+    _widgets["mdl_check_btn"] = k.button(row, "Comprobar mi PC", start_pc_check)
     _widgets["mdl_check_btn"].pack(side="right")
     _widgets["mdl_specs"] = k.label(row, "", bold=True, wrap=440)
     _widgets["mdl_specs"].pack(side="left", anchor="w", fill="x", expand=True)
@@ -36046,7 +36047,7 @@ def _mdl4_reglas(k):
     _widgets["mdl_rule_entry"] = k.entry(row, width=48)
     _widgets["mdl_rule_entry"].pack(side="left", padx=(0, 8))
     _widgets["mdl_rule_entry"].bind("<Return>", lambda _e: _add_rule())
-    k.button(row, "Añadir regla", _add_rule, accent=True).pack(side="left")
+    k.button(row, "Añadir regla", _add_rule).pack(side="left")
 
 
 def _mdl4_interruptor(k, parent, on, cmd):
@@ -36067,7 +36068,7 @@ def motor_coste_txt(model):
     if m in ("sonnet", "opus", "haiku"):
         p = (precios.get("por_millon") or {}).get((precios.get("alias") or {}).get(m, ""))
         if isinstance(p, dict) and p.get("entrada") is not None and p.get("salida") is not None:
-            nota = "" if _claude_plan() == "api" else " · con tu plan es equivalente, no dinero"
+            nota = "" if _claude_plan() == "api" else ", con tu plan es equivalente, no dinero"
             return f"${p['entrada']:g} / ${p['salida']:g} por millón (entrada / salida, de lista){nota}", True
         return "sin datos", False
     if m.startswith("api:"):
@@ -36414,7 +36415,7 @@ def llm_textos(snap, cargando=None, busy=None):
         est, col = ("Router encendido, ningún modelo cargado (VRAM libre). /health OK no es "
                     f"{SRV_LOCAL_LISTO}: el modelo se carga al usarlo o con «Cargar este modelo»."), "muted"
     if mods:
-        mtxt = " · ".join(f"{k}: {SRV_ESTADO_TXT.get(v, v)} ({v})" for k, v in mods.items())
+        mtxt = ", ".join(f"{k}: {SRV_ESTADO_TXT.get(v, v)} ({v})" for k, v in mods.items())
     elif snap.get("instalados"):
         mtxt = "instalados en models\\: " + ", ".join(snap["instalados"]) + " (el servidor no contesta: sin estado)"
     else:
@@ -36425,14 +36426,14 @@ def llm_textos(snap, cargando=None, busy=None):
     vtxt = (f"{mil(v[0])} de {mil(v[1])} MiB ({gb(v[0])} de {gb(v[1])} GB), según nvidia-smi"
             if v else "sin dato: nvidia-smi no respondió")
     if pr.get("oyente") and pr.get("nuestro"):
-        ptxt = (f"127.0.0.1:{p} · llama-server del Bridge, pid {pr['oyente']}"
+        ptxt = (f"127.0.0.1:{p}, llama-server del Bridge, pid {pr['oyente']}"
                 + (f" ({len(pr.get('arbol') or [])} proceso(s) con sus hijos)" if pr.get("arbol") else ""))
     elif pr.get("oyente"):
-        ptxt = f"127.0.0.1:{p} · ocupado por otro programa (pid {pr['oyente']})"
+        ptxt = f"127.0.0.1:{p}, ocupado por otro programa (pid {pr['oyente']})"
     else:
-        ptxt = f"127.0.0.1:{p} · libre"
+        ptxt = f"127.0.0.1:{p}, libre"
     if pr.get("huerfanos"):
-        ptxt += f" · huérfanos del mismo exe: {', '.join(map(str, pr['huerfanos']))} («Parar» los cierra)"
+        ptxt += f", huérfanos del mismo exe: {', '.join(map(str, pr['huerfanos']))} («Parar» los cierra)"
     return est, col, mtxt, vtxt, ptxt
 
 
@@ -36623,7 +36624,7 @@ def _build_tripo_con(k):
     W["tp_costo_fuente"].pack(anchor="w", fill="x", padx=16)
     W["tp_aviso2"] = _tripo_banner(k, card)
     r = W["tp_btn_row"] = k.row(card, pady=(8, 4))
-    W["tp_generar"] = k.button(r, "Generar…", tripo_confirmar_ui, accent=True)
+    W["tp_generar"] = k.button(r, "Generar…", tripo_confirmar_ui)
     W["tp_generar"].pack(side="left")
     W["tp_gen_estado"] = k.label(card, "", muted=True, wrap=600)
     W["tp_gen_estado"].pack(anchor="w", fill="x", padx=16, pady=(2, 12))
@@ -36701,7 +36702,7 @@ def _tripo_pintar():
         partes.append(f"clave «{c['etiqueta']}» ({tripo_mask(c['ultimos4'])}) en "
                       f"{urllib.parse.urlsplit(c['base_url']).netloc}")
     partes.append(f"aviso al {_tripo_num(st['pct'])}% {st['ref_txt']}")
-    k.set_label(W["tp_fuente"], " · ".join(partes) + ".")
+    k.set_label(W["tp_fuente"], ", ".join(partes) + ".")
     if _TRIPO.get("leyendo"):
         prob, color = "Leyendo el saldo…", "muted"
     else:
@@ -42042,7 +42043,7 @@ def matriz_permisos():
         if mid in motores_apagados():
             fila.update(estado="desactivado", aviso="Desactivado por ti: no hace nada hasta que lo actives.")
         elif acc is not None and not acc.get("ok") and "credencial" in str(acc.get("motivo") or "").lower():
-            fila.update(estado="sin_clave", aviso="Sin clave · pon tu clave en APIs para que pueda trabajar.")
+            fila.update(estado="sin_clave", aviso="Sin clave: pon tu clave en APIs para que pueda trabajar.")
         elif not _cap(eng, "herramientas"):
             fila.update(estado="sin_herramientas")
         for t, _c, _n in cols:
@@ -42097,8 +42098,8 @@ def _matriz_construir(parent, ctk_on):
             c._valor = corto  # el valor en palabras (Sí / Pregunta / No / —)
             c.grid(row=i, column=j, padx=1, pady=2)
             _MTZ["celdas"][(f["motor"], t)] = c
-    tk.Label(card, text=("✓ = lo hace sin preguntar · ? = te enseña el plan y espera tu sí · ✕ = nunca · "
-                         "— = ese motor solo responde texto · * = por una regla tuya. R0 a R3: de reversible y local a "
+    tk.Label(card, text=("✓ = lo hace sin preguntar; ? = te enseña el plan y espera tu sí; ✕ = nunca; "
+                         "— = ese motor solo responde texto; * = por una regla tuya. R0 a R3: de reversible y local a "
                          "«nunca sin ti». Es de lectura: los permisos se cambian arriba, en «Permisos y seguridad», y en "
                          "«Reglas permanentes»."),
              font=(FONT, 8), bg=T["card"], fg=T["muted"], justify="left", anchor="w",
@@ -42650,7 +42651,7 @@ def _build_ajustes_ctk(tab_aj):
         for grupo, r in filas:
             if q in _norm(grupo + " " + " ".join(_textos(r))):
                 tit = next((t for t in _textos(getattr(r, "_left", r)) + _textos(r) if t.strip()), "")
-                q_res.configure(text=f"→ {grupo}" + (f" · {tit[:40]}" if tit else ""))
+                q_res.configure(text=f"→ {grupo}" + (f", {tit[:40]}" if tit else ""))
                 if _ultimo[0] is not r:
                     _ultimo[0] = r
                     _ir_a(r)
@@ -43472,7 +43473,7 @@ def automations_ui():
             f = k.row(lista)
             f._auto_fila = True
             k.label(f, f"{a['nombre']}: {a['encargo'] or ''}", bold=True, wrap=440).pack(anchor="w")
-            k.label(f, f"{auto_describir(h)} · {a['motor']} · {'encendido' if a['activo'] else 'APAGADO'}",
+            k.label(f, f"{auto_describir(h)}, {a['motor']}, {'encendido' if a['activo'] else 'APAGADO'}",
                     muted=True, wrap=440).pack(anchor="w")
             bt = k.frame(f)
             bt.pack(anchor="w", pady=(4, 0))
@@ -43488,8 +43489,8 @@ def automations_ui():
         for x in auto_historial(n=15):
             f = k.row(hist)
             f._auto_fila = True
-            k.label(f, f"{x['at'][:16].replace('T', ' ')} · {x['nombre']} · {x['resultado']} · "
-                       f"${x['costo_usd']:.2f} · {x['detalle']}", muted=True, wrap=620).pack(anchor="w")
+            k.label(f, f"{x['at'][:16].replace('T', ' ')}, {x['nombre']}, {x['resultado']}, "
+                       f"${x['costo_usd']:.2f}, {x['detalle']}", muted=True, wrap=620).pack(anchor="w")
 
     def guardar():
         ok, out = auto_crear(ent.get(), reemplaza=edita["id"])
@@ -43812,7 +43813,7 @@ def comandos_ui():
     filas = {}
     for c in comandos_descubrir():
         f = k.row(card)
-        k.label(f, f"{c['titulo']}  ·  {c['archivo']}  ·  modo {c['modo'] or '¿?'}", bold=True, wrap=600).pack(
+        k.label(f, f"{c['titulo']}, {c['archivo']}, modo {c['modo'] or '¿?'}", bold=True, wrap=600).pack(
             anchor="w")
         k.label(f, f"{c['descripcion'] or 'sin descripción'}. Autor: {c['autor']}. Sale de: {c['ruta']}."
                    + (f" Pide: {', '.join(c['pide'])}." if c["pide"] else "")
