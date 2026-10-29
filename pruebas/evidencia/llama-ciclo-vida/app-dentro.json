@@ -1,0 +1,25 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-ciclo-vida-dugbokaw",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 48.85,
+ "app_abierta": true,
+ "llama_durante": [],
+ "servidor_en_engines": true,
+ "puerto_escuchando": false,
+ "procesos": {
+  "exe": "C:\\Users\\forte\\growi-bridge\\llama\\llama-server.exe",
+  "puerto": 8098,
+  "oyente": null,
+  "oyente_exe": null,
+  "nuestro": false,
+  "arbol": [],
+  "huerfanos": [],
+  "otros": [],
+  "edad_s": null
+ },
+ "log_motores": [
+  "2026-10-29T19:56:54-04:00 motores: tarjetas con CustomTkinter 6.0.0 (1483 ms, importacion incluida)",
+  "2026-10-29T19:57:47-04:00 motores: claude sí, codex sí, llama sí, ollama sí, meshy no, gemini sí"
+ ]
+}

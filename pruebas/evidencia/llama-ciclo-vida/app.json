@@ -1,0 +1,32 @@
+{
+ "antes": [],
+ "despues": [],
+ "salida": "{\n \"copia\": \"C:\\\\Users\\\\forte\\\\AppData\\\\Local\\\\Temp\\\\growi-prueba-llama-ciclo-vida-dugbokaw\",\n \"variante\": \"ctk\",\n \"dpi\": \"100\",\n \"build_gui_s\": 48.85,\n \"app_abierta\": true,\n \"llama_durante\": [],\n \"servidor_en_engines\": true,\n \"puerto_escuchando\": false,\n \"procesos\": {\n  \"exe\": \"C:\\\\Users\\\\forte\\\\growi-bridge\\\\llama\\\\llama-server.exe\",\n  \"puerto\": 8098,\n  \"oyente\": null,\n  \"oyente_exe\": null,\n  \"nuestro\": false,\n  \"arbol\": [],\n  \"huerfanos\": [],\n  \"otros\": [],\n  \"edad_s\": null\n },\n \"log_motores\": [\n  \"2026-10-29T19:56:54-04:00 motores: tarjetas con CustomTkinter 6.0.0 (1483 ms, importacion incluida)\",\n  \"2026-10-29T19:57:47-04:00 motores: claude s\\u00ed, codex s\\u00ed, llama s\\u00ed, ollama s\\u00ed, meshy no, gemini s\\u00ed\"\n ],\n \"tracebacks_en_log\": 0\n}\n",
+ "error": "",
+ "dentro": {
+  "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-ciclo-vida-dugbokaw",
+  "variante": "ctk",
+  "dpi": "100",
+  "build_gui_s": 48.85,
+  "app_abierta": true,
+  "llama_durante": [],
+  "servidor_en_engines": true,
+  "puerto_escuchando": false,
+  "procesos": {
+   "exe": "C:\\Users\\forte\\growi-bridge\\llama\\llama-server.exe",
+   "puerto": 8098,
+   "oyente": null,
+   "oyente_exe": null,
+   "nuestro": false,
+   "arbol": [],
+   "huerfanos": [],
+   "otros": [],
+   "edad_s": null
+  },
+  "log_motores": [
+   "2026-10-29T19:56:54-04:00 motores: tarjetas con CustomTkinter 6.0.0 (1483 ms, importacion incluida)",
+   "2026-10-29T19:57:47-04:00 motores: claude sí, codex sí, llama sí, ollama sí, meshy no, gemini sí"
+  ]
+ },
+ "ok": true
+}

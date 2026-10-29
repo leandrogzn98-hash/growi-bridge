@@ -1,0 +1,125 @@
+{
+ "modelo_prueba": "Qwen3-0.6B-Q8_0",
+ "exe": "C:\\Users\\forte\\growi-bridge\\llama\\llama-server.exe",
+ "inactividad_min": 0.25,
+ "pasos": [
+  {
+   "health": false,
+   "que": "antes: servidor parado",
+   "t": 2.0,
+   "ram_libre_mb": 3191,
+   "llama": []
+  },
+  {
+   "segundos": 8.3,
+   "respuesta": "hola",
+   "error": null,
+   "carga": "llama-server no respondía en 127.0.0.1:8097; el runner lo arrancó solo (pid 30452, listo en 1.1 s); local listo: modelo Qwen3-0.6B-Q8_0 cargado en el router en 3.0 s (GET /models: loaded)",
+   "avisos": [
+    "llama-server no respondía en 127.0.0.1:8097; el runner lo arrancó solo (pid 30452, listo en 1.1 s); local listo: modelo Qwen3-0.6B-Q8_0 cargado en el router en 3.0 s (GET /models: loaded)"
+   ],
+   "que": "(b) primera petición con el servidor parado",
+   "t": 11.5,
+   "ram_libre_mb": 2026,
+   "llama": [
+    [
+     15852,
+     1034
+    ],
+    [
+     30452,
+     199
+    ]
+   ]
+  },
+  {
+   "ok": true,
+   "tokens": 3500,
+   "segundos": 25.8,
+   "fin": 1793318062.5475132,
+   "limite_inactividad_s": 15.0,
+   "servidor_vivo_en_todo_momento": true,
+   "que": "(c1) petición larga terminada",
+   "t": 41.1,
+   "ram_libre_mb": 1351,
+   "llama": [
+    [
+     15852,
+     1037
+    ],
+    [
+     30452,
+     199
+    ]
+   ]
+  },
+  {
+   "apagado_tras_s": 17.6,
+   "health": false,
+   "apagado": "2026-10-29T19:54:40-04:00: llama-server parado (0.25 min sin peticiones: apagado por inactividad): pid 30452 con su árbol (2 proceso(s) del router); puerto 8097 libre; VRAM 5380 MiB → 4175 MiB",
+   "que": "(c) tras la inactividad",
+   "t": 59.5,
+   "ram_libre_mb": 2575,
+   "llama": []
+  },
+  {
+   "segundos": 7.4,
+   "respuesta": "adios",
+   "error": null,
+   "que": "rearranque con otra petición",
+   "t": 67.4,
+   "ram_libre_mb": 1274,
+   "llama": [
+    [
+     9988,
+     199
+    ],
+    [
+     24076,
+     1033
+    ]
+   ]
+  },
+  {
+   "parar": [
+    true,
+    "llama-server parado (fin de la prueba): pid 9988 con su árbol (2 proceso(s) del router); puerto 8097 libre; VRAM 5380 MiB → 4175 MiB"
+   ],
+   "que": "limpieza",
+   "t": 69.7,
+   "ram_libre_mb": 2387,
+   "llama": []
+  }
+ ],
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4",
+ "config": {
+  "exe": "C:\\Users\\forte\\growi-bridge\\llama\\llama-server.exe",
+  "gguf": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\models\\Qwen3-0.6B-Q8_0.gguf",
+  "models_dir": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\models",
+  "puerto": "8097",
+  "args": "['--models-dir', 'C:\\\\Users\\\\forte\\\\AppData\\\\Local\\\\Temp\\\\growi-prueba-llama-vida-nq_mdfa4\\\\models', '--models-max', '1', '--models-preset', 'C:\\\\Users\\\\forte\\\\AppData\\\\Local\\\\Temp\\\\growi-prueba-llama-vida-nq_mdfa4\\\\models-preset.ini', '--host', '127.0.0.1', '--port', '8097']",
+  "log": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\llama-server.log",
+  "espera_s": "120.0",
+  "inactividad_min": "0.25"
+ },
+ "aviso_c1": "",
+ "ram_liberada_mb": 549,
+ "log_motores": [
+  "2026-10-29T19:53:51-04:00 motores: llama-server no respondía (sin respuesta de 127.0.0.1:8097 en 2 s); lo arranco oculto: llama-server.exe en modo router (--models-dir C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\models --models-max 1 --models-preset C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\models-preset.ini --host 127.0.0.1 --port 8097)",
+  "2026-10-29T19:53:51-04:00 motores: llama-server.exe lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 30452",
+  "2026-10-29T19:53:53-04:00 motores: llama-server no respondía en 127.0.0.1:8097; el runner lo arrancó solo (pid 30452, listo en 1.1 s)",
+  "2026-10-29T19:53:53-04:00 motores: cargando modelo Qwen3-0.6B-Q8_0 en el router (POST /models/load; antes: {'Qwen3-0.6B-Q8_0': 'unloaded'})",
+  "2026-10-29T19:53:56-04:00 motores: local listo: modelo Qwen3-0.6B-Q8_0 cargado en el router en 3.0 s (GET /models: loaded)",
+  "2026-10-29T19:53:56-04:00 motores: vigilante de inactividad de llama-server (puerto 8097): lo apago tras 0.25 min sin peticiones",
+  "2026-10-29T19:54:40-04:00 motores: llama-server parado (0.25 min sin peticiones: apagado por inactividad): pid 30452 con su árbol (2 proceso(s) del router); puerto 8097 libre; VRAM 5380 MiB → 4175 MiB",
+  "2026-10-29T19:54:40-04:00 motores: apagado por inactividad (ok); se vuelve a arrancar solo con la próxima petición o con Modelos → Motor local → Arrancar",
+  "2026-10-29T19:54:48-04:00 motores: llama-server no respondía (sin respuesta de 127.0.0.1:8097 en 2 s); lo arranco oculto: llama-server.exe en modo router (--models-dir C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\models --models-max 1 --models-preset C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-llama-vida-nq_mdfa4\\models-preset.ini --host 127.0.0.1 --port 8097)",
+  "2026-10-29T19:54:48-04:00 motores: llama-server.exe lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid 9988",
+  "2026-10-29T19:54:49-04:00 motores: llama-server no respondía en 127.0.0.1:8097; el runner lo arrancó solo (pid 9988, listo en 0.5 s)",
+  "2026-10-29T19:54:49-04:00 motores: cargando modelo Qwen3-0.6B-Q8_0 en el router (POST /models/load; antes: {'Qwen3-0.6B-Q8_0': 'unloaded'})",
+  "2026-10-29T19:54:51-04:00 motores: local listo: modelo Qwen3-0.6B-Q8_0 cargado en el router en 2.0 s (GET /models: loaded)",
+  "2026-10-29T19:54:51-04:00 motores: vigilante de inactividad de llama-server (puerto 8097): lo apago tras 0.25 min sin peticiones",
+  "2026-10-29T19:54:54-04:00 motores: llama-server parado (fin de la prueba): pid 9988 con su árbol (2 proceso(s) del router); puerto 8097 libre; VRAM 5380 MiB → 4175 MiB"
+ ],
+ "ok": true
+}

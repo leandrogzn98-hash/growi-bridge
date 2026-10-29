@@ -1,0 +1,68 @@
+{
+ "popen_del_servidor": [
+  [
+   6201,
+   "_ensure_llama_server_arrancar",
+   "proc = subprocess.Popen("
+  ]
+ ],
+ "llamadas_a_ensure_llama_server": [
+  [
+   6069,
+   "_srv_reiniciar",
+   "ok, _w = ensure_llama_server(eng)"
+  ],
+  [
+   6160,
+   "_ensure_llama_server_arrancar",
+   "\"\"\"Solo la llama ensure_llama_server(): aqui esta el unico Popen del exe.\"\"\""
+  ],
+  [
+   6267,
+   "_srv_modelo_listo",
+   "# ensure_llama_server() cuando alguien le va a pedir algo, y el vigilante lo"
+  ],
+  [
+   6730,
+   "srv_cambiar_modelo",
+   "return ensure_llama_server(eng, model)"
+  ],
+  [
+   7071,
+   "engine_status_rt",
+   "return ensure_llama_server(eng)"
+  ],
+  [
+   7920,
+   "_run_http_engine",
+   "ok, why = ensure_llama_server(eng, model)"
+  ],
+  [
+   13320,
+   "_mem_llamar",
+   "ok, why = (ensure_llama_server(eng, model) if eng.get(\"servidor\")"
+  ],
+  [
+   36680,
+   "_llm_accion",
+   "ok, nota = ensure_llama_server(eng, modelo or None)  # arranca y carga el elegido"
+  ],
+  [
+   39826,
+   "_cmdia_llamar",
+   "ok, why = (ensure_llama_server(eng, model) if eng.get(\"servidor\")"
+  ]
+ ],
+ "quien_llama_al_lanzador_interno": [
+  [
+   6148,
+   "ensure_llama_server"
+  ]
+ ],
+ "nombres_viejos_que_quedan": [],
+ "otros_archivos_que_lanzan_llama_server": [
+  "oficina\\mediciones\\medir.py",
+  "pruebas\\prueba_llama_ciclo_vida.py"
+ ],
+ "ok": true
+}

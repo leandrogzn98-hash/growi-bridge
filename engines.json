@@ -894,7 +894,9 @@
           "espera_carga_s": 300
         },
         "log": "llama/llama-server.log",
-        "espera_s": 180,
+        "espera_s": 120,
+        "inactividad_min": 15,
+        "_ciclo_vida": "t-llama-ciclo-vida-048: nada lo arranca al abrir la app; ensure_llama_server() lo arranca con la primera petición (espera_s = tope para que conteste) y lo apaga tras inactividad_min sin peticiones de inferencia, nunca con una en curso (0 = no apagar nunca). Para pruebas: GROWI_LLAMA_INACTIVIDAD_MIN y GROWI_LLAMA_ESPERA_S.",
         "como_instalar": "Descarga llama.cpp para Windows con CUDA (github.com/ggml-org/llama.cpp/releases, archivo llama-*-bin-win-cuda-*.zip) y descomprimelo en la carpeta llama\\ junto a growi-bridge.py; pon el modelo en models\\hermes-3-8b-q4_k_m.gguf (Hermes-3-Llama-3.1-8B-GGUF, Q4_K_M, 4,9 GB, de huggingface.co/NousResearch)."
       },
       "vivo": {

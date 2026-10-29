@@ -5716,10 +5716,11 @@ def _http_local(method, url, body=None, timeout=60, track=False):
         _RUN["conn"] = conn
     try:
         try:
-            conn.request(method, u.path + (("?" + u.query) if u.query else ""),
-                         body=payload, headers=headers)
-            resp = conn.getresponse()
-            raw = resp.read()
+            with _llama_uso(method, port, u.path):  # para el apagado por inactividad
+                conn.request(method, u.path + (("?" + u.query) if u.query else ""),
+                             body=payload, headers=headers)
+                resp = conn.getresponse()
+                raw = resp.read()
         except ConnectionRefusedError:
             raise LocalCallError(f"no responde: nada escucha en {where} (servidor apagado)")
         except TimeoutError:
@@ -5778,6 +5779,7 @@ def _http_local_stream(url, body, timeout, vivo, on_piece, idle=None):
     conn = http.client.HTTPConnection(host, port, timeout=sock_timeout)
     _RUN["conn"] = conn
     parts, n, tin, tout, deadline = [], 0, None, None, time.time() + timeout
+    uso = _llama_uso("POST", port, u.path).__enter__()  # para el apagado por inactividad
     try:
         try:
             conn.request("POST", u.path + (("?" + u.query) if u.query else ""),
@@ -5840,6 +5842,7 @@ def _http_local_stream(url, body, timeout, vivo, on_piece, idle=None):
                 raise LocalCallError("parado por el usuario (se cortó la conexión con el motor)")
             raise LocalCallError(f"conexión cortada con {where} ({type(e).__name__}: {e})")
     finally:
+        uso.__exit__()
         _RUN["conn"] = None
         conn.close()
     if not n and tin is None and tout is None:
@@ -6045,7 +6048,7 @@ def srv_cargar_modelo(eng, model, aviso=None):
 
 def _srv_reiniciar(eng):
     """Solo si el router lo arranco esta app y no hay un modelo cargandose:
-    lo cierra (el siguiente _llama_ensure lo vuelve a arrancar y ve los .gguf
+    lo cierra (el siguiente ensure_llama_server lo vuelve a arrancar y ve los .gguf
     nuevos). Nunca mata un llama-server ajeno."""
     p = _SRV.get("proc")
     if p is None or p.poll() is not None:
@@ -6063,7 +6066,7 @@ def _srv_reiniciar(eng):
         p.kill()
     p.wait(timeout=20)
     _SRV["proc"] = None
-    ok, _w = _llama_ensure(eng)
+    ok, _w = ensure_llama_server(eng)
     return ok
 
 
@@ -6129,21 +6132,33 @@ def srv_preset_sync(eng):
     return nuevas
 
 
-def _llama_ensure(eng, model=None):
-    """Motor con bloque 'servidor' (hoy llama-server): si no responde, lo
-    arranca oculto con el exe y los args del descriptor y espera a que
-    conteste. En modo router ademas carga el modelo que pide la tarea
-    (GET /models es quien dice si esta listo, no /health). Nada aqui
-    depende del nombre del motor. Al terminar, el banner vuelve al paso
-    que tenia (no se queda en «Arrancando…» mientras el motor trabaja)."""
+def ensure_llama_server(eng, model=None):
+    """LA UNICA PUERTA para arrancar el servidor local (t-llama-ciclo-vida-048):
+    tareas, memoria, comando IA, probar un motor, boton Arrancar de Modelos,
+    cambio de modelo y reinicio del router pasan por aqui; nada arranca
+    llama-server al abrir la app, y el revisor no lo arranca (si esta
+    apagado lo salta y sigue con el siguiente de revision.orden). Motor con bloque 'servidor' (hoy llama-server): si no
+    responde, lo arranca oculto con el exe y los args del descriptor y espera
+    a que conteste (servidor.espera_s). En modo router ademas carga el modelo
+    que pide la tarea (GET /models es quien dice si esta listo, no /health).
+    Si queda encendido, el vigilante lo apaga tras servidor.inactividad_min
+    sin peticiones. Nada aqui depende del nombre del motor. Al terminar, el
+    banner vuelve al paso que tenia (no se queda en «Arrancando…»)."""
     paso0 = state.get("paso")
     try:
-        return _llama_arrancar(eng, model)
+        ok, nota = _ensure_llama_server_arrancar(eng, model)
     finally:
         state["paso"] = paso0
+    if ok:
+        # Quien llama aqui va a pedirle algo enseguida: cuenta como uso, asi el
+        # vigilante no lo apaga entre este «listo» y la peticion.
+        _llama_uso_marca()
+        _llama_vigilar(eng)
+    return ok, nota
 
 
-def _llama_arrancar(eng, model=None):
+def _ensure_llama_server_arrancar(eng, model=None):
+    """Solo la llama ensure_llama_server(): aqui esta el unico Popen del exe."""
     if model and _srv_es_router(eng) and not _srv_gguf(eng, model):
         # Modelo no instalado: error claro que apunta al descargador, sin
         # arrancar el router ni ocupar VRAM para nada.
@@ -6195,7 +6210,7 @@ def _llama_arrancar(eng, model=None):
         except OSError as e:
             log(f"motores: no se pudo lanzar {exe.name} oculto ({e}); no se reintenta con ventana visible")
             return False, f"no se pudo arrancar {exe.stem} ({e})"
-        wait_s = float(srv.get("espera_s") or 180)
+        wait_s = llama_cfg(eng)["espera_s"]
         donde = urlparse(str((eng.get("healthcheck") or {}).get("url") or "")).netloc or "su puerto"
         while time.time() - t0 < wait_s:
             if proc.poll() is not None:
@@ -6245,6 +6260,170 @@ def _srv_modelo_listo(eng, model, note):
     if ok and n2 and en_tarea:
         live_set("tarea", nota="")
     return ok, "; ".join(x for x in (note, n2) if x)
+
+
+# --- Bajo demanda y apagado por inactividad (t-llama-ciclo-vida-048) -------
+# El 29 oct 2026 el modelo local (~5,2 GB de RAM + 47 % de CPU al arrancar)
+# colapso un PC de 16 GB. Ahora: nada lo arranca al abrir la app; lo arranca
+# ensure_llama_server() cuando alguien le va a pedir algo, y el vigilante lo
+# apaga tras servidor.inactividad_min sin peticiones. Peticion = POST de
+# inferencia al puerto del servidor (chat, completions, embeddings, carga de
+# modelo); /health, GET /models y /props no cuentan (el panel de Modelos los
+# consulta solo, y si contaran nunca se apagaria). Nunca se apaga con una
+# peticion en curso: el contador de las del Bridge y, si el servidor lo da,
+# GET /slots (is_processing) para las de fuera.
+LLAMA_INACTIVIDAD_MIN = 15   # por defecto; manda servidor.inactividad_min
+LLAMA_ESPERA_S = 120         # por defecto; manda servidor.espera_s
+_LLAMA_NO_USO = ("/models/unload",)
+_LLAMA_VIDA = {"activas": 0, "ultima": 0.0, "apagando": False, "hilo": None, "puertos": set()}
+_LLAMA_VIDA_LOCK = threading.Lock()
+
+
+def llama_cfg(eng):
+    """Toda la configuracion del servidor local, de UN sitio: el bloque
+    'servidor' del motor en engines.json (exe, gguf, args con el puerto y los
+    flags; las capas en GPU de cada modelo van en su preset). Para pruebas,
+    GROWI_LLAMA_INACTIVIDAD_MIN y GROWI_LLAMA_ESPERA_S pisan el descriptor
+    (admiten decimales: 0.5 = 30 s). inactividad_min 0 = no apagar nunca."""
+    srv = (eng or {}).get("servidor") or {}
+
+    def num(env, clave, defecto):
+        for v in (os.environ.get(env), srv.get(clave)):
+            try:
+                if v not in (None, ""):
+                    return max(0.0, float(v))
+            except (TypeError, ValueError):
+                pass
+        return float(defecto)
+    return {"exe": _srv_exe(eng), "gguf": _app_path(srv.get("gguf")), "models_dir": _srv_models_dir(eng),
+            "puerto": _srv_puerto(eng), "args": [str(a) for a in srv.get("args") or []],
+            "log": _app_path(srv.get("log") or "llama/llama-server.log"),
+            "espera_s": num("GROWI_LLAMA_ESPERA_S", "espera_s", LLAMA_ESPERA_S) or LLAMA_ESPERA_S,
+            "inactividad_min": num("GROWI_LLAMA_INACTIVIDAD_MIN", "inactividad_min", LLAMA_INACTIVIDAD_MIN)}
+
+
+def _llama_uso_marca():
+    with _LLAMA_VIDA_LOCK:
+        _LLAMA_VIDA["ultima"] = time.time()
+
+
+class _llama_uso:
+    """Envuelve cada llamada HTTP local: si es una peticion de inferencia a un
+    servidor vigilado, la cuenta como en curso mientras dura y apunta la hora
+    de la ultima. Si el vigilante esta apagandolo justo ahora, espera a que
+    termine (la peticion fallara con «no responde» y el reintento lo vuelve a
+    arrancar por ensure_llama_server)."""
+
+    def __init__(self, method, port, path):
+        self.cuenta = (str(method).upper() == "POST" and port in _LLAMA_VIDA["puertos"]
+                       and not str(path).startswith(_LLAMA_NO_USO))
+
+    def __enter__(self):
+        if self.cuenta:
+            t0 = time.time()
+            while _LLAMA_VIDA["apagando"] and time.time() - t0 < 30:
+                time.sleep(0.2)
+            with _LLAMA_VIDA_LOCK:
+                _LLAMA_VIDA["activas"] += 1
+                _LLAMA_VIDA["ultima"] = time.time()
+        return self
+
+    def __exit__(self, *_exc):
+        if self.cuenta:
+            with _LLAMA_VIDA_LOCK:
+                _LLAMA_VIDA["activas"] = max(0, _LLAMA_VIDA["activas"] - 1)
+                _LLAMA_VIDA["ultima"] = time.time()
+        return False
+
+
+def _llama_vigilar(eng):
+    """Pone el vigilante de inactividad de ese servidor (uno solo a la vez)."""
+    cfg = llama_cfg(eng)
+    with _LLAMA_VIDA_LOCK:
+        _LLAMA_VIDA["puertos"].add(cfg["puerto"])
+        h = _LLAMA_VIDA["hilo"]
+        if cfg["inactividad_min"] <= 0 or (h is not None and h.is_alive()):
+            return
+        h = threading.Thread(target=_llama_vigilante, args=(eng,), name="llama-inactividad", daemon=True)
+        _LLAMA_VIDA["hilo"] = h
+    h.start()
+
+
+def _llama_slots_ocupados(eng):
+    """GET /slots: ¿algun slot esta generando? Cubre peticiones que no pasan por
+    el Bridge (un curl, otro programa). En modo router se pregunta por cada
+    modelo cargado. -> True / False / None (el servidor no lo dice)."""
+    base = _srv_cfg(eng)["base"]
+    rutas = ["/slots"]
+    if _srv_es_router(eng):
+        rutas += [f"/slots?model={m}" for m, st in (_SRV.get("modelos") or {}).items() if st != "unloaded"]
+    visto = None
+    for r in rutas:
+        try:
+            data = _http_local("GET", _url_join(base, r), timeout=2)
+        except LocalCallError:
+            continue
+        if isinstance(data, list):
+            visto = bool(visto) or any(isinstance(s, dict) and s.get("is_processing") for s in data)
+            if visto:
+                return True
+    return visto
+
+
+def _llama_vigilante(eng):
+    """Hilo: con el servidor encendido mira cada poco si lleva inactividad_min
+    sin peticiones; entonces, sin ninguna en curso, lo para con srv_parar (solo
+    el exe del descriptor en su puerto, con su arbol) y se acaba. Tambien se
+    acaba si el servidor ya no esta (lo paro Leandro o se cerro)."""
+    cfg = llama_cfg(eng)
+    lim = cfg["inactividad_min"] * 60
+    paso = max(1.0, min(30.0, lim / 6))
+    log(f"motores: vigilante de inactividad de {cfg['exe'].stem} (puerto {cfg['puerto']}): lo apago tras "
+        f"{cfg['inactividad_min']:g} min sin peticiones")
+    fallos = 0
+    try:
+        while True:
+            time.sleep(paso)
+            if _llama_lock.locked() or _SRV.get("cargando"):
+                continue  # arrancando o cargando un modelo: eso no es inactividad
+            if not _health(eng, timeout=2)[0]:
+                fallos += 1
+                if fallos >= 2 and not srv_procesos(eng)["oyente"]:
+                    log(f"motores: vigilante de inactividad: {cfg['exe'].stem} ya no está encendido; termino")
+                    return
+                continue
+            fallos = 0
+            with _LLAMA_VIDA_LOCK:
+                quieto = time.time() - _LLAMA_VIDA["ultima"]
+                activas = _LLAMA_VIDA["activas"]
+            if activas or quieto < lim:
+                continue
+            if _llama_slots_ocupados(eng):
+                log(f"motores: {cfg['exe'].stem} lleva {quieto / 60:.1f} min sin peticiones del Bridge, pero "
+                    "GET /slots dice que está generando (una petición de fuera): no lo apago")
+                _llama_uso_marca()
+                continue
+            with _LLAMA_VIDA_LOCK:
+                if _LLAMA_VIDA["activas"] or time.time() - _LLAMA_VIDA["ultima"] < lim:
+                    continue  # llego una peticion mientras miraba /slots
+                _LLAMA_VIDA["apagando"] = True
+            try:
+                if not srv_procesos(eng)["nuestro"]:
+                    log(f"motores: el puerto {cfg['puerto']} no es del {cfg['exe'].name} del Bridge: el vigilante "
+                        "de inactividad no lo toca")
+                    return
+                ok, nota = srv_parar(eng, f"{cfg['inactividad_min']:g} min sin peticiones: apagado por inactividad")
+                state["llama_autostop"] = f"{_now_iso()}: {nota}"
+                log(f"motores: apagado por inactividad ({'ok' if ok else 'a medias'}); se vuelve a arrancar solo "
+                    "con la próxima petición o con Modelos → Motor local → Arrancar")
+            finally:
+                with _LLAMA_VIDA_LOCK:
+                    _LLAMA_VIDA["apagando"] = False
+            return
+    finally:
+        with _LLAMA_VIDA_LOCK:
+            if _LLAMA_VIDA["hilo"] is threading.current_thread():
+                _LLAMA_VIDA["hilo"] = None
 
 
 # --- Ciclo de vida del servidor local (t-ciclo-vida-llama, 0.3.0) ---------
@@ -6445,7 +6624,7 @@ def _srv_puerto_antes_de_lanzar(eng):
     if not pr["nuestro"]:
         return False, (f"el puerto {pr['puerto']} lo ocupa otro programa ({pr['oyente_exe'] or 'pid ' + str(oy)}); "
                        f"no es el {Path(pr['exe']).name} del Bridge: no lanzo un segundo servidor ni lo cierro")
-    espera = float((eng.get("servidor") or {}).get("espera_s") or 180)
+    espera = llama_cfg(eng)["espera_s"]
     edad = pr["edad_s"] if pr["edad_s"] is not None else espera
     if edad < espera:
         # Nuestro y recien lanzado (otro hilo o un arranque anterior): se espera.
@@ -6549,7 +6728,7 @@ def srv_cambiar_modelo(eng, model, aviso=None):
     if _srv_es_router(eng) and not _srv_gguf(eng, model):
         return False, _srv_no_instalado(eng, model)
     if not _health(eng, timeout=2)[0]:
-        return _llama_ensure(eng, model)
+        return ensure_llama_server(eng, model)
     return srv_cargar_modelo(eng, model, aviso=aviso)
 
 
@@ -6890,7 +7069,7 @@ def engine_status_rt(eng, autostart=False):
     if tipo == "api_sincrona":
         if eng.get("servidor"):
             if autostart:
-                return _llama_ensure(eng)
+                return ensure_llama_server(eng)
             ok, why = _health(eng)
             if ok and _srv_es_router(eng) and srv_rol(eng) == "router":
                 # Salud del router NO es modelo listo: lo dice GET /models.
@@ -7739,7 +7918,7 @@ def _run_http_engine(task, motor_id, eng, result, prompt, for_review=False):
     if eng.get("servidor") and not for_review:
         # Modo router: arranca el router si el puerto no responde, espera a
         # GET /models y carga el modelo de la tarea; solo entonces se ejecuta.
-        ok, why = _llama_ensure(eng, model)
+        ok, why = ensure_llama_server(eng, model)
         if ok and why:
             result.setdefault("avisos", []).append(why)
         # El resultado dice que modelo local se uso y como quedo listo.
@@ -13139,7 +13318,7 @@ def _mem_llamar(motor_id, prompt, cwd, session_id=None, timeout_min=5):
             # _local_model resuelve '@ollama_por_defecto' / '@ajuste:...': sin
             # eso Ollama recibia el alias tal cual (400: invalid model name).
             model = _local_model(eng, {}) or None
-            ok, why = (_llama_ensure(eng, model) if eng.get("servidor")
+            ok, why = (ensure_llama_server(eng, model) if eng.get("servidor")
                        else engine_status_rt(eng, autostart=True))
             if not ok:
                 raise LocalCallError(f"no disponible: {why}")
@@ -36499,7 +36678,7 @@ def _llm_accion(que):
     def run():
         try:
             if que == "arrancar":
-                ok, nota = _llama_ensure(eng, modelo or None)  # arranca y carga el elegido
+                ok, nota = ensure_llama_server(eng, modelo or None)  # arranca y carga el elegido
                 nota = nota or ("el motor local ya estaba encendido" if ok else nota)
             elif que == "parar":
                 ok, nota = srv_parar(eng, "botón Parar de la app")
@@ -39645,7 +39824,7 @@ def _cmdia_llamar(mid, prompt, temperatura, timeout_min=5):
                        cost_usd=r.get("cost_usd"))
         elif eng.get("tipo") == "api_sincrona":
             model = _local_model(eng, {}) or None
-            ok, why = (_llama_ensure(eng, model) if eng.get("servidor")
+            ok, why = (ensure_llama_server(eng, model) if eng.get("servidor")
                        else engine_status_rt(eng, autostart=True))
             if not ok:
                 raise LocalCallError(f"no disponible: {why}")
