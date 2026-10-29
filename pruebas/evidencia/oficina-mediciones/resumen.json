@@ -1,0 +1,269 @@
+{
+ "fecha": "2026-10-29T16:29:52-04:00",
+ "topes": {
+  "ram_total_gib": 15.42,
+  "ram_total_cim_bytes": "16558178304",
+  "adaptadores": [
+   {
+    "Name": "AMD Radeon(TM) Graphics",
+    "DriverVersion": "30.0.13002.19003",
+    "AdapterRAM": 536870912,
+    "VideoProcessor": "AMD Radeon Graphics Processor (0x1636)"
+   },
+   {
+    "Name": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "DriverVersion": "32.0.15.9649",
+    "AdapterRAM": 4293918720,
+    "VideoProcessor": "NVIDIA GeForce RTX 3060 Laptop GPU"
+   }
+  ],
+  "nvidia_smi": "name, driver_version, memory.total [MiB], pstate\nNVIDIA GeForce RTX 3060 Laptop GPU, 596.49, 6144 MiB, P3",
+  "webview2": {
+   "HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients": "156.0.4314.50",
+   "HKCU:\\Software\\Microsoft\\EdgeUpdate\\Clients": null
+  },
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+  "llama_server": "C:\\Users\\forte\\growi-bridge\\llama\\llama-server.exe"
+ },
+ "luid_antes": {
+  "0x00000000_0x00010470": 237.0,
+  "0x00000000_0x00013FA8": 0.0,
+  "0x00000000_0x00013FDD": 0.0
+ },
+ "vram_sin_nada": {
+  "total_mib": 6144,
+  "usado_mib": 0,
+  "libre_mib": 5994,
+  "temp_c": 62,
+  "util_pct": 0,
+  "sm_mhz": 982,
+  "razones": "0x0000000000000020"
+ },
+ "vram_llama_cargado": {
+  "total_mib": 6144,
+  "usado_mib": 5673,
+  "libre_mib": 322,
+  "temp_c": 60,
+  "util_pct": 0,
+  "sm_mhz": 210,
+  "razones": "0x0000000000000001"
+ },
+ "luid_llama": {
+  "0x00000000_0x00010470": 212.9,
+  "0x00000000_0x00013FA8": 0.0,
+  "0x00000000_0x00013FDD": 5677.0
+ },
+ "luid_nvidia": "0x00000000_0x00013FDD",
+ "llama_rss_mib": 3818.9,
+ "generacion": {
+  "peticiones": 8,
+  "tokens": 2048,
+  "errores": 0
+ },
+ "vigilados_max": {
+  "claude_code": {
+   "rss_mib": 1245.6,
+   "uss_mib": 1081.2,
+   "procesos": 12
+  },
+  "bridge": {
+   "rss_mib": 123.0,
+   "uss_mib": 129.0,
+   "procesos": 1
+  }
+ },
+ "vram_final_con_llama": {
+  "total_mib": 6144,
+  "usado_mib": 5673,
+  "libre_mib": 322,
+  "temp_c": 59,
+  "util_pct": 0,
+  "sm_mhz": 210,
+  "razones": "0x0000000000000001"
+ },
+ "vram_tras_parar_llama": {
+  "total_mib": 6144,
+  "usado_mib": 0,
+  "libre_mib": 5994,
+  "temp_c": 60,
+  "util_pct": 0,
+  "sm_mhz": 982,
+  "razones": "0x0000000000000020"
+ },
+ "resumen": {
+  "godot": {
+   "reposo": {
+    "ram_rss_mib_max": 152.8,
+    "ram_uss_mib_max": 120.7,
+    "ram_rss_mib_media": 152.1,
+    "cpu_pct_media": 6.7,
+    "vram_total_mib_max": 5697,
+    "gpu_util_pct_media": 2.8,
+    "temp_c_max": 60,
+    "razones_reloj": [
+     "0x0000000000000020"
+    ],
+    "fps_medio": 29.2,
+    "fps_min": 21.0,
+    "peor_frame_ms": 119.3,
+    "frames_lentos_50ms": 2
+   },
+   "animando": {
+    "ram_rss_mib_max": 151.7,
+    "ram_uss_mib_max": 119.5,
+    "ram_rss_mib_media": 151.6,
+    "cpu_pct_media": 10.2,
+    "vram_total_mib_max": 5697,
+    "gpu_util_pct_media": 4.3,
+    "temp_c_max": 59,
+    "razones_reloj": [
+     "0x0000000000000001",
+     "0x0000000000000020"
+    ],
+    "fps_medio": 30.0,
+    "fps_min": 30.0,
+    "peor_frame_ms": 33.3,
+    "frames_lentos_50ms": 0
+   },
+   "animando_con_llama": {
+    "ram_rss_mib_max": 151.7,
+    "ram_uss_mib_max": 119.4,
+    "ram_rss_mib_media": 151.7,
+    "cpu_pct_media": 8.4,
+    "vram_total_mib_max": 5697,
+    "gpu_util_pct_media": 64.7,
+    "temp_c_max": 62,
+    "razones_reloj": [
+     "0x0000000000000001",
+     "0x0000000000000020"
+    ],
+    "fps_medio": 30.0,
+    "fps_min": 30.0,
+    "peor_frame_ms": 33.3,
+    "frames_lentos_50ms": 0
+   },
+   "vram_proceso_mib_max_por_luid": {
+    "0x00000000_0x00010470": 0.4,
+    "0x00000000_0x00013FDD": 26.3
+   },
+   "vram_proceso_nvidia_mib_max": 26.3,
+   "util_3d_media_por_luid": {
+    "0x00000000_0x00010470": 2.82,
+    "0x00000000_0x00013FDD": 0.0
+   },
+   "compartida_mib_max": 18.8,
+   "vram_total_antes_mib": 5673,
+   "vram_total_despues_mib": 5673,
+   "inicio": {
+    "adaptador": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "api": "3.3.0 NVIDIA 596.49",
+    "evento": "inicio",
+    "fabricante": "NVIDIA",
+    "metodo": "gl_compatibility",
+    "motor": "godot",
+    "sprites": 16,
+    "tipo": 0,
+    "ventana": [
+     -16000,
+     0
+    ],
+    "version": "4.7.2-stable (official)"
+   },
+   "foco_cambio": false,
+   "ventanas_visibles": [
+    [
+     -8,
+     -31,
+     648,
+     368
+    ]
+   ],
+   "pid_medido_es_hijo_del_lanzador": false,
+   "instancias_gpu_del_pid": [
+    "\\\\ROG-STRIX-LEAND\\GPU Process Memory(pid_424_luid_0x00000000_0x00010470_phys_0)\\Dedicated Usage",
+    "\\\\ROG-STRIX-LEAND\\GPU Process Memory(pid_424_luid_0x00000000_0x00013FDD_phys_0)\\Dedicated Usage"
+   ],
+   "sin_instancias_gpu": false,
+   "codigo_salida": 0
+  },
+  "pygame": {
+   "reposo": {
+    "ram_rss_mib_max": 34.5,
+    "ram_uss_mib_max": 17.0,
+    "ram_rss_mib_media": 34.5,
+    "cpu_pct_media": 1.0,
+    "vram_total_mib_max": 5673,
+    "gpu_util_pct_media": 0,
+    "temp_c_max": 58,
+    "razones_reloj": [
+     "0x0000000000000001"
+    ],
+    "fps_medio": 29.7,
+    "fps_min": 29.4,
+    "peor_frame_ms": 35.0,
+    "frames_lentos_50ms": 0
+   },
+   "animando": {
+    "ram_rss_mib_max": 34.5,
+    "ram_uss_mib_max": 17.0,
+    "ram_rss_mib_media": 34.5,
+    "cpu_pct_media": 1.0,
+    "vram_total_mib_max": 5673,
+    "gpu_util_pct_media": 0,
+    "temp_c_max": 56,
+    "razones_reloj": [
+     "0x0000000000000001"
+    ],
+    "fps_medio": 29.8,
+    "fps_min": 29.6,
+    "peor_frame_ms": 35.0,
+    "frames_lentos_50ms": 0
+   },
+   "animando_con_llama": {
+    "ram_rss_mib_max": 34.5,
+    "ram_uss_mib_max": 17.0,
+    "ram_rss_mib_media": 34.4,
+    "cpu_pct_media": 1.3,
+    "vram_total_mib_max": 5673,
+    "gpu_util_pct_media": 79.5,
+    "temp_c_max": 63,
+    "razones_reloj": [
+     "0x0000000000000001",
+     "0x0000000000000020"
+    ],
+    "fps_medio": 29.8,
+    "fps_min": 29.5,
+    "peor_frame_ms": 35.0,
+    "frames_lentos_50ms": 0
+   },
+   "vram_proceso_mib_max_por_luid": {},
+   "vram_proceso_nvidia_mib_max": 0,
+   "util_3d_media_por_luid": {},
+   "compartida_mib_max": null,
+   "vram_total_antes_mib": 5673,
+   "vram_total_despues_mib": 5673,
+   "inicio": {
+    "evento": "inicio",
+    "motor": "pygame-ce",
+    "version": "2.5.8",
+    "sdl": "2.32.10",
+    "driver": "windows",
+    "sprites": 16
+   },
+   "foco_cambio": false,
+   "ventanas_visibles": [
+    [
+     -16008,
+     -31,
+     -15352,
+     368
+    ]
+   ],
+   "pid_medido_es_hijo_del_lanzador": true,
+   "instancias_gpu_del_pid": [],
+   "sin_instancias_gpu": true,
+   "codigo_salida": 0
+  }
+ },
+ "corrida": "20261029-162952"
+}

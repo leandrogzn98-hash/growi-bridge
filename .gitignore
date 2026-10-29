@@ -43,3 +43,9 @@ cosecha-pedidos.json
 # Supervisor local: entorno virtual y pruebas de cada PC
 supervisor/.venv/
 supervisor/_prueba/
+
+# Oficina 0.5.0: binarios y entornos de medicion (se descargan, no se versionan)
+oficina/mediciones/_bin/
+oficina/mediciones/.venv/
+oficina/mediciones/_corridas/
+oficina/mediciones/godot_escena/.godot/
