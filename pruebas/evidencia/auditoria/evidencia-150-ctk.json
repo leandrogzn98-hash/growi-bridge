@@ -1,0 +1,2696 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-auditoria-6f2j2hgh",
+ "variante": "ctk",
+ "dpi": "150",
+ "build_gui_s": 11.11,
+ "fuente": {
+  "en_uso": "Inter",
+  "inter_instalada": true,
+  "mono": "Consolas"
+ },
+ "tema": "oscuro-raycast",
+ "tokens": {
+  "bg": {
+   "esperado": "#0F0F0F",
+   "real": "#0F0F0F",
+   "igual": true
+  },
+  "card": {
+   "esperado": "#1A1A1C",
+   "real": "#1A1A1C",
+   "igual": true
+  },
+  "line": {
+   "esperado": "#2C2C2E",
+   "real": "#2C2C2E",
+   "igual": true
+  },
+  "text": {
+   "esperado": "#F5F5F7",
+   "real": "#F5F5F6",
+   "igual": false
+  },
+  "muted": {
+   "esperado": "#9A9AA0",
+   "real": "#9A9AA0",
+   "igual": true
+  },
+  "green": {
+   "esperado": "#34C759",
+   "real": "#34C759",
+   "igual": true
+  },
+  "orange": {
+   "esperado": "#FA5102",
+   "real": "#FA5102",
+   "igual": true
+  },
+  "red": {
+   "esperado": "#E5484D",
+   "real": "#E64C51",
+   "igual": false
+  },
+  "blue": {
+   "esperado": "#0A84FF",
+   "real": "#0A84FF",
+   "igual": true
+  },
+  "accent": {
+   "esperado": "#FF6363",
+   "real": "#ff6363",
+   "igual": true
+  },
+  "sidebar_mas_oscura": {
+   "sidebar": "#141416",
+   "bg": "#0F0F0F",
+   "ok": false
+  }
+ },
+ "contraste": {
+  "text/bg": 17.59,
+  "text/card": 15.95,
+  "muted/bg": 6.85,
+  "muted/card": 6.21,
+  "green_text/card": 9.45,
+  "red/card": 4.57,
+  "orange_text/card": 5.19,
+  "blue/card": 4.76,
+  "blanco/accent": 2.91
+ },
+ "paginas": {
+  "tareas": {
+   "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-tareas.png",
+   "ancho": 1426,
+   "alto": 1059,
+   "printwindow": true,
+   "medido": {
+    "textos_con_punto_medio": [
+     "Versión 0.2.0-alpha · carril A\nCon permisos de administrador",
+     "real · $0.00 equivalente Max · local $0"
+    ],
+    "mayusculas": [
+     [
+      "PY_VAR1",
+      10
+     ]
+    ],
+    "letra_menor_9pt": [
+     [
+      "0 esperando tu aprobación",
+      7
+     ],
+     [
+      "Agentes",
+      8
+     ],
+     [
+      "Antes de borrar, publicar, gastar o enviar algo, te enseño e",
+      7
+     ],
+     [
+      "Aprobadas  0",
+      7
+     ],
+     [
+      "Aprobadas hoy",
+      7
+     ],
+     [
+      "Automático (recomendado)   ▾",
+      7
+     ],
+     [
+      "Cambiar nivel",
+      7
+     ],
+     [
+      "Cosecha de tendencias",
+      8
+     ],
+     [
+      "Cuando el runner empiece una, se fija aquí con su motor, su ",
+      7
+     ],
+     [
+      "Elige una tarea de la lista para ver su revisión y su report",
+      7
+     ],
+     [
+      "En curso  0",
+      7
+     ],
+     [
+      "En curso",
+      7
+     ],
+     [
+      "Enviar",
+      7
+     ],
+     [
+      "Escribe la tarea y elige el motor. Claude hace el trabajo pe",
+      7
+     ],
+     [
+      "Fallidas  0",
+      7
+     ],
+     [
+      "Falta el token de TikTok, lo pone Leandro (TIKTOK_MS_TOKEN):",
+      7
+     ],
+     [
+      "Gasto de hoy",
+      7
+     ],
+     [
+      "Hasta 2 a la vez: nunca dos Claudes ni dos locales; lo que n",
+      7
+     ],
+     [
+      "Necesita decisión  0",
+      7
+     ],
+     [
+      "Necesita decisión: tras 3 rondas no quedó bien, o su aprobac",
+      7
+     ],
+     [
+      "Ninguna tarea corriendo ahora.",
+      7
+     ],
+     [
+      "Ningún agente trabajando ahora.",
+      7
+     ],
+     [
+      "Para darla por buena (opcional, una frase por línea): p. ej.",
+      7
+     ],
+     [
+      "Pedir cosecha",
+      7
+     ],
+     [
+      "Permisos",
+      7
+     ],
+     [
+      "Pide a la VM tendencias reales de TikTok o Instagram para un",
+      7
+     ],
+     [
+      "Siempre pregunta",
+      7
+     ],
+     [
+      "Sin revisión  0",
+      7
+     ],
+     [
+      "Todos  0",
+      7
+     ],
+     [
+      "ninguna corriendo",
+      7
+     ],
+     [
+      "real · $0.00 equivalente Max · local $0",
+      7
+     ],
+     [
+      "revisadas y aprobadas hoy",
+      7
+     ],
+     [
+      "✕",
+      7
+     ]
+    ],
+    "botones_con_acento": [
+     "Enviar",
+     "Pedir cosecha"
+    ],
+    "filas_treeview": {
+     "Treeview": 51,
+     "Tareas.Treeview": 51
+    }
+   },
+   "foco_igual": true,
+   "abrir_ms": {
+    "primera": 40,
+    "segunda": 20
+   }
+  },
+  "modelos": {
+   "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-modelos.png",
+   "ancho": 1426,
+   "alto": 1059,
+   "printwindow": true,
+   "medido": {
+    "textos_con_punto_medio": [
+     "0.6 GB en disco · necesita ~1.5 GB de VRAM con 8k (modelo 0.6 + contexto 0.9 + trabajo 0 GB)",
+     "0.8 GB en disco · necesita ~1.2 GB de VRAM con 8k (modelo 0.7 + contexto 0.2 aprox. + trabajo 0.2 GB)",
+     "1.1 GB en disco · necesita ~1.5 GB de VRAM con 8k (modelo 1 + contexto 0.2 + trabajo 0.2 GB)",
+     "1.3 GB en disco · necesita ~1.7 GB de VRAM con 8k (modelo 1.2 + contexto 0.2 + trabajo 0.2 GB)",
+     "14 GB en disco · necesita ~13.9 GB de VRAM con 4k (modelo 13 + contexto 0.6 + trabajo 0.2 GB)",
+     "2 GB en disco · necesita ~3 GB de VRAM con 8k (modelo 1.9 + contexto 0.9 + trabajo 0.2 GB)",
+     "2. Ollama · Hermes 3 8B (local $0)",
+     "2.5 GB en disco · necesita ~3.6 GB de VRAM con 8k (modelo 2.3 + contexto 1 + trabajo 0.2 GB)",
+     "20 GB en disco · necesita ~19.9 GB de VRAM con 4k (modelo 18.6 + contexto 1 + trabajo 0.2 GB)",
+     "3.3 GB en disco · necesita ~3.9 GB de VRAM con 8k (modelo 2.3 + contexto 0.7 + visión 0.8 + trabajo 0.1 GB)",
+     "4.1 GB en disco · necesita ~5.1 GB de VRAM con 8k (modelo 3.8 + contexto 1 + trabajo 0.2 GB)",
+     "4.7 GB en disco · necesita ~5 GB de VRAM con 8k (modelo 4.4 + contexto 0.4 + trabajo 0.2 GB)",
+     "4.7 GB en disco · necesita ~5.1 GB de VRAM con 8k (modelo 4.4 + contexto 0.4 + trabajo 0.2 GB)",
+     "4.9 GB en disco · necesita ~5.4 GB de VRAM con 8k (modelo 4.3 + contexto 1 + trabajo 0.1 GB)",
+     "4.9 GB en disco · necesita ~5.8 GB de VRAM con 8k (modelo 4.6 + contexto 1 + trabajo 0.2 GB)",
+     "4.9 GB en disco, instalado hace 10 días · en Ollama (no en models\\)",
+     "43 GB en disco · necesita ~41.5 GB de VRAM con 4k (modelo 40 + contexto 1.2 + trabajo 0.2 GB)",
+     "8.1 GB en disco · necesita ~9.3 GB de VRAM con 4k (modelo 7.5 + contexto 1.5 aprox. + trabajo 0.2 GB)",
+     "9 GB en disco · necesita ~9.4 GB de VRAM con 4k (modelo 8.4 + contexto 0.8 + trabajo 0.2 GB)",
+     "9.1 GB en disco · necesita ~9.5 GB de VRAM con 4k (modelo 8.5 + contexto 0.8 + trabajo 0.2 GB)",
+     "Contexto en tu tarjeta: 4k ✓ 18 % · 8k ✓ 25 % · 16k ✓ 40 %",
+     "Contexto en tu tarjeta: 4k ✓ 23 % · 8k ✓ 25 % · 16k ✓ 29 %",
+     "Contexto en tu tarjeta: 4k ✓ 26 % · 8k ✓ 29 % · 16k ✓ 33 %",
+     "Contexto en tu tarjeta: 4k ✓ 43 % · 8k ✓ 50 % · 16k ✓ 65 %",
+     "Contexto en tu tarjeta: 4k ✓ 51 % · 8k ✓ 60 % · 16k ✓ 76 %",
+     "Contexto en tu tarjeta: 4k ✓ 62 % · 8k ✓ 64 % · 16k ✓ 67 %",
+     "Contexto en tu tarjeta: 4k ✓ 76 % · 8k ✓ 84 % · 16k ✗ 101 %",
+     "Contexto en tu tarjeta: 4k ✓ 81 % · 8k ✓ 84 % · 16k ✓ 91 %",
+     "Contexto en tu tarjeta: 4k ✓ 81 % · 8k ✓ 84 % · 16k ✓ 92 %",
+     "Contexto en tu tarjeta: 4k ✓ 82 % · 8k ✓ 90 % · 16k ✗ 107 %",
+     "Contexto en tu tarjeta: 4k ✓ 89 % · 8k ✓ 97 % · 16k ✗ 114 %",
+     "Contexto en tu tarjeta: 4k ✓ ~18 % · 8k ✓ ~20 % · 16k ✓ ~23 %",
+     "Contexto en tu tarjeta: 4k ✗ 156 % · 8k ✗ 169 % · 16k ✗ 194 %",
+     "Contexto en tu tarjeta: 4k ✗ 158 % · 8k ✗ 171 % · 16k ✗ 197 %",
+     "Contexto en tu tarjeta: 4k ✗ 232 % · 8k ✗ 242 % · 16k ✗ 263 %",
+     "Contexto en tu tarjeta: 4k ✗ 331 % · 8k ✗ 348 % · 16k ✗ 381 %",
+     "Contexto en tu tarjeta: 4k ✗ 692 % · 8k ✗ 713 % · 16k ✗ 755 %",
+     "Contexto en tu tarjeta: 4k ✗ ~155 % · 8k ✗ ~180 % · 16k ✗ ~230 %",
+     "Coste: $0.1 / $0.5 por millón (entrada / salida, de lista) · con tu plan es equivalente, no dinero",
+     "Coste: $2 / $10 por millón (entrada / salida, de lista) · con tu plan es equivalente, no dinero",
+     "Coste: $4 / $20 por millón (entrada / salida, de lista) · con tu plan es equivalente, no dinero",
+     "Esta generación cuesta ~10 créditos en calidad estándar, te quedan 360 (según el saldo no en vivo). Después: ~36 a calid",
+     "Generaciones estimadas que te quedan: ~37 a calidad estándar (~10 créditos c/u) · ~7 a alta calidad (~55 créditos c/u; 6",
+     "Hermes 3 8B · Ollama (en tu PC) $0",
+     "Saldo: último saldo verificado, no en vivo (25 oct 2026) · aviso al 25% de 370 créditos (sin otro dato).",
+     "Versión 0.2.0-alpha · carril A\nCon permisos de administrador",
+     "fallback · $0 (local) ·",
+     "fallback · real (clave) o $0 (agy) ·",
+     "principal · equivalente Max ·"
+    ],
+    "mayusculas": [],
+    "letra_menor_9pt": [
+     [
+      "0.6 GB en disco · necesita ~1.5 GB de VRAM con 8k (modelo 0.",
+      7
+     ],
+     [
+      "0.8 GB en disco · necesita ~1.2 GB de VRAM con 8k (modelo 0.",
+      7
+     ],
+     [
+      "1. Claude",
+      7
+     ],
+     [
+      "1. Local Hermes 3 directo $0",
+      7
+     ],
+     [
+      "1.1 GB en disco · necesita ~1.5 GB de VRAM con 8k (modelo 1 ",
+      7
+     ],
+     [
+      "1.3 GB en disco · necesita ~1.7 GB de VRAM con 8k (modelo 1.",
+      7
+     ],
+     [
+      "14 GB en disco · necesita ~13.9 GB de VRAM con 4k (modelo 13",
+      7
+     ],
+     [
+      "2 GB en disco · necesita ~3 GB de VRAM con 8k (modelo 1.9 + ",
+      7
+     ],
+     [
+      "2. Gemini (Antigravity CLI)",
+      7
+     ],
+     [
+      "2. Ollama · Hermes 3 8B (local $0)",
+      7
+     ],
+     [
+      "2.5 GB en disco · necesita ~3.6 GB de VRAM con 8k (modelo 2.",
+      7
+     ],
+     [
+      "20 GB en disco · necesita ~19.9 GB de VRAM con 4k (modelo 18",
+      7
+     ],
+     [
+      "3. Claude (haiku)",
+      7
+     ],
+     [
+      "3. Local Hermes 3 directo $0",
+      7
+     ],
+     [
+      "3.3 GB en disco · necesita ~3.9 GB de VRAM con 8k (modelo 2.",
+      7
+     ],
+     [
+      "4.1 GB en disco · necesita ~5.1 GB de VRAM con 8k (modelo 3.",
+      7
+     ],
+     [
+      "4.7 GB en disco · necesita ~5 GB de VRAM con 8k (modelo 4.4 ",
+      7
+     ],
+     [
+      "4.7 GB en disco · necesita ~5.1 GB de VRAM con 8k (modelo 4.",
+      7
+     ],
+     [
+      "4.9 GB en disco · necesita ~5.4 GB de VRAM con 8k (modelo 4.",
+      7
+     ],
+     [
+      "4.9 GB en disco · necesita ~5.8 GB de VRAM con 8k (modelo 4.",
+      7
+     ],
+     [
+      "4.9 GB en disco, instalado hace 10 días · en Ollama (no en m",
+      7
+     ],
+     [
+      "43 GB en disco · necesita ~41.5 GB de VRAM con 4k (modelo 40",
+      7
+     ],
+     [
+      "8.1 GB en disco · necesita ~9.3 GB de VRAM con 4k (modelo 7.",
+      7
+     ],
+     [
+      "9 GB en disco · necesita ~9.4 GB de VRAM con 4k (modelo 8.4 ",
+      7
+     ],
+     [
+      "9.1 GB en disco · necesita ~9.5 GB de VRAM con 4k (modelo 8.",
+      7
+     ],
+     [
+      "A dónde apunta la API de ese motor (vacío si no tiene).",
+      7
+     ],
+     [
+      "Abre programas y hace tareas en tu PC.",
+      7
+     ],
+     [
+      "Abre y lee archivos de tus carpetas permitidas.",
+      7
+     ],
+     [
+      "Abrir páginas web",
+      7
+     ],
+     [
+      "Activo ahora: ninguna tarea en curso; la siguiente empieza c",
+      7
+     ],
+     [
+      "Activo.",
+      7
+     ],
+     [
+      "Actualizar",
+      7
+     ],
+     [
+      "Alta calidad",
+      7
+     ],
+     [
+      "Archivos .gguf que están en models\\ pero que el librero no h",
+      7
+     ],
+     [
+      "Asistente todo terreno: conversa, sigue instrucciones y reda",
+      7
+     ],
+     [
+      "Automático (recomendado)",
+      7
+     ],
+     [
+      "Añadir regla",
+      7
+     ],
+     [
+      "Aún no hay generaciones lanzadas desde la app. Registro: C:\\",
+      7
+     ],
+     [
+      "Borrar",
+      7
+     ],
+     [
+      "Busca información actualizada en la web.",
+      7
+     ],
+     [
+      "Buscar en internet",
+      7
+     ],
+     [
+      "Cabe en tu PC: hasta 16k de contexto. Ahora mismo, con 5.9 G",
+      7
+     ],
+     [
+      "Cabe en tu PC: hasta 8k de contexto. Ahora mismo, con 5.9 GB",
+      7
+     ],
+     [
+      "Cabe holgado: usa ~20% de tu VRAM con 8k (aprox.: ventana de",
+      7
+     ],
+     [
+      "Cabe holgado: usa ~25% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Cabe holgado: usa ~29% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Cabe holgado: usa ~50% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Cabe holgado: usa ~60% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Cabe holgado: usa ~64% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Cadena de respaldo",
+      8
+     ],
+     [
+      "Calidad",
+      7
+     ],
+     [
+      "Cambia archivos que ya existen.",
+      7
+     ],
+     [
+      "Charla general en muchos idiomas; muy bueno en español y con",
+      7
+     ],
+     [
+      "Cierra el navegador u otras apps que usen la tarjeta de vide",
+      7
+     ],
+     [
+      "Claude Haiku",
+      7
+     ],
+     [
+      "Claude Opus",
+      7
+     ],
+     [
+      "Claude Sonnet",
+      7
+     ],
+     [
+      "Claude: el más listo, va por internet.",
+      7
+     ],
+     [
+      "Codex (por internet)",
+      7
+     ],
+     [
+      "Comando",
+      7
+     ],
+     [
+      "Comprobar ahora",
+      7
+     ],
+     [
+      "Comprobar mi PC",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 18 % · 8k ✓ 25 % · 16k ✓ 40 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 23 % · 8k ✓ 25 % · 16k ✓ 29 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 26 % · 8k ✓ 29 % · 16k ✓ 33 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 43 % · 8k ✓ 50 % · 16k ✓ 65 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 51 % · 8k ✓ 60 % · 16k ✓ 76 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 62 % · 8k ✓ 64 % · 16k ✓ 67 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 76 % · 8k ✓ 84 % · 16k ✗ 101 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 81 % · 8k ✓ 84 % · 16k ✓ 91 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 81 % · 8k ✓ 84 % · 16k ✓ 92 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 82 % · 8k ✓ 90 % · 16k ✗ 107 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ 89 % · 8k ✓ 97 % · 16k ✗ 114 %",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✓ ~18 % · 8k ✓ ~20 % · 16k ✓ ~23 ",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✗ 156 % · 8k ✗ 169 % · 16k ✗ 194 ",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✗ 158 % · 8k ✗ 171 % · 16k ✗ 197 ",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✗ 232 % · 8k ✗ 242 % · 16k ✗ 263 ",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✗ 331 % · 8k ✗ 348 % · 16k ✗ 381 ",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✗ 692 % · 8k ✗ 713 % · 16k ✗ 755 ",
+      7
+     ],
+     [
+      "Contexto en tu tarjeta: 4k ✗ ~155 % · 8k ✗ ~180 % · 16k ✗ ~2",
+      7
+     ],
+     [
+      "Convierte textos en vectores para buscar por significado (me",
+      7
+     ],
+     [
+      "Coste: $0.1 / $0.5 por millón (entrada / salida, de lista) ·",
+      7
+     ],
+     [
+      "Coste: $0: corre en tu PC",
+      7
+     ],
+     [
+      "Coste: $2 / $10 por millón (entrada / salida, de lista) · co",
+      7
+     ],
+     [
+      "Coste: $4 / $20 por millón (entrada / salida, de lista) · co",
+      7
+     ],
+     [
+      "Coste: sin datos",
+      7
+     ],
+     [
+      "Coste: sin precio fijo: usa el más barato que lo hace bien (",
+      7
+     ],
+     [
+      "Costo en",
+      7
+     ],
+     [
+      "Costo estimado: ~10 estándar / ~55 alta, observado en Tripo ",
+      7
+     ],
+     [
+      "Costo",
+      7
+     ],
+     [
+      "Crea un modelo 3D (.glb) con la clave Tripo activa. Antes de",
+      7
+     ],
+     [
+      "Crear archivos",
+      7
+     ],
+     [
+      "Credencial",
+      7
+     ],
+     [
+      "Créditos de Tripo (el motor 3D) de tu clave activa en Ajuste",
+      7
+     ],
+     [
+      "De Microsoft: razona muy bien para su tamaño (matemáticas, l",
+      7
+     ],
+     [
+      "De los mejores abiertos para todo; necesita mucha memoria.",
+      7
+     ],
+     [
+      "DeepSeek-R1 1.5B",
+      7
+     ],
+     [
+      "DeepSeek-R1 14B",
+      7
+     ],
+     [
+      "DeepSeek-R1 7B",
+      7
+     ],
+     [
+      "Derecha",
+      7
+     ],
+     [
+      "Desactivar este motor",
+      7
+     ],
+     [
+      "Descargar",
+      7
+     ],
+     [
+      "Descargas",
+      8
+     ],
+     [
+      "Diminuto y muy rápido: clasificar, extraer datos y respuesta",
+      7
+     ],
+     [
+      "Diminuto: corre en casi cualquier PC, para tareas sencillas.",
+      7
+     ],
+     [
+      "Dirección (base_url)",
+      7
+     ],
+     [
+      "Dirige y produce videos de principio a fin.",
+      7
+     ],
+     [
+      "Disponible",
+      7
+     ],
+     [
+      "Editar tus archivos",
+      7
+     ],
+     [
+      "Ejemplo: python C:\\ruta\\mi_motor.py {prompt}  (sin {prompt},",
+      7
+     ],
+     [
+      "El clásico de Meta: equilibrado para charlar, resumir y reda",
+      7
+     ],
+     [
+      "El más ligero de la librería: para probar o PCs modestas.",
+      7
+     ],
+     [
+      "Elegido",
+      7
+     ],
+     [
+      "Elegir",
+      7
+     ],
+     [
+      "Elegir…",
+      7
+     ],
+     [
+      "Elige por ti en cada tarea y te dice quién respondió y por q",
+      7
+     ],
+     [
+      "Elige quién te contesta cuando le pides algo desde la app.",
+      7
+     ],
+     [
+      "En tu PC",
+      8
+     ],
+     [
+      "En vivo",
+      7
+     ],
+     [
+      "Escribe y explica código; el mejor de su tamaño para program",
+      7
+     ],
+     [
+      "Esta generación cuesta ~10 créditos en calidad estándar, te ",
+      7
+     ],
+     [
+      "Estado",
+      7
+     ],
+     [
+      "Estándar",
+      7
+     ],
+     [
+      "Formato de salida",
+      7
+     ],
+     [
+      "Frontal",
+      7
+     ],
+     [
+      "Gemma 3 12B",
+      7
+     ],
+     [
+      "Gemma 3 1B",
+      7
+     ],
+     [
+      "Gemma 3 4B",
+      7
+     ],
+     [
+      "Generaciones estimadas que te quedan: ~37 a calidad estándar",
+      7
+     ],
+     [
+      "Generar con Tripo",
+      8
+     ],
+     [
+      "Generar…",
+      7
+     ],
+     [
+      "Guarda archivos nuevos en tus carpetas permitidas.",
+      7
+     ],
+     [
+      "Hacer videos",
+      7
+     ],
+     [
+      "Hermano mayor de Gemma 3: más listo, también ve imágenes.",
+      7
+     ],
+     [
+      "Hermes 3 8B · Ollama (en tu PC) $0",
+      7
+     ],
+     [
+      "Hermes 3 8B",
+      7
+     ],
+     [
+      "Imagen a 3D",
+      7
+     ],
+     [
+      "Instalado en tu PC (Ollama)",
+      7
+     ],
+     [
+      "Instalar",
+      7
+     ],
+     [
+      "Izquierda",
+      7
+     ],
+     [
+      "JSON al final",
+      7
+     ],
+     [
+      "JSON por líneas",
+      7
+     ],
+     [
+      "La clave que usa, de las guardadas en el Administrador de cr",
+      7
+     ],
+     [
+      "Las habilidades de tu asistente. Si apagas una, deja de usar",
+      7
+     ],
+     [
+      "Lee una página que le indiques.",
+      7
+     ],
+     [
+      "Leer tus archivos",
+      7
+     ],
+     [
+      "Librería",
+      8
+     ],
+     [
+      "Llama 3.1 70B",
+      7
+     ],
+     [
+      "Llama 3.1 8B",
+      7
+     ],
+     [
+      "Llama 3.2 1B",
+      7
+     ],
+     [
+      "Llama 3.2 3B",
+      7
+     ],
+     [
+      "Lo que no puede",
+      7
+     ],
+     [
+      "Lo que se añade al comando, p. ej. --resume {session}. Vacío",
+      7
+     ],
+     [
+      "Lo que tu asistente cumple siempre, sin que tengas que repet",
+      7
+     ],
+     [
+      "Los modelos se bajan de Hugging Face a la carpeta models\\ en",
+      7
+     ],
+     [
+      "Mistral 7B",
+      7
+     ],
+     [
+      "Mistral Small 24B",
+      7
+     ],
+     [
+      "Modelos gratis para tu PC. El color dice si caben con su con",
+      7
+     ],
+     [
+      "Motores",
+      8
+     ],
+     [
+      "Multiview (2–4 fotos)",
+      7
+     ],
+     [
+      "Muy buen asistente general; pide una tarjeta de video grande",
+      7
+     ],
+     [
+      "Muy potente, casi como los de internet; necesita una PC enor",
+      7
+     ],
+     [
+      "Más listo que el 7B: textos largos, análisis y varios idioma",
+      7
+     ],
+     [
+      "Nada sin registrar: todo lo que hay en models\\ está comproba",
+      7
+     ],
+     [
+      "No borres nada sin pedirme permiso",
+      7
+     ],
+     [
+      "No cabe",
+      7
+     ],
+     [
+      "No cabe: necesita 13.9 GB de VRAM con 4k de contexto y tu ta",
+      7
+     ],
+     [
+      "No cabe: necesita 19.9 GB de VRAM con 4k de contexto y tu ta",
+      7
+     ],
+     [
+      "No cabe: necesita 41.5 GB de VRAM con 4k de contexto y tu ta",
+      7
+     ],
+     [
+      "No cabe: necesita 9.3 GB de VRAM con 4k de contexto y tu tar",
+      7
+     ],
+     [
+      "No cabe: necesita 9.4 GB de VRAM con 4k de contexto y tu tar",
+      7
+     ],
+     [
+      "No cabe: necesita 9.5 GB de VRAM con 4k de contexto y tu tar",
+      7
+     ],
+     [
+      "No hay ninguna descarga en curso.",
+      7
+     ],
+     [
+      "Nombre",
+      7
+     ],
+     [
+      "Nuevo motor",
+      8
+     ],
+     [
+      "Para continuar una sesión",
+      7
+     ],
+     [
+      "Pega el comando del programa con los huecos {prompt} {cwd} {",
+      7
+     ],
+     [
+      "Pequeño pero razona bien; bueno para matemáticas sencillas.",
+      7
+     ],
+     [
+      "Pequeño y rápido de Google; también entiende imágenes.",
+      7
+     ],
+     [
+      "Pequeño y veloz: resúmenes, clasificar y respuestas rápidas.",
+      7
+     ],
+     [
+      "Phi-4 14B",
+      7
+     ],
+     [
+      "Phi-4 Mini 3.8B",
+      7
+     ],
+     [
+      "Piensa paso a paso antes de responder: lógica y matemáticas.",
+      7
+     ],
+     [
+      "Pregúntame antes de gastar dinero",
+      7
+     ],
+     [
+      "Probar",
+      7
+     ],
+     [
+      "Procesador: AMD Ryzen 7 4800H with Radeon Graphics (8 núcleo",
+      7
+     ],
+     [
+      "Programa",
+      7
+     ],
+     [
+      "Programador más capaz que el 7B, para proyectos grandes.",
+      7
+     ],
+     [
+      "Quien hace la tarea",
+      7
+     ],
+     [
+      "Quien la revisa",
+      7
+     ],
+     [
+      "Quitar",
+      7
+     ],
+     [
+      "Quién puede hacer el trabajo y lo que de verdad puede y no p",
+      7
+     ],
+     [
+      "Quién responde",
+      8
+     ],
+     [
+      "Qué es",
+      7
+     ],
+     [
+      "Qué puede hacer",
+      8
+     ],
+     [
+      "Qwen 2.5 14B",
+      7
+     ],
+     [
+      "Qwen 2.5 32B",
+      7
+     ],
+     [
+      "Qwen 2.5 7B",
+      7
+     ],
+     [
+      "Qwen 2.5 Coder 14B",
+      7
+     ],
+     [
+      "Qwen 2.5 Coder 7B",
+      7
+     ],
+     [
+      "Qwen3 0.6B",
+      7
+     ],
+     [
+      "Qwen3 Embedding 0.6B",
+      7
+     ],
+     [
+      "RTX 3060 Laptop, 6 GB VRAM, 15 GB RAM y 68 GB libres",
+      7
+     ],
+     [
+      "Razonamiento paso a paso en miniatura; rápido en cualquier P",
+      7
+     ],
+     [
+      "Razonamiento paso a paso más fino que el 7B.",
+      7
+     ],
+     [
+      "Reglas",
+      8
+     ],
+     [
+      "Respaldo",
+      7
+     ],
+     [
+      "Respuesta en",
+      7
+     ],
+     [
+      "Reverse engineer anything",
+      7
+     ],
+     [
+      "Rápido y ligero; bueno para respuestas cortas y borradores.",
+      7
+     ],
+     [
+      "Saldo Tripo",
+      8
+     ],
+     [
+      "Saldo: último saldo verificado, no en vivo (25 oct 2026) · a",
+      7
+     ],
+     [
+      "Sesión en",
+      7
+     ],
+     [
+      "Si el motor de una tarea no responde (429, 5xx, red, cuota, ",
+      7
+     ],
+     [
+      "Si un motor falla 3 veces seguidas, 5 min al siguiente y lue",
+      7
+     ],
+     [
+      "Sin credencial: el motor no usa clave (como Claude con la se",
+      7
+     ],
+     [
+      "Sin registrar",
+      8
+     ],
+     [
+      "Texto a 3D",
+      7
+     ],
+     [
+      "Texto normal",
+      7
+     ],
+     [
+      "Texto normal: la respuesta es todo lo que el programa escrib",
+      7
+     ],
+     [
+      "Tipo",
+      7
+     ],
+     [
+      "Trasera",
+      7
+     ],
+     [
+      "Tu PC",
+      8
+     ],
+     [
+      "Turnos en",
+      7
+     ],
+     [
+      "URL base",
+      7
+     ],
+     [
+      "Una habilidad extra que instalaste.",
+      7
+     ],
+     [
+      "Usar los programas del PC",
+      7
+     ],
+     [
+      "Usar por defecto",
+      7
+     ],
+     [
+      "Va justo: usa ~84% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Va justo: usa ~90% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Va justo: usa ~97% de tu VRAM con 8k",
+      7
+     ],
+     [
+      "Ver nombre exacto",
+      7
+     ],
+     [
+      "Volver a leer",
+      7
+     ],
+     [
+      "disponible",
+      7
+     ],
+     [
+      "disponible: binario: C:\\Users\\forte\\.local\\bin\\claude.exe",
+      7
+     ],
+     [
+      "fallback · $0 (local) ·",
+      7
+     ],
+     [
+      "fallback · real (clave) o $0 (agy) ·",
+      7
+     ],
+     [
+      "https://api.anthropic.com",
+      7
+     ],
+     [
+      "lo dice el motor al terminar cada tarea",
+      7
+     ],
+     [
+      "nada que declarar",
+      7
+     ],
+     [
+      "ninguno declarado",
+      7
+     ],
+     [
+      "no disponible",
+      7
+     ],
+     [
+      "no en vivo",
+      7
+     ],
+     [
+      "nunca (pulsa Comprobar ahora)",
+      7
+     ],
+     [
+      "principal · equivalente Max ·",
+      7
+     ],
+     [
+      "programa de línea de comandos",
+      7
+     ],
+     [
+      "saldo no disponible — falta guardar la clave en Ajustes → AP",
+      7
+     ],
+     [
+      "sin comprobar (pulsa Comprobar ahora)",
+      7
+     ],
+     [
+      "sin credencial: no usa clave (Claude Max (sesión de Claude C",
+      7
+     ],
+     [
+      "verificado. Motor principal: corre cada día (orquestación, c",
+      7
+     ],
+     [
+      "Último healthcheck",
+      7
+     ],
+     [
+      "↑",
+      7
+     ],
+     [
+      "↓",
+      7
+     ],
+     [
+      "●",
+      7
+     ],
+     [
+      "✓",
+      7
+     ]
+    ],
+    "botones_con_acento": [
+     "Añadir regla",
+     "Comprobar mi PC",
+     "Descargar",
+     "Generar…",
+     "Instalar",
+     "Probar"
+    ],
+    "filas_treeview": {}
+   },
+   "foco_igual": true,
+   "abrir_ms": {
+    "primera": 3870,
+    "segunda": 1537
+   }
+  },
+  "ajustes": {
+   "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-ajustes.png",
+   "ancho": 1426,
+   "alto": 1059,
+   "printwindow": true,
+   "medido": {
+    "textos_con_punto_medio": [
+     "Disponible · 2.1.312 (Claude Code) · comprobado 14:27",
+     "Disponible · codex-cli 0.160.1 · comprobado 14:27",
+     "Disponible · ollama version is 0.40.10 · comprobado 14:27",
+     "Estado: Ollama · Hermes 3 8B (local $0)",
+     "No disponible: sin credencial: no hay ninguna clave de gemini guardada (Ajustes → Claves) · 14:27",
+     "No disponible: sin credencial: no hay ninguna clave de meshy guardada (Ajustes → Claves) · 14:27",
+     "No disponible: sin respuesta de 127.0.0.1:8080 en 2 s · 14:27",
+     "Ollama · Hermes 3 8B (local $0)",
+     "Sin clave · pon tu clave en APIs para que pueda trabajar.",
+     "Versión 0.2.0-alpha · carril A\nCon permisos de administrador",
+     "✓ = lo hace sin preguntar · ? = te enseña el plan y espera tu sí · ✕ = nunca · — = ese motor solo responde texto · * = p"
+    ],
+    "mayusculas": [],
+    "letra_menor_9pt": [
+     [
+      "$0, local, offline. Español por defecto; deja <archivo>.tran",
+      7
+     ],
+     [
+      "100 %",
+      7
+     ],
+     [
+      "125 %",
+      7
+     ],
+     [
+      "150 %",
+      7
+     ],
+     [
+      "Abre Tareas con el cursor listo para pedirle algo a Claude.",
+      7
+     ],
+     [
+      "Abrir Inbox",
+      7
+     ],
+     [
+      "Abrir Outbox",
+      7
+     ],
+     [
+      "Abrir la carpeta de temas",
+      7
+     ],
+     [
+      "Abrir la paleta de acciones",
+      7
+     ],
+     [
+      "Abrir",
+      7
+     ],
+     [
+      "Actualización automática",
+      7
+     ],
+     [
+      "Actualizar ahora",
+      7
+     ],
+     [
+      "Agranda toda la interfaz, texto y medidas juntos, para leer ",
+      7
+     ],
+     [
+      "Ahora: Oscuro Raycast (oscuro-raycast.json).",
+      7
+     ],
+     [
+      "Ajustes avanzados del proxy",
+      7
+     ],
+     [
+      "Al cerrar la ventana",
+      7
+     ],
+     [
+      "Al elegir el proveedor se rellena su URL base oficial; cámbi",
+      7
+     ],
+     [
+      "Antes de actuar",
+      7
+     ],
+     [
+      "Antes de borrar, publicar, gastar o enviar algo, Growi te en",
+      7
+     ],
+     [
+      "Antes de borrar, publicar, gastar o enviar algo, te enseño e",
+      7
+     ],
+     [
+      "Apagar PC",
+      7
+     ],
+     [
+      "Apagar o reiniciar este PC",
+      7
+     ],
+     [
+      "Arranca sola con Windows al iniciar sesión.",
+      7
+     ],
+     [
+      "Automatizaciones",
+      7
+     ],
+     [
+      "Añadir o reemplazar una clave",
+      8
+     ],
+     [
+      "Añadir por WhatsApp",
+      7
+     ],
+     [
+      "Blender 5.2.2 LTS en C:\\Program Files\\Blender Foundation\\Ble",
+      7
+     ],
+     [
+      "Busca y lanza cualquier acción escribiendo.",
+      7
+     ],
+     [
+      "Buscar actualizaciones",
+      7
+     ],
+     [
+      "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-auditoria-6f2",
+      7
+     ],
+     [
+      "Cada uno guarda el suyo; cambiar uno no toca los demás.",
+      7
+     ],
+     [
+      "Calendario (para los briefs de reunión)",
+      7
+     ],
+     [
+      "Cancelar apagado",
+      7
+     ],
+     [
+      "Carpeta de modelos",
+      7
+     ],
+     [
+      "Carpetas y versión",
+      7
+     ],
+     [
+      "Carpetas",
+      7
+     ],
+     [
+      "ChatGPT — conectada. Codex con Logged in using ChatGPT. Plan",
+      7
+     ],
+     [
+      "Claro",
+      7
+     ],
+     [
+      "Claro, oscuro o el que use Windows. Cambia al momento, sin r",
+      7
+     ],
+     [
+      "Claude Max — conectada. Claude Code con sesión Max (OAuth de",
+      7
+     ],
+     [
+      "Clave",
+      7
+     ],
+     [
+      "Claves",
+      8
+     ],
+     [
+      "Comando de IA integrado: abre su ventana con el texto selecc",
+      7
+     ],
+     [
+      "Comprobar mi PC",
+      7
+     ],
+     [
+      "Comprobar",
+      7
+     ],
+     [
+      "Conectar…",
+      7
+     ],
+     [
+      "Configuración inicial",
+      7
+     ],
+     [
+      "Ctrl + Alt + G",
+      7
+     ],
+     [
+      "Ctrl + K",
+      7
+     ],
+     [
+      "Dentro de Bridge",
+      7
+     ],
+     [
+      "Disponible · 2.1.312 (Claude Code) · comprobado 14:27",
+      7
+     ],
+     [
+      "Disponible · codex-cli 0.160.1 · comprobado 14:27",
+      7
+     ],
+     [
+      "Disponible · ollama version is 0.40.10 · comprobado 14:27",
+      7
+     ],
+     [
+      "Dónde puede leer y escribir Growi (la lista se edita en Carp",
+      7
+     ],
+     [
+      "Dónde se guardan: un archivo cifrado con DPAPI (credenciales",
+      7
+     ],
+     [
+      "Editar mi perfil",
+      7
+     ],
+     [
+      "Editar reglas",
+      7
+     ],
+     [
+      "Editar",
+      7
+     ],
+     [
+      "En cualquier aplicación",
+      7
+     ],
+     [
+      "Equilibrado",
+      7
+     ],
+     [
+      "Estado: Claude",
+      7
+     ],
+     [
+      "Estado: Codex",
+      7
+     ],
+     [
+      "Estado: Gemini (Antigravity CLI)",
+      7
+     ],
+     [
+      "Estado: Local Hermes 3 directo $0",
+      7
+     ],
+     [
+      "Estado: Meshy (3D)",
+      7
+     ],
+     [
+      "Estado: Ollama · Hermes 3 8B (local $0)",
+      7
+     ],
+     [
+      "Estás en la última versión.",
+      7
+     ],
+     [
+      "Etiqueta",
+      7
+     ],
+     [
+      "Exportar configuración",
+      7
+     ],
+     [
+      "Exportar conversaciones",
+      7
+     ],
+     [
+      "Exportar mis conversaciones",
+      7
+     ],
+     [
+      "Exportar",
+      7
+     ],
+     [
+      "Exportar…",
+      7
+     ],
+     [
+      "Funcionan aunque estés en otra aplicación. Windows se los gu",
+      7
+     ],
+     [
+      "Funcionan con la ventana de Bridge o la paleta delante. No o",
+      7
+     ],
+     [
+      "Growi en una esquina de la pantalla: te avisa de lo que pasa",
+      7
+     ],
+     [
+      "Growi lo hace todo sin enseñarte el plan. Pide doble confirm",
+      7
+     ],
+     [
+      "Guarda lo que copias, solo texto, 30 días, en tu PC (nunca s",
+      7
+     ],
+     [
+      "Guardar",
+      7
+     ],
+     [
+      "Haz clic en un campo y pulsa la combinación que quieras: se ",
+      7
+     ],
+     [
+      "Hazlo sin preguntar",
+      7
+     ],
+     [
+      "Herramienta: Blender (no es un motor)",
+      7
+     ],
+     [
+      "Herramienta: transcribir audio y video (no es un motor)",
+      7
+     ],
+     [
+      "Historial del portapapeles",
+      7
+     ],
+     [
+      "Host, puerto, usuario y clave: están plegados en Estado, jun",
+      7
+     ],
+     [
+      "Importar configuración",
+      7
+     ],
+     [
+      "Importar…",
+      7
+     ],
+     [
+      "Iniciar al encender la PC",
+      7
+     ],
+     [
+      "La PC no se duerme mientras Claude corre una tarea.",
+      7
+     ],
+     [
+      "La dirección secreta iCal de Google Calendar: solo lectura, ",
+      7
+     ],
+     [
+      "La ruta oficial de Claude, paso a paso; Bridge apunta la fec",
+      7
+     ],
+     [
+      "Lee ese archivo y guarda una copia .bak de lo de ahora.",
+      7
+     ],
+     [
+      "Lo copiado guardado",
+      7
+     ],
+     [
+      "Lo que esto protege y lo que no: Windows cifra las claves co",
+      7
+     ],
+     [
+      "Los 4 pasos del principio: asistente, conectar, carpetas y c",
+      7
+     ],
+     [
+      "Mascota",
+      7
+     ],
+     [
+      "Mejorar texto (comando guardado)",
+      7
+     ],
+     [
+      "Mi proxy (el del VPS), el del sistema o ninguno.",
+      7
+     ],
+     [
+      "Mi proxy",
+      7
+     ],
+     [
+      "Minimizar a la bandeja",
+      7
+     ],
+     [
+      "Mis comandos",
+      7
+     ],
+     [
+      "Modelo para: Chat de Tareas",
+      7
+     ],
+     [
+      "Modelo para: Comandos de IA guardados",
+      7
+     ],
+     [
+      "Modelo para: Pregunta rápida (paleta y cajita)",
+      7
+     ],
+     [
+      "Modelo para: Revisión del runner",
+      7
+     ],
+     [
+      "Modo Automático",
+      7
+     ],
+     [
+      "Modo del proxy",
+      7
+     ],
+     [
+      "Mostrar u ocultar la ventana",
+      7
+     ],
+     [
+      "Motor por defecto",
+      7
+     ],
+     [
+      "No disponible: sin credencial: no hay ninguna clave de gemin",
+      7
+     ],
+     [
+      "No disponible: sin credencial: no hay ninguna clave de meshy",
+      7
+     ],
+     [
+      "No disponible: sin respuesta de 127.0.0.1:8080 en 2 s · 14:2",
+      7
+     ],
+     [
+      "No suspender mientras trabaja",
+      7
+     ],
+     [
+      "Nunca animar",
+      7
+     ],
+     [
+      "Oscuro",
+      7
+     ],
+     [
+      "Para la tarea que esté corriendo (antes te pide confirmación",
+      7
+     ],
+     [
+      "Parar la tarea en curso",
+      7
+     ],
+     [
+      "Pedir permiso si puede costar mucho",
+      7
+     ],
+     [
+      "Por WhatsApp la clave pasa por el chat y por la VM antes de ",
+      7
+     ],
+     [
+      "Por dónde sale Claude a internet. Probar mira el proxy y Cla",
+      7
+     ],
+     [
+      "Potente",
+      7
+     ],
+     [
+      "Preguntar rápido",
+      7
+     ],
+     [
+      "Preguntarme siempre",
+      7
+     ],
+     [
+      "Preguntarme solo lo delicado",
+      7
+     ],
+     [
+      "Preguntarme",
+      7
+     ],
+     [
+      "Probar",
+      7
+     ],
+     [
+      "Proveedor",
+      7
+     ],
+     [
+      "Proxy",
+      7
+     ],
+     [
+      "Quitar",
+      7
+     ],
+     [
+      "Quién eres, qué haces y cómo escribes: el asistente lo usa e",
+      7
+     ],
+     [
+      "Qué hace la X: quedarse en la bandeja (sigue recibiendo tare",
+      7
+     ],
+     [
+      "Qué modelos caben en tu tarjeta gráfica (página Modelos).",
+      7
+     ],
+     [
+      "Recordatorios y chequeos programados (salud, cuota, cola, re",
+      7
+     ],
+     [
+      "Reducir movimiento",
+      7
+     ],
+     [
+      "Reglas permanentes",
+      7
+     ],
+     [
+      "Reiniciar PC",
+      7
+     ],
+     [
+      "Resumir en 3 viñetas (comando guardado)",
+      7
+     ],
+     [
+      "Rápido",
+      7
+     ],
+     [
+      "Rápido: local o barato primero. Equilibrado: barato primero,",
+      7
+     ],
+     [
+      "Salir del todo",
+      7
+     ],
+     [
+      "Salir",
+      7
+     ],
+     [
+      "Se actualiza sola desde GitHub cuando hay una versión nueva.",
+      7
+     ],
+     [
+      "Se aplica al reiniciar",
+      6
+     ],
+     [
+      "Seguir el sistema",
+      7
+     ],
+     [
+      "Según el sistema",
+      7
+     ],
+     [
+      "Sesión Max (motor claude, sin clave de API): $0.00 equivalen",
+      7
+     ],
+     [
+      "Si el peor caso estimado de una tarea (3 rondas) pasa de est",
+      7
+     ],
+     [
+      "Siempre animar",
+      7
+     ],
+     [
+      "Sin animaciones, el botón y la mascota se quedan quietos y t",
+      7
+     ],
+     [
+      "Sin atajo",
+      7
+     ],
+     [
+      "Sin proxy",
+      7
+     ],
+     [
+      "Sobre mí",
+      7
+     ],
+     [
+      "Solo pregunto si es grave: gastar dinero, publicar, borrar e",
+      7
+     ],
+     [
+      "Suscripción: ChatGPT",
+      7
+     ],
+     [
+      "Suscripción: Claude Max",
+      7
+     ],
+     [
+      "Tamaño del texto",
+      7
+     ],
+     [
+      "Te pide confirmación y tienes 60 segundos para cancelarlo.",
+      7
+     ],
+     [
+      "Tema por nombre",
+      7
+     ],
+     [
+      "Tema",
+      7
+     ],
+     [
+      "Todavía no hay ninguna clave. Añade una abajo.",
+      7
+     ],
+     [
+      "Todo lo de la app en un solo sitio. Cada cambio se guarda so",
+      8
+     ],
+     [
+      "Tope del mes $",
+      7
+     ],
+     [
+      "Traducir (comando guardado)",
+      7
+     ],
+     [
+      "Trae Bridge delante o la esconde en la bandeja.",
+      7
+     ],
+     [
+      "Transcribir…",
+      7
+     ],
+     [
+      "Tus ajustes y carpetas en un archivo .json (sin claves, prox",
+      7
+     ],
+     [
+      "Tus scripts .py, .bat y .ps1 de la carpeta comandos: salen e",
+      7
+     ],
+     [
+      "URL base",
+      7
+     ],
+     [
+      "Una fila por clave, agrupadas por proveedor. Puedes tener va",
+      7
+     ],
+     [
+      "Usar proxy del sistema",
+      7
+     ],
+     [
+      "Verlo todo, borrar uno («no guardar nunca esto») o borrarlo ",
+      7
+     ],
+     [
+      "Versión 0.2.0-alpha.",
+      7
+     ],
+     [
+      "Ver…",
+      7
+     ],
+     [
+      "Volver a hacerla",
+      7
+     ],
+     [
+      "claude: lo dice engines.json (por_defecto). Cada tarea puede",
+      7
+     ],
+     [
+      "por plan $",
+      7
+     ],
+     [
+      "por tarea $",
+      7
+     ],
+     [
+      "«Permitir siempre», «Preguntar siempre» o «No permitir nunca",
+      7
+     ],
+     [
+      "○ Comprobando la conexión…",
+      7
+     ],
+     [
+      "● Disponible",
+      7
+     ],
+     [
+      "● No disponible",
+      7
+     ],
+     [
+      "⚠ Usar la sesión Max por un proxy desde Venezuela puede hace",
+      7
+     ]
+    ],
+    "botones_con_acento": [
+     "Guardar"
+    ],
+    "filas_treeview": {}
+   },
+   "foco_igual": true,
+   "abrir_ms": {
+    "primera": 886,
+    "segunda": 23
+   }
+  },
+  "estado": {
+   "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-estado.png",
+   "ancho": 1426,
+   "alto": 1059,
+   "printwindow": true,
+   "medido": {
+    "textos_con_punto_medio": [
+     "Disponible · 2.1.312 (Claude Code) · comprobado 14:27",
+     "Disponible · codex-cli 0.160.1 · comprobado 14:27",
+     "Disponible · ollama version is 0.40.10 · comprobado 14:27",
+     "Encendido · 0 en cola",
+     "No disponible: sin credencial: no hay ninguna clave de gemini guardada (Ajustes → Claves) · 14:27",
+     "No disponible: sin credencial: no hay ninguna clave de meshy guardada (Ajustes → Claves) · 14:27",
+     "No disponible: sin respuesta de 127.0.0.1:8080 en 2 s · 14:27",
+     "Ollama · Hermes 3 8B (local $0)",
+     "Versión 0.2.0-alpha · carril A\nCon permisos de administrador"
+    ],
+    "mayusculas": [],
+    "letra_menor_9pt": [
+     [
+      "0 pendientes, 0 en ejecución, 0 fallidas",
+      7
+     ],
+     [
+      "0 tu aprobación (no frenan la cola), 0 tu decisión",
+      7
+     ],
+     [
+      "3 de 3 activas: hypit, reverse-engineer-anything, synced",
+      7
+     ],
+     [
+      "Acceso remoto",
+      7
+     ],
+     [
+      "Avast VPN a Manual…",
+      7
+     ],
+     [
+      "Avast VPN está activo: puede cortar el túnel. ¿Lo paro?",
+      7
+     ],
+     [
+      "Avast VPN: ACTIVO, servicio «SecureLine» (Avast VPN), inicio",
+      7
+     ],
+     [
+      "Cadena de modelos y respaldo",
+      7
+     ],
+     [
+      "Canales",
+      7
+     ],
+     [
+      "Cargadas",
+      7
+     ],
+     [
+      "Carpeta vigilada…",
+      7
+     ],
+     [
+      "Claude (por defecto)",
+      7
+     ],
+     [
+      "Claude ve la IP por la que sales. Cambiar a menudo de IP o d",
+      7
+     ],
+     [
+      "Codex",
+      7
+     ],
+     [
+      "Cola",
+      7
+     ],
+     [
+      "Comprobar",
+      7
+     ],
+     [
+      "Copia del historial de Claude Code a la VM: todavía no se hi",
+      7
+     ],
+     [
+      "Copiar el historial a la VM ahora",
+      7
+     ],
+     [
+      "Credencial",
+      7
+     ],
+     [
+      "De Bridge",
+      7
+     ],
+     [
+      "Deja el ZIP que te llega por correo en C:\\Users\\forte\\AppDat",
+      7
+     ],
+     [
+      "Dejarlo",
+      7
+     ],
+     [
+      "Deshabilitar Avast VPN…",
+      7
+     ],
+     [
+      "Detalle técnico",
+      7
+     ],
+     [
+      "El chat de Muse",
+      7
+     ],
+     [
+      "El estado real de cada servicio y motor: el del propio servi",
+      7
+     ],
+     [
+      "En tu PC",
+      7
+     ],
+     [
+      "Esperan",
+      7
+     ],
+     [
+      "Estado",
+      7
+     ],
+     [
+      "Exportar mis conversaciones",
+      7
+     ],
+     [
+      "Forzar siempre el proxy del VPS",
+      7
+     ],
+     [
+      "Gateway",
+      7
+     ],
+     [
+      "Gateway",
+      8
+     ],
+     [
+      "Gemini (Antigravity CLI)",
+      7
+     ],
+     [
+      "Ir a Modelos",
+      7
+     ],
+     [
+      "La cajita de la mascota",
+      7
+     ],
+     [
+      "Leído en vivo a las 14:29:18.",
+      7
+     ],
+     [
+      "Local Hermes 3 directo $0",
+      7
+     ],
+     [
+      "Los últimos 7 días, de los resultados reales de la cola.",
+      7
+     ],
+     [
+      "Meshy (3D)",
+      7
+     ],
+     [
+      "Modelo activo",
+      7
+     ],
+     [
+      "Mostrar",
+      7
+     ],
+     [
+      "Motores",
+      7
+     ],
+     [
+      "Métricas",
+      8
+     ],
+     [
+      "Ollama · Hermes 3 8B (local $0)",
+      7
+     ],
+     [
+      "Orden",
+      7
+     ],
+     [
+      "Pararlo",
+      7
+     ],
+     [
+      "Primera vez: guardé esta IP como referencia. No hay ningún c",
+      7
+     ],
+     [
+      "Quitado. Al ponerlo, lo que la app y el runner mandan a Clau",
+      7
+     ],
+     [
+      "Recarga en caliente",
+      7
+     ],
+     [
+      "Reiniciar el servicio de Tailscale…",
+      7
+     ],
+     [
+      "Respaldo por motor",
+      7
+     ],
+     [
+      "Revisión",
+      7
+     ],
+     [
+      "Runner",
+      7
+     ],
+     [
+      "Sales por tu IP de Datacamp (Colombia, sin proxy): 79.127.21",
+      7
+     ],
+     [
+      "Salida a internet",
+      8
+     ],
+     [
+      "Salud",
+      8
+     ],
+     [
+      "Servicio «SecureLine». Parar el servicio puede pedir adminis",
+      7
+     ],
+     [
+      "Si la cuenta de Claude cae, lo exportado es lo único que se ",
+      7
+     ],
+     [
+      "Skills",
+      7
+     ],
+     [
+      "Tareas",
+      7
+     ],
+     [
+      "Todavía no registraste ninguna exportación.",
+      7
+     ],
+     [
+      "Tus conversaciones",
+      8
+     ],
+     [
+      "Túnel Tailscale: activo. Ninguna caída registrada todavía.",
+      7
+     ],
+     [
+      "Un solo proceso hace de puente, runner y cola. Se lee en viv",
+      7
+     ],
+     [
+      "Ver caídas del túnel",
+      7
+     ],
+     [
+      "Ver tareas",
+      7
+     ],
+     [
+      "Verificar un ZIP…",
+      7
+     ],
+     [
+      "Volver a comprobar",
+      7
+     ],
+     [
+      "WhatsApp",
+      7
+     ],
+     [
+      "apagada",
+      7
+     ],
+     [
+      "claude (el de por defecto)",
+      7
+     ],
+     [
+      "claude → el modelo local si cae la nube",
+      7
+     ],
+     [
+      "conectado por el puente",
+      7
+     ],
+     [
+      "disponible: programa instalado",
+      7
+     ],
+     [
+      "disponible: responde",
+      7
+     ],
+     [
+      "esperando tareas",
+      7
+     ],
+     [
+      "gemini pasa a llama",
+      7
+     ],
+     [
+      "gemini, clave «gemini-personal», no está guardada",
+      7
+     ],
+     [
+      "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+      7
+     ],
+     [
+      "llama y si no, ollama y si no, claude",
+      7
+     ],
+     [
+      "meshy, clave «meshy-personal», no está guardada",
+      7
+     ],
+     [
+      "ninguno desde que arrancó: se usa el orden de arriba",
+      7
+     ],
+     [
+      "no disponible: sin credencial: la clave «gemini-personal» de",
+      7
+     ],
+     [
+      "no disponible: sin credencial: la clave «meshy-personal» de ",
+      7
+     ],
+     [
+      "no disponible: sin respuesta del servidor local en 2 s",
+      7
+     ],
+     [
+      "no usa clave",
+      7
+     ],
+     [
+      "por Tailscale, solo desde tu red",
+      7
+     ],
+     [
+      "proceso, puertos y token (plegado)",
+      7
+     ],
+     [
+      "rules.json a las 14:27:56: reglas",
+      7
+     ],
+     [
+      "sin datos: no encuentro la carpeta C:\\Users\\forte\\AppData\\Lo",
+      7
+     ],
+     [
+      "vivo desde las 14:27 (hace 1 min); una sola instancia",
+      7
+     ],
+     [
+      "Última",
+      7
+     ],
+     [
+      "Último cambio",
+      7
+     ]
+    ],
+    "botones_con_acento": [
+     "Exportar mis conversaciones",
+     "Pararlo"
+    ],
+    "filas_treeview": {}
+   },
+   "foco_igual": true,
+   "abrir_ms": {
+    "primera": 7,
+    "segunda": 6
+   }
+  },
+  "recursos": {
+   "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-recursos.png",
+   "ancho": 1426,
+   "alto": 1059,
+   "printwindow": true,
+   "medido": {
+    "textos_con_punto_medio": [
+     "Versión 0.2.0-alpha · carril A\nCon permisos de administrador"
+    ],
+    "mayusculas": [
+     [
+      "PY_VAR3",
+      11
+     ]
+    ],
+    "letra_menor_9pt": [
+     [
+      "1 h",
+      7
+     ],
+     [
+      "1 min",
+      7
+     ],
+     [
+      "15 min",
+      7
+     ],
+     [
+      "5 min",
+      7
+     ],
+     [
+      "CPU y memoria medidas en este PC cada 2 s. Elige cuánto tiem",
+      7
+     ],
+     [
+      "CPU",
+      7
+     ],
+     [
+      "Memoria",
+      7
+     ],
+     [
+      "Uso en el tiempo",
+      8
+     ]
+    ],
+    "botones_con_acento": [],
+    "filas_treeview": {
+     "Res.Treeview": 51
+    }
+   },
+   "foco_igual": true,
+   "abrir_ms": {
+    "primera": 4,
+    "segunda": 2
+   }
+  }
+ },
+ "barra_lateral": {
+  "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-estado-otra.png",
+  "ancho": 1426,
+  "alto": 1059,
+  "printwindow": true,
+  "medido": {
+   "ancho_px": 348,
+   "esperado_px": 348
+  },
+  "foco_igual": true
+ },
+ "configuracion_inicial": {
+  "ruta": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\evidencia\\auditoria\\capturas-045\\150-configuracion-inicial.png",
+  "ancho": 1426,
+  "alto": 1059,
+  "printwindow": true,
+  "medido": {
+   "textos_con_punto_medio": [
+    "Versión 0.2.0-alpha · carril A\nCon permisos de administrador"
+   ],
+   "mayusculas": [],
+   "letra_menor_9pt": [
+    [
+     "Atrás",
+     7
+    ],
+    [
+     "Claude Code",
+     7
+    ],
+    [
+     "Codex",
+     7
+    ],
+    [
+     "Dot",
+     7
+    ],
+    [
+     "El agente de OpenAI: trabaja en tus carpetas desde este PC. ",
+     7
+    ],
+    [
+     "El modelo de xAI, por internet, con tu clave.",
+     7
+    ],
+    [
+     "Elige tu asistente principal: es el que te responde en la pa",
+     7
+    ],
+    [
+     "Elige tú cuál responde de los que hay en este PC.",
+     7
+    ],
+    [
+     "Encontré en este PC: Ollama 0.40.10, Codex 0.160.1, Claude C",
+     7
+    ],
+    [
+     "Grok",
+     7
+    ],
+    [
+     "Muse",
+     7
+    ],
+    [
+     "Otro",
+     7
+    ],
+    [
+     "Paso 1 de 4",
+     7
+    ],
+    [
+     "Saltar por ahora",
+     7
+    ],
+    [
+     "Siguiente",
+     7
+    ],
+    [
+     "Trabaja en tus carpetas desde este PC. El más listo; va por ",
+     7
+    ],
+    [
+     "Tu asistente Dot: te contesta por el puente, como Muse.",
+     7
+    ],
+    [
+     "Tu asistente de siempre: te habla por WhatsApp y el chat, y ",
+     7
+    ]
+   ],
+   "botones_con_acento": [
+    "Siguiente"
+   ],
+   "filas_treeview": {}
+  },
+  "foco_igual": true
+ },
+ "estatico": {
+  "gradientes": [
+   "16379: approval_id TEXT, degradado INTEGER NOT NULL DEFAULT 0, degradacion TEXT, resumen TEXT,",
+   "16456: \"degradado\": bool(row[\"degradado\"]), \"reanudado_desde\": row[\"reanudado_desde\"],",
+   "16666: degradado=1 if plan.get(\"degradar\") else 0,",
+   "16709: kw.update(degradado=1, degradacion=deg)",
+   "17436: ck_set(task[\"_ck\"], paso_log=motivo, degradado=1, session_id_entrada=None,"
+  ],
+  "movil": [
+   "14997: f\"1. Abre Claude en la web (claude.ai) o en Claude Desktop. En el móvil (iOS/Android) no está.\\n\"",
+   "32597: out.append((True, f\"Hora del PC: {datetime.now():%H:%M:%S}. Compárala con el móvil y apúntala.\"))"
+  ],
+  "ff6363": [
+   "28718: # El rojo del tema: en claro #C81E1E (5,74:1 sobre blanco; nunca #FF6363,",
+   "28719: # 2,91:1); en el oscuro Raycast #FF453A (5,63:1), porque #FF6363 es alli"
+  ]
+ },
+ "filas_px_esperadas": {
+  "FILA_PX": 34,
+  "a_este_dpi": 51
+ },
+ "tracebacks_en_log": 0
+}
