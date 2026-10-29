@@ -120,6 +120,60 @@ Después pon en la app (Estado → Proxy) la IP del VPS, el puerto, el usuario y
 
 Si no quieres comprar ni mantener un VPS, puedes alquilar el acceso al proxy de Growi Bridge por **$2,50 al mes**. Cada usuario tiene su propio usuario y clave, y el acceso se puede revocar en cualquier momento. Para contratarlo, escribe a quien te pasó esta app.
 
+## Roles: gerente general y subgerente
+
+Growi Bridge puede trabajar con dos "jefes", y tú eliges con qué plataforma funciona cada uno.
+
+**Gerente general.** Es quien reparte el trabajo: recibe tus pedidos, los manda a los motores (Claude Code, Codex, modelos locales...) y revisa lo que vuelve. Puede ser tu asistente de siempre (por ejemplo Growi, Muse o Dot) o cualquier motor de la lista de la app. En el supervisor solo aparece su nombre y el correo al que hay que avisarle.
+
+**Subgerente.** Es un supervisor que vive en tu PC y revisa, cada cierto tiempo (por defecto cada hora), cómo va todo. Mira si la app responde, si alguna tarea está esperando tu decisión, si una cadena de tareas se paró o si el runner tuvo errores nuevos. Si algo necesita que decidas tú, te manda un correo. Si todo está bien, solo lo anota en su registro. **Nunca arregla nada por su cuenta**: no reinicia, no borra y no reintenta. Solo lee, juzga e informa.
+
+Para juzgar usa un modelo de lenguaje, y lo eliges tú:
+
+| Plataforma | Cuánto cuesta | Qué necesitas |
+|---|---|---|
+| DeepSeek | pago por uso, muy barato | una clave de API de DeepSeek |
+| OpenAI | pago por uso | una clave de API de OpenAI |
+| Anthropic (API) | pago por uso | una clave de API de Anthropic (no es la suscripción de Claude Code) |
+| Google Gemini | pago por uso, con nivel gratis | una clave de Google AI Studio |
+| Ollama | $0, corre en tu PC | Ollama instalado con un modelo descargado |
+
+Conviene que el subgerente **no** use la misma cuenta que tus agentes de trabajo. Así sus revisiones de rutina no te gastan esa cuota.
+
+El supervisor está en la carpeta `supervisor/`. Todo lo que se puede cambiar está en `supervisor/supervisor-config.yaml`; las claves **nunca** van en ese archivo. Ahí solo se dice dónde están: en una variable de entorno o en el llavero de tu sistema (Credential Manager en Windows, Keychain en macOS, Secret Service en Linux).
+
+**Cambiar de proveedor** es editar tres líneas del YAML. Por ejemplo, para pasar de DeepSeek a Ollama ($0, sin clave):
+
+```yaml
+subgerente:
+  proveedor: ollama        # antes: deepseek
+  modelo: hermes3:8b       # antes: deepseek-chat
+  clave:
+    origen: entorno
+    nombre: ""             # Ollama no necesita clave
+```
+
+O para pasar a OpenAI con la clave guardada en el llavero:
+
+```yaml
+subgerente:
+  proveedor: openai
+  modelo: gpt-4o-mini
+  clave:
+    origen: llavero
+    nombre: OPENAI_API_KEY
+```
+
+Si no quieres tocar el archivo, corre el asistente. Te pregunta todo en orden, propone valores y nunca muestra tu clave:
+
+```
+python supervisor/supervisor.py --configurar
+python supervisor/supervisor.py --verificar     # dice OK o FAIL en cada punto
+python supervisor/supervisor.py --dry-run       # muestra qué diría y qué correo mandaría, sin enviar ni gastar nada
+```
+
+Para dejarlo funcionando solo, usa el instalador de tu sistema: `supervisor/instalar-supervisor.ps1` (Windows), `supervisor/instalar-supervisor.sh` (Linux) o `supervisor/instalar-supervisor-macos.sh` (macOS). Lo que necesitas antes de empezar está en `supervisor/REQUISITOS.md`.
+
 ## Archivos locales (no se suben a GitHub)
 
 - `secret.txt`: secreto del puente.

@@ -1,0 +1,226 @@
+{
+ "fecha": "2026-10-29T16:08:40-04:00",
+ "python": "3.12.10",
+ "a_py_compile": {
+  "supervisor/evals.py": "ok",
+  "supervisor/proveedores/__init__.py": "ok",
+  "supervisor/proveedores/_http.py": "ok",
+  "supervisor/proveedores/anthropic.py": "ok",
+  "supervisor/proveedores/deepseek.py": "ok",
+  "supervisor/proveedores/gemini.py": "ok",
+  "supervisor/proveedores/mock.py": "ok",
+  "supervisor/proveedores/ollama.py": "ok",
+  "supervisor/proveedores/openai.py": "ok",
+  "supervisor/supervisor.py": "ok"
+ },
+ "b_dry_run_sano": {
+  "codigo": 0,
+  "salida": "TODO_BIEN\nResumen: Nada que decidir.\n",
+  "error": "",
+  "primera_linea": "TODO_BIEN",
+  "sin_correo": true,
+  "sin_log_escrito": true
+ },
+ "c_dry_run_decision": {
+  "codigo": 0,
+  "salida": "NECESITA_DECISION\nResumen: 1 asunto(s) necesitan una decisión.\n\nCorreo que se enviaría (NO se envía en --dry-run; en una pasada real antes se espera el debounce y se vuelve a mirar):\nDe: growi@summitmaker.co\nPara: duet@summitmaker.co\nAsunto: [GROWI-BRIDGE] 1 asunto(s) necesitan tu decisión\n\nHola. Soy el subgerente de Growi en este PC (ROG-STRIX-LEANDRO).\n\n1 asunto(s) necesitan una decisión.\n\nQué necesita decisión:\n- Tarea t-espera-decision espera tu decisión: {\"id\": \"t-espera-decision\", \"desde\": \"2026-10-29T15:08-04:00\", \"motivo\": \"falló con [oculto] y Bearer [oculto]\"}\n\nGateway: arriba. Runner: latido hace 0.0 min, tarea en curso ninguna.\nRevisado a las 2026-10-29T16:08:41-04:00. No he cambiado nada: solo informo.\n",
+  "error": "",
+  "primera_linea": "NECESITA_DECISION",
+  "trae_correo": true,
+  "secreto_en_salida": false
+ },
+ "d_pasada_mock": {
+  "codigo": 0,
+  "salida": "",
+  "error": "",
+  "log": [
+   "2026-10-29T16:08:42-04:00 TURNO estado=3abc1b3c34bfee8b veredicto=TODO_BIEN confianza=0.9 fuente=modelo (intento 1) proveedor=mock",
+   "2026-10-29T16:08:42-04:00 FIN TODO_BIEN alertas=[] enviadas=[] - Nada que decidir."
+  ]
+ },
+ "p_rastro": {
+  "linea_turno": "2026-10-29T16:08:42-04:00 TURNO estado=3abc1b3c34bfee8b veredicto=TODO_BIEN confianza=0.9 fuente=modelo (intento 1) proveedor=mock",
+  "ok": true
+ },
+ "m_fallo_de_juicio": {
+  "texto libre": {
+   "codigo": 0,
+   "error": "",
+   "log": [
+    "2026-10-29T16:08:42-04:00 FALLO_DE_JUICIO intento 1: no es JSON: 'Todo parece estar bien, no hay que hacer nada.'",
+    "2026-10-29T16:08:42-04:00 FALLO_DE_JUICIO intento 2: no es JSON: 'Todo parece estar bien, no hay que hacer nada.'",
+    "2026-10-29T16:08:42-04:00 TURNO estado=87faa1cad2319fe4 veredicto=FALLO_DE_JUICIO confianza=None fuente=modelo proveedor=mock",
+    "2026-10-29T16:08:42-04:00 FIN FALLO_DE_JUICIO alertas=[] enviadas=[] - respuesta inválida dos veces (no es JSON: 'Todo parece estar bien, no hay que hacer nada.'; no es JSON: 'Todo parece estar bien, no hay que hacer nada.')"
+   ],
+   "dos_intentos": true,
+   "sin_correo": true
+  },
+  "otro schema": {
+   "codigo": 0,
+   "error": "",
+   "log": [
+    "2026-10-29T16:08:42-04:00 FALLO_DE_JUICIO intento 1: schema distinto: claves ['alertas', 'veredicto']",
+    "2026-10-29T16:08:42-04:00 FALLO_DE_JUICIO intento 2: schema distinto: claves ['alertas', 'veredicto']",
+    "2026-10-29T16:08:42-04:00 TURNO estado=87faa1cad2319fe4 veredicto=FALLO_DE_JUICIO confianza=None fuente=modelo proveedor=mock",
+    "2026-10-29T16:08:42-04:00 FIN FALLO_DE_JUICIO alertas=[] enviadas=[] - respuesta inválida dos veces (schema distinto: claves ['alertas', 'veredicto']; schema distinto: claves ['alertas', 'veredicto'])"
+   ],
+   "dos_intentos": true,
+   "sin_correo": true
+  },
+  "confianza fuera de rango": {
+   "codigo": 0,
+   "error": "",
+   "log": [
+    "2026-10-29T16:08:43-04:00 FALLO_DE_JUICIO intento 1: confianza fuera de 0..1: 7",
+    "2026-10-29T16:08:43-04:00 FALLO_DE_JUICIO intento 2: confianza fuera de 0..1: 7",
+    "2026-10-29T16:08:43-04:00 TURNO estado=87faa1cad2319fe4 veredicto=FALLO_DE_JUICIO confianza=None fuente=modelo proveedor=mock",
+    "2026-10-29T16:08:43-04:00 FIN FALLO_DE_JUICIO alertas=[] enviadas=[] - respuesta inválida dos veces (confianza fuera de 0..1: 7; confianza fuera de 0..1: 7)"
+   ],
+   "dos_intentos": true,
+   "sin_correo": true
+  }
+ },
+ "o_evals_codigo": 0,
+ "o_evals": [
+  "[PASA] sano: veredicto TODO_BIEN (esperado TODO_BIEN), correo no (esperado no), confianza 0.9",
+  "[PASA] cadena detenida: veredicto NECESITA_DECISION (esperado NECESITA_DECISION), correo sí (esperado sí), confianza 0.9",
+  "[PASA] gateway intermitente (1ª pasada: vuelve solo): veredicto NECESITA_DECISION (esperado NECESITA_DECISION), correo no (esperado no), confianza 0.9",
+  "[PASA] gateway intermitente (2ª pasada: persiste): veredicto NECESITA_DECISION (esperado NECESITA_DECISION), correo sí (esperado sí), confianza 0.9",
+  "[PASA] necesita_decision sin atender: veredicto NECESITA_DECISION (esperado NECESITA_DECISION), correo sí (esperado sí), confianza 0.9",
+  "Evals del juez (mock / mock): 5/5"
+ ],
+ "n_intermitente": [
+  {
+   "caso": "gateway intermitente (1ª pasada: vuelve solo)",
+   "ok": true,
+   "veredicto": "NECESITA_DECISION",
+   "esperado": "NECESITA_DECISION",
+   "correo": false,
+   "correo_esperado": false,
+   "confianza": 0.9,
+   "rastro": [
+    "TURNO estado=31bf4e01d4a2e714 veredicto=NECESITA_DECISION confianza=0.9 fuente=modelo (intento 1) proveedor=mock",
+    "DEBOUNCE ['gateway']: vuelvo a mirar en 300 s antes de avisar",
+    "FLAPPING se resolvió solo en 300 s, no se avisa: ['gateway'] (estado=3abc1b3c34bfee8b)",
+    "FIN NECESITA_DECISION alertas=['gateway'] enviadas=[] - El gateway del Bridge no responde"
+   ]
+  },
+  {
+   "caso": "gateway intermitente (2ª pasada: persiste)",
+   "ok": true,
+   "veredicto": "NECESITA_DECISION",
+   "esperado": "NECESITA_DECISION",
+   "correo": true,
+   "correo_esperado": true,
+   "confianza": 0.9,
+   "rastro": [
+    "TURNO estado=31bf4e01d4a2e714 veredicto=NECESITA_DECISION confianza=0.9 fuente=modelo (intento 1) proveedor=mock",
+    "DEBOUNCE ['gateway']: vuelvo a mirar en 300 s antes de avisar",
+    "FIN NECESITA_DECISION alertas=['gateway'] enviadas=[] - El gateway del Bridge no responde"
+   ]
+  }
+ ],
+ "presupuesto": {
+  "recorte": [
+   "AVISO presupuesto: estado de 10987 caracteres recortado a 7862 (tope 8000): log_errores_nuevos"
+  ],
+  "tope_llamadas": [
+   "AVISO presupuesto: estado de 10987 caracteres recortado a 7862 (tope 8000): log_errores_nuevos",
+   "AVISO presupuesto: 1 llamadas hoy (tope 0): turno abreviado, solo reglas locales"
+  ],
+  "fuente_con_tope": "reglas (tope de llamadas)"
+ },
+ "f_otro_proveedor": {
+  "deepseek": {
+   "codigo": 2,
+   "mensaje": "supervisor: falta la clave de deepseek: no está en la variable de entorno DEEPSEEK_API_KEY. Ponla ahí o corre «supervisor.py --configurar»"
+  },
+  "openai": {
+   "codigo": 2,
+   "mensaje": "supervisor: falta la clave de openai: no está en la variable de entorno OPENAI_API_KEY. Ponla ahí o corre «supervisor.py --configurar»"
+  },
+  "anthropic": {
+   "codigo": 2,
+   "mensaje": "supervisor: falta la clave de anthropic: no está en la variable de entorno ANTHROPIC_API_KEY. Ponla ahí o corre «supervisor.py --configurar»"
+  },
+  "gemini": {
+   "codigo": 2,
+   "mensaje": "supervisor: falta la clave de gemini: no está en la variable de entorno GEMINI_API_KEY. Ponla ahí o corre «supervisor.py --configurar»"
+  },
+  "ollama": {
+   "codigo": 3,
+   "mensaje": "supervisor: ErrorProveedor: no se pudo llamar a http://127.0.0.1:9/api/chat: ConnectionError"
+  }
+ },
+ "h_configurar": {
+  "pantalla": [
+   "Configuración del supervisor (Intro = dejar el valor entre corchetes).",
+   "Proveedor del subgerente (anthropic, deepseek, gemini, ollama, openai) [deepseek]: ",
+   "  -> openai",
+   "Modelo [gpt-4o-mini]: ",
+   "  -> gpt-4o-mini",
+   "¿Dónde guardo la clave? (entorno = variable de entorno, llavero = llavero del sistema) [entorno]: ",
+   "  -> llavero",
+   "Pega la clave de openai (no se verá en pantalla; Intro = no cambiarla): ",
+   "  -> clave guardada en el llavero del sistema como «OPENAI_API_KEY» (no se muestra)",
+   "Correo que envía los avisos (de un dominio verificado en Resend) [growi@summitmaker.co]: ",
+   "  -> avisos@ejemplo.com",
+   "Correo que recibe los avisos [duet@summitmaker.co]: ",
+   "  -> yo@ejemplo.com",
+   "Cada cuántos minutos revisar [60]: ",
+   "  -> 30",
+   "Listo: C:\\Users\\forte\\AppData\\Local\\Temp\\growi-supervisor-prueba-idlc4owt\\configurado.yaml escrito. Comprueba todo con «supervisor.py --verificar»."
+  ],
+  "yaml_valido": true,
+  "subgerente": {
+   "proveedor": "openai",
+   "modelo": "gpt-4o-mini",
+   "clave": {
+    "origen": "llavero",
+    "nombre": "OPENAI_API_KEY"
+   },
+   "intervalo_minutos": 30,
+   "tiempo_maximo_s": 60
+  },
+  "reportes": {
+   "from": "avisos@ejemplo.com",
+   "to": "yo@ejemplo.com",
+   "prefijo_asunto": "[GROWI-BRIDGE]",
+   "clave_resend": {
+    "origen": "entorno",
+    "nombre": "RESEND_API_KEY"
+   }
+  },
+  "clave_en_yaml": false,
+  "clave_en_pantalla": false,
+  "clave_en_llavero": true
+ },
+ "i_verificar_sin_clave": {
+  "codigo": 1,
+  "salida": "[OK] configuración: config-deepseek.yaml válido y completo\n[FAIL] clave del proveedor: falta la clave de deepseek: no está en la variable de entorno DEEPSEEK_API_KEY. Ponla ahí o corre «supervisor.py --configurar»\n[FAIL] proveedor alcanzable: sin clave no se puede probar\n[FAIL] Resend: falta la clave de Resend en la variable de entorno RESEND_API_KEY\n[OK] tarea programada: «GrowiSupervisor-prueba» en Programador de tareas\n",
+  "error": ""
+ },
+ "i_verificar_mock": {
+  "codigo": 1,
+  "salida": "[OK] configuración: config-mock.yaml válido y completo\n[OK] clave del proveedor: no hace falta\n[OK] proveedor alcanzable: mock / mock respondió (61 caracteres)\n[FAIL] Resend: falta la clave de Resend en la variable de entorno RESEND_API_KEY\n[OK] tarea programada: «GrowiSupervisor-prueba» en Programador de tareas\n",
+  "error": ""
+ },
+ "k_rutas_c": [],
+ "secreto_en_evidencia": false,
+ "resumen": {
+  "a": true,
+  "b": true,
+  "c": true,
+  "d": true,
+  "f": true,
+  "h": true,
+  "i": true,
+  "k": true,
+  "m": true,
+  "n": true,
+  "o": true,
+  "p": true,
+  "presupuesto": true,
+  "sin_secretos": true
+ }
+}

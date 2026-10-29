@@ -19,3 +19,27 @@ share/
 sesiones/
 _prueba-orquestacion/
 cred-ayudante/
+
+# Gate de calidad: logs, estado de sesion y caches (los lee la revision en disco)
+gate-calidad/
+# ...salvo el de Claude Code del proyecto (hooks del gate de calidad)
+!.claude/settings.json
+# Memoria minima de la mascota (datos locales de cada PC)
+mascota-memoria.json
+mascota-validacion.jsonl
+# Notas locales (t-notas-obsidian-030): datos de cada PC
+/notas/
+cosecha-pedidos.json
+/politicas.json
+/resiliencia.log
+/VERIFICACION-NUBES.json
+/VERIFICACION-NUBES.md
+/worktrees-agentes.json
+/proyectos/
+/portapapeles.json
+/pendientes-hechos.json
+/gadget.log
+
+# Supervisor local: entorno virtual y pruebas de cada PC
+supervisor/.venv/
+supervisor/_prueba/
