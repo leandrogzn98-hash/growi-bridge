@@ -1,0 +1,111 @@
+{
+ "subtitulos_fuera": {
+  "ok": false,
+  "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\b-sabotaje\\final.mp4",
+  "checks": [
+   {
+    "nombre": "formato",
+    "ok": true,
+    "detalle": "1080x1920 a 30.0 fps, audio sí (esperado 1080x1920 a 30)"
+   },
+   {
+    "nombre": "duración",
+    "ok": true,
+    "detalle": "20.70 s; esperada 20.70 s (±0.10); editado 20.70 s"
+   },
+   {
+    "nombre": "subtítulos en pantalla",
+    "ok": false,
+    "detalle": "«el primero fue»: no hay subtítulo visible en t=3.96 s (0 px cambiados); «Me perdí a»: no hay subtítulo visible en t=5.65 s (0 px cambiados); «idea y tenía»: no hay subtítulo visible en t=6.90 s (0 px cambiados); «el segundo fue»: no hay subtítulo visible en t=8.56 s (0 px cambiados)"
+   },
+   {
+    "nombre": "audio sincronizado",
+    "ok": true,
+    "detalle": "desfase de la señal 0.0 s, del contenedor 0.0 s (máx 0.033 cada uno), parecido 1.0"
+   }
+  ],
+  "diagnostico": "RECHAZADO: subtítulos en pantalla: «el primero fue»: no hay subtítulo visible en t=3.96 s (0 px cambiados); «Me perdí a»: no hay subtítulo visible en t=5.65 s (0 px cambiados); «idea y tenía»: no hay subtítulo visible en t=6.90 s (0 px cambiados); «el segundo fue»: no hay subtítulo visible en t=8.56 s (0 px cambiados)"
+ },
+ "audio_corrido": {
+  "ok": false,
+  "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\b-sabotaje\\final-audio-corrido.mp4",
+  "checks": [
+   {
+    "nombre": "formato",
+    "ok": true,
+    "detalle": "1080x1920 a 30.0 fps, audio sí (esperado 1080x1920 a 30)"
+   },
+   {
+    "nombre": "duración",
+    "ok": true,
+    "detalle": "20.70 s; esperada 20.70 s (±0.10); editado 20.70 s"
+   },
+   {
+    "nombre": "subtítulos en pantalla",
+    "ok": true,
+    "detalle": "8 muestra(s) visibles y dentro de la zona segura"
+   },
+   {
+    "nombre": "audio sincronizado",
+    "ok": false,
+    "detalle": "desfase de la señal 0.25 s, del contenedor 0.0 s (máx 0.033 cada uno), parecido 0.9909999966621399"
+   }
+  ],
+  "diagnostico": "RECHAZADO: audio sincronizado: desfase de la señal 0.25 s, del contenedor 0.0 s (máx 0.033 cada uno), parecido 0.9909999966621399"
+ },
+ "contenedor_corrido": {
+  "ok": false,
+  "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\b-sabotaje\\final-contenedor-corrido.mp4",
+  "checks": [
+   {
+    "nombre": "formato",
+    "ok": true,
+    "detalle": "1080x1920 a 30.0 fps, audio sí (esperado 1080x1920 a 30)"
+   },
+   {
+    "nombre": "duración",
+    "ok": false,
+    "detalle": "20.90 s; esperada 20.70 s (±0.10); editado 20.70 s"
+   },
+   {
+    "nombre": "subtítulos en pantalla",
+    "ok": true,
+    "detalle": "8 muestra(s) visibles y dentro de la zona segura"
+   },
+   {
+    "nombre": "audio sincronizado",
+    "ok": false,
+    "detalle": "desfase de la señal 0.05 s, del contenedor 0.207 s (máx 0.033 cada uno), parecido 0.9300000071525574"
+   }
+  ],
+  "diagnostico": "RECHAZADO: duración: 20.90 s; esperada 20.70 s (±0.10); editado 20.70 s | audio sincronizado: desfase de la señal 0.05 s, del contenedor 0.207 s (máx 0.033 cada uno), parecido 0.9300000071525574"
+ },
+ "control_bueno": {
+  "ok": true,
+  "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\a-reel\\final.mp4",
+  "checks": [
+   {
+    "nombre": "formato",
+    "ok": true,
+    "detalle": "1080x1920 a 30.0 fps, audio sí (esperado 1080x1920 a 30)"
+   },
+   {
+    "nombre": "duración",
+    "ok": true,
+    "detalle": "20.70 s; esperada 20.70 s (±0.10); editado 20.70 s"
+   },
+   {
+    "nombre": "subtítulos en pantalla",
+    "ok": true,
+    "detalle": "8 muestra(s) visibles y dentro de la zona segura"
+   },
+   {
+    "nombre": "audio sincronizado",
+    "ok": true,
+    "detalle": "desfase de la señal 0.0 s, del contenedor 0.0 s (máx 0.033 cada uno), parecido 1.0"
+   }
+  ],
+  "diagnostico": "OK"
+ },
+ "ok": true
+}

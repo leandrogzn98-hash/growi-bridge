@@ -1,0 +1,30 @@
+{
+ "clips": [
+  {
+   "n": 1,
+   "desde_s": 29.11,
+   "hasta_s": 41.0,
+   "texto": "¿Por qué la gente deja de mirar en el segundo 2? ¿Por qué el vídeo empieza con un saludo? Empieza con el resultado, con una pregunta o con un número concreto.",
+   "puntos": 25.96,
+   "estado": "listo",
+   "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\f-repurposing\\clip1\\final.mp4",
+   "duracion_final_s": 8.5,
+   "gancho": "Por qué la gente deja de mirar…",
+   "qc": "OK"
+  },
+  {
+   "n": 2,
+   "desde_s": 66.73,
+   "hasta_s": 78.3,
+   "texto": "Mira la retención a los 3 segundos y a la mitad del vídeo. Si cae al principio, el problema es el gancho. Si cae a la mitad, el problema es el ritmo.",
+   "puntos": 11.44,
+   "estado": "listo",
+   "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\f-repurposing\\clip2\\final.mp4",
+   "duracion_final_s": 6.1,
+   "gancho": "Mira la retención a los tres segundos…",
+   "qc": "OK"
+  }
+ ],
+ "post": "**¿Por qué la gente deja de mirar en el segundo 2?**\n\n→ La mayoría de creadores graba el mismo día que publica, y eso los deja sin margen.\n→ Lo que funciona es grabar en bloque, una tarde para cuatro vídeos.\n→ ¿Por qué el vídeo empieza con un saludo?\n→ Por ejemplo, tres errores que me costaron mil seguidores.\n→ No hace falta un programa caro.\n\nGracias por quedarte hasta el final.\n",
+ "ok": true
+}

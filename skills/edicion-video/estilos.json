@@ -1,0 +1,110 @@
+{
+  "_que_es": "Catálogo de estilos de la skill edicion-video. Cada estilo es un juego de parámetros; la memoria de marca (marcas/<marca>.json) pisa lo que corrigió el usuario. Tiempos en segundos, tamaños en px de un lienzo 1080x1920.",
+  "_zona_segura": "Zona segura de Instagram/TikTok para 1080x1920 (kit 5-Pass): arriba 220 px, abajo 380 px, derecha 140 px. El QC rechaza subtítulos fuera de ella.",
+  "comun": {
+    "ancho": 1080,
+    "alto": 1920,
+    "fps": 30,
+    "zona_segura": {
+      "arriba": 220,
+      "abajo": 380,
+      "izquierda": 40,
+      "derecha": 140
+    },
+    "muletillas": [
+      "eh",
+      "em",
+      "ehm",
+      "mmm",
+      "o sea",
+      "este",
+      "bueno",
+      "pues",
+      "digamos"
+    ],
+    "muletillas_siempre": [
+      "eh",
+      "em",
+      "ehm",
+      "mmm"
+    ],
+    "_muletillas": "las de 'muletillas' solo se quitan si van entre comas o pausas (\"este\" también es una palabra normal); las de 'muletillas_siempre' se quitan siempre",
+    "loudnorm_lufs": -14,
+    "whisper_modelo": "small",
+    "margen_s": 0.08,
+    "pausa_maxima_s": 0.15
+  },
+  "estilos": {
+    "talking-head-limpio": {
+      "descripcion": "Talking-head limpio: quita pausas, muletillas y tomas repetidas; subtítulos sobrios abajo; sin gancho ni zoom.",
+      "umbral_pausa_s": 0.4,
+      "max_palabras": 3,
+      "gancho": false,
+      "zoom_gancho": 1.0,
+      "subtitulo": {
+        "fuente": "Arial Black",
+        "tam_px": 70,
+        "color": "#FFFFFF",
+        "color_activo": "#FFFFFF",
+        "fondo": "#141414",
+        "y_pct": 0.72,
+        "mayusculas": false
+      }
+    },
+    "reel-ganchos": {
+      "descripcion": "Reel con ganchos: titular del gancho los primeros 3 s, punch-in suave mientras dura, palabra activa resaltada, colores fuertes.",
+      "umbral_pausa_s": 0.4,
+      "max_palabras": 3,
+      "gancho": true,
+      "gancho_s": 3.0,
+      "zoom_gancho": 1.08,
+      "subtitulo": {
+        "fuente": "Arial Black",
+        "tam_px": 76,
+        "color": "#FFFFFF",
+        "color_activo": "#FFD400",
+        "fondo": "#FF2D78",
+        "y_pct": 0.68,
+        "mayusculas": true
+      }
+    },
+    "clip-rapido": {
+      "descripcion": "Clip vertical rápido (repurposing): corta pausas desde 0,25 s, máximo 2 palabras en pantalla, gancho corto y zoom.",
+      "umbral_pausa_s": 0.25,
+      "max_palabras": 2,
+      "gancho": true,
+      "gancho_s": 2.0,
+      "zoom_gancho": 1.12,
+      "subtitulo": {
+        "fuente": "Arial Black",
+        "tam_px": 88,
+        "color": "#FFFFFF",
+        "color_activo": "#38E1FF",
+        "fondo": "#5B2BFF",
+        "y_pct": 0.62,
+        "mayusculas": true
+      }
+    }
+  },
+  "costos": {
+    "_que_es": "Para el costo ANTES de renderizar. Whisper (local) y Remotion (local) cuestan $0. Los precios por millón de tokens se ponen a mano desde la página de precios de cada proveedor; en null el reporte da los tokens y dice que falta el precio, nunca inventa dólares.",
+    "caracteres_por_token": 4,
+    "salida_director_tokens": 900,
+    "sobrecarga_claude_p_tokens": 52000,
+    "_sobrecarga_claude_p_tokens": "medido el 29 oct 2026: `claude -p --model haiku` cargó 52.886 tokens de entrada para un prompt de ~1.200 (el contexto de sistema de Claude Code, casi todo leído de caché)",
+    "gemini_tokens_por_segundo": 263,
+    "_gemini_tokens_por_segundo": "documentación de Gemini (vídeo a 1 fps ≈ 258 tokens/frame + 32 tokens/s de audio en Gemini 1.5/2.x); revisarlo si cambia el modelo",
+    "precio_usd_millon": {
+      "claude_entrada": null,
+      "claude_salida": null,
+      "gemini_entrada": null,
+      "gemini_salida": null
+    },
+    "_historial": "si falta el precio, el USD se estima con la media de los costos reales medidos (total_cost_usd de claude -p) guardados en %LOCALAPPDATA%\\growi-video\\costos-historial.jsonl"
+  },
+  "gemini": {
+    "modelo": "gemini-2.5-flash",
+    "_modelo": "el que esté disponible en la cuenta; solo se llama con GEMINI_API_KEY en el entorno y --ojos gemini",
+    "max_mb_en_linea": 18
+  }
+}

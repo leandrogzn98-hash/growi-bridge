@@ -1,0 +1,58 @@
+{
+ "correccion": "El resalte en #00E5A0, el fondo de la caja en #101820 y quita la muletilla «justo»",
+ "cambios_entendidos": [
+  "subtitulo.color_activo = #00E5A0",
+  "subtitulo.fondo = #101820",
+  "muletilla que se quita siempre: «justo»"
+ ],
+ "marca_guardada": {
+  "marca": "prueba-060",
+  "subtitulo": {
+   "color_activo": "#00E5A0",
+   "fondo": "#101820"
+  },
+  "edicion": {},
+  "muletillas_extra": [
+   "justo"
+  ],
+  "correcciones": [
+   {
+    "fecha": "2026-10-29T21:01:11",
+    "texto": "El resalte en #00E5A0, el fondo de la caja en #101820 y quita la muletilla «justo»",
+    "clave": null,
+    "valor": null,
+    "cambios": [
+     "subtitulo.color_activo = #00E5A0",
+     "subtitulo.fondo = #101820",
+     "muletilla que se quita siempre: «justo»"
+    ],
+    "entendida": true
+   }
+  ]
+ },
+ "marca_aplicada_en_el_reporte": [
+  "subtitulo.color_activo = #00E5A0",
+  "subtitulo.fondo = #101820",
+  "muletillas que se quitan siempre: justo"
+ ],
+ "estado": "listo",
+ "estilo_render": {
+  "fuente": "Arial Black",
+  "tam_px": 70,
+  "color": "#FFFFFF",
+  "color_activo": "#00E5A0",
+  "fondo": "#101820",
+  "y_pct": 0.72,
+  "mayusculas": false,
+  "zoom_gancho": 1.0,
+  "zona": {
+   "arriba": 220,
+   "abajo": 380,
+   "izquierda": 40,
+   "derecha": 140
+  }
+ },
+ "justo_antes": true,
+ "justo_despues": false,
+ "ok": true
+}

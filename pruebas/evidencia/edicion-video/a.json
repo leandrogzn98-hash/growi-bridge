@@ -1,0 +1,89 @@
+{
+ "estado": "listo",
+ "director": "claude",
+ "crudo_s": 39.549,
+ "final_s": 20.7,
+ "qc": {
+  "ok": true,
+  "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\a-reel\\final.mp4",
+  "checks": [
+   {
+    "nombre": "formato",
+    "ok": true,
+    "detalle": "1080x1920 a 30.0 fps, audio sí (esperado 1080x1920 a 30)"
+   },
+   {
+    "nombre": "duración",
+    "ok": true,
+    "detalle": "20.70 s; esperada 20.70 s (±0.10); editado 20.70 s"
+   },
+   {
+    "nombre": "subtítulos en pantalla",
+    "ok": true,
+    "detalle": "8 muestra(s) visibles y dentro de la zona segura"
+   },
+   {
+    "nombre": "audio sincronizado",
+    "ok": true,
+    "detalle": "desfase 0.0 s (máx 0.033), parecido 1.0"
+   }
+  ],
+  "diagnostico": "OK"
+ },
+ "costo_estimado": {
+  "lineas": [
+   {
+    "paso": "transcripción (Whisper local)",
+    "tokens": 0,
+    "usd": 0.0
+   },
+   {
+    "paso": "pausas (ffmpeg silencedetect)",
+    "tokens": 0,
+    "usd": 0.0
+   },
+   {
+    "paso": "director (claude -p haiku)",
+    "tokens_entrada": 52342,
+    "tokens_prompt": 342,
+    "tokens_salida": 900,
+    "tokens": 53242,
+    "usd": 0.00859,
+    "usd_fuente": "media de 1 corrida(s) real(es) de claude -p haiku"
+   },
+   {
+    "paso": "render (Remotion local)",
+    "tokens": 0,
+    "usd": 0.0
+   }
+  ],
+  "tokens_total": 53242,
+  "usd_total": 0.00859,
+  "falta_precio": [],
+  "resumen": "53242 tokens estimados; $0.0086"
+ },
+ "costo_real": {
+  "director": {
+   "usd": 0.00731302,
+   "tokens_entrada": 48164,
+   "tokens_salida": 2631,
+   "modelo": "haiku"
+  },
+  "ojos": null
+ },
+ "max_palabras_en_pantalla": 3,
+ "grupos_subtitulo": 25,
+ "error": null,
+ "pasos": [
+  "crudo",
+  "transcripción",
+  "pausas",
+  "costo estimado (antes de renderizar)",
+  "lista de cortes",
+  "corte y audio",
+  "render: inicio",
+  "render: fin",
+  "QC"
+ ],
+ "ok": true
+}

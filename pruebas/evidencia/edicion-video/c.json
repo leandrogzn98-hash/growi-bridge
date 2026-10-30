@@ -1,0 +1,48 @@
+{
+ "listos": 3,
+ "videos": [
+  {
+   "crudo": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\video\\crudos\\crudo1-errores.mp4",
+   "estado": "listo",
+   "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\01-crudo1-errores",
+   "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\01-crudo1-errores\\final.mp4",
+   "duracion_final_s": 20.7,
+   "crudo_s": 39.549,
+   "segundos": 125.7,
+   "costo_estimado": "0 tokens: todo local, $0",
+   "qc": "OK",
+   "error": null
+  },
+  {
+   "crudo": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\video\\crudos\\crudo2-luz.mp4",
+   "estado": "listo",
+   "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\02-crudo2-luz",
+   "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\02-crudo2-luz\\final.mp4",
+   "duracion_final_s": 10.7,
+   "crudo_s": 21.148,
+   "segundos": 51.8,
+   "costo_estimado": "0 tokens: todo local, $0",
+   "qc": "OK",
+   "error": null
+  },
+  {
+   "crudo": "C:\\Users\\forte\\source\\growi-bridge\\pruebas\\video\\crudos\\crudo3-ganchos.mp4",
+   "estado": "listo",
+   "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\03-crudo3-ganchos",
+   "final": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\03-crudo3-ganchos\\final.mp4",
+   "duracion_final_s": 10.8,
+   "crudo_s": 21.323,
+   "segundos": 55.3,
+   "costo_estimado": "0 tokens: todo local, $0",
+   "qc": "OK",
+   "error": null
+  }
+ ],
+ "reportes_por_video": [
+  "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\01-crudo1-errores\\reporte.md",
+  "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\02-crudo2-luz\\reporte.md",
+  "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\03-crudo3-ganchos\\reporte.md"
+ ],
+ "segundos": 232.9,
+ "ok": true
+}

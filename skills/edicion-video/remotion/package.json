@@ -1,0 +1,14 @@
+{
+  "name": "growi-edicion-video",
+  "private": true,
+  "description": "Plantilla Remotion de la skill edicion-video de Growi Bridge: reel 1080x1920 a 30 fps con subtitulos palabra por palabra.",
+  "scripts": {
+    "render": "remotion render src/index.ts Reel"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.539"
+  }
+}

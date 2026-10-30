@@ -1,0 +1,73 @@
+{
+ "videos": [
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\a-reel",
+   "costo_estimado": "53242 tokens estimados; $0.0086",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": {
+     "usd": 0.00731302,
+     "tokens_entrada": 48164,
+     "tokens_salida": 2631,
+     "modelo": "haiku"
+    },
+    "ojos": null
+   }
+  },
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\01-crudo1-errores",
+   "costo_estimado": "0 tokens: todo local, $0",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": null,
+    "ojos": null
+   }
+  },
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\02-crudo2-luz",
+   "costo_estimado": "0 tokens: todo local, $0",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": null,
+    "ojos": null
+   }
+  },
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\c-lote\\03-crudo3-ganchos",
+   "costo_estimado": "0 tokens: todo local, $0",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": null,
+    "ojos": null
+   }
+  },
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\e-marca",
+   "costo_estimado": "0 tokens: todo local, $0",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": null,
+    "ojos": null
+   }
+  },
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\f-repurposing\\clip1",
+   "costo_estimado": "0 tokens: todo local, $0",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": null,
+    "ojos": null
+   }
+  },
+  {
+   "video": "C:\\Users\\forte\\AppData\\Local\\Temp\\gv-prueba-060\\f-repurposing\\clip2",
+   "costo_estimado": "0 tokens: todo local, $0",
+   "antes_del_render": true,
+   "costo_real": {
+    "director": null,
+    "ojos": null
+   }
+  }
+ ],
+ "ok": true
+}
