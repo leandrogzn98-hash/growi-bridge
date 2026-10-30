@@ -80,7 +80,7 @@ def video(wav, mp4, vertical):
     w, h = (1080, 1920) if vertical else (1920, 1080)
     cara = f"drawbox=x={w // 2 - 230}:y={h // 2 - 420}:w=460:h=560:color=#E8B48A:t=fill," \
            f"drawbox=x={w // 2 - 330}:y={h // 2 + 140}:w=660:h={h // 2}:color=#2F4E8C:t=fill"
-    etiqueta = "drawtext=fontfile='C\:/Windows/Fonts/arialbd.ttf':text='CRUDO SINTETICO DE PRUEBA':x=(w-tw)/2:y=60:fontsize=36:fontcolor=white@0.6"
+    etiqueta = r"drawtext=fontfile='C\:/Windows/Fonts/arialbd.ttf':text='CRUDO SINTETICO DE PRUEBA':x=(w-tw)/2:y=60:fontsize=36:fontcolor=white@0.6"
     fc = (f"color=c=#556677:s={w}x{h}:r=30[bg];[bg]{cara},{etiqueta}[base];"
           f"[0:a]showwaves=s=300x90:mode=cline:colors=#5A1E1E:rate=30[boca];"
           f"[base][boca]overlay=x={w // 2 - 150}:y={h // 2 - 40}:shortest=1[v]")

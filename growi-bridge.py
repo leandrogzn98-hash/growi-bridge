@@ -6275,7 +6275,7 @@ def _srv_modelo_listo(eng, model, note):
 LLAMA_INACTIVIDAD_MIN = 15   # por defecto; manda servidor.inactividad_min
 LLAMA_ESPERA_S = 120         # por defecto; manda servidor.espera_s
 _LLAMA_NO_USO = ("/models/unload",)
-_LLAMA_VIDA = {"activas": 0, "ultima": 0.0, "apagando": False, "hilo": None, "puertos": set()}
+_LLAMA_VIDA: dict = {"activas": 0, "ultima": 0.0, "apagando": False, "hilo": None, "puertos": set()}
 _LLAMA_VIDA_LOCK = threading.Lock()
 
 

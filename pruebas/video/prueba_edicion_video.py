@@ -33,7 +33,8 @@ os.environ.setdefault("GROWI_VIDEO_MARCAS", str(TMP / "marcas"))  # la memoria d
 from comun import asegurar_venv  # noqa: E402
 
 asegurar_venv()
-sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 OUT.mkdir(parents=True, exist_ok=True)
 
 
