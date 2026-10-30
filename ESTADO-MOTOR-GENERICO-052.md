@@ -58,9 +58,12 @@ Evidencia: `pruebas/evidencia/motor-generico-052/resultado.json` y `growi-bridge
 Costo: $0 extra. Dos tareas de codex (ChatGPT Plus) y tres de agy (free tier), contando la que falló. La depuración manual de agy usó 4 llamadas más, también del free tier.
 
 ## FALTA / notas
-- **Aplicar a la app instalada:** `python parches\parche_motor_generico_052.py --aplicar` y reiniciar Growi
-  Bridge. No lo hice: la app está en uso y pide reinicio. Los cubos y `router_antes` no van en el parche,
-  porque esa versión no tiene cadena de respaldo; llegan con la actualización completa.
+- **App instalada: parche APLICADO (30 oct, con tu «procede»).** Respaldos `growi-bridge.py.pre-motor-generico-052.bak`
+  y `engines.json.pre-motor-generico-052.bak`. Compila, y su `validate_task` acepta `model: motor:codex` y
+  `motor: gemini` y rechaza codex+sonnet. La app no estaba abierta (solo `browser-server.py`), así que no
+  hubo que reiniciarla: toma el cambio la próxima vez que la abras. No la abrí yo para no sacar ventanas.
+  Los cubos y `router_antes` no van en el parche, porque esa versión no tiene cadena de respaldo; llegan con
+  la actualización completa.
 - **gemini con `acceptEdits` puede correr comandos:** la config propia de agy en este PC tiene
   `toolPermission always-proceed`. Es el mismo nivel que codex con permisos, pero conviene saberlo.
 - Ningún proveedor publica cuánto queda de cuota. Los cubos dicen lo medido aquí y solo dan un % si pones
