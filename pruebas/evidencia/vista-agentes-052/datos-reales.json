@@ -1,0 +1,169 @@
+{
+  "ms_primera": 791,
+  "ms_segunda": 104,
+  "error": null,
+  "en_cola": 0,
+  "mas": {
+    "necesitan": 28,
+    "terminadas": 3
+  },
+  "trabajando": [],
+  "necesitan": [
+    [
+      "t-git-push-0739",
+      "necesita_decision",
+      "claude",
+      "claude-max",
+      "Se intentó el encargo con claude en 3 ronda(s) de corrección (máximo 3"
+    ],
+    [
+      "t-oficina-depto-auditorio-050-r2",
+      "necesita_decision",
+      "claude",
+      "claude-max",
+      "Se intentó el encargo con claude en 3 ronda(s) de corrección (máximo 3"
+    ],
+    [
+      "t-lote-live-050-r2",
+      "necesita_decision",
+      "claude",
+      "claude-max",
+      "Se intentó el encargo con claude en 3 ronda(s) de corrección (máximo 3"
+    ],
+    [
+      "t-lote-live-050",
+      "fallida",
+      "claude",
+      "claude-max",
+      "claude no esta en el PATH de este usuario."
+    ],
+    [
+      "t-oficina-depto-auditorio-050",
+      "necesita_decision",
+      "claude",
+      "claude-max",
+      "Se intentó el encargo con claude en 3 ronda(s) de corrección (máximo 3"
+    ],
+    [
+      "t-cola-visible-030-r2",
+      "necesita_decision",
+      "claude",
+      "claude-max",
+      "Se intentó el encargo con claude en 3 ronda(s) de corrección (máximo 3"
+    ],
+    [
+      "t-cola-visible-030",
+      "fallida",
+      "claude",
+      "claude-max",
+      "claude no esta en el PATH de este usuario."
+    ],
+    [
+      "t-plan-visible-pausa",
+      "fallida",
+      "claude",
+      "claude-max",
+      "lanzamiento sin progreso en 5 min."
+    ],
+    [
+      "t-fullprompt-1835",
+      "fallida",
+      "claude",
+      "claude-max",
+      "claude no esta en el PATH de este usuario."
+    ],
+    [
+      "t-lote-estados-030-r6",
+      "fallida",
+      "claude",
+      "claude-max",
+      "claude no esta en el PATH de este usuario."
+    ],
+    [
+      "t-lote-estados-030-r5",
+      "fallida",
+      "claude",
+      "claude-max",
+      "claude no esta en el PATH de este usuario."
+    ],
+    [
+      "app-list-20261029-112918-48c8",
+      "fallida",
+      "modelos",
+      "modelos",
+      "Error: timed out waiting for server to start"
+    ]
+  ],
+  "terminadas": [
+    [
+      "app-list-20261030-093622-e2fa",
+      "terminada",
+      "modelos",
+      "modelos",
+      "sin revisión"
+    ],
+    [
+      "t-skill-carruseles-claude-060",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ],
+    [
+      "t-plan-visible-pausa-r2",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ],
+    [
+      "t-diag-prompt-size-1915",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ],
+    [
+      "t-triage-cola-1840",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ],
+    [
+      "t-halfprompt-1838",
+      "sin_revision",
+      "claude",
+      "claude-max",
+      "sin revisión"
+    ],
+    [
+      "t-lote-estados-030-r8",
+      "sin_revision",
+      "claude",
+      "claude-max",
+      "sin revisión"
+    ],
+    [
+      "t-lote-estados-030-r7",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ],
+    [
+      "t-spec-grande-1830",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ],
+    [
+      "t-verifica-sonnet-1822",
+      "aprobada",
+      "claude",
+      "claude-max",
+      "aprobó"
+    ]
+  ]
+}

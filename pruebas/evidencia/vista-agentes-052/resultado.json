@@ -1,0 +1,449 @@
+{
+  "inicio": "2026-10-30 14:11:09",
+  "casos": {
+    "a_estados_en_su_columna": {
+      "ok": true,
+      "ids": {
+        "trabajando": [
+          "t-va-curso",
+          "t-va-revisando"
+        ],
+        "necesitan": [
+          "t-va-decision",
+          "t-va-r",
+          "t-va-fallida",
+          "t-va-cuarentena"
+        ],
+        "terminadas": [
+          "t-va-aprobada",
+          "t-va-sinrev",
+          "t-va-lote-00",
+          "t-va-lote-01",
+          "t-va-lote-02",
+          "t-va-lote-03",
+          "t-va-lote-04",
+          "t-va-lote-05",
+          "t-va-lote-06",
+          "t-va-lote-07"
+        ]
+      },
+      "mas": {
+        "necesitan": 0,
+        "terminadas": 4
+      },
+      "en_cola": 1,
+      "ms_lectura": 99.7,
+      "trabajando": [
+        {
+          "id": "t-va-curso",
+          "tarea": "t-va-curso",
+          "estado": "en_curso",
+          "estado_txt": "trabajando",
+          "motor": "codex",
+          "motor_txt": "Codex",
+          "cubo": "chatgpt-plus",
+          "ronda": 0,
+          "encargo": "Escribe el resumen del lote",
+          "desde": "2026-10-30T14:10:10-04:00",
+          "desde_ts": 1793383810.4232569,
+          "hueco": 1,
+          "segundos": 75,
+          "worktree": null,
+          "paso": "Codex escribiendo el resumen",
+          "tokens": 1200,
+          "costo_vivo": 0.0123
+        },
+        {
+          "id": "t-va-revisando",
+          "tarea": "t-va-revisando",
+          "estado": "revisando",
+          "estado_txt": "revisando",
+          "motor": "claude",
+          "motor_txt": "Claude",
+          "cubo": "claude-max",
+          "ronda": 0,
+          "encargo": "Arregla el carrusel de Summit",
+          "desde": "2026-10-30T14:10:45-04:00",
+          "desde_ts": 1793383845.4232569,
+          "hueco": null,
+          "segundos": 40,
+          "worktree": null,
+          "paso": "revisando el resultado",
+          "tokens": null,
+          "costo_vivo": null
+        }
+      ],
+      "ejemplo_terminada": {
+        "id": "t-va-aprobada",
+        "tarea": "t-va-aprobada",
+        "estado": "aprobada",
+        "estado_txt": "revisada y aprobada",
+        "motor": "claude",
+        "motor_txt": "Claude",
+        "cubo": "claude-max",
+        "ronda": 0,
+        "encargo": "Traduce el brief",
+        "desde": "2026-10-30T13:56:25-04:00",
+        "desde_ts": 1793382985.4232569,
+        "resultado": "Traducido y guardado.",
+        "status": "ok",
+        "duracion_s": 42.0,
+        "costo": 0.12,
+        "costo_txt": "$0.12 eq.",
+        "revision": "aprobó",
+        "terminada_hace_s": 900
+      },
+      "ejemplo_ronda": {
+        "id": "t-va-r",
+        "tarea": "t-va-r-r2",
+        "estado": "necesita_decision",
+        "estado_txt": "necesita tu decisión",
+        "motor": "claude",
+        "motor_txt": "Claude",
+        "cubo": "claude-max",
+        "ronda": 1,
+        "encargo": "Encargo con dos rondas",
+        "desde": "2026-10-30T14:00:35-04:00",
+        "desde_ts": 1793383235.4232569,
+        "puede_aprobar": false,
+        "approval_id": null,
+        "nivel": null,
+        "vence_ts": null,
+        "vence_txt": null,
+        "motivo": "",
+        "esperando_s": 650
+      },
+      "ejemplo_fallida": {
+        "id": "t-va-fallida",
+        "tarea": "t-va-fallida",
+        "estado": "fallida",
+        "estado_txt": "fallida",
+        "motor": "claude",
+        "motor_txt": "Claude",
+        "cubo": "claude-max",
+        "ronda": 0,
+        "encargo": "Ordena las facturas",
+        "desde": "2026-10-30T13:51:25-04:00",
+        "desde_ts": 1793382685.4232569,
+        "puede_aprobar": false,
+        "approval_id": null,
+        "nivel": null,
+        "vence_ts": null,
+        "vence_txt": null,
+        "motivo": "claude no esta en el PATH de este usuario",
+        "esperando_s": 1200
+      },
+      "cubo_cuarentena": "google-agy"
+    },
+    "b_tablero_ctk": {
+      "ok": true,
+      "kit": "CustomTkinter",
+      "cabeceras": {
+        "trabajando": "Trabajando (2)",
+        "necesitan": "Te necesitan (4)",
+        "terminadas": "Terminadas (14)"
+      },
+      "pie": "En cola: 1 tarea. t-va-cola: espera hueco: el 1 lo ocupa t-va-curso (Codex)",
+      "trabajando": {
+        "t-va-curso": [
+          "Escribe el resumen del lote",
+          "t-va-curso · Codex · cubo chatgpt-plus · hueco 1",
+          "trabajando hace 75 s · Codex escribiendo el resumen · 1.2 k tokens · $0.0123 en vivo"
+        ],
+        "t-va-revisando": [
+          "Arregla el carrusel de Summit",
+          "t-va-revisando · Claude · cubo claude-max",
+          "revisando hace 40 s · revisando el resultado"
+        ]
+      },
+      "necesitan": {
+        "t-va-decision": {
+          "textos": [
+            "Sube la web a staging",
+            "t-va-decision · Claude · cubo claude-max",
+            "necesita tu decisión hace 10 min",
+            "Los jueces no coinciden: decide tú."
+          ],
+          "botones": [
+            "Ver"
+          ]
+        },
+        "t-va-r": {
+          "textos": [
+            "Encargo con dos rondas",
+            "t-va-r · Claude · cubo claude-max · ronda 1",
+            "necesita tu decisión hace 10 min"
+          ],
+          "botones": [
+            "Ver"
+          ]
+        },
+        "t-va-fallida": {
+          "textos": [
+            "Ordena las facturas",
+            "t-va-fallida · Claude · cubo claude-max",
+            "fallida hace 20 min",
+            "claude no esta en el PATH de este usuario"
+          ],
+          "botones": [
+            "Ver"
+          ]
+        },
+        "t-va-cuarentena": {
+          "textos": [
+            "Revisa el contrato",
+            "t-va-cuarentena · Gemini (Antigravity CLI) · cubo google-agy",
+            "en cuarentena hace 25 min",
+            "Fallo que no encaja: en cuarentena."
+          ],
+          "botones": [
+            "Ver"
+          ]
+        }
+      },
+      "terminadas": [
+        "t-va-aprobada",
+        "t-va-lote-00",
+        "t-va-lote-01",
+        "t-va-lote-02",
+        "t-va-lote-03",
+        "t-va-lote-04",
+        "t-va-lote-05",
+        "t-va-lote-06",
+        "t-va-lote-07",
+        "t-va-sinrev"
+      ],
+      "ver": {
+        "pagina": "tareas",
+        "detalle": [
+          "t-va-aprobada"
+        ]
+      },
+      "tarjetas_reutilizadas": true,
+      "ms_pintar": 215.7
+    },
+    "b_tablero_tk": {
+      "ok": true,
+      "kit": "tkinter",
+      "cabeceras": {
+        "trabajando": "Trabajando (2)",
+        "necesitan": "Te necesitan (4)",
+        "terminadas": "Terminadas (14)"
+      },
+      "pie": "En cola: 1 tarea. t-va-cola: espera hueco: el 1 lo ocupa t-va-curso (Codex)",
+      "trabajando": {
+        "t-va-curso": [
+          "Escribe el resumen del lote",
+          "t-va-curso · Codex · cubo chatgpt-plus · hueco 1",
+          "trabajando hace 77 s · Codex escribiendo el resumen · 1.2 k tokens · $0.0123 en vivo"
+        ],
+        "t-va-revisando": [
+          "Arregla el carrusel de Summit",
+          "t-va-revisando · Claude · cubo claude-max",
+          "revisando hace 42 s · revisando el resultado"
+        ]
+      },
+      "necesitan": {
+        "t-va-decision": {
+          "textos": [
+            "Sube la web a staging",
+            "t-va-decision · Claude · cubo claude-max",
+            "necesita tu decisión hace 10 min",
+            "Los jueces no coinciden: decide tú."
+          ],
+          "botones": [
+            "Ver"
+          ]
+        },
+        "t-va-r": {
+          "textos": [
+            "Encargo con dos rondas",
+            "t-va-r · Claude · cubo claude-max · ronda 1",
+            "necesita tu decisión hace 10 min"
+          ],
+          "botones": [
+            "Ver"
+          ]
+        },
+        "t-va-fallida": {
+          "textos": [
+            "Ordena las facturas",
+            "t-va-fallida · Claude · cubo claude-max",
+            "fallida hace 20 min",
+            "claude no esta en el PATH de este usuario"
+          ],
+          "botones": [
+            "Ver"
+          ]
+        },
+        "t-va-cuarentena": {
+          "textos": [
+            "Revisa el contrato",
+            "t-va-cuarentena · Gemini (Antigravity CLI) · cubo google-agy",
+            "en cuarentena hace 25 min",
+            "Fallo que no encaja: en cuarentena."
+          ],
+          "botones": [
+            "Ver"
+          ]
+        }
+      },
+      "terminadas": [
+        "t-va-aprobada",
+        "t-va-lote-00",
+        "t-va-lote-01",
+        "t-va-lote-02",
+        "t-va-lote-03",
+        "t-va-lote-04",
+        "t-va-lote-05",
+        "t-va-lote-06",
+        "t-va-lote-07",
+        "t-va-sinrev"
+      ],
+      "ver": {
+        "pagina": "tareas",
+        "detalle": [
+          "t-va-aprobada"
+        ]
+      },
+      "tarjetas_reutilizadas": true,
+      "ms_pintar": 85.2
+    },
+    "c_gateway_agentes": {
+      "ok": true,
+      "codigo": 200,
+      "sin_token": 401,
+      "ids": {
+        "trabajando": [
+          "t-va-curso",
+          "t-va-revisando"
+        ],
+        "necesitan": [
+          "t-va-decision",
+          "t-va-r",
+          "t-va-fallida",
+          "t-va-cuarentena"
+        ],
+        "terminadas": [
+          "t-va-aprobada",
+          "t-va-sinrev",
+          "t-va-lote-00",
+          "t-va-lote-01",
+          "t-va-lote-02",
+          "t-va-lote-03",
+          "t-va-lote-04",
+          "t-va-lote-05",
+          "t-va-lote-06",
+          "t-va-lote-07"
+        ]
+      },
+      "claves": [
+        "en_cola",
+        "en_cola_motivos",
+        "error",
+        "generado",
+        "mas",
+        "necesitan",
+        "terminadas",
+        "trabajando",
+        "ventanas"
+      ]
+    },
+    "e_refresco_sin_congelar": {
+      "ok": true,
+      "ms_pintar_en_ventana": [
+        69.2,
+        176.8,
+        159.0,
+        162.8,
+        160.0
+      ],
+      "ms_leer_en_hilo": 32.4,
+      "cada_ms": 3000
+    },
+    "d_codex_te_necesitan_trabajando_terminadas": {
+      "ok": true,
+      "linea": [
+        [
+          20.7,
+          "necesitan",
+          "aprobada desde el tablero"
+        ],
+        [
+          20.7,
+          null,
+          null,
+          null
+        ],
+        [
+          24.7,
+          "trabajando",
+          "en_curso",
+          "1 s trabajando"
+        ],
+        [
+          70.4,
+          "terminadas",
+          "sin_revision",
+          "sin revisión"
+        ]
+      ],
+      "botones_retenidas": {
+        "t-va-codex": [
+          "Aprobar",
+          "Rechazar",
+          "Ver"
+        ],
+        "t-va-no": [
+          "Aprobar",
+          "Rechazar",
+          "Ver"
+        ]
+      },
+      "aprobacion_no": {
+        "approval_id": "apr-t-va-no-20261030141152-83ca",
+        "nivel": "R1",
+        "vence_txt": "sábado 31/10 a las 14:11",
+        "motivo": "crear archivos en el proyecto (R1, lo declara la tarea: «declarada por la tarea: C:\\Users\\forte\\growi-bridge\\_prueba-vista-agentes-052\\ap»)"
+      },
+      "rechazada": {
+        "fuera_del_tablero": true,
+        "familia": "rechazada"
+      },
+      "tarjeta_en_trabajando": true,
+      "tarjeta_terminada": [
+        "Crea en esta carpeta el archivo t-va-codex.txt con una sola línea: listo. No hagas nada más y responde LISTO.",
+        "t-va-codex · Codex · cubo chatgpt-plus",
+        "sin revisión · 33 s · costo sin dato · hace 0 s",
+        "LISTO"
+      ],
+      "terminada": {
+        "id": "t-va-codex",
+        "tarea": "t-va-codex",
+        "estado": "sin_revision",
+        "estado_txt": "terminada sin revisión",
+        "motor": "codex",
+        "motor_txt": "Codex",
+        "cubo": "chatgpt-plus",
+        "ronda": 0,
+        "encargo": "Crea en esta carpeta el archivo t-va-codex.txt con una sola línea: listo. No hagas nada más y responde LISTO.",
+        "desde": "2026-10-30T14:12:43-04:00",
+        "desde_ts": 1793383963.4424105,
+        "resultado": "LISTO",
+        "status": "ok",
+        "duracion_s": 33.7,
+        "costo": null,
+        "costo_txt": "costo sin dato",
+        "revision": "sin revisión",
+        "terminada_hace_s": 0
+      },
+      "archivo": "listo",
+      "avisos": []
+    }
+  },
+  "siembra": {
+    "terminadas_24h_sembradas": 14
+  },
+  "fin": "2026-10-30 14:12:46",
+  "todo_ok": true
+}

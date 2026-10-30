@@ -1,0 +1,20 @@
+{
+  "id": "t-vista-agentes-052",
+  "model": "opus",
+  "timeout_min": 90,
+  "prompt": "MODO NO-INTERACTIVO (obligatorio): trabajas sin nadie al otro lado. NO hagas preguntas: decide con los criterios de este spec. Si algo exige borrar o gastar dinero real, NO lo hagas y anótalo como FALTA en el ESTADO.\n\nCOMPONENTE 2 de 5 de la 0.5.2: VISTA DE AGENTES (diseño aprobado por Leandro el 30 oct 2026).\n\n1. vista_agentes() sin ventana, en growi-bridge.py: tres columnas.\n   - Trabajando: tareas en_curso o revisando, con hueco, motor y cubo de cuota, tiempo transcurrido, paso actual, tokens y costo en vivo.\n   - Te necesitan: esperando_aprobacion o necesita_decision, con motivo y desde cuándo esperan; las fallidas y en cuarentena también.\n   - Terminadas: últimas 24 h, máximo 10, con resultado, motor, duración, costo y si la revisión aprobó.\n   Lee solo fuentes existentes (cola.db, runner-live*.json vía agentes_vista, result.json, la familia, aprobaciones). Nada nuevo que sincronizar.\n2. Tablero arriba de la página Tareas que sustituye la tarjeta «Agentes»: tres columnas de tarjetas; «Aprobar» y «Rechazar» directos en un clic (_approve_ui); «Ver» selecciona la tarea en la tabla y abre el detalle; refresco cada 3 s sin congelar la ventana (la lectura va en un hilo).\n3. /gateway/agentes: la misma vista en JSON, mismo puerto y token que /gateway/estado.\n4. Prueba en instancia aislada: estados sembrados en su columna, tablero construido con la ventana oculta, y una tarea real de codex que pasa de Trabajando a Terminadas.\nNota de Leandro: agy usa Google AI Pro (plan pago), no free tier: ajustar el cubo y los textos.",
+  "criterios": [
+    "vista_agentes() pone cada estado sembrado en su columna: en_curso y revisando en Trabajando; esperando_aprobacion, necesita_decision, fallida y en_cuarentena en Te necesitan; aprobada y sin_revision de las últimas 24 h en Terminadas (máximo 10, el resto contado en mas)",
+    "No salen: rechazada por el usuario, fallida de hace más de 7 días, terminada de hace más de 24 h, archivada, esperando_aprobacion cuyo encargo ya no está en esperando/; una tarea con rondas sale una sola vez con su última ronda; en_cola solo se cuenta",
+    "Trabajando trae hueco, motor, cubo (codex → chatgpt-plus), segundos, paso, tokens y costo en vivo; Terminadas trae resultado, duración, costo (o «costo sin dato» si el motor no da cifra, nunca un $0 falso) y aprobó / no aprobó / sin revisión",
+    "El tablero (CustomTkinter y Tk clásico) pinta las tres columnas arriba de Tareas en lugar de la tarjeta Agentes; Aprobar y Rechazar solo en las que se pueden aprobar; Ver selecciona la tarea en la lista y abre su detalle",
+    "El refresco cada 3 s lee en un hilo y solo pinta en el de la ventana; si solo cambian tiempos, se repintan las etiquetas sin rehacer las tarjetas",
+    "/gateway/agentes con token devuelve lo mismo que vista_agentes(); sin token, 401",
+    "Una tarea real de codex retenida por el guardrail se aprueba desde el botón del tablero y pasa Te necesitan → Trabajando → Terminadas; otra se rechaza desde el tablero y sale del tablero",
+    "El cubo de gemini se llama Google AI Pro (agy) y los textos de engines.json, availability.json y el LEEME ya no dicen free tier",
+    "Nada abre ventanas ni roba el foco; ESTADO-VISTA-AGENTES-052.md con LISTO y FALTA, y un commit sin push"
+  ],
+  "allowed_tools": "Read,Write,Edit,Bash,Glob,Grep",
+  "permission_mode": "acceptEdits",
+  "cwd": "C:\\Users\\forte\\source\\growi-bridge"
+}

@@ -326,7 +326,7 @@
       },
       "gemini": {
         "rol": "fallback",
-        "coste": "$0 (sesión de agy; la API solo con via: api)",
+        "coste": "$0 extra (Google AI Pro por la sesión de agy; la API solo con via: api)",
         "cambia_si": [
           "429",
           "5xx",
@@ -1475,14 +1475,14 @@
           "--version"
         ],
         "clave": false,
-        "suscripcion": "Cuenta de Google con sesión de agy (free tier) o clave de Gemini (AI Studio)",
+        "suscripcion": "Google AI Pro (plan pago de Leandro) por la sesión de agy; la clave de Gemini (AI Studio) solo con via: api",
         "como_instalar": "Ya está en este PC (C:\\Users\\forte\\AppData\\Local\\agy\\bin\\agy.exe). Guía oficial: antigravity.google/docs/cli"
       },
       "autenticacion": {
         "preferencia": [
           "sesion_cli"
         ],
-        "_preferencia": "t-motor-generico-052: solo la sesión de agy (free tier, $0). Antes caía sola a la clave de Gemini si no había sesión; eso gasta, así que ya no: sin sesión el motor queda «no disponible» con el motivo. La API va solo si el task lo pide con \"via\": \"api\" (motor api, api:gemini:<modelo>).",
+        "_preferencia": "t-motor-generico-052: solo la sesión de agy (Google AI Pro, plan pago: $0 extra por tarea). Antes caía sola a la clave de Gemini si no había sesión; eso gasta, así que ya no: sin sesión el motor queda «no disponible» con el motivo. La API va solo si el task lo pide con \"via\": \"api\" (motor api, api:gemini:<modelo>).",
         "sesion_cli": {
           "nombre": "sesión de agy (Google)",
           "comprobar": [
@@ -1509,7 +1509,7 @@
       },
       "modelo": {
         "por_defecto": null,
-        "_que_es": "Sin --model usa el que agy tenga por defecto. Free tier: modelos Flash / Flash-Lite (Pro salió del free tier en abr 2026)."
+        "_que_es": "Sin --model usa el que agy tenga por defecto. La cuenta es Google AI Pro (plan pago, aviso de Leandro el 30 oct 2026), no free tier; qué modelos y cuánta cuota incluye no lo dice agy (no comprobado)."
       },
       "permisos": {
         "_que_es": "Se elige por tarea con permission_mode. Sin permiso pedido: --mode plan (planifica, no toca archivos). OJO: la configuración propia de agy en este PC tiene toolPermission always-proceed. --dangerously-skip-permissions no se usa nunca.",
@@ -1543,21 +1543,20 @@
       "puede": [
         "texto y código",
         "revisión barata (revisor de la orquestación, mejor que Hermes 3 8B local)",
-        "$0 en el free tier de Google (modelos Flash / Flash-Lite)",
+        "$0 extra por tarea: va con la suscripción Google AI Pro",
         "da tokens y turnos al terminar (no costo)",
         "entra sin clave si la sesión de agy está iniciada"
       ],
       "no_puede": [
-        "Pro no está en el free tier (desde abr 2026)",
         "desde Venezuela sin proxy: NO comprobado en vivo con una respuesta real"
       ],
-      "frase_selector": "Gemini (Antigravity): revisor barato por internet, $0 en el free tier de Google.",
+      "frase_selector": "Gemini (Antigravity): revisor por internet, $0 extra con tu Google AI Pro.",
       "en_selector": true,
       "carril_b": false,
       "ubicacion": "nube",
       "cuota": {
         "cubo": "google-agy",
-        "nombre": "Google (agy, free tier)",
+        "nombre": "Google AI Pro (agy)",
         "fuente": "medido en este PC: usage de la salida JSON de agy; Google no publica cuánto queda",
         "_que_es": "t-motor-generico-052: el cubo de cuota de este motor. Una tarea cuenta solo en el cubo del motor que la corrió; el % solo sale si pones un límite propio en settings.json → limites_cubo."
       },

@@ -55,7 +55,7 @@ Evidencia: `pruebas/evidencia/motor-generico-052/resultado.json` y `growi-bridge
 | — | Parche sobre una **copia** de la app instalada (`_prueba-motor-generico-052\instalada`) | **OK**: aplica, deja .bak y compila; la copia acepta el task del 28 oct como codex, rechaza codex+sonnet, ve gemini disponible («sesión de agy (Google) iniciada») |
 | — | Gate de calidad | **PASA** (py_compile, ruff, mypy, pytest 9/1 skip, smoke). Un intento anterior falló solo en el smoke por «puerto 8797 ocupado» (algo pasajero; repetido, pasa) |
 
-Costo: $0 extra. Dos tareas de codex (ChatGPT Plus) y tres de agy (free tier), contando la que falló. La depuración manual de agy usó 4 llamadas más, también del free tier.
+Costo: $0 extra. Dos tareas de codex (ChatGPT Plus) y tres de agy (Google AI Pro), contando la que falló. La depuración manual de agy usó 4 llamadas más, también con Google AI Pro. (Corregido el 30 oct: la cuenta de agy es Google AI Pro, plan pago, no free tier; el cubo se llama ahora «Google AI Pro (agy)».)
 
 ## FALTA / notas
 - **App instalada: parche APLICADO (30 oct, con tu «procede»).** Respaldos `growi-bridge.py.pre-motor-generico-052.bak`

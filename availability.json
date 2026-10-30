@@ -32,7 +32,7 @@
      "clave": "gemini", "clave_parametro": "key", "motor": "gemini",
      "como": "Llamo a Gemini sin el proxy y con el proxy; con tu clave, compruebo tu región. Y miro si agy (Antigravity) tiene su sesión de Google iniciada.",
      "frase_ok": "Gemini responde desde aquí con tu clave: es la segunda nube.",
-     "frase_motor_ok": "Gemini responde desde aquí y agy tiene su sesión de Google iniciada: se usa SIN clave API ($0 en el free tier).",
+     "frase_motor_ok": "Gemini responde desde aquí y agy tiene su sesión de Google iniciada: se usa SIN clave API ($0 extra: va con tu Google AI Pro).",
      "frase_sin_clave": "Gemini responde desde aquí. Para usarlo, inicia sesión en agy (Modelos → Motores → Gemini dice cómo) o pon tu clave en Ajustes → Claves.",
      "frase_solo_proxy": "Gemini no responde desde IP venezolana; con el proxy sí.",
      "frase_bloqueado": "Gemini no responde ni directo ni con el proxy. La ruta que sí anda: el modelo local."},

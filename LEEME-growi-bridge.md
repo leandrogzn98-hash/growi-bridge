@@ -184,6 +184,33 @@ y lo dice); doble clic muestra la ventana.
   (`GROWI_BRIDGE_CTK=0`, `"piloto_ctk": false`, sin customtkinter o CTk roto).
   Detalles y pruebas: `share\outbox\ESTADO-GUARDRAIL-VISIBLE.md`.
 
+## Vista de Agentes (arriba de Tareas)
+
+Tres columnas, en lugar de la tarjeta «Agentes» de antes (t-vista-agentes-052):
+
+- **Trabajando:** lo que está en curso o revisándose, con su hueco, motor y
+  cubo de cuota (`chatgpt-plus`, `claude-max`, `google-agy`...), cuánto lleva,
+  el paso actual, tokens y costo en vivo.
+- **Te necesitan:** lo que espera tu sí (con **Aprobar** y **Rechazar** en un
+  clic, la misma puerta que la tarjeta de aprobaciones, y cuándo vence), lo
+  que necesita tu decisión, las fallidas y las de cuarentena, con el motivo y
+  desde cuándo esperan. Las aprobaciones, siempre; lo demás, de la última
+  semana (como mucho 12 tarjetas; «y N más en la lista de abajo»).
+- **Terminadas:** las de las últimas 24 h (como mucho 10), con el resultado,
+  el motor, la duración, el costo («costo sin dato» si el motor no da cifra,
+  como codex o agy) y si la revisión aprobó.
+- **Ver** selecciona la tarea en la lista de abajo y abre su detalle. Debajo,
+  cuántas hay en cola y por qué esperan (p. ej. «espera hueco»).
+- Una tarjeta por encargo (sus rondas van dentro). Sale de lo que ya existe:
+  `cola.db`, la familia `*.orquestacion.json`, el `result.json`, los huecos en
+  vivo y el pedido de aprobación; nada nuevo que sincronizar. Se lee cada 3 s
+  en un hilo (la ventana no se congela); si solo cambian los tiempos, se
+  repintan sin rehacer las tarjetas. Si `cola.db` no se puede leer, lo dice en
+  rojo en vez de mostrar columnas vacías.
+- **En JSON:** `GET /gateway/agentes` (el mismo puerto y token que
+  `/gateway/estado`) devuelve lo mismo, para la oficina u otro cliente sin
+  tocar `cola.db`.
+
 ## Niveles de riesgo y vencimiento de las aprobaciones
 
 El silencio nunca es consentimiento: ningún pedido de aprobación espera para
@@ -500,8 +527,8 @@ siempre y, si vence, **se deniega** (nunca se aprueba solo).
 - **Iniciar sesión en agy:** doble clic a `iniciar-sesion-agy.bat` (sin
   Administrador): abre agy para entrar con Google y luego corre sola la prueba
   real (`share\outbox\capturas-gemini\real\`, y el `.result.json` en `share\inbox\`).
-- Entra con la **sesión de agy** (OAuth de Google; preferida, $0 en el free
-  tier) o, si no la hay, con la clave Gemini **activa** de Ajustes → Claves
+- Entra con la **sesión de agy** (OAuth de Google con tu Google AI Pro; preferida,
+  $0 extra) o, si no la hay, con la clave Gemini **activa** de Ajustes → Claves
   (`GEMINI_API_KEY` solo en el entorno del proceso, nunca en archivos ni en el
   registro; si aparece en la salida se tapa con los 4 últimos).
 - Lee `response`, `num_turns` y `conversation_id`; **no da costo**

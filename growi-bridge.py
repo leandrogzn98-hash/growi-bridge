@@ -1986,6 +1986,12 @@ class BridgeHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 log(f"gateway: /gateway/estado fallo ({type(e).__name__}: {e})")
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+        if u.path == "/gateway/agentes":  # la Vista de Agentes en JSON (t-vista-agentes-052)
+            try:
+                return self._json(vista_agentes())
+            except Exception as e:
+                log(f"gateway: /gateway/agentes fallo ({type(e).__name__}: {e})")
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
         if u.path == "/list":
             box = self._box(qs)
             if not box:
@@ -18359,6 +18365,7 @@ def agentes_vista():
             seg = None
         out.append({"hueco": 1, "tarea": state["current"], "motor": state.get("current_motor"),
                     "estado": "en curso", "costo": lv.get("cost_usd_estimado"),
+                    "inicio_ts": time.time() - seg if seg is not None else None,
                     "tokens": (lv.get("tokens_in") or 0) + (lv.get("tokens_out") or 0),
                     "progreso": state.get("paso") or (f"{_gw_hace(seg)} trabajando" if seg else "empezando"),
                     "worktree": None})
@@ -18374,7 +18381,7 @@ def agentes_vista():
             lv2 = {}
         w = _wt_reg().get(t["id"]) or {}
         out.append({"hueco": 2, "tarea": t["id"], "motor": t.get("motor"), "estado": "en curso",
-                    "costo": lv2.get("cost_usd_estimado"),
+                    "costo": lv2.get("cost_usd_estimado"), "inicio_ts": _SLOT.get("t0"),
                     "tokens": (lv2.get("tokens_in") or 0) + (lv2.get("tokens_out") or 0),
                     "progreso": st.get("paso") or f"{_gw_hace(time.time() - (_SLOT.get('t0') or time.time()))} trabajando",
                     "worktree": w.get("rama")})
@@ -18408,10 +18415,173 @@ def _agente_reasignar(t, rc):
     return True
 
 
-_AGUI = {"kit": None}
+# ---------------------------------------------------------------- Vista de Agentes (t-vista-agentes-052)
+# Arriba de Tareas, en tres columnas: quien trabaja ahora, que te necesita
+# (aprobar, decidir, fallidas, cuarentena) y que termino. Nada nuevo que
+# sincronizar: una fila por encargo (la mas reciente de su raiz en cola.db),
+# su familia (*.orquestacion.json: estado final, costo, revision), su
+# result.json, los huecos en vivo (agentes_vista) y el pedido de aprobacion.
+# La misma funcion la sirve el gateway en /gateway/agentes.
+VA_TERMINADAS_H = 24      # Terminadas: las de las ultimas 24 h...
+VA_TERMINADAS_MAX = 10    # ...como mucho 10
+VA_NECESITAN_DIAS = 7     # fallidas, decisiones y cuarentena de la ultima semana (las aprobaciones, siempre)
+VA_NECESITAN_MAX = 12
+VA_CADA_MS = 3000
+_VA_COLUMNA = {"en_curso": "trabajando", "revisando": "trabajando",
+               "esperando_aprobacion": "necesitan", "necesita_decision": "necesitan",
+               "fallida": "necesitan", "en_cuarentena": "necesitan",
+               "aprobada": "terminadas", "sin_revision": "terminadas", "terminada": "terminadas"}
+_VA_ESTADO_TXT = {"en_curso": "trabajando", "revisando": "revisando", "esperando_aprobacion": "espera tu aprobación",
+                  "necesita_decision": "necesita tu decisión", "fallida": "fallida", "en_cuarentena": "en cuarentena",
+                  "aprobada": "revisada y aprobada", "sin_revision": "terminada sin revisión",
+                  "terminada": "terminada"}
 
 
-def _agentes_build(page):
+def _va_json(p):
+    try:
+        d = json.loads(Path(p).read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _va_corto(txt, n=140):
+    txt = " ".join(str(txt or "").split())
+    return txt if len(txt) <= n else txt[:n - 1] + "…"
+
+
+def vista_agentes(ahora=None):
+    """{trabajando, necesitan, terminadas: [tarjeta], en_cola, en_cola_motivos,
+    mas: {necesitan, terminadas}, generado, error}. Sin ventana. Si cola.db no
+    se puede leer, las columnas van vacias y error dice por que (nunca un
+    «nada» falso)."""
+    ahora = time.time() if ahora is None else ahora
+    out = {"generado": _now_iso(), "trabajando": [], "necesitan": [], "terminadas": [], "en_cola": 0,
+           "en_cola_motivos": [], "mas": {"necesitan": 0, "terminadas": 0}, "error": None,
+           "ventanas": {"terminadas_h": VA_TERMINADAS_H, "terminadas_max": VA_TERMINADAS_MAX,
+                        "necesitan_dias": VA_NECESITAN_DIAS, "necesitan_max": VA_NECESITAN_MAX}}
+    if not COLA_DB.is_file():
+        out["error"] = "todavía no hay cola.db: el runner aún no apuntó ninguna tarea"
+        return out
+    try:
+        con = sqlite3.connect(str(COLA_DB), timeout=2)
+        con.row_factory = sqlite3.Row
+        try:
+            filas = [dict(r) for r in con.execute(
+                "SELECT * FROM tareas WHERE actualizado_ts >= ? OR estado IN "
+                "('en_curso', 'revisando', 'esperando_aprobacion', 'en_cola') ORDER BY actualizado_ts",
+                (ahora - VA_NECESITAN_DIAS * 86400,))]
+            archivadas = {r[0] for r in con.execute("SELECT id FROM tareas WHERE estado='archivada'")}
+        finally:
+            con.close()
+    except sqlite3.Error as e:
+        out["error"] = f"no se pudo leer cola.db ({e})"
+        return out
+    ult = {}
+    for r in filas:  # en orden: gana la fila mas reciente de cada encargo (sus rondas van dentro)
+        ult[r.get("raiz") or r["id"]] = r
+    try:
+        vivos = {f["tarea"]: f for f in agentes_vista()[0]}
+    except Exception:
+        vivos = {}
+    try:
+        esperando = {p.name for p in WAITING.glob("*.task.json")}
+    except OSError:
+        esperando = set()
+    for raiz, r in ult.items():
+        est = r["estado"]
+        if raiz in archivadas or est == "archivada":
+            continue
+        if est == "en_cola":
+            out["en_cola"] += 1
+            if r.get("motivo"):
+                out["en_cola_motivos"].append({"id": raiz, "motivo": r["motivo"]})
+            continue
+        fam = load_family(raiz) or {}
+        if est == "en_curso" and fam.get("estado") == "revisando":
+            est = "revisando"
+        elif est not in ("en_curso", "revisando", "esperando_aprobacion") and fam.get("estado") in FINAL_STATES:
+            est = fam["estado"]
+        col = _VA_COLUMNA.get(est)
+        if col is None or (est == "fallida" and "rechazada por el usuario" in str(r.get("motivo") or "")):
+            continue  # rechazada por ti: ya la decidiste
+        if est == "esperando_aprobacion" and Path(r.get("archivo") or "").name not in esperando:
+            continue  # su encargo ya no esta en esperando/: no se puede aprobar (como tareas_en_espera)
+        if col == "terminadas" and r["actualizado_ts"] < ahora - VA_TERMINADAS_H * 3600:
+            continue
+        res = _va_json(RESULTS / f"{r['id']}.result.json")
+        motor = r.get("motor") or res.get("motor") or fam.get("motor") or "claude"
+        modelo = res.get("model") or res.get("modelo") or fam.get("modelo")
+        try:
+            cubo = cubo_de_motor(motor, modelo)
+        except Exception:
+            cubo = str(motor)
+        encargo = fam.get("encargo") or _va_json(r.get("archivo") or "").get("prompt") or ""
+        it = {"id": raiz, "tarea": r["id"], "estado": est, "estado_txt": _VA_ESTADO_TXT.get(est, est),
+              "motor": motor, "motor_txt": MOTOR_CORTO.get(motor) or _nombre_motor(motor), "cubo": cubo,
+              "ronda": r.get("ronda") or 0, "encargo": _va_corto(encargo) or raiz,
+              "desde": r.get("actualizado_en"), "desde_ts": r["actualizado_ts"]}
+        if col == "trabajando":
+            v = vivos.get(r["id"]) or {}
+            ini = v.get("inicio_ts") or r["actualizado_ts"]
+            it.update(hueco=v.get("hueco"), segundos=int(max(0, ahora - ini)), worktree=v.get("worktree"),
+                      paso=_va_corto(v.get("progreso") or ("revisando el resultado" if est == "revisando"
+                                                            else "sin dato en vivo"), 160),
+                      tokens=v.get("tokens") or None,
+                      costo_vivo=v.get("costo") if isinstance(v.get("costo"), (int, float)) else None)
+        elif col == "necesitan":
+            rv = fam.get("ultima_revision") or {}
+            motivo = fam.get("reporte") or rv.get("motivo_decision") or r.get("motivo") or res.get("error") or ""
+            it.update(puede_aprobar=est == "esperando_aprobacion", approval_id=None, nivel=None, vence_ts=None,
+                      vence_txt=None)
+            if est == "esperando_aprobacion":
+                try:
+                    apr = apr_de_raiz(raiz)
+                except Exception:
+                    apr = None
+                if apr and apr.get("estado") == "pendiente":
+                    it.update(approval_id=apr["approval_id"], nivel=apr.get("nivel"), vence_ts=apr.get("vence_ts"),
+                              vence_txt=hora_caracas_txt(apr["vence_ts"]) if apr.get("vence_ts") else None,
+                              desde_ts=apr.get("creado_ts") or it["desde_ts"])
+                    motivo = apr.get("motivo") or motivo
+                motivo = motivo or "el guardrail pide tu sí antes de empezar"
+            # la tarjeta ya dice que no salió: sin la coletilla de los reportes, se ve el porqué
+            motivo = str(motivo).removeprefix(NO_CONFIRMADO).strip()
+            it.update(motivo=_va_corto(motivo, 260), esperando_s=int(max(0, ahora - it["desde_ts"])))
+        else:
+            rv = fam.get("ultima_revision") or {}
+            ids = list(dict.fromkeys(list(fam.get("tareas") or []) + [r["id"]]))
+            rs = [_va_json(RESULTS / f"{i}.result.json") for i in ids]
+            durs = [x.get("duration_s") for x in rs if isinstance(x.get("duration_s"), (int, float))]
+            # El 0.0 con que nace la familia no es un costo: si ningun result trae cifra (codex, agy), sin dato.
+            con_cifra = any(isinstance(x.get("cost_usd"), (int, float)) for x in rs)
+            costo = (fam.get("costo_usd") if isinstance(fam.get("costo_usd"), (int, float)) else res.get("cost_usd")) \
+                if con_cifra else None
+            it.update(resultado=_va_corto(res.get("result") or fam.get("reporte") or "", 200),
+                      status=res.get("status"), duracion_s=round(sum(durs), 1) if durs else None,
+                      costo=costo if isinstance(costo, (int, float)) else None,
+                      costo_txt=_cost_cell({"motor": motor, "costo": costo}) if costo is not None else "costo sin dato",
+                      revision=("aprobó" if rv.get("aprobado") is True
+                                else "no aprobó" if rv.get("aprobado") is False else "sin revisión"),
+                      terminada_hace_s=int(max(0, ahora - r["actualizado_ts"])))
+        out[col].append(it)
+    out["trabajando"].sort(key=lambda x: (x.get("hueco") or 9, -x["desde_ts"]))
+    out["necesitan"].sort(key=lambda x: (not x["puede_aprobar"], -x["desde_ts"]))
+    out["terminadas"].sort(key=lambda x: -x["desde_ts"])
+    for col, tope in (("necesitan", VA_NECESITAN_MAX), ("terminadas", VA_TERMINADAS_MAX)):
+        out["mas"][col] = max(0, len(out[col]) - tope)
+        out[col] = out[col][:tope]
+    return out
+
+
+_VA: dict = {"kit": None, "cols": {}, "pie": None, "fp": None, "vars": [], "dato": None, "leyendo": False}
+_VA_COLS = (("trabajando", "Trabajando"), ("necesitan", "Te necesitan"), ("terminadas", "Terminadas"))
+_VA_VACIO = {"trabajando": "Ningún agente trabajando ahora.", "necesitan": "Nada te espera.",
+             "terminadas": f"Nada terminado en las últimas {VA_TERMINADAS_H} h."}
+_VA_ANCHO = 210  # cada columna; las tres caben en la página de Tareas a 100 % y 150 %
+
+
+def _vista_agentes_build(page):
     holder = tk.Frame(page, bg=THEME["bg"])
     holder.pack(fill="x")
     k = None
@@ -18419,46 +18589,156 @@ def _agentes_build(page):
         try:
             k = _KitCtk(holder)
         except Exception as e:
-            log(f"agentes: CustomTkinter no disponible ({type(e).__name__}: {e}); tarjeta clásica")
+            log(f"agentes: CustomTkinter no disponible ({type(e).__name__}: {e}); tablero clásico")
     k = k or _KitTk(holder)
-    _AGUI["kit"] = k
-    c = k.section("Agentes", f"Hasta {paralelo_max()} a la vez: nunca dos Claudes ni dos locales; lo que no cabe "
+    _VA["kit"] = k
+    c = k.section("Agentes", f"Quién trabaja, qué te necesita y qué terminó en las últimas {VA_TERMINADAS_H} h. "
+                             f"Hasta {paralelo_max()} a la vez: nunca dos Claudes ni dos locales; lo que no cabe "
                              "espera en la cola con el motivo.")
-    _AGUI["box"] = k.frame(c)
-    _AGUI["box"].pack(fill="x", padx=16, pady=(2, 12))
-    _AGUI["fp"] = None
-    _agentes_refrescar()
+    grid = k.frame(c)
+    grid.pack(fill="x", padx=16, pady=(4, 2))
+    _VA["cols"] = {}
+    for i, (key, titulo) in enumerate(_VA_COLS):
+        grid.grid_columnconfigure(i, weight=1, uniform="va")
+        col = k.frame(grid)
+        col.grid(row=0, column=i, sticky="new", padx=(0 if i == 0 else 10, 0))
+        head = k.label(col, titulo, bold=True, wrap=_VA_ANCHO)
+        head.pack(anchor="w", pady=(0, 4))
+        box = k.frame(col)
+        box.pack(fill="x")
+        _VA["cols"][key] = (head, box)
+    _VA["pie"] = k.label(c, "", muted=True, wrap=640)
+    _VA["pie"].pack(anchor="w", fill="x", padx=16, pady=(2, 12))
+    _VA["fp"] = None
+    _va_tick()
 
 
-def _agentes_refrescar():
-    k = _AGUI.get("kit")
-    if k is None:
+def _va_tick():
+    if _VA.get("pie") is None:
         return
+    _va_pedir()
     try:
-        filas, cola = agentes_vista()
-        txt = []
-        for f in filas:
-            txt.append((f"Hueco {f['hueco']}: {f['tarea']}, {MOTOR_CORTO.get(str(f['motor']), f['motor'])}"
-                        + (f", rama {f['worktree']}" if f.get("worktree") else "")
-                        + f", {f['estado']}, " + (f"${f['costo']:.4f}" if isinstance(f.get("costo"), (int, float))
-                                                     else "costo sin dato")
-                        + (f", {f['tokens']} tokens" if f.get("tokens") else "") + f", {f['progreso']}"[:160], "text"))
-        if not filas:
-            txt.append(("Ningún agente trabajando ahora.", "muted"))
-        for tid, motivo in cola[:4]:
-            txt.append((f"En cola: {tid} — {motivo}"[:180], "orange_text"))
-        if txt != _AGUI["fp"]:
-            _AGUI["fp"] = txt
-            for ch in _AGUI["box"].winfo_children():
-                ch.destroy()
-            for t, col in txt:
-                k.label(_AGUI["box"], t, wrap=600, color=col).pack(anchor="w", pady=1)
-    except Exception as e:
-        log(f"agentes: vista ({type(e).__name__}: {e})")
-    try:
-        _AGUI["box"].after(3000, _agentes_refrescar)
+        _VA["pie"].after(VA_CADA_MS, _va_tick)
     except Exception:
         pass
+
+
+def _va_pedir():
+    """Lee en un hilo (cola.db y archivos) y pinta en el de la ventana: nunca la congela."""
+    if _VA["leyendo"]:
+        return
+    _VA["leyendo"] = True
+
+    def leer():
+        try:
+            d = vista_agentes()
+        except Exception as e:
+            d = {"error": f"{type(e).__name__}: {e}", "trabajando": [], "necesitan": [], "terminadas": [],
+                 "en_cola": 0, "en_cola_motivos": [], "mas": {}}
+        finally:
+            _VA["leyendo"] = False
+        _ui_call(lambda: _va_pintar(d))
+    threading.Thread(target=leer, daemon=True, name="vista-agentes").start()
+
+
+def _va_tiempo(it, col):
+    """La linea que cambia sola (tiempos, paso, tokens): se repinta sin rehacer la tarjeta."""
+    if col == "trabajando":
+        partes = [f"{it['estado_txt']} hace {_gw_hace(it['segundos'])}", it["paso"]]
+        if it.get("tokens"):
+            partes.append(f"{_fmt_tok(it['tokens'])} tokens")
+        if it.get("costo_vivo") is not None:
+            partes.append(f"${it['costo_vivo']:.4f} en vivo")
+        return " · ".join(partes)
+    if col == "necesitan":
+        return (f"{it['estado_txt']} hace {_gw_hace(it['esperando_s'])}"
+                + (f" · vence el {it['vence_txt']}" if it.get("vence_txt") else ""))
+    return " · ".join(x for x in (it["revision"], _gw_hace(it["duracion_s"]) if it.get("duracion_s") is not None
+                                  else None, it["costo_txt"], f"hace {_gw_hace(it['terminada_hace_s'])}") if x)
+
+
+def _va_fijo(it):
+    return tuple(it.get(k) for k in ("id", "estado", "encargo", "motor_txt", "cubo", "hueco", "ronda", "motivo",
+                                     "resultado", "revision", "puede_aprobar", "approval_id"))
+
+
+def _va_tarjeta(k, box, col, it):
+    card = k.card(box)
+    card.pack(fill="x", pady=(0, 6))
+    color = ("blue" if col == "trabajando" else "red" if it["estado"] == "fallida"
+             else "orange_text" if col == "necesitan" else "green_text" if it.get("revision") == "aprobó" else None)
+    k.label(card, it["encargo"], bold=True, wrap=_VA_ANCHO).pack(anchor="w", fill="x", padx=10, pady=(8, 0))
+    meta = (f"{it['id']} · {it['motor_txt']} · cubo {it['cubo']}" + (f" · hueco {it['hueco']}" if it.get("hueco") else "")
+            + (f" · ronda {it['ronda']}" if it.get("ronda") else ""))
+    k.label(card, meta, muted=True, wrap=_VA_ANCHO).pack(anchor="w", fill="x", padx=10)
+    var = k.label(card, _va_tiempo(it, col), color=color, wrap=_VA_ANCHO)
+    var.pack(anchor="w", fill="x", padx=10, pady=(2, 0))
+    _VA["vars"].append(var)
+    extra = it.get("motivo") if col == "necesitan" else it.get("resultado") if col == "terminadas" else None
+    if extra:
+        k.label(card, extra, muted=True, wrap=_VA_ANCHO).pack(anchor="w", fill="x", padx=10, pady=(2, 0))
+    fila = k.frame(card)
+    fila.pack(anchor="w", padx=10, pady=(6, 8))
+    if col == "necesitan" and it.get("puede_aprobar"):
+        k.button(fila, "Aprobar", lambda i=it: _va_decidir(i, True), accent=True).pack(side="left", padx=(0, 6))
+        k.button(fila, "Rechazar", lambda i=it: _va_decidir(i, False)).pack(side="left", padx=(0, 6))
+    k.button(fila, "Ver", lambda i=it: _va_ver(i)).pack(side="left")
+
+
+def _va_pintar(d):
+    k = _VA.get("kit")
+    if k is None or _VA.get("pie") is None:
+        return
+    _VA["dato"] = d
+    mas = d.get("mas") or {}
+    fijo = (tuple((col, tuple(_va_fijo(it) for it in d.get(col) or [])) for col, _t in _VA_COLS)
+            + (d.get("error"), tuple(sorted(mas.items()))))
+    try:
+        if fijo != _VA["fp"]:
+            _VA["fp"], _VA["vars"] = fijo, []
+            for col, titulo in _VA_COLS:
+                head, box = _VA["cols"][col]
+                for ch in box.winfo_children():
+                    ch.destroy()
+                items = d.get(col) or []
+                k.set_label(head, titulo if d.get("error") else f"{titulo} ({len(items) + (mas.get(col) or 0)})")
+                if d.get("error"):
+                    k.label(box, "sin datos", color="red", wrap=_VA_ANCHO).pack(anchor="w")
+                    continue
+                if not items:
+                    k.label(box, _VA_VACIO[col], muted=True, wrap=_VA_ANCHO).pack(anchor="w")
+                for it in items:
+                    _va_tarjeta(k, box, col, it)
+                if mas.get(col):
+                    k.label(box, f"y {mas[col]} más en la lista de abajo", muted=True,
+                            wrap=_VA_ANCHO).pack(anchor="w", pady=(2, 0))
+        else:
+            vals = [(col, it) for col, _t in _VA_COLS for it in d.get(col) or []]
+            for lbl, (col, it) in zip(_VA["vars"], vals):
+                k.set_label(lbl, _va_tiempo(it, col))
+        if d.get("error"):
+            k.set_label(_VA["pie"], f"No se pudo leer el estado: {d['error']}. Las tareas siguen guardadas en la cola.",
+                        color="red")
+        else:
+            n = d.get("en_cola") or 0
+            mot = d.get("en_cola_motivos") or []
+            txt = ("Cola vacía." if not n else f"En cola: {_tareas_txt(n)}"
+                   + (". " + "; ".join(f"{m['id']}: {m['motivo']}" for m in mot[:2]) if mot else "."))
+            k.set_label(_VA["pie"], _va_corto(txt, 300), color="muted")
+    except Exception as e:
+        log(f"agentes: tablero ({type(e).__name__}: {e})")
+
+
+def _va_decidir(it, ok):
+    """Aprobar / Rechazar en un clic: la misma puerta que la tarjeta de aprobaciones."""
+    log(f"agentes: {'apruebas' if ok else 'rechazas'} {it['id']} desde el tablero")
+    _approve_ui(it["id"], ok, it.get("approval_id"))
+    _VA["fp"] = None
+    _va_pedir()
+
+
+def _va_ver(it):
+    _tarea_ver_en_lista(it["id"], "agentes", "desde el tablero")
 
 
 def runner_loop(stop_event):
@@ -35315,6 +35595,11 @@ def _gw_ver_tarea(cual):
     d = _GW.get("data") or {}
     tid = ((d.get("runner") or {}).get("tarea") if cual == "runner"
            else (d.get("cola") or {}).get("primera_esperando"))
+    _tarea_ver_en_lista(tid, "gateway", "desde Estado")
+
+
+def _tarea_ver_en_lista(tid, tag, desde):
+    """Tareas con esa tarea seleccionada en la lista y su detalle abierto."""
     _widgets["show_page"]("tareas")
     tree = _widgets.get("tasks_tree")
     if not tid or tree is None:
@@ -35323,14 +35608,14 @@ def _gw_ver_tarea(cual):
         _tasks_fp[0] = None
         _refresh_tasks_ui()
     except Exception as e:
-        log(f"gateway: no se pudo refrescar Tareas ({type(e).__name__}: {e})")
+        log(f"{tag}: no se pudo refrescar Tareas ({type(e).__name__}: {e})")
     if tree.exists(tid):
         tree.selection_set(tid)
         tree.see(tid)
         _show_task_detail()
-        log(f"gateway: desde Estado, detalle de la tarea {tid}")
+        log(f"{tag}: {desde}, detalle de la tarea {tid}")
     else:
-        log(f"gateway: la tarea {tid} no está en la lista de Tareas")
+        log(f"{tag}: la tarea {tid} no está en la lista de Tareas")
 
 
 def _gw_render(est, d):
@@ -44765,9 +45050,9 @@ def build_gui():
     except Exception as e:
         log(f"tareas: no se pudo dibujar la fila de estadísticas ({type(e).__name__}: {e})")
     try:
-        _agentes_build(tabt)  # quién trabaja en cada hueco (t-agentes-paralelos-030)
+        _vista_agentes_build(tabt)  # Trabajando / Te necesitan / Terminadas (t-vista-agentes-052)
     except Exception as e:
-        log(f"agentes: no se pudo dibujar la vista ({type(e).__name__}: {e})")
+        log(f"agentes: no se pudo dibujar el tablero ({type(e).__name__}: {e})")
     _build_spend_card(tabt)
     _widgets["approvals_box"] = tk.Frame(tabt, bg=THEME["card"])
     ttk.Style().configure("Tareas.Treeview", font=(MONO, 10), rowheight=S(FILA_PX))
