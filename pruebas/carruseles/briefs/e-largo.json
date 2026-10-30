@@ -1,0 +1,12 @@
+{
+ "id": "prueba-e-largo",
+ "marca": "summit-maker",
+ "tipo": 1,
+ "contexto": "Brief de PRUEBA de la memoria de marca: la lámina 2 tiene más de 12 palabras a propósito.",
+ "laminas": [
+  {"titulo": "Tu asistente **no lee mentes**"},
+  {"titulo": "Explícale como a alguien nuevo", "texto": "Imagina que entra hoy a trabajar contigo y no conoce a ningún cliente."},
+  {"titulo": "Dale tu tono", "texto": "Pega un mensaje tuyo."},
+  {"titulo": "Pruébalo hoy", "accion": "Comenta ASISTENTE"}
+ ]
+}

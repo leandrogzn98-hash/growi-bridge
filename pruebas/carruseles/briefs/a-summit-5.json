@@ -1,0 +1,14 @@
+{
+ "id": "prueba-a-summit-5",
+ "marca": "summit-maker",
+ "tipo": 1,
+ "tema": "Qué preparar antes de configurar tu asistente",
+ "contexto": "Brief de PRUEBA de la skill carruseles (copy escrito para la verificación, no aprobado por Leandro). Taller presencial «Configura tu propio Asistente IA» en Barquisimeto; fecha y precio: [PENDIENTE: dato].",
+ "laminas": [
+  {"titulo": "Tu asistente no necesita **más prompts**", "texto": "Necesita saber qué haces cada lunes."},
+  {"titulo": "Escribe tu semana en una hoja", "texto": "Lo que repites cada semana es lo primero que le vas a pasar. Sin esa lista, cualquier asistente adivina."},
+  {"titulo": "Un asistente sin contexto **adivina**", "texto": "Con tu lista deja de adivinar y te ayuda con lo que de verdad te quita tiempo."},
+  {"titulo": "Antes del taller, ten esto a mano", "items": ["Las tareas que repites cada semana", "Dos mensajes que escribes seguido", "Lo que más flojera te da hacer", "El correo que usas para trabajar"]},
+  {"titulo": "Lo único que necesitas es ejecución", "accion": "Comenta ASISTENTE", "texto": "y te aviso primero cuando abra el próximo taller."}
+ ]
+}

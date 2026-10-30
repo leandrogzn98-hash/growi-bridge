@@ -1,0 +1,13 @@
+{
+ "id": "lote-3-niveles",
+ "marca": "summit-maker",
+ "tipo": 1,
+ "contexto": "Brief de PRUEBA del modo lote (no aprobado por Leandro).",
+ "laminas": [
+  {"titulo": "¿En qué nivel **estás tú**?", "texto": "Tres niveles. Sé honesto con el tuyo."},
+  {"titulo": "Nivel 1: le preguntas cosas", "texto": "Lo usas como buscador. Funciona, pero lo estás desperdiciando."},
+  {"titulo": "Nivel 2: le das trabajo", "texto": "Redacta, resume y ordena por ti. Ya te ahorra horas."},
+  {"titulo": "Nivel 3: conoce tu negocio", "texto": "Tiene tu contexto, tus clientes y tu tono. Ahí cambia el juego."},
+  {"titulo": "Subir de nivel es ejecución", "accion": "Comenta ASISTENTE", "texto": "y te digo por dónde empezar."}
+ ]
+}

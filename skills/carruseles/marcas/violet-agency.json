@@ -1,0 +1,25 @@
+{
+ "marca": "violet-agency",
+ "nombre": "Violet Agency",
+ "version": "sin brandbook: esqueleto para completar",
+ "fuente_del_dato": "memoria de Leandro: Violet Agency (Andrea & Elizabeth, @somosvioletagency) graba y edita los vídeos de Summit Maker. Colores y fuentes no están en ningún archivo del PC.",
+ "colores": {
+  "principal": "[PENDIENTE: color principal]",
+  "acento": "[PENDIENTE: color de acento]",
+  "fondo": "[PENDIENTE: color de fondo]",
+  "texto_sobre_oscuro": "[PENDIENTE: color de texto sobre fondo oscuro]",
+  "texto_sobre_claro": "[PENDIENTE: color de texto sobre fondo claro]"
+ },
+ "fuentes": {
+  "titulares": "[PENDIENTE: fuente de titulares]",
+  "cuerpo": "[PENDIENTE: fuente de cuerpo]"
+ },
+ "firma": "@somosvioletagency",
+ "cta": {"texto": "[PENDIENTE: CTA]", "palabra": ""},
+ "tono": "[PENDIENTE: tono]",
+ "prohibidas": [],
+ "fotos": "[PENDIENTE: política de fotos]",
+ "prohibido_en_imagenes": [],
+ "datos": {},
+ "reglas": {"max_palabras_lamina": 40, "una_sola_accion": true, "incluir_en_ultima": []}
+}

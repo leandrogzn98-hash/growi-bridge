@@ -1,0 +1,6 @@
+{
+ "ok": true,
+ "resumen": "antes: listo; corrección guardada (rc=0); mismo brief: rechazado por QC (['18 palabras en la lámina; máximo 12 (regla de marca: máximo 12 palabras por lámina)']); reescrito: listo con ['reglas.max_palabras_lamina = 12']; «siempre el RIF»: rechazado por QC (['la marca pide «RIF» en la última lámina y el dato está [PENDIENTE: RIF]: complétalo en el brandbook (no se inventa)'])",
+ "salida_marca": "guardado: reglas.max_palabras_lamina = 12\n-> C:\\Users\\forte\\AppData\\Local\\Temp\\prueba-carruseles\\datos-e\\marcas\\summit-maker.json",
+ "salida_marca_rif": "guardado: reglas.incluir_en_ultima = ['RIF']\n-> C:\\Users\\forte\\AppData\\Local\\Temp\\prueba-carruseles\\datos-e\\marcas\\summit-maker.json"
+}

@@ -1,0 +1,9 @@
+{
+ "ok": true,
+ "resumen": "listo; motor codex; [{'tokens_codex': '12,933', 'costo': 'suscripción ChatGPT Plus: $0 extra', 'motor': 'codex', 'segundos': 116.1, 'lamina': 1, 'prompt': 'una mesa de trabajo de madera vista desde arriba con una laptop abierta, una libreta y una taza de café, luz natural de ventana, fotografía realista', 'archivo': 'lamina-01-838c58604a83.png'}]",
+ "avisos": [
+  "el brandbook dice «Fotos propias o ninguna: sin fotos de stock. Sin montañas en las piezas.»: una imagen generada puede leerse como stock; confírmalo con Leandro antes de publicar",
+  "3 láminas; la anatomía de la marca recomienda 7-8",
+  "la anatomía de la marca pide cerrar con un checklist guardable (rol «lista») en las últimas láminas"
+ ]
+}

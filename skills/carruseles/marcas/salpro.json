@@ -1,0 +1,25 @@
+{
+ "marca": "salpro",
+ "nombre": "SalPro",
+ "version": "sin brandbook: esqueleto para completar",
+ "fuente_del_dato": "memoria de Leandro: SalPro es la procesadora de sal de Gustavo Bastidas (Clínica Di Fiore). Regla de calidad: el producto representado debe coincidir con el empaque real. Colores, fuentes y RIF no están en ningún archivo del PC.",
+ "colores": {
+  "principal": "[PENDIENTE: color principal]",
+  "acento": "[PENDIENTE: color de acento]",
+  "fondo": "[PENDIENTE: color de fondo]",
+  "texto_sobre_oscuro": "[PENDIENTE: color de texto sobre fondo oscuro]",
+  "texto_sobre_claro": "[PENDIENTE: color de texto sobre fondo claro]"
+ },
+ "fuentes": {
+  "titulares": "[PENDIENTE: fuente de titulares]",
+  "cuerpo": "[PENDIENTE: fuente de cuerpo]"
+ },
+ "firma": "[PENDIENTE: usuario de Instagram de SalPro]",
+ "cta": {"texto": "[PENDIENTE: CTA]", "palabra": ""},
+ "tono": "[PENDIENTE: tono]",
+ "prohibidas": [],
+ "fotos": "Fotos reales del empaque del cliente (fidelidad del empaque): nunca un empaque generado o inventado.",
+ "prohibido_en_imagenes": ["empaques generados", "logos inventados"],
+ "datos": {"rif": "[PENDIENTE: RIF de SalPro]"},
+ "reglas": {"max_palabras_lamina": 40, "una_sola_accion": true, "incluir_en_ultima": []}
+}

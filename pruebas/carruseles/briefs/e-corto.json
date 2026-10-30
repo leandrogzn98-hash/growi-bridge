@@ -1,0 +1,12 @@
+{
+ "id": "prueba-e-corto",
+ "marca": "summit-maker",
+ "tipo": 1,
+ "contexto": "Brief de PRUEBA de la memoria de marca: el mismo carrusel reescrito a 12 palabras o menos por lámina.",
+ "laminas": [
+  {"titulo": "Tu asistente **no lee mentes**"},
+  {"titulo": "Explícale como a alguien nuevo", "texto": "No conoce a tus clientes."},
+  {"titulo": "Dale tu tono", "texto": "Pega un mensaje tuyo."},
+  {"titulo": "Pruébalo hoy", "accion": "Comenta ASISTENTE"}
+ ]
+}

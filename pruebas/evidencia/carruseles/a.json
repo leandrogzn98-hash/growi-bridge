@@ -1,0 +1,66 @@
+{
+ "ok": true,
+ "resumen": "listo, 5 PNG {(1080, 1350)}, 12.5 s",
+ "tamanos": {
+  "lamina-01.png": [
+   1080,
+   1350
+  ],
+  "lamina-02.png": [
+   1080,
+   1350
+  ],
+  "lamina-03.png": [
+   1080,
+   1350
+  ],
+  "lamina-04.png": [
+   1080,
+   1350
+  ],
+  "lamina-05.png": [
+   1080,
+   1350
+  ]
+ },
+ "checks": [
+  [
+   "1080x1350",
+   "fuentes cargadas",
+   "contraste mínimo 4.78:1",
+   "texto dentro de pantalla y sin cortes",
+   "12 palabras (máx. 40)"
+  ],
+  [
+   "1080x1350",
+   "fuentes cargadas",
+   "contraste mínimo 3.17:1",
+   "texto dentro de pantalla y sin cortes",
+   "25 palabras (máx. 40)"
+  ],
+  [
+   "1080x1350",
+   "fuentes cargadas",
+   "contraste mínimo 4.78:1",
+   "texto dentro de pantalla y sin cortes",
+   "22 palabras (máx. 40)"
+  ],
+  [
+   "1080x1350",
+   "fuentes cargadas",
+   "contraste mínimo 15.12:1",
+   "texto dentro de pantalla y sin cortes",
+   "31 palabras (máx. 40)"
+  ],
+  [
+   "1080x1350",
+   "fuentes cargadas",
+   "contraste mínimo 4.78:1",
+   "texto dentro de pantalla y sin cortes",
+   "17 palabras (máx. 40)"
+  ]
+ ],
+ "avisos": [
+  "5 láminas; la anatomía de la marca recomienda 7-8"
+ ]
+}

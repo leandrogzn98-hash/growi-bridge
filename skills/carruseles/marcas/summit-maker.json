@@ -1,0 +1,41 @@
+{
+ "marca": "summit-maker",
+ "nombre": "Summit Maker",
+ "version": "brandbook v1.0 (1 oct 2026)",
+ "fuente_del_dato": "skills\\summit-maker\\SKILL.md, sección «Brandbook Summit Maker» (copia instalada en C:\\Users\\forte\\growi-bridge\\skills)",
+ "colores": {
+  "principal": "#052048",
+  "acento": "#FA5102",
+  "exito": "#2FD9A6",
+  "fondo": "#F7F8FA",
+  "texto_sobre_oscuro": "#F7F8FA",
+  "texto_sobre_claro": "#052048"
+ },
+ "notas_colores": "Azul Summit = principal, Naranja Guaro = acento, Verde Ascenso solo para éxito. Los dos colores de texto salen de la misma paleta (fondo y principal), no son colores nuevos.",
+ "fuentes": {
+  "titulares": "Space Grotesk",
+  "cuerpo": "Inter"
+ },
+ "firma": "summitmaker.co",
+ "cta": {
+  "texto": "Comenta ASISTENTE",
+  "palabra": "ASISTENTE",
+  "para_que": "lista prioritaria del taller presencial «Configura tu propio Asistente IA» en Barquisimeto"
+ },
+ "tono": "Tuteo venezolano guaro, directo, sin personaje forzado. Una acción por pieza: cada pieza pide una sola cosa.",
+ "prohibidas": ["gurú", "guru", "disruptivo", "disruptiva", "hackear", "hackea", "transforma tu vida"],
+ "fotos": "Fotos propias o ninguna: sin fotos de stock. Sin montañas en las piezas.",
+ "prohibido_en_imagenes": ["montañas", "fotos de stock", "texto dentro de la imagen"],
+ "datos": {
+  "rif": "[PENDIENTE: RIF de Summit Maker]"
+ },
+ "reglas": {
+  "max_palabras_lamina": 40,
+  "laminas_recomendadas": [7, 8],
+  "ultima_es_checklist": true,
+  "ganchos_autonomos": 3,
+  "una_sola_accion": true,
+  "incluir_en_ultima": []
+ },
+ "anatomia": "Láminas 1-3 = hooks autónomos (Instagram re-sirve desde la 2 y la 3). Hook → Promesa → Desarrollo → Payoff → Ask único. Última = checklist guardable. Una idea por lámina. El pie de foto añade contexto, no repite las láminas."
+}

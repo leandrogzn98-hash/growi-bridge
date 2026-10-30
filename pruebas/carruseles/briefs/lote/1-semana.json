@@ -1,0 +1,13 @@
+{
+ "id": "lote-1-semana",
+ "marca": "summit-maker",
+ "tipo": 1,
+ "contexto": "Brief de PRUEBA del modo lote (no aprobado por Leandro).",
+ "laminas": [
+  {"titulo": "El lunes decide **tu semana**", "texto": "Si el lunes no tiene lista, el viernes llega solo."},
+  {"titulo": "Anota lo que repites", "texto": "Mensajes, cotizaciones, recordatorios. Lo que haces igual cada semana."},
+  {"titulo": "Pásaselo a tu asistente", "texto": "Una tarea repetida, bien explicada, es una tarea que ya no escribes tú."},
+  {"titulo": "Para el lunes", "items": ["Tu lista de tareas repetidas", "Un ejemplo de cada una"]},
+  {"titulo": "Empieza por una sola tarea", "accion": "Comenta ASISTENTE"}
+ ]
+}

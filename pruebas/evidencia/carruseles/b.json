@@ -1,0 +1,13 @@
+{
+ "ok": true,
+ "resumen": "saboteado: 3/5 OK (2 y 3 rechazadas); control sin sabotaje: OK",
+ "diagnostico": "QC: RECHAZADO (3/5 láminas OK)\n  lámina 02 RECHAZADA:\n    - texto recortado por su contenedor (lamina clara 0,0,1080,1350): «Escribe tu semana en una hoja»\n    - texto fuera de pantalla: «Escribe tu semana en una hoja» en x=700..1560, y=452..802\n    - contraste 1.0:1 (mínimo 3.0:1) en «Escribe tu semana en una hoja»\n  lámina 03 RECHAZADA:\n    - texto cortado: «Con tu lista deja de adivinar y te ayuda con lo …» necesita 90 px de alto y su caja tiene 40 px (letra ya en el mínimo legible, 34 px): recorta el copy de esta lámina",
+ "rechazos_2": [
+  "texto recortado por su contenedor (lamina clara 0,0,1080,1350): «Escribe tu semana en una hoja»",
+  "texto fuera de pantalla: «Escribe tu semana en una hoja» en x=700..1560, y=452..802",
+  "contraste 1.0:1 (mínimo 3.0:1) en «Escribe tu semana en una hoja»"
+ ],
+ "rechazos_3": [
+  "texto cortado: «Con tu lista deja de adivinar y te ayuda con lo …» necesita 90 px de alto y su caja tiene 40 px (letra ya en el mínimo legible, 34 px): recorta el copy de esta lámina"
+ ]
+}

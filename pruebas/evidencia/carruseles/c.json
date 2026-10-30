@@ -1,0 +1,36 @@
+{
+ "ok": true,
+ "resumen": "rc=0, 3/3 listos en 38.9 s",
+ "carruseles": [
+  {
+   "id": "lote-1-semana",
+   "estado": "listo",
+   "laminas_ok": 5,
+   "total": 5,
+   "avisos": 1,
+   "segundos": 12.5,
+   "error": null,
+   "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\prueba-carruseles\\c-lote\\lote-1-semana"
+  },
+  {
+   "id": "lote-2-errores",
+   "estado": "listo",
+   "laminas_ok": 6,
+   "total": 6,
+   "avisos": 1,
+   "segundos": 13.7,
+   "error": null,
+   "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\prueba-carruseles\\c-lote\\lote-2-errores"
+  },
+  {
+   "id": "lote-3-niveles",
+   "estado": "listo",
+   "laminas_ok": 5,
+   "total": 5,
+   "avisos": 2,
+   "segundos": 11.7,
+   "error": null,
+   "carpeta": "C:\\Users\\forte\\AppData\\Local\\Temp\\prueba-carruseles\\c-lote\\lote-3-niveles"
+  }
+ ]
+}

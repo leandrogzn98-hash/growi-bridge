@@ -1,0 +1,14 @@
+{
+ "id": "lote-2-errores",
+ "marca": "summit-maker",
+ "tipo": 1,
+ "contexto": "Brief de PRUEBA del modo lote (no aprobado por Leandro).",
+ "laminas": [
+  {"titulo": "Le pides todo **en un solo mensaje**", "texto": "Y después te quejas de que no entendió."},
+  {"titulo": "Una tarea por mensaje", "texto": "Si mezclas tres pedidos, te responde a medias los tres."},
+  {"titulo": "Dale un ejemplo", "texto": "Pega un mensaje tuyo que te guste. Copia tu tono mejor que cualquier explicación."},
+  {"titulo": "Dile qué no quieres", "texto": "Sin emojis, sin saludo largo, sin cerrar con preguntas."},
+  {"titulo": "Revisa antes de enviar", "items": ["¿Pediste una sola cosa?", "¿Pegaste un ejemplo?", "¿Dijiste qué evitar?", "¿Leíste la respuesta completa?"]},
+  {"titulo": "¿Cuál de estos te pasa más?", "accion": "Comenta ASISTENTE", "texto": "y te paso la plantilla del taller."}
+ ]
+}

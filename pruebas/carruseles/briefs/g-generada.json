@@ -1,0 +1,11 @@
+{
+ "id": "prueba-g-generada",
+ "marca": "summit-maker",
+ "tipo": 2,
+ "contexto": "Brief de PRUEBA del tipo 2: una imagen generada con el motor gratis que haya en el PC.",
+ "laminas": [
+  {"titulo": "Tu escritorio **ya es** tu oficina", "imagen": "una mesa de trabajo de madera vista desde arriba con una laptop abierta, una libreta y una taza de café, luz natural de ventana, fotografía realista", "encuadre": "center center"},
+  {"titulo": "Lo que falta es orden", "texto": "Una lista de lo que repites cada semana."},
+  {"titulo": "Empieza el lunes", "accion": "Comenta ASISTENTE"}
+ ]
+}

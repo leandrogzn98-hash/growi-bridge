@@ -1,0 +1,12 @@
+{
+ "id": "prueba-d-fotos",
+ "marca": "summit-maker",
+ "tipo": 3,
+ "contexto": "Brief de PRUEBA del tipo 3 con fotos SINTÉTICAS (no son fotos reales del taller).",
+ "laminas": [
+  {"titulo": "Así se ve **un sábado** de taller", "foto": "1-vertical.png", "encuadre": "center center"},
+  {"titulo": "Cada quien con su laptop", "texto": "Nadie mira: todos configuran el suyo.", "foto": "2-horizontal.png", "encuadre": "center center"},
+  {"titulo": "Sales con tu asistente andando", "texto": "No con apuntes.", "foto": "3-cuadrada.png", "encuadre": "center center"},
+  {"titulo": "¿Te guardo un puesto?", "accion": "Comenta ASISTENTE"}
+ ]
+}
