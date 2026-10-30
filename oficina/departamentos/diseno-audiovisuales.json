@@ -1,0 +1,99 @@
+{
+  "_que_es": "Quinto departamento de la oficina 0.5.0 (t-oficina-depto-diseno-050): Diseño y Audiovisuales. Datos para integrar cuando existan plano.json (spec 7), el sistema paper doll + skin.json + validate_skins.py (spec 10) y el formato de empleados/fortalezas (spec 11). NADA de esto está todavía en plano.json ni en skin.json: esos archivos no existen en el PC (ver ESTADO-DEPTO-DISENO-050.md). Las fichas usan los campos que el spec 10 fija para skin.json, para que integrarlas sea copiarlas.",
+  "id": "diseno-audiovisuales",
+  "nombre": "Diseño y Audiovisuales",
+  "corbata": {
+    "hex": "#C2185B",
+    "nombre": "frambuesa",
+    "estado": "propuesto",
+    "por_que": "Ningún departamento ni tinte de pensamiento usa el magenta: naranja Claude #D97757, verde Codex #00A67E, morado Local, azul Gemini #4285F4, ámbar del gerente #F5A623, azul Summit #052048; tintes #FFC53D, #34C759, #F7F7F7, #007AFF, #FF6363 y #1A1A1C. Es oscuro, así que no se confunde con el rojo claro de emoción (#FF6363) ni con el rubor (#F2A0A8), y casa con el rosa de los subtítulos del estilo reel-ganchos.",
+    "pendiente": "Confirmar contra la paleta de 24 colores (PALETA-Y-SKINS.md §1). Ese archivo no está en el PC: si el color no está en la paleta, se toma el magenta más cercano de la paleta y se vuelve a pasar validar_departamento.py."
+  },
+  "area": {
+    "estado": "requisitos; las coordenadas las pone plano.json (spec 7)",
+    "elementos": [
+      {"id": "mesa-edicion", "que": "mesa de edición con monitor ancho que muestra una timeline (pistas de colores que avanzan mientras hay un corte o render en curso)", "silla": "editor", "tamano_celdas": [3, 2]},
+      {"id": "mesa-motion", "que": "mesa de motion con dos monitores (uno con la vista previa vertical 9:16)", "silla": "motion", "tamano_celdas": [3, 2]},
+      {"id": "mesa-directora", "que": "mesa de la líder, de cara a las otras dos, con claqueta", "silla": "directora", "tamano_celdas": [2, 2]},
+      {"id": "tablon-estilos", "que": "tablón de estilos en la pared: tres tarjetas, una por estilo del catálogo (talking-head limpio, reel con ganchos, clip rápido), y una cuarta con la marca activa", "silla": null, "tamano_celdas": [2, 1]}
+    ],
+    "reglas_de_plano": [
+      "no se solapa con los 4 departamentos existentes ni con sus mesas y sillas",
+      "no se solapa con los puntos de interés (café, ventana, baño, planta, pasillo) ni les quita capacidad",
+      "alcanzable desde la entrada por BFS sin atravesar obstáculos",
+      "cada silla mira a su mesa; la mesa de edición y la de motion, lado a lado (pasan el trabajo de una a otra)",
+      "lejos de la mesa central de despacho de Runa lo justo para que el paseo de entregar tarea se vea"
+    ]
+  },
+  "personajes": [
+    {
+      "id": "directora",
+      "nombre": "la Directora",
+      "departamento": "diseno-audiovisuales",
+      "plataforma": "claude (skill edicion-video)",
+      "rol": "líder: dirige la edición (lista de cortes, mejor toma, ganchos) y aprueba lo que sale",
+      "lider": true,
+      "corbata": "#C2185B",
+      "identificador": "claqueta bajo el brazo (única con claqueta)",
+      "capas": {"pelo": "media melena con flequillo recto", "cara": "base común", "ropa": "blazer gris carbón + corbata frambuesa", "accesorio": "claqueta"},
+      "colores": {"pelo": "pendiente de la paleta", "ropa": "pendiente de la paleta", "piel": "pendiente de la paleta"},
+      "animaciones": ["idle", "escribir", "caminar", "cafe", "telefono", "vagancia", "celebrar", "dormir"],
+      "notas": "En «celebrar» da el golpe de claqueta. En «escribir» revisa la lista de cortes (hoja en la mesa). Dormir: igual que todos (§14), la claqueta apoyada en la mesa."
+    },
+    {
+      "id": "editor",
+      "nombre": "el Editor",
+      "departamento": "diseno-audiovisuales",
+      "plataforma": "claude (skill edicion-video)",
+      "rol": "empleado: corte y subtítulos (Whisper, silencedetect, ffmpeg, subtítulos palabra por palabra)",
+      "lider": false,
+      "corbata": null,
+      "identificador": "rollo de película colgado al hombro (único con rollo)",
+      "capas": {"pelo": "corto despeinado", "cara": "base común", "ropa": "camiseta oscura sin corbata", "accesorio": "rollo de película"},
+      "colores": {"pelo": "pendiente de la paleta", "ropa": "pendiente de la paleta", "piel": "pendiente de la paleta"},
+      "animaciones": ["idle", "escribir", "caminar", "cafe", "telefono", "vagancia", "celebrar", "dormir"],
+      "notas": "En «escribir» corta en la timeline de la mesa de edición. Sin corbata (empleado)."
+    },
+    {
+      "id": "motion",
+      "nombre": "Motion",
+      "departamento": "diseno-audiovisuales",
+      "plataforma": "claude (skill edicion-video)",
+      "rol": "empleado: animación y render (Remotion), y QC del render",
+      "lider": false,
+      "corbata": null,
+      "identificador": "gorro de lana con pompón y lápiz óptico en la mano (único con gorro)",
+      "capas": {"pelo": "asoma bajo el gorro", "cara": "base común", "ropa": "sudadera holgada sin corbata", "accesorio": "gorro con pompón + lápiz óptico"},
+      "colores": {"pelo": "pendiente de la paleta", "ropa": "pendiente de la paleta", "piel": "pendiente de la paleta"},
+      "animaciones": ["idle", "escribir", "caminar", "cafe", "telefono", "vagancia", "celebrar", "dormir"],
+      "notas": "En «escribir» anima con el lápiz óptico (no tableta: la única con tableta es Runa). Sin corbata (empleado)."
+    }
+  ],
+  "fortalezas": {
+    "resumen": "Edita vídeo de verdad en el PC con la skill edicion-video: un crudo vertical entra y sale un reel con subtítulos palabra por palabra; un vídeo largo entra y salen clips y posts.",
+    "pipeline": [
+      {"paso": "Whisper transcribe", "quien": "Whisper local (faster-whisper small)", "costo": "$0"},
+      {"paso": "Claude dirige", "quien": "director: reglas locales o claude -p (mejor toma, cortes, ganchos)", "costo": "$0 con reglas; con claude, estimado antes del render"},
+      {"paso": "Gemini mira", "quien": "Gemini ve el vídeo (opcional, solo con GEMINI_API_KEY)", "costo": "estimado antes del render"},
+      {"paso": "Remotion renderiza", "quien": "Remotion 1080x1920 a 30 fps", "costo": "$0"}
+    ],
+    "servicios": [
+      {"id": "qc", "nombre": "QC automático del render", "que": "mira el MP4 final y lo rechaza con diagnóstico si los subtítulos salen de pantalla o de la zona segura, si el audio se desfasa más de un frame o si la duración no es la esperada", "script": "skills/edicion-video/scripts/qc.py"},
+      {"id": "lotes", "nombre": "Edición por lotes nocturna", "que": "encola N crudos y los edita sin supervisión (opcionalmente a una hora), con un reporte por vídeo y un resumen del lote", "script": "skills/edicion-video/scripts/lote.py"},
+      {"id": "costos", "nombre": "Costos transparentes por vídeo", "que": "tokens y USD estimados por paso antes de renderizar, y el costo real después cuando el proveedor lo da", "script": "skills/edicion-video/scripts/costo.py"},
+      {"id": "marca", "nombre": "Memoria de marca", "que": "guarda las correcciones del usuario (colores, fuente, posición, muletillas) y las aplica en los vídeos siguientes", "script": "skills/edicion-video/scripts/marca.py"},
+      {"id": "repurposing", "nombre": "Repurposing", "que": "de un vídeo largo saca clips verticales editados y un post de texto con frases reales del vídeo", "script": "skills/edicion-video/scripts/repurposing.py"}
+    ]
+  },
+  "skill": {
+    "nombre": "edicion-video",
+    "ruta": "skills/edicion-video/SKILL.md",
+    "invocacion": "tarea del runner con motor claude cuyo prompt pide la skill (crudo, estilo, marca, director, salida); el formato está en SKILL.md, «Modo Bridge»",
+    "visualizacion": {
+      "bocadillo_progreso": "lo lee de <salida>\\reporte.json → eventos (se reescribe en cada paso). Texto ≤140 caracteres: «Transcribiendo…», «Lista de cortes: 8 cortes», «Costo estimado: $0», «Renderizando…», «QC OK». Quién habla: el Editor hasta «corte y audio»; Motion desde «render: inicio» hasta «QC»; la Directora en «lista de cortes».",
+      "toast_al_terminar": "uno solo al cambiar reporte.json → estado a listo / rechazado por QC / error: «Reel listo (23,4 s, QC OK, $0)» o «Reel rechazado por QC: subtítulos fuera de pantalla». Sin duplicados.",
+      "animaciones": "escribir mientras su paso está en curso; celebrar (golpe de claqueta) cuando el QC pasa; telefono si la tarea viene de una llamada del gerente",
+      "estado": "diseño; lo implementan los specs de bocadillos y toasts (16) y de estados (8), que aún no existen en el PC"
+    }
+  }
+}
