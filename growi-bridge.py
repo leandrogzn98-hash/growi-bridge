@@ -4273,6 +4273,49 @@ def _lane_snapshot():
     return snap
 
 
+def normalizar_motor(motor, model, via=None):
+    """(motor, modelo, error): la unica puerta del motor de una tarea, venga
+    de la ventana, de la VM o de una ronda (t-motor-generico-052). "motor" es
+    el campo oficial; tambien vale la forma del selector "model": "motor:codex"
+    y "model": "<motor>:<modelo>". Si motor y model dicen motores distintos se
+    rechaza: nunca se adivina cual queria. "via": "api" manda la tarea a la
+    API del proveedor de la credencial del motor (gemini -> api:gemini:...),
+    solo cuando el task lo pide; sin via, el motor va por su CLI."""
+    if motor is not None and (not isinstance(motor, str) or not motor.strip()):
+        return None, None, f"motor invalido: {motor!r}"
+    if model is not None and not isinstance(model, str):
+        return None, None, f"model invalido: {model!r}"
+    motor = motor.strip() if motor else None
+    del_modelo = None
+    if model and model.startswith("motor:"):
+        del_modelo, model = model.split(":", 1)[1] or None, None
+    elif model and ":" in model:
+        pref = model.split(":", 1)[0]
+        if pref == "api" or pref in engine_ids():
+            del_modelo = pref
+            if pref != "api" and motor in (None, pref):
+                model = model.split(":", 1)[1]
+    elif model and (_motor_de_modelo(model) == "claude" or model.startswith("claude-")):
+        del_modelo = "claude"
+    if motor and motor != AUTO and del_modelo and motor != del_modelo:
+        visto = model if model is not None else f"motor:{del_modelo}"
+        return None, None, (f"motor y modelo no coinciden: motor '{motor}' pero model '{visto}' es de "
+                            f"'{del_modelo}'. Quita uno de los dos (no adivino cuál querías)")
+    if motor is None and del_modelo:
+        motor = del_modelo
+    if via in (None, "", "cli"):
+        return motor, model, None
+    if via != "api":
+        return None, None, f'via debe ser "api" o "cli" (o no ponerlo): {via!r}'
+    mid = motor or default_motor()
+    if mid == "api":
+        return motor, model, None
+    prov = ((engine_raw(mid) or {}).get("credencial_ref") or {}).get("proveedor")
+    if prov not in API_PROVIDERS:
+        return None, None, f"via api: el motor '{mid}' no tiene API propia (no hay credencial_ref de un proveedor de APIs)"
+    return "api", f"api:{prov}:{model or 'default'}", None
+
+
 def validate_task(data):
     if not isinstance(data, dict):
         return None, "el task.json no es un objeto JSON"
@@ -4306,7 +4349,9 @@ def validate_task(data):
     # Motor: el campo "motor" (engines.json). Sin el, como antes: model
     # "ollama:<m>" -> motor ollama, "api:..." -> APIs, lo demas -> claude.
     model = data.get("modelo") if data.get("modelo") is not None else data.get("model")
-    motor = data.get("motor")
+    motor, model, norm_err = normalizar_motor(data.get("motor"), model, data.get("via"))
+    if norm_err:
+        return None, norm_err
     enrutado = None
     # Ciclo de vida del motor local (t-ciclo-vida-llama): "modelo_local" = el
     # .gguf (sin extension) que el runner carga antes de ejecutar; manda sobre
@@ -4349,15 +4394,9 @@ def validate_task(data):
         e = data["enrutado"]
         enrutado = {"elegido": str(e["elegido"])[:40], "motivo": str(e.get("motivo") or "")[:400]}
     if motor is None:
-        # Forma vieja: "model": "<motor>:<modelo>" (p. ej. "ollama:default")
-        # -> ese motor; "api:..." -> APIs; sin nada -> el de por defecto.
-        pref = model.split(":", 1)[0] if isinstance(model, str) and ":" in model else None
-        if pref == "api":
-            motor = "api"
-        elif pref and pref in engine_ids():
-            motor, model = pref, model.split(":", 1)[1]
-        else:
-            motor = default_motor()
+        # Las formas viejas ("ollama:default", "api:...", "motor:codex") ya
+        # las resolvio normalizar_motor; sin nada -> el de por defecto.
+        motor = default_motor()
     if not isinstance(motor, str) or not _safe_id(motor):
         return None, f"motor invalido: {motor}"
     eng = get_engine(motor)
@@ -7540,6 +7579,8 @@ def _parse_jsonl(motor_id, sal, stdout, rc, result):
     txt, ses, cos, tur = regla("texto"), regla("sesion"), regla("costo"), regla("turnos")
     errc = sal.get("error") or {}
     texts, errs, turns, sid, cost = [], [], 0, None, None
+    usr = sal.get("uso") if isinstance(sal.get("uso"), dict) else None
+    uso = {"tokens_in": 0, "tokens_out": 0, "n": 0}
     for line in stdout.splitlines():
         try:
             ev = json.loads(line)
@@ -7559,6 +7600,13 @@ def _parse_jsonl(motor_id, sal, stdout, rc, result):
                     cost = v
         if isinstance(tur, dict) and tur.get("contar_evento") == t:
             turns += 1
+        if usr and usr.get("evento") == t:
+            # uso: {"evento", "ruta"} -> se suman los tokens de cada evento (el cubo de cuota del motor)
+            u, ok = extraer_valor({"ruta": usr.get("ruta") or "usage"}, ev)
+            if ok and isinstance(u, dict):
+                uso["tokens_in"] += sum(int(u.get(k) or 0) for k in usr.get("entrada") or ("input_tokens",))
+                uso["tokens_out"] += sum(int(u.get(k) or 0) for k in usr.get("salida") or ("output_tokens",))
+                uso["n"] += 1
         if t in (errc.get("eventos") or []):
             v, ok = extraer_valor({"ruta": errc.get("ruta") or ["error.message", "message"]}, ev)
             e = ev.get("error")
@@ -7575,6 +7623,9 @@ def _parse_jsonl(motor_id, sal, stdout, rc, result):
     elif cost is not None:
         result["cost_usd"] = cost
     result["session_id"] = sid
+    if usr and uso["n"]:
+        result["uso"] = {"tokens_in": uso["tokens_in"], "tokens_out": uso["tokens_out"],
+                         "fuente": f"{usr.get('evento')} ({uso['n']})"}
     if rc == 0 and texts and not errs:
         result["status"] = "ok"
     else:
@@ -16109,13 +16160,19 @@ def router_antes(task, task_file, cid):
     espera a que pase el breaker. (task, 'seguir'|'pospuesta')."""
     mid = task.get("motor")
     cad = cadena_ejecutor()
+    try:
+        motivo = cubo_motivo(mid, task.get("model") or task.get("modelo"))
+    except Exception as e:
+        motivo = None
+        log(f"runner [{task['id']}]: no pude leer el cubo de cuota de {mid} ({type(e).__name__}: {e})")
     if mid not in cad:
+        if motivo:
+            log(f"runner [{task['id']}]: {motivo}; sigue con {_nombre_motor(mid)} (no está en la cadena de respaldo)")
         return task, "seguir"
-    motivo = None
-    if motor_breaker_abierto(mid):
+    if not motivo and motor_breaker_abierto(mid):
         b = _MOTOR_BRK[mid]
         motivo = f"breaker abierto ({b['seguidos']} fallos seguidos; el último: {b['ultimo']})"
-    elif mid == "claude":
+    elif not motivo and mid == "claude":
         pct = None
         try:
             pct = _quota_pct()
@@ -24092,7 +24149,89 @@ def spend_summary():
                 elif cost is not None and kind in ("real", "equiv"):
                     b[kind] += cost
     out["cuota"] = max_quota()
+    out["cubos"] = cubos_cuota()
     return out
+
+
+# ---- cubos de cuota por motor (t-motor-generico-052). Cada suscripcion es
+# un cubo (engines.json -> motores.<id>.cuota.cubo: claude-max, chatgpt-plus,
+# google-agy; la API de un proveedor es api-<proveedor>). Una tarea cuenta
+# SOLO en el cubo del motor que la corrio (el "motor" de su result.json): si
+# paso a un respaldo, cuenta en el del respaldo. Ningun proveedor publica
+# cuanto queda, asi que el cubo dice lo MEDIDO aqui (tareas y tokens en 5 h y
+# en la semana) y solo da un % si pusiste un limite propio en settings.json
+# -> limites_cubo: {"chatgpt-plus": {"5h": {"tareas": 20}}}.
+CUBO_VENTANAS = (("5h", 5 * 3600), ("semana", 7 * 86400))
+
+
+def cubo_de_motor(motor, modelo=None):
+    if motor == "api":
+        partes = str(modelo or "").split(":")
+        return f"api-{partes[1] if len(partes) >= 3 else 'desconocida'}"
+    c = (engine_raw(motor) or {}).get("cuota")
+    return str(c["cubo"]) if isinstance(c, dict) and c.get("cubo") else str(motor)
+
+
+def cubos_cuota(ahora=None):
+    """{cubo: {nombre, motores, 5h: {tareas, tokens, sin_tokens}, semana: {...},
+    limite, pct, fuente}} con los result.json de los ultimos 7 dias."""
+    ahora = time.time() if ahora is None else ahora
+    lims = load_settings().get("limites_cubo") or {}
+    out = {}
+
+    def cubo(cid):
+        if cid not in out:
+            out[cid] = {"nombre": cid, "motores": [], "limite": lims.get(cid), "pct": None,
+                        "fuente": "medido en este PC (el proveedor no publica cuánto queda)"}
+            for nombre, _seg in CUBO_VENTANAS:
+                out[cid][nombre] = {"tareas": 0, "tokens": 0, "sin_tokens": 0}
+        return out[cid]
+    for mid in engine_ids():
+        c = (engine_raw(mid) or {}).get("cuota")
+        if isinstance(c, dict) and c.get("cubo"):
+            b = cubo(str(c["cubo"]))
+            b["nombre"] = c.get("nombre") or b["nombre"]
+            b["fuente"] = c.get("fuente") or b["fuente"]
+            b["motores"].append(mid)
+    corte = ahora - CUBO_VENTANAS[-1][1]
+    for f in RESULTS.glob("*.result.json"):
+        try:
+            if f.stat().st_mtime < corte:
+                continue
+            d = json.loads(f.read_text(encoding="utf-8"))
+            fin = datetime.fromisoformat(str(d.get("finished_at"))).timestamp()
+        except (OSError, ValueError, TypeError, AttributeError):
+            continue
+        if not isinstance(d, dict) or d.get("ollama_action") or not d.get("motor"):
+            continue
+        b = cubo(cubo_de_motor(d["motor"], d.get("modelo")))
+        if d["motor"] not in b["motores"]:
+            b["motores"].append(d["motor"])
+        uso = d.get("uso") if isinstance(d.get("uso"), dict) else {}
+        tok = int(uso.get("tokens_in") or 0) + int(uso.get("tokens_out") or 0)
+        for nombre, seg in CUBO_VENTANAS:
+            if 0 <= ahora - fin <= seg:
+                v = b[nombre]
+                v["tareas"] += 1
+                v["tokens"] += tok
+                v["sin_tokens"] += 0 if tok else 1
+    for b in out.values():
+        lim = b["limite"] if isinstance(b["limite"], dict) else {}
+        pcts = [100.0 * b[v][m] / n for v, _s in CUBO_VENTANAS for m, n in (lim.get(v) or {}).items()
+                if m in ("tareas", "tokens") and isinstance(n, (int, float)) and n > 0]
+        b["pct"] = round(max(pcts), 1) if pcts else None
+    return out
+
+
+def cubo_motivo(motor, modelo=None):
+    """Motivo para no lanzar con este motor si SU cubo pasa del aviso; None si
+    no hay limite propio o no llega. Nunca mira el cubo de otro motor."""
+    cid = cubo_de_motor(motor, modelo)
+    b = cubos_cuota().get(cid) or {}
+    umbral = fallback_cfg().get("cuota_aviso_pct") or 90
+    if isinstance(b.get("pct"), (int, float)) and b["pct"] >= umbral:
+        return f"cubo de cuota {b.get('nombre') or cid} al {b['pct']:.0f} % de tu límite (aviso desde el {umbral:g} %)"
+    return None
 
 
 def max_quota():

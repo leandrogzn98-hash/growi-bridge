@@ -1,0 +1,257 @@
+{
+  "inicio": "2026-10-30 12:20:44",
+  "casos": {
+    "b_task_28oct_motor_codex": {
+      "ok": true,
+      "model_original": "motor:codex",
+      "motor": "codex",
+      "error": null
+    },
+    "d_contradicciones_rechazadas": {
+      "ok": true,
+      "filas": [
+        {
+          "task": {
+            "motor": "codex",
+            "model": "sonnet"
+          },
+          "error": "motor y modelo no coinciden: motor 'codex' pero model 'sonnet' es de 'claude'. Quita uno de los dos (no adivino cuál querías)",
+          "ok": true
+        },
+        {
+          "task": {
+            "motor": "gemini",
+            "model": "motor:codex"
+          },
+          "error": "motor y modelo no coinciden: motor 'gemini' pero model 'motor:codex' es de 'codex'. Quita uno de los dos (no adivino cuál querías)",
+          "ok": true
+        },
+        {
+          "task": {
+            "motor": "claude",
+            "model": "ollama:qwen3"
+          },
+          "error": "motor y modelo no coinciden: motor 'claude' pero model 'ollama:qwen3' es de 'ollama'. Quita uno de los dos (no adivino cuál querías)",
+          "ok": true
+        },
+        {
+          "task": {
+            "motor": "noexiste"
+          },
+          "error": "el motor 'noexiste' no existe en engines.json (hay: claude, codex, llama, ollama, meshy, gemini)",
+          "ok": true
+        },
+        {
+          "task": {
+            "motor": "gemini",
+            "via": "fax"
+          },
+          "error": "via debe ser \"api\" o \"cli\" (o no ponerlo): 'fax'",
+          "ok": true
+        }
+      ]
+    },
+    "formas_validas": {
+      "ok": true,
+      "filas": [
+        {
+          "task": {
+            "motor": "codex"
+          },
+          "motor": "codex",
+          "modelo": null,
+          "error": null,
+          "ok": true
+        },
+        {
+          "task": {
+            "model": "motor:gemini"
+          },
+          "motor": "gemini",
+          "modelo": null,
+          "error": null,
+          "ok": true
+        },
+        {
+          "task": {
+            "model": "sonnet"
+          },
+          "motor": "claude",
+          "modelo": "sonnet",
+          "error": null,
+          "ok": true
+        },
+        {
+          "task": {
+            "model": "ollama:default"
+          },
+          "motor": "ollama",
+          "modelo": null,
+          "error": null,
+          "ok": true
+        },
+        {
+          "task": {
+            "motor": "claude",
+            "model": "opus"
+          },
+          "motor": "claude",
+          "modelo": "opus",
+          "error": null,
+          "ok": true
+        },
+        {
+          "task": {
+            "model": "codex:gpt-6.1-sol"
+          },
+          "motor": "codex",
+          "modelo": "gpt-6.1-sol",
+          "error": null,
+          "ok": true
+        }
+      ]
+    },
+    "g_via_api": {
+      "ok": true,
+      "motor": "api",
+      "model": "api:gemini:gemini-2.5-flash",
+      "error": null
+    },
+    "f_runner_suelto": {
+      "ok": true,
+      "filas": [
+        {
+          "task": {
+            "motor": "codex"
+          },
+          "error": "el motor 'codex' lo corre el runner de la app Growi Bridge (engines.json); este runner suelto solo lanza Claude",
+          "ok": true
+        },
+        {
+          "task": {
+            "model": "motor:gemini"
+          },
+          "error": "el motor 'gemini' lo corre el runner de la app Growi Bridge (engines.json); este runner suelto solo lanza Claude",
+          "ok": true
+        },
+        {
+          "task": {
+            "motor": "claude"
+          },
+          "error": null,
+          "ok": true
+        }
+      ]
+    },
+    "a_motor_codex": {
+      "ok": true,
+      "status": "ok",
+      "motor_result": "codex",
+      "error": null,
+      "session_id": "01a18d9d-6d79-7010-80aa-b5a6e6edeca9",
+      "duracion_s": 28.9,
+      "uso": {
+        "tokens_in": 34198,
+        "tokens_out": 238,
+        "fuente": "json (al terminar)"
+      },
+      "acceso": "sesion_cli",
+      "archivo": "listo codex",
+      "respuesta": "LISTO"
+    },
+    "c_motor_gemini": {
+      "ok": true,
+      "status": "ok",
+      "motor_result": "gemini",
+      "error": null,
+      "session_id": "fc707845-dc13-4a5d-acf1-c5f8351816d7",
+      "duracion_s": 33.2,
+      "uso": {
+        "tokens_in": 16882,
+        "tokens_out": 834,
+        "modelo_real": null,
+        "por_modelo": {},
+        "detalle": {
+          "input": 16882,
+          "cache_5m": 0,
+          "cache_1h": 0,
+          "cache_read": 0,
+          "output": 834
+        },
+        "fuente": "json (al terminar)"
+      },
+      "acceso": "sesion_cli",
+      "archivo": "listo gemini",
+      "respuesta": "LISTO\n"
+    },
+    "e_cubos_separados": {
+      "ok": true,
+      "antes": {
+        "claude-max": {
+          "tareas": 0,
+          "tokens": 0,
+          "sin_tokens": 0
+        },
+        "chatgpt-plus": {
+          "tareas": 0,
+          "tokens": 0,
+          "sin_tokens": 0
+        },
+        "google-agy": {
+          "tareas": 0,
+          "tokens": 0,
+          "sin_tokens": 0
+        }
+      },
+      "despues": {
+        "claude-max": {
+          "tareas": 0,
+          "tokens": 0,
+          "sin_tokens": 0
+        },
+        "chatgpt-plus": {
+          "tareas": 1,
+          "tokens": 34436,
+          "sin_tokens": 0
+        },
+        "google-agy": {
+          "tareas": 1,
+          "tokens": 17716,
+          "sin_tokens": 0
+        }
+      },
+      "pct_chatgpt_plus": 100.0,
+      "motivo_codex": "cubo de cuota ChatGPT Plus (Codex) al 100 % de tu límite (aviso desde el 90 %)",
+      "motivo_claude": null,
+      "motivo_gemini": null
+    }
+  },
+  "motores": {
+    "claude": [
+      true,
+      "binario: C:\\Users\\forte\\.local\\bin\\claude.exe"
+    ],
+    "codex": [
+      true,
+      "binario: C:\\Users\\forte\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js; sesión ChatGPT Plus de Codex iniciada"
+    ],
+    "gemini": [
+      true,
+      "binario: C:\\Users\\forte\\AppData\\Local\\agy\\bin\\agy.EXE; sesión de agy (Google) iniciada"
+    ]
+  },
+  "cola": [
+    {
+      "id": "t-052-codex",
+      "estado": "terminada",
+      "motor": "codex"
+    },
+    {
+      "id": "t-052-gemini",
+      "estado": "terminada",
+      "motor": "gemini"
+    }
+  ],
+  "fin": "2026-10-30 12:22:21",
+  "todo_ok": true
+}

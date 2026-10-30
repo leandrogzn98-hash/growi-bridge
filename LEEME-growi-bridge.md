@@ -466,6 +466,18 @@ siempre y, si vence, **se deniega** (nunca se aprueba solo).
   para todos (id, status, started_at, finished_at, duration_s, exit_code,
   result ≤ 20 000, cost_usd, num_turns, session_id, stderr, error); si el
   motor no da costo, `cost_usd` es null y `costo_dato` dice «sin dato».
+- **Un motor por tarea (0.5.2, t-motor-generico-052):** `"motor": "claude" | "codex" | "gemini"` (o
+  cualquier motor de `engines.json`). También valen `"model": "motor:codex"` (la forma del selector) y
+  `"model": "codex:<modelo>"`. Si `motor` y `model` dicen motores distintos, la tarea se **rechaza**
+  con el motivo (no se adivina). `"via": "api"` manda la tarea a la API del proveedor del motor
+  (gemini → `api:gemini:<modelo>`, gasta con tu clave); sin `via`, gemini va solo por agy con tu sesión
+  de Google y nunca cae sola a la clave.
+- **Cubos de cuota:** cada motor tiene el suyo (`engines.json → motores.<id>.cuota.cubo`: claude-max,
+  chatgpt-plus, google-agy; la API es `api-<proveedor>`). Una tarea cuenta solo en el cubo del motor que
+  la corrió (tareas y tokens en 5 h y en la semana). Ningún proveedor publica cuánto queda: el % solo sale
+  si pones un límite propio en `settings.json → limites_cubo`, p. ej.
+  `{"chatgpt-plus": {"5h": {"tareas": 20}}}`; al pasar el aviso (`cuota_aviso_pct`), antes de lanzar
+  se mira solo el cubo de ese motor.
 - **Entrar sin clave (`autenticacion.sesion_cli`):** un motor de línea de
   comandos puede declarar cómo comprobar, sin gastar, que su programa tiene su
   propia sesión iniciada (p. ej. `agy models`). Con sesión está disponible

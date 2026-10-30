@@ -326,7 +326,7 @@
       },
       "gemini": {
         "rol": "fallback",
-        "coste": "real (clave) o $0 (agy)",
+        "coste": "$0 (sesión de agy; la API solo con via: api)",
         "cambia_si": [
           "429",
           "5xx",
@@ -548,6 +548,12 @@
       },
       "carril_b": true,
       "ubicacion": "nube",
+      "cuota": {
+        "cubo": "claude-max",
+        "nombre": "Claude Max",
+        "fuente": "medido en este PC: Anthropic no publica cuánto queda de Max",
+        "_que_es": "t-motor-generico-052: el cubo de cuota de este motor. Una tarea cuenta solo en el cubo del motor que la corrió; el % solo sale si pones un límite propio en settings.json → limites_cubo."
+      },
       "verificado_en_vivo": true,
       "nota_verificacion": "Motor principal: corre cada día (orquestación, consumo en vivo, router).",
       "fallback": [],
@@ -684,6 +690,18 @@
         "turnos": {
           "contar_evento": "turn.completed"
         },
+        "uso": {
+          "evento": "turn.completed",
+          "ruta": "usage",
+          "entrada": [
+            "input_tokens"
+          ],
+          "salida": [
+            "output_tokens",
+            "reasoning_output_tokens"
+          ],
+          "_que_es": "t-motor-generico-052: se suman los tokens de cada turn.completed para el cubo chatgpt-plus. cached_input_tokens va DENTRO de input_tokens en codex, por eso no se suma aparte."
+        },
         "sesion": {
           "evento": "thread.started",
           "ruta": "thread_id"
@@ -780,6 +798,12 @@
       },
       "carril_b": true,
       "ubicacion": "nube",
+      "cuota": {
+        "cubo": "chatgpt-plus",
+        "nombre": "ChatGPT Plus (Codex)",
+        "fuente": "medido en este PC: tokens de turn.completed; codex exec no da los límites de uso",
+        "_que_es": "t-motor-generico-052: el cubo de cuota de este motor. Una tarea cuenta solo en el cubo del motor que la corrió; el % solo sale si pones un límite propio en settings.json → limites_cubo."
+      },
       "verificado_en_vivo": true,
       "nota_verificacion": "Verificado en vivo el 26 oct 2026 (codex-cli 0.160.1, sesión ChatGPT Plus, modelo gpt-6.1-sol): tarea corta por run_engine con acceptEdits → exit 0, 34 s, creó codex-prueba.txt (uno/dos/tres), result «LISTO», num_turns 1, session_id = thread_id; resume en la misma sesión → exit 0, 19 s, «uno, dos, tres» sin herramientas. Costo: sin dato (el CLI no lo da). Ver share\\outbox\\ESTADO-CODEX.md.",
       "fallback": [],
@@ -1456,9 +1480,9 @@
       },
       "autenticacion": {
         "preferencia": [
-          "sesion_cli",
-          "clave"
+          "sesion_cli"
         ],
+        "_preferencia": "t-motor-generico-052: solo la sesión de agy (free tier, $0). Antes caía sola a la clave de Gemini si no había sesión; eso gasta, así que ya no: sin sesión el motor queda «no disponible» con el motivo. La API va solo si el task lo pide con \"via\": \"api\" (motor api, api:gemini:<modelo>).",
         "sesion_cli": {
           "nombre": "sesión de agy (Google)",
           "comprobar": [
@@ -1512,8 +1536,9 @@
         "streaming": false,
         "reanudar": true,
         "costo": false,
-        "herramientas": false,
-        "habilidades_growi": false
+        "herramientas": true,
+        "habilidades_growi": false,
+        "_herramientas": "t-motor-generico-052: true desde el 30 oct 2026. Con false el runner tiraba el permission_mode de la tarea y lanzaba --mode plan: agy planificaba ~3 min (220 k tokens) y se quedaba pidiendo «Proceed» sin tocar nada. Verificado en vivo con agy 1.4.10: --mode accept-edits crea el archivo pedido en ~8 s. OJO: la config propia de agy en este PC tiene toolPermission always-proceed, así que con acceptEdits también puede correr comandos."
       },
       "puede": [
         "texto y código",
@@ -1530,6 +1555,12 @@
       "en_selector": true,
       "carril_b": false,
       "ubicacion": "nube",
+      "cuota": {
+        "cubo": "google-agy",
+        "nombre": "Google (agy, free tier)",
+        "fuente": "medido en este PC: usage de la salida JSON de agy; Google no publica cuánto queda",
+        "_que_es": "t-motor-generico-052: el cubo de cuota de este motor. Una tarea cuenta solo en el cubo del motor que la corrió; el % solo sale si pones un límite propio en settings.json → limites_cubo."
+      },
       "verificado_en_vivo": true,
       "nota_verificacion": "Verificado en vivo el 26 oct 2026 (agy 1.4.7, sesión de Google de Leandro): agy -p ... --output-format json --mode plan → exit 0, 420 bytes, status SUCCESS, num_turns 1, respuesta en 3 viñetas, 35 s.",
       "healthcheck": {

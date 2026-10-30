@@ -1,0 +1,20 @@
+{
+  "id": "t-motor-generico-052",
+  "model": "opus",
+  "timeout_min": 90,
+  "prompt": "MODO NO-INTERACTIVO (obligatorio): trabajas sin nadie al otro lado. NO hagas preguntas: decide con los criterios de este spec. Si algo exige borrar o gastar dinero real, NO lo hagas y anótalo como FALTA en el ESTADO.\n\nt-motor-generico-052 (componente 1 de 5 de la 0.5.2): el runner debe ejecutar cada task con SU motor (claude, codex vía ChatGPT Plus, gemini vía el CLI de Antigravity agy) y usar el cubo de cuota de ese motor sin mezclarlos.\n\nContexto investigado (30 oct 2026): el runner de la app (growi-bridge.py) ya es genérico (engines.json esquema 2; run_engine lee solo el descriptor), pero en el cola.db de la app instalada nunca corrió una tarea de codex ni de gemini. Causa del rechazo real: t-lote-estados-030-r2 (28 oct 11:54) llegó con \"model\": \"motor:codex\" (formato del selector); validate_task no lo entendía, caía en claude y claude lo rechazaba («model no permitido: motor:codex»). La app instalada es otra versión (36 014 líneas frente a 45 361) y su engines.json no trae gemini. runner/runner.py (suelto) solo lanza claude. La única cuota que existía era la de Claude, y nunca se activaba (max_quota siempre «no disponible»).\n\nDecisiones aprobadas por Leandro: (1) gemini solo por agy con la sesión de Google ($0); la API de Gemini solo si el task pide \"via\": \"api\"; nunca se cae sola a la clave. (2) La app instalada se arregla con un script de parche (parches/parche_motor_generico_052.py), no con una actualización completa. (3) runner.py suelto rechaza los motores distintos de claude con «lo corre el runner de la app».\n\nDiseño: A) \"motor\" es el campo oficial; se aceptan \"model\": \"motor:<id>\" y \"<motor>:<modelo>\"; si motor y model se contradicen, se rechaza. B) Una sola puerta: normalizar_motor() dentro de validate_task, para la ventana, la VM y las rondas. C) Lanzamiento por descriptor (run_engine), sin código por motor, siempre oculto. D) Cubos de cuota: engines.json → motores.<id>.cuota.cubo (claude-max, chatgpt-plus, google-agy; api-<proveedor>); una tarea cuenta solo en el cubo del motor que la corrió; límite propio opcional en settings.json → limites_cubo; router_antes mira solo el cubo del motor de la tarea. Codex: uso = suma de los usage de turn.completed. E) runner.py: rechazo claro. F) Verificación en una instancia aislada (pruebas/prueba_motor_generico_052.py).",
+  "criterios": [
+    "Un task con \"motor\": \"codex\" pasa por la cola real (runner_loop) de una instancia aislada y lo ejecuta Codex: status ok, motor codex en el result, session_id = thread_id, archivo creado",
+    "El task real rechazado el 28 oct (t-lote-estados-030-r2, \"model\": \"motor:codex\") lo acepta validate_task como motor codex",
+    "Un task con \"motor\": \"gemini\" lo ejecuta agy con la sesión de Google: status ok, motor gemini, sin usar la clave de API",
+    "motor y model contradictorios (codex+sonnet, gemini+motor:codex, claude+ollama:x), un motor inexistente y un via inválido se rechazan con un motivo claro; las formas antiguas válidas siguen funcionando",
+    "cubos_cuota(): la tarea de codex suma en chatgpt-plus, la de gemini en google-agy, y claude-max no se mueve; con limites_cubo, cubo_motivo() da motivo solo para el motor de ese cubo",
+    "\"via\": \"api\" con motor gemini se convierte en motor api, api:gemini:<modelo por defecto>; sin via, gemini nunca cae a la clave (autenticacion.preferencia = [sesion_cli])",
+    "runner/runner.py rechaza motor codex y model motor:gemini con «lo corre el runner de la app» y sigue aceptando claude",
+    "parches/parche_motor_generico_052.py se aplica sobre una COPIA de la app instalada, deja .bak, compila, y la copia acepta el task del 28 oct como codex; la app instalada real no se toca sin permiso",
+    "Nada abre ventanas ni roba el foco; ESTADO-MOTOR-GENERICO-052.md con LISTO y FALTA, y un commit sin push"
+  ],
+  "allowed_tools": "Read,Write,Edit,Bash,Glob,Grep",
+  "permission_mode": "acceptEdits",
+  "cwd": "C:\\Users\\forte\\source\\growi-bridge"
+}

@@ -157,7 +157,16 @@ def validate_task(data):
         inside = False
     if not inside:
         return None, f"cwd fuera del area permitida (share\\inbox): {cwd}"
-    model = data.get("model")
+    # Este runner suelto solo sabe lanzar Claude. Los demas motores (codex,
+    # gemini, ...) los corre el runner de la app con engines.json: aqui se
+    # rechazan con ese motivo, nunca se mandan a Claude (t-motor-generico-052).
+    model = data.get("modelo") if data.get("modelo") is not None else data.get("model")
+    motor = data.get("motor")
+    if motor is None and isinstance(model, str) and model.startswith("motor:"):
+        motor, model = model.split(":", 1)[1], None
+    if motor not in (None, "claude"):
+        return None, (f"el motor '{motor}' lo corre el runner de la app Growi Bridge (engines.json); "
+                      "este runner suelto solo lanza Claude")
     if model is not None:
         if not isinstance(model, str) or (
             model not in ALLOWED_MODELS and not model.startswith("claude-")

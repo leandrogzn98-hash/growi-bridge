@@ -33,7 +33,10 @@ El runner escribe `runner.log` en esta misma carpeta y un
 
 ## Qué puede y qué no puede
 
-- Solo ejecuta `claude -p ...`. **Nunca** ejecuta shell directo con nada
+- Solo ejecuta `claude -p ...`. Un task con otro motor (`"motor": "codex"`,
+  `"model": "motor:gemini"`...) se rechaza con «lo corre el runner de la app»: los
+  demás motores los corre Growi Bridge con `engines.json` (t-motor-generico-052).
+  **Nunca** ejecuta shell directo con nada
   del task. Claude Code hace su trabajo con sus propias herramientas, como
   cuando lo corres tú en la terminal.
 - La carpeta de trabajo (`cwd`) tiene que existir y estar dentro de
