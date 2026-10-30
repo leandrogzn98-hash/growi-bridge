@@ -101,16 +101,83 @@ motor y otra en (g).
   `GROWI_CARRUSELES_CHROME`.
 - **Los briefs de prueba tienen 3-6 láminas**, y tu anatomía pide 7-8: el reporte lo avisa en cada uno.
 
-## CÓMO PROBARLO
+## Revisión del contenido de la evidencia (corrección del 29 oct 2026)
+
+Abrí los reportes y medí los PNG, no solo comprobé que existan. El informe vive en
+`share\outbox\ESTADO-SKILL-CARRUSELES-060.md`, con copias en la raíz del repo y en `share\inbox\`.
+
+- `a-reporte.md`: LISTO, 5/5 láminas OK, cada una con «1080x1350, fuentes cargadas, texto dentro de pantalla y sin
+  cortes».
+  - `a-lamina-01/02/05.png` miden 1080x1350 con PIL.
+  - El píxel (500, 1340) de esas láminas es #052048 (Azul Summit), #F7F8FA (fondo) y #FA5102 (Naranja Guaro): los
+    colores del brandbook.
+  - Las medidas de Chrome dicen `Tit 300 700: loaded`, `Cue 400: loaded` y `Cue 700: loaded`: el texto usa Space
+    Grotesk (titulares) e Inter (cuerpo), no fuentes sustitutas.
+- `b.json`: el sabotaje no tiene `reporte.md` propio, porque se corre con `qc.py` sobre una copia del carrusel (a).
+  - Lámina 3: «texto cortado: … necesita 90 px de alto y su caja tiene 40 px (letra ya en el mínimo legible,
+    34 px)».
+  - Lámina 2: «texto recortado por su contenedor» y «texto fuera de pantalla … x=700..1560».
+  - El control sin sabotaje da OK.
+- `c-lote.md`: 3/3 listos (5/5, 6/6 y 5/5 láminas) en 38 s, con advertencias y tiempo por carrusel.
+- `d-reporte.md`: LISTO, 4/4.
+  - Las láminas 1-3 dicen «foto sin deformar (cover, escala uniforme 0.36 / 0.35 / 0.54)».
+  - `d-lamina-01/02.png` miden 1080x1350 y el círculo verde mide ancho/alto 1,00.
+  - En `d.json`, forzar `object-fit:fill` da «foto deformada: escala 0.270 x 0.351».
+- `e-2-despues-reporte.md`: RECHAZADO. La lámina 2 da «18 palabras en la lámina; máximo 12 (regla de marca: máximo
+  12 palabras por lámina)», y arriba dice «Correcciones de marca aplicadas: reglas.max_palabras_lamina = 12».
+- `f-bloqueado-reporte.md`: BLOQUEADO, con la lista de motores. No hay ningún motor de pago activo, y la detección no
+  generó imágenes ni salió a internet.
+
+## Decisión pendiente de Leandro
+
+La corrección «máximo 12 palabras por lámina» solo se probó en una carpeta temporal y **no está aplicada** a los
+carruseles reales de Summit Maker. No la apliqué porque cambia tu regla de marca. Si la quieres, corre esto (queda
+guardada en `%LOCALAPPDATA%\growi-carruseles\marcas\summit-maker.json`):
 
 ```
-python pruebas\carruseles\prueba_carruseles.py                 (a-f, ~3 min, $0)
-python pruebas\carruseles\prueba_carruseles.py --con-imagen    (+ g: 1 imagen con Codex, ~2 min, cuota de Plus)
-python skills\carruseles\scripts\motores.py                    (motores de imagen, $0)
-python skills\carruseles\scripts\carrusel.py --brief pruebas\carruseles\briefs\a-summit-5.json --salida C:\carruseles\prueba
-python skills\carruseles\scripts\lote.py --briefs pruebas\carruseles\briefs\lote --salida C:\carruseles\lote
 python skills\carruseles\scripts\marca.py corregir --marca summit-maker "máximo 12 palabras por lámina"
 ```
 
-Para la memoria real hay un detalle: la corrección de (e) se guardó solo en la carpeta temporal. Si quieres que el
-máximo de 12 palabras valga para todos los carruseles de Summit, corre tú la última línea.
+Estado: **pendiente de tu confirmación.**
+
+## COMO PROBARLO
+
+Todo se corre desde la raíz del repo (`C:\Users\forte\source\growi-bridge`). Las pruebas guardan la memoria de marca
+en una carpeta temporal, no en la real.
+
+Batería completa (a-f, ~3 min, $0):
+
+```
+python pruebas\carruseles\prueba_carruseles.py
+```
+
+Uno por uno:
+
+```
+REM (a) carrusel tipo 1 de 5 láminas con Summit Maker
+python skills\carruseles\scripts\carrusel.py --brief pruebas\carruseles\briefs\a-summit-5.json --salida C:\carruseles\prueba-a
+
+REM (b) sabotaje del QC (automático: python pruebas\carruseles\prueba_carruseles.py a b)
+REM     a mano: en C:\carruseles\prueba-a\lamina-03.html pon antes de </style>:  .cue{height:40px!important}
+python skills\carruseles\scripts\qc.py C:\carruseles\prueba-a
+REM     -> «lámina 03 RECHAZADA: texto cortado …» y queda lamina-03.RECHAZADA.png
+
+REM (c) lote de 3 carruseles sin intervención
+python skills\carruseles\scripts\lote.py --briefs pruebas\carruseles\briefs\lote --salida C:\carruseles\lote
+
+REM (d) tipo 3 con fotos propias: 3 fotos en C:\fotos\prueba con los nombres del brief
+REM     (1-vertical.png, 2-horizontal.png, 3-cuadrada.png); con las sintéticas: prueba_carruseles.py d
+python skills\carruseles\scripts\carrusel.py --brief pruebas\carruseles\briefs\d-fotos.json --salida C:\carruseles\prueba-d --fotos C:\fotos\prueba
+
+REM (e) corrección guardada. OJO: esto cambia tu memoria real de Summit Maker
+REM     (la prueba aislada es: python pruebas\carruseles\prueba_carruseles.py e)
+python skills\carruseles\scripts\marca.py corregir --marca summit-maker "máximo 12 palabras por lámina"
+python skills\carruseles\scripts\carrusel.py --brief pruebas\carruseles\briefs\e-largo.json --salida C:\carruseles\prueba-e
+REM     -> rechazado: «18 palabras en la lámina; máximo 12»
+
+REM (f) motores de imagen disponibles, sin gastar
+python skills\carruseles\scripts\motores.py
+
+REM (g, opcional) tipo 2 real: 1 imagen con Codex, ~2 min, gasta cuota de ChatGPT Plus ($0 extra)
+python pruebas\carruseles\prueba_carruseles.py --con-imagen
+```
