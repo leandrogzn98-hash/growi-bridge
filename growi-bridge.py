@@ -1992,6 +1992,12 @@ class BridgeHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 log(f"gateway: /gateway/agentes fallo ({type(e).__name__}: {e})")
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+        if u.path == "/gateway/workflows":  # los workflows con su costo estimado (t-workflows-052)
+            try:
+                return self._json(workflows_vista())
+            except Exception as e:
+                log(f"gateway: /gateway/workflows fallo ({type(e).__name__}: {e})")
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
         if u.path == "/list":
             box = self._box(qs)
             if not box:
@@ -17219,6 +17225,10 @@ def process_one(task_file):
 DAG_AL_FALLAR = ("reintentar_una_vez", "saltar_con_aviso", "abortar_plan", "pedir_decision")
 DAG_OK = ("terminada", "saltada")
 DAG_MAL = ("fallida", "necesita_decision", "cancelada", "bloqueada")
+# Lo que una fase puede decir por su cuenta (manda sobre el plan): su motor ("model",
+# como en «Pedirle algo»: haiku, motor:codex...), acciones declaradas y revision.
+DAG_EXTRA = ("model", "acciones", "revisar", "titulo", "plantilla", "dinero", "allowed_tools", "permission_mode",
+             "timeout_min")
 _DAG_NOM = {"pendiente": "sin arrancar", "en_cola": "en cola", "terminada": "terminada", "saltada": "saltada",
             "fallida": "fallida", "necesita_decision": "necesita decisión", "cancelada": "cancelada",
             "bloqueada": "bloqueada"}
@@ -17232,6 +17242,12 @@ def dag_init():
         plan_id TEXT NOT NULL, fase_id TEXT NOT NULL, n INTEGER NOT NULL, prompt TEXT, depende_de TEXT,
         al_fallar TEXT NOT NULL, criterios TEXT, estado TEXT NOT NULL, task_id TEXT, reintentos INTEGER DEFAULT 0,
         motivo TEXT, actualizado_en TEXT NOT NULL, PRIMARY KEY (plan_id, fase_id))""")
+    if not any(c.get("name") == "extra" for c in _cola("PRAGMA table_info(dag_fases)", fetch=True) or []):
+        _cola("ALTER TABLE dag_fases ADD COLUMN extra TEXT")  # t-workflows-052: model, acciones, revisar, titulo...
+    _cola("""CREATE TABLE IF NOT EXISTS workflow_runs (
+        plan_id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, nombre TEXT, huella TEXT, parametros TEXT,
+        estimado TEXT, definicion TEXT, origen TEXT, creado_en TEXT NOT NULL)""")
+    _cola("CREATE INDEX IF NOT EXISTS workflow_runs_wf ON workflow_runs(workflow_id)")
 
 
 def dag_validar(data):
@@ -17315,11 +17331,21 @@ def dag_ingestar(task_file, data):
     por_id = {str(f["id"]): f for f in data["fases"]}
     for n, fid in enumerate(orden, 1):
         f = por_id[fid]
+        extra = {k: f[k] for k in DAG_EXTRA if k in f}  # lo de la fase que manda sobre el plan (t-workflows-052)
         _cola("INSERT OR REPLACE INTO dag_fases (plan_id, fase_id, n, prompt, depende_de, al_fallar, criterios, estado, "
-              "task_id, reintentos, actualizado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+              "task_id, reintentos, actualizado_en, extra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
               (pid, fid, n, f["prompt"], json.dumps([str(d) for d in f.get("depende_de") or []]),
                f.get("al_fallar") or "pedir_decision", json.dumps(f.get("criterios") or []), "pendiente",
-               f"{pid}-{fid}"[:80], 0, now))
+               f"{pid}-{fid}"[:80], 0, now, json.dumps(extra, ensure_ascii=False) if extra else None))
+    w = data.get("workflow") if isinstance(data.get("workflow"), dict) else None
+    if w and w.get("id"):
+        _cola("INSERT OR REPLACE INTO workflow_runs (plan_id, workflow_id, nombre, huella, parametros, estimado, "
+              "definicion, origen, creado_en) VALUES (?,?,?,?,?,?,?,?,?)",
+              (pid, str(w["id"])[:40], str(w.get("nombre") or "")[:120], w.get("huella"),
+               json.dumps(w.get("parametros") or {}, ensure_ascii=False),
+               json.dumps(w.get("estimado") or {}, ensure_ascii=False),
+               json.dumps(w.get("definicion"), ensure_ascii=False) if w.get("definicion") else None,
+               w.get("origen"), now))
     shutil.move(str(task_file), str(DONE / task_file.name))
     log(f"plan [{pid}]: registrado con {len(orden)} fase(s) en orden {' → '.join(orden)}")
     dag_avanzar(pid)
@@ -17342,15 +17368,39 @@ def _dag_validacion_deps(pid, fase, por_id):
     return fallos
 
 
+def _dag_resultado_txt(pid, fid):
+    """El texto que devolvio la fase fid del plan, para {resultado:fid}."""
+    r = _cola("SELECT task_id FROM dag_fases WHERE plan_id=? AND fase_id=?", (pid, fid), fetch=True)
+    if not r:
+        return f"(no hay ningún paso «{fid}» en el plan)"
+    fam = load_family(r[0]["task_id"]) or {}
+    ult = fam.get("ultimo_resultado") or r[0]["task_id"]
+    txt = str(_va_json(RESULTS / f"{ult}.result.json").get("result") or "").strip()
+    if not txt:
+        return f"(el paso «{fid}» no devolvió texto)"
+    if len(txt) > WF_RESULTADO_MAX:
+        txt = (txt[:WF_RESULTADO_MAX] + f"… (recortado: el resultado entero está en "
+               f"{RESULTS / (ult + '.result.json')})")
+    return txt
+
+
 def _dag_encolar(pid, fase):
     plan = _dag_plan(pid) or {}
-    t = {"id": fase["task_id"], "prompt": fase["prompt"], "fase": f"fase {fase['n']} ({fase['fase_id']})",
+    extra = _jl(fase.get("extra"), {}) or {}
+    prompt = WF_RES_RE.sub(lambda m: _dag_resultado_txt(pid, m.group(1)), fase["prompt"])
+    t = {"id": fase["task_id"], "prompt": prompt, "fase": f"fase {fase['n']} ({fase['fase_id']})",
          "dag": {"plan": pid, "fase": fase["fase_id"]}, "criterios": json.loads(fase["criterios"] or "[]")}
     for k in ("cwd", "motor"):
         if plan.get(k):
             t[k] = plan[k]
     if plan.get("revisar") is not None:
         t["revisar"] = json.loads(plan["revisar"])  # el plan dice como se revisan sus fases
+    if extra.get("model"):
+        t.pop("motor", None)  # el motor de la fase manda sobre el del plan
+        t["model"] = extra["model"]
+    for k in ("acciones", "revisar", "allowed_tools", "permission_mode", "timeout_min"):
+        if k in extra:
+            t[k] = extra[k]
     TASKS.mkdir(parents=True, exist_ok=True)
     (TASKS / f"{fase['task_id']}.task.json").write_text(json.dumps(t, ensure_ascii=False), encoding="utf-8")
     _dag_set(pid, fase["fase_id"], estado="en_cola")
@@ -17519,6 +17569,546 @@ def dag_reflejar(pid):
     _family_update(pid, estado=est, reporte=txt, solo_si_falta_encargo=f"Plan con {len(_dag_fases(pid))} fases")
 
 
+# ---- workflows reutilizables (t-workflows-052): una secuencia de pasos guardada
+# en workflows\<id>.json (junto a growi-bridge.py, como comandos-ia.json) que al
+# ejecutarse se compila a un plan con grafo de fases (arriba): no hay un segundo
+# ejecutor. Cada paso pasa por la cola de siempre (guardrail, revision, rondas);
+# lo unico nuevo al lanzar es el costo estimado y, si el peor caso pasa del
+# umbral por plan, la confirmacion. {nombre} = un parametro declarado;
+# {resultado:<paso>} = lo que devolvio ese paso (se rellena al encolar el que lo usa).
+WF_DIR = APP_DIR / "workflows"
+WF_RUNS = INBOX / "workflows"  # una carpeta de trabajo por ejecucion, compartida por sus pasos
+WF_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+WF_PARAM_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]{0,39})\}")
+WF_RES_RE = re.compile(r"\{resultado:([A-Za-z0-9_.-]{1,40})\}")
+WF_RESULTADO_MAX = 2000   # caracteres de {resultado:<paso>}; el resto se lee del archivo
+WF_HIST_MAX = 20          # ejecuciones previas que mira el estimado, por paso
+_WF_MEMO: dict = {}
+
+
+def _wf_lista(v):
+    return [v] if isinstance(v, str) else list(v) if isinstance(v, (list, tuple)) else []
+
+
+def wf_validar(d, donde="el workflow"):
+    """-> (workflow normalizado, None) o (None, motivo en palabras normales).
+    Antes de ejecutar nada: id, pasos, parametros usados y declarados,
+    dependencias que existen, {resultado:} solo de un paso anterior y sin ciclos."""
+    if not isinstance(d, dict):
+        return None, f"{donde} no es un objeto JSON"
+    wid = str(d.get("id") or "").strip()
+    if not WF_ID_RE.match(wid):
+        return None, f"{donde}: el id debe ser corto, en minúsculas, con números y guiones (tengo «{wid}»)"
+    nombre = str(d.get("nombre") or "").strip()
+    if not nombre:
+        return None, f"«{wid}» no tiene nombre"
+    params, vistos = [], set()
+    for p in d.get("parametros") or []:
+        n = str((p or {}).get("nombre") or "").strip() if isinstance(p, dict) else ""
+        if not WF_PARAM_RE.fullmatch("{" + n + "}"):
+            return None, f"«{wid}»: el parámetro «{n}» no vale (letras, números y _ , sin espacios)"
+        if n == "resultado" or n in vistos:
+            return None, f"«{wid}»: el parámetro «{n}» está repetido o es una palabra reservada"
+        vistos.add(n)
+        pd = p.get("por_defecto")
+        params.append({"nombre": n, "pregunta": str(p.get("pregunta") or n).strip(),
+                       "por_defecto": None if pd is None else str(pd)})
+    al_fallar = d.get("al_fallar") or "pedir_decision"
+    if al_fallar not in DAG_AL_FALLAR:
+        return None, f"«{wid}»: al_fallar debe ser {', '.join(DAG_AL_FALLAR)}"
+    motor = d.get("motor")
+    if motor is not None and not isinstance(motor, str):
+        return None, f"«{wid}»: motor debe ser un texto (haiku, sonnet, motor:codex…)"
+    pasos_in = d.get("pasos")
+    if not isinstance(pasos_in, list) or not pasos_in:
+        return None, f"«{wid}» no trae pasos"
+    pasos, anterior = [], None
+    for i, p in enumerate(pasos_in, 1):
+        if not isinstance(p, dict):
+            return None, f"«{wid}»: el paso {i} no es un objeto"
+        pid = str(p.get("id") or "").strip()
+        if not _safe_id(pid) or len(pid) > 40:
+            return None, f"«{wid}»: el paso {i} necesita un id corto sin espacios raros (tengo «{pid}»)"
+        prompt = str(p.get("prompt") or "").strip()
+        if not prompt:
+            return None, f"«{wid}»: el paso «{pid}» no dice qué hacer (falta prompt)"
+        raros = sorted({m for m in WF_PARAM_RE.findall(prompt) if m not in vistos})
+        if raros:
+            return None, (f"«{wid}»: el paso «{pid}» usa " + ", ".join("{" + r + "}" for r in raros)
+                          + ", que no está en parametros")
+        deps = _wf_lista(p["depende_de"]) if "depende_de" in p else ([anterior] if anterior else [])
+        m = p.get("motor", motor)
+        if m is not None and not isinstance(m, str):
+            return None, f"«{wid}»: el motor del paso «{pid}» debe ser un texto"
+        if m:
+            mo, _mod, err = normalizar_motor(None, m, None)
+            if not err and mo and mo != "api" and mo not in engine_ids():
+                err = f"el motor «{mo}» no existe en engines.json (hay: {', '.join(engine_ids())})"
+            if err:
+                return None, f"«{wid}», paso «{pid}»: {err}"
+        af = p.get("al_fallar") or al_fallar
+        if af not in DAG_AL_FALLAR:
+            return None, f"«{wid}», paso «{pid}»: al_fallar debe ser {', '.join(DAG_AL_FALLAR)}"
+        paso = {"id": pid, "titulo": str(p.get("titulo") or pid), "prompt": prompt,
+                "depende_de": [str(x) for x in deps], "criterios": _wf_lista(p.get("criterios")),
+                "motor": m or None, "al_fallar": af}
+        for k in ("acciones", "revisar", "allowed_tools", "permission_mode", "timeout_min"):
+            if k in p:
+                paso[k] = p[k]
+        pasos.append(paso)
+        anterior = pid
+    orden, motivo = dag_validar({"fases": [{"id": p["id"], "prompt": p["prompt"], "depende_de": p["depende_de"],
+                                            "al_fallar": p["al_fallar"]} for p in pasos]})
+    if motivo:
+        return None, f"«{wid}»: {motivo}"
+    deps = {p["id"]: set(p["depende_de"]) for p in pasos}
+    for x in orden:  # en orden: las de cada dependencia ya estan completas
+        for d0 in list(deps[x]):
+            deps[x] |= deps[d0]
+    for p in pasos:
+        for r in WF_RES_RE.findall(p["prompt"]):
+            if r not in deps[p["id"]]:
+                return None, (f"«{wid}»: el paso «{p['id']}» usa {{resultado:{r}}}, pero «{r}» no es un paso "
+                              "del que dependa (todavía no habría terminado)")
+    wf = {"id": wid, "nombre": nombre, "descripcion": str(d.get("descripcion") or "").strip(),
+          "parametros": params, "motor": motor or None, "al_fallar": al_fallar,
+          "cwd": str(d["cwd"]) if d.get("cwd") else None, "pasos": pasos}
+    wf["huella"] = hashlib.sha1(json.dumps([wf["pasos"], wf["motor"]], sort_keys=True,
+                                           ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
+    return wf, None
+
+
+def workflows_cargar():
+    """[{archivo, wf, error}] de workflows\\*.json. Un archivo roto o mal escrito
+    sale igual, con su motivo (y sin poder ejecutarse); nunca se toca."""
+    out = []
+    if not WF_DIR.is_dir():
+        return out
+    for f in sorted(WF_DIR.glob("*.json")):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            out.append({"archivo": str(f), "wf": None, "id": f.stem, "error": f"{f.name} no se puede leer ({e})"})
+            continue
+        wf, err = wf_validar(d, f.name)
+        if wf and wf["id"] != f.stem:
+            wf, err = None, f"{f.name}: el id de dentro («{wf['id']}») no coincide con el nombre del archivo"
+        out.append({"archivo": str(f), "wf": wf, "id": f.stem, "error": err,
+                    "nombre": (wf or {}).get("nombre") or (d.get("nombre") if isinstance(d, dict) else None)})
+    return out
+
+
+def wf_get(wid):
+    return next((x for x in workflows_cargar() if x["id"] == wid), None)
+
+
+def _wf_motor(wf, paso):
+    """(motor, modelo) del paso: su motor, el del workflow o el de por defecto."""
+    m = paso.get("motor") or wf.get("motor")
+    motor, modelo, _err = normalizar_motor(None, m, None) if m else (None, None, None)
+    return motor or default_motor(), modelo
+
+
+def _wf_permisos(wf, paso):
+    """Los mismos permisos que da «Pedirle algo» (encolar_tarea): leer, escribir y
+    editar en su carpeta, segun lo que el descriptor del motor dice que puede. El
+    paso puede decir los suyos (allowed_tools, permission_mode, timeout_min)."""
+    motor, _modelo = _wf_motor(wf, paso)
+    eng = get_engine(motor) or {}
+    out = {"timeout_min": 30, "allowed_tools": "Read,Write,Edit,Bash", "permission_mode": "acceptEdits"}
+    if motor != "claude" and not _cap(eng, "habilidades_growi"):
+        out.pop("allowed_tools")
+    if motor != "claude" and not _cap(eng, "herramientas"):
+        out.pop("permission_mode")
+    out.update({k: paso[k] for k in ("allowed_tools", "permission_mode", "timeout_min") if k in paso})
+    return out
+
+
+def _wf_dinero(motor):
+    """real | equiv (equivalente Max) | local | suscripcion ($0 extra: codex, agy...)."""
+    if motor in ("llama", "ollama"):
+        return "local"
+    if motor == "api":
+        return "real"
+    if motor == "claude":
+        return "real" if _claude_plan() == "api" else "equiv"
+    return "suscripcion"
+
+
+def wf_costo_tarea(tid):
+    """Lo que costo de verdad la tarea de un paso: su familia (rondas y
+    revision). None si ningun result trae cifra (codex, agy: sin dato)."""
+    fam = load_family(tid) or {}
+    ids = list(dict.fromkeys(list(fam.get("tareas") or []) + [tid]))
+    rs = [_va_json(RESULTS / f"{i}.result.json") for i in ids]
+    if not any(isinstance(x.get("cost_usd"), (int, float)) for x in rs):
+        return None
+    if isinstance(fam.get("costo_usd"), (int, float)):
+        return round(float(fam["costo_usd"]), 6)
+    return round(sum(float(x["cost_usd"]) for x in rs if isinstance(x.get("cost_usd"), (int, float))), 6)
+
+
+def _wf_runs(wid):
+    return _cola("SELECT w.*, p.estado AS plan_estado FROM workflow_runs w LEFT JOIN dag_planes p "
+                 "ON p.plan_id = w.plan_id WHERE w.workflow_id=? ORDER BY w.creado_en DESC", (wid,), fetch=True) or []
+
+
+def _wf_hist_paso(wid, paso_id, huella):
+    """Costos de ese mismo paso en ejecuciones anteriores que lo terminaron
+    (primero las de esta version): [(usd, misma_version)]."""
+    filas = _cola("SELECT f.task_id, w.huella FROM dag_fases f JOIN workflow_runs w ON w.plan_id = f.plan_id "
+                  "WHERE w.workflow_id=? AND f.fase_id=? AND f.estado='terminada' ORDER BY w.creado_en DESC LIMIT ?",
+                  (wid, paso_id, WF_HIST_MAX), fetch=True) or []
+    out = []
+    for r in filas:
+        c = wf_costo_tarea(r["task_id"])
+        if c is not None:
+            out.append((c, r["huella"] == huella))
+    misma = [c for c, v in out if v]
+    return misma if misma else [c for c, _v in out], len(misma)
+
+
+def _wf_q(s, q):
+    return s[min(len(s) - 1, int(len(s) * q))]
+
+
+def _wf_est_paso(wf, paso):
+    motor, modelo = _wf_motor(wf, paso)
+    dinero = _wf_dinero(motor)
+    e = {"id": paso["id"], "motor": motor, "modelo": modelo, "dinero": dinero, "n": 0}
+    if dinero in ("local", "suscripcion"):
+        e.update(fuente="sin_costo", medio=0.0, rango=[0.0, 0.0], peor=0.0,
+                 texto="$0 local" if dinero == "local" else "$0 extra (va con la suscripción)")
+        return e
+    hist, n_misma = _wf_hist_paso(wf["id"], paso["id"], wf["huella"])
+    task = {"id": "wf-estimado", "prompt": paso["prompt"], "motor": motor, "modelo": modelo,
+            "criterios": paso.get("criterios") or []}
+    try:
+        g = estimar_gasto(task)
+    except Exception as ex:
+        g = {"peor_caso": None, "una_ronda": None, "calibrado": False, "historico": {"n": 0},
+             "error": f"{type(ex).__name__}: {ex}"}
+    if hist:
+        s = sorted(hist)
+        medio = s[len(s) // 2] if len(s) % 2 else (s[len(s) // 2 - 1] + s[len(s) // 2]) / 2
+        rango = [s[0], s[-1]] if len(s) < 5 else [_wf_q(s, 0.1), _wf_q(s, 0.9)]
+        peor = s[-1] if len(s) >= 3 else max(s[-1], g.get("peor_caso") or 0)
+        e.update(fuente="historial", n=len(s), n_misma_version=n_misma, medio=medio, rango=rango, peor=peor)
+    elif g.get("calibrado"):
+        h = g["historico"]
+        e.update(fuente="parecidas", n=h["n"], medio=h["medio"], rango=[h["p10"], h["p90"]],
+                 peor=max(h["p90"], g.get("peor_caso") or 0))
+    elif g.get("una_ronda") is not None:
+        una = g["una_ronda"] + (g.get("revision") or 0)
+        e.update(fuente="grueso", medio=una, rango=[g["una_ronda"] * 0.5, g["peor_caso"]], peor=g["peor_caso"])
+    else:
+        e.update(fuente="sin_precio", medio=None, rango=None, peor=None)
+    e["texto"] = ("sin precio para este modelo (no se inventa)" if e["medio"] is None else
+                  f"{_wf_usd(e['medio'])}" + (" eq. Max" if dinero == "equiv" else " real")
+                  + {"historial": f" (sus {e['n']} ejecuciones previas)", "parecidas": f" (tus {e['n']} tareas "
+                     "parecidas de este motor)", "grueso": " (estimado grueso: sin historial)"}[e["fuente"]])
+    return e
+
+
+def _wf_usd(v):
+    return "—" if v is None else f"${v:.2f}" if v >= 0.1 or v == 0 else f"${v:.3f}"
+
+
+def wf_estimar(wf):
+    """Costo estimado ANTES de ejecutar, paso a paso: el historial de ese
+    paso en ejecuciones anteriores (las de esta version primero); si no hay,
+    tus tareas parecidas del mismo motor (estimar_gasto); si tampoco, la
+    cuenta por tokens («estimado grueso»). codex/agy/locales: $0 extra, nunca
+    un $0.00 inventado. Los dineros no se mezclan: real y equivalente Max aparte."""
+    clave = (wf["id"], wf["huella"], _wf_firma_hist())
+    if _WF_MEMO.get(wf["id"], (None,))[0] == clave:
+        return _WF_MEMO[wf["id"]][1]
+    pasos = [_wf_est_paso(wf, p) for p in wf["pasos"]]
+    tot = {"equiv": [0.0, 0.0, 0.0, 0.0], "real": [0.0, 0.0, 0.0, 0.0]}  # medio, lo, hi, peor
+    sin_precio = [p["id"] for p in pasos if p["fuente"] == "sin_precio"]
+    for p in pasos:
+        if p["dinero"] in tot and p["medio"] is not None:
+            t = tot[p["dinero"]]
+            t[0] += p["medio"]
+            t[1] += p["rango"][0]
+            t[2] += p["rango"][1]
+            t[3] += p["peor"]
+    runs = _wf_runs(wf["id"])
+    hechas = [r for r in runs if r.get("plan_estado") == "terminado"]
+    misma = [r for r in hechas if r.get("huella") == wf["huella"]]
+    fuentes = {p["fuente"] for p in pasos}
+    e = {"pasos": pasos, "medio": {k: round(v[0], 6) for k, v in tot.items()},
+         "rango": {k: [round(v[1], 6), round(v[2], 6)] for k, v in tot.items()},
+         "peor_caso": round(tot["equiv"][3] + tot["real"][3], 6), "sin_precio": sin_precio,
+         "ejecuciones": len(hechas), "ejecuciones_version": len(misma), "fuentes": sorted(fuentes)}
+    partes = [f"{_wf_usd(tot[k][0])} {lab} (rango {_wf_usd(tot[k][1])}–{_wf_usd(tot[k][2])})"
+              for k, lab in (("equiv", "eq. Max"), ("real", "real")) if tot[k][0] or tot[k][2]]
+    gratis = sum(1 for p in pasos if p["fuente"] == "sin_costo")
+    if not partes:
+        txt = "Costo estimado: $0 extra" + (" (todos los pasos van con suscripción o en local)" if gratis else "")
+    else:
+        txt = "Costo estimado: " + " + ".join(partes)
+        if gratis:
+            txt += f", más {gratis} paso{'s' if gratis > 1 else ''} a $0 extra"
+    if fuentes <= {"historial", "sin_costo"} and "historial" in fuentes:
+        base = f"basado en {len(hechas)} ejecuci{'ón' if len(hechas) == 1 else 'ones'} previa{'' if len(hechas) == 1 else 's'}"
+        if len(misma) != len(hechas):
+            base += f" ({len(misma)} con esta versión de los pasos)"
+    elif "historial" in fuentes:
+        base = (f"basado en {len(hechas)} ejecuciones previas; los pasos nuevos, en "
+                + ("tus tareas parecidas" if "parecidas" in fuentes else "una cuenta por tokens"))
+    elif "parecidas" in fuentes:
+        base = "sin ejecuciones previas: basado en tus tareas parecidas del mismo motor"
+    elif "grueso" in fuentes:
+        base = "sin ejecuciones previas: estimado grueso por tokens"
+    else:
+        base = ""
+    e["texto"] = txt + (f", {base}" if base else "") + "." + (
+        f" Sin precio para {', '.join(sin_precio)} (no se inventa)." if sin_precio else "")
+    _WF_MEMO[wf["id"]] = (clave, e)
+    return e
+
+
+def _wf_firma_hist():
+    """Cambia cuando hay resultados o fases nuevas: el estimado guardado deja de valer."""
+    try:
+        st = RESULTS.stat().st_mtime if RESULTS.is_dir() else 0
+    except OSError:
+        st = 0
+    r = _cola("SELECT count(*) AS n, max(actualizado_en) AS m FROM dag_fases", fetch=True) or [{}]
+    return (st, r[0].get("n"), r[0].get("m"))
+
+
+def wf_ultima(wid):
+    """La ultima ejecucion: estado, estimado al lanzar y costo real (suma de
+    sus pasos) para ver si el estimado acierta. None si nunca corrio."""
+    runs = _wf_runs(wid)
+    if not runs:
+        return None
+    r = runs[0]
+    est = _jl(r.get("estimado"), {}) or {}
+    reales, sin_dato = {"equiv": 0.0, "real": 0.0}, 0
+    for f in _dag_fases(r["plan_id"]):
+        c = wf_costo_tarea(f["task_id"]) if f["estado"] in DAG_OK + DAG_MAL else None
+        ex = _jl(f.get("extra"), {}) or {}
+        din = ex.get("dinero") or "equiv"
+        if c is None:
+            sin_dato += f["estado"] in DAG_OK
+        elif din in reales:
+            reales[din] += c
+    estado = {"en_curso": "en curso", "terminado": "terminada", "necesita_decision": "necesita tu decisión",
+              "abortado": "abortada", "detenido": "detenida"}.get(r.get("plan_estado"), r.get("plan_estado") or "—")
+    medio = (est.get("medio") or {})
+    e_tot = round((medio.get("equiv") or 0) + (medio.get("real") or 0), 6)
+    real = round(reales["equiv"] + reales["real"], 6)
+    out = {"plan_id": r["plan_id"], "estado": estado, "creado_en": r["creado_en"], "estimado": e_tot,
+           "real": real, "sin_dato": sin_dato, "parametros": _jl(r.get("parametros"), {})}
+    txt = f"Última ({estado}, {r['creado_en'][:16].replace('T', ' ')}): estimado {_wf_usd(e_tot)}"
+    if r.get("plan_estado") in ("en_curso", None):
+        txt += f" · gastado hasta ahora {_wf_usd(real)}"
+    else:
+        txt += f" · real {_wf_usd(real)}"
+        if e_tot > 0 and real > 0:
+            out["error_pct"] = round((real - e_tot) / e_tot * 100)
+            txt += f" ({out['error_pct']:+d} %)"
+    if sin_dato:
+        txt += f"; {sin_dato} paso{'s' if sin_dato > 1 else ''} sin dato de costo (suscripción)"
+    out["texto"] = txt + "."
+    return out
+
+
+def _wf_rellenar(txt, valores):
+    return WF_PARAM_RE.sub(lambda m: valores.get(m.group(1), m.group(0)), txt)
+
+
+def encolar_workflow(wid, parametros=None, confirmado=False, origen="app"):
+    """Ejecuta un workflow: lo valida, rellena sus parametros, estima el costo
+    y lo deja en runner-tasks\\ como un plan con fases (escritura atomica y
+    exclusiva, como encolar_tarea). El runner hace el resto, paso a paso, con
+    su guardrail. Si el peor caso pasa del umbral por plan y no viene
+    confirmado: ok False y pide_confirmacion True (no se encola nada)."""
+    item = wf_get(wid)
+    if item is None:
+        return {"ok": False, "error": f"no hay ningún workflow «{wid}» en {WF_DIR}"}
+    wf = item["wf"]
+    if wf is None:
+        return {"ok": False, "error": item["error"]}
+    dados = {str(k): str(v) for k, v in (parametros or {}).items() if v is not None and str(v).strip() != ""}
+    valores, faltan = {}, []
+    for p in wf["parametros"]:
+        v = dados.get(p["nombre"], p["por_defecto"])
+        if v is None:
+            faltan.append(p["pregunta"])
+        else:
+            valores[p["nombre"]] = v
+    if faltan:
+        return {"ok": False, "error": "falta: " + "; ".join(faltan), "faltan": faltan}
+    est = wf_estimar(wf)
+    _tope_t, tope_plan = umbrales_gasto()
+    if est["peor_caso"] > tope_plan and not confirmado:
+        return {"ok": False, "pide_confirmacion": True, "estimado": est,
+                "error": (f"el peor caso ({_wf_usd(est['peor_caso'])}) pasa tu umbral por plan ({_wf_usd(tope_plan)}): "
+                          "confírmalo para lanzarlo")}
+    base = f"wf-{wid}-{datetime.now():%Y%m%d-%H%M%S}"
+    TASKS.mkdir(parents=True, exist_ok=True)
+    tmp = TASKS / f".{base}-{os.getpid()}-{threading.get_ident()}.tmp"
+    i = 0
+    try:
+        while True:
+            pid = base if i == 0 else f"{base}-{i}"
+            i += 1
+            dest = TASKS / f"{pid}.task.json"
+            if dest.exists() or (DONE / dest.name).exists() or (WF_RUNS / pid).exists():
+                continue
+            cwd = Path(wf["cwd"]).expanduser() if wf["cwd"] else WF_RUNS / pid
+            cwd.mkdir(parents=True, exist_ok=True)
+            ep = {p["id"]: p for p in est["pasos"]}
+            fases = []
+            for p in wf["pasos"]:
+                f = {"id": p["id"], "prompt": _wf_rellenar(p["prompt"], valores), "depende_de": p["depende_de"],
+                     "al_fallar": p["al_fallar"], "criterios": [_wf_rellenar(c, valores) if isinstance(c, str) else c
+                                                                for c in p["criterios"]],
+                     "titulo": p["titulo"], "plantilla": p["prompt"], "dinero": ep[p["id"]]["dinero"]}
+                if p.get("motor") or wf.get("motor"):
+                    f["model"] = p.get("motor") or wf["motor"]
+                f.update(_wf_permisos(wf, p))
+                for k in ("acciones", "revisar"):
+                    if k in p:
+                        f[k] = p[k]
+                fases.append(f)
+            data = {"id": pid, "cwd": str(cwd), "fases": fases,
+                    "workflow": {"id": wid, "nombre": wf["nombre"], "huella": wf["huella"], "parametros": valores,
+                                 "origen": str(origen)[:40], "definicion": {k: v for k, v in wf.items() if k != "huella"},
+                                 "estimado": {k: est[k] for k in ("medio", "rango", "peor_caso", "ejecuciones",
+                                                                  "texto")}}}
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            try:
+                os.rename(tmp, dest)
+                break
+            except FileExistsError:
+                continue
+    except OSError as e:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        return {"ok": False, "error": f"no se pudo escribir en {TASKS} ({type(e).__name__}: {e})"}
+    log(f"workflows: «{wf['nombre']}» lanzado como {pid} ({len(fases)} pasos; {est['texto']})"
+        + ("" if origen == "app" else f"; pedido desde {str(origen)[:40]}")
+        + (" Confirmado por encima del umbral." if confirmado and est["peor_caso"] > tope_plan else ""))
+    return {"ok": True, "id": pid, "archivo": str(dest), "cwd": str(cwd), "estimado": est, "error": None}
+
+
+def _wf_slug(txt):
+    s = re.sub(r"[^a-z0-9]+", "-", _norm(str(txt or "")).lower()).strip("-")[:40].strip("-")
+    return s if WF_ID_RE.match(s or "") else "workflow"
+
+
+def wf_plan_de(row_id):
+    """El plan (plan_id) de una fila de Tareas: el propio plan o el de una fase suya."""
+    if not row_id:
+        return None
+    if _cola("SELECT 1 FROM dag_planes WHERE plan_id=?", (row_id,), fetch=True):
+        return row_id
+    r = _cola("SELECT plan_id FROM dag_fases WHERE task_id=?", (row_id,), fetch=True)
+    return r[0]["plan_id"] if r else None
+
+
+def wf_desde_plan(pid, nombre=None):
+    """«Guardar como workflow»: escribe workflows\\<id>.json con los pasos de
+    un plan ya hecho (sus prompts, dependencias, criterios, motor y al_fallar).
+    Si el plan salio de un workflow, guarda sus plantillas con {parametros}.
+    Nunca pisa un archivo: si el id ya existe, toma -2, -3... -> (ok, ruta o motivo)."""
+    plan = _dag_plan(pid)
+    if not plan:
+        return False, f"{pid} no es un plan con fases"
+    w = (_cola("SELECT * FROM workflow_runs WHERE plan_id=?", (pid,), fetch=True) or [None])[0]
+    defi = _jl((w or {}).get("definicion"), None)
+    if isinstance(defi, dict):
+        d = dict(defi)
+        d["descripcion"] = (d.get("descripcion") or "") + f" (copia guardada desde {pid})"
+        base = d["id"]
+    else:
+        pasos = []
+        rev = _jl(plan.get("revisar"), None) if plan.get("revisar") else None
+        for f in _dag_fases(pid):
+            ex = _jl(f.get("extra"), {}) or {}
+            p = {"id": f["fase_id"], "prompt": f["prompt"], "depende_de": _jl(f["depende_de"], []) or [],
+                 "al_fallar": f["al_fallar"]}
+            if ex.get("titulo"):
+                p["titulo"] = ex["titulo"]
+            crit = _jl(f.get("criterios"), []) or []
+            if crit:
+                p["criterios"] = crit
+            if ex.get("model"):
+                p["motor"] = ex["model"]
+            elif plan.get("motor"):
+                p["motor"] = f"motor:{plan['motor']}"
+            for k in ("acciones", "revisar"):
+                if k in ex:
+                    p[k] = ex[k]
+            if "revisar" not in p and rev is not None:
+                p["revisar"] = rev
+            pasos.append(p)
+        base = _wf_slug(nombre or pid)
+        d = {"id": base, "nombre": nombre or f"Plan {pid}", "parametros": [],
+             "descripcion": f"Guardado desde el plan {pid} el {datetime.now():%d/%m/%Y}", "pasos": pasos}
+    WF_DIR.mkdir(parents=True, exist_ok=True)
+    i = 1
+    while True:
+        wid = base if i == 1 else f"{base[:36]}-{i}"
+        dest = WF_DIR / f"{wid}.json"
+        if not dest.exists():
+            break
+        i += 1
+    d["id"] = wid
+    if isinstance(defi, dict) and wid != base:
+        d["nombre"] = f"{d['nombre']} ({i})"
+    _wf, err = wf_validar(d, dest.name)
+    if err:
+        return False, f"no se guarda: {err}"
+    try:
+        with open(dest, "x", encoding="utf-8") as fh:
+            fh.write(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+    except OSError as e:
+        return False, f"no se pudo escribir {dest} ({type(e).__name__}: {e})"
+    _WF_MEMO.pop(wid, None)
+    log(f"workflows: guardado «{d['nombre']}» ({len(d['pasos'])} pasos) desde el plan {pid} en {dest.name}")
+    return True, str(dest)
+
+
+def wf_paso_txt(task_ids):
+    """{task_id: «paso 2/3 de Resumen de reunión»} para la Vista de Agentes."""
+    ids = [t for t in task_ids if t and str(t).startswith("wf-")]
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    filas = _cola(f"SELECT f.task_id, f.n, w.nombre, (SELECT count(*) FROM dag_fases g WHERE g.plan_id = f.plan_id) "
+                  f"AS total FROM dag_fases f JOIN workflow_runs w ON w.plan_id = f.plan_id WHERE f.task_id IN ({marks})",
+                  tuple(ids), fetch=True) or []
+    return {r["task_id"]: f"paso {r['n']}/{r['total']} de «{r['nombre']}»" for r in filas}
+
+
+def workflows_vista():
+    """Lo que pinta la tarjeta Workflows y sirve /gateway/workflows."""
+    out = []
+    for it in workflows_cargar():
+        wf = it["wf"]
+        x = {"id": it["id"], "archivo": it["archivo"], "nombre": it.get("nombre") or it["id"], "error": it["error"]}
+        if wf:
+            try:
+                est = wf_estimar(wf)
+            except Exception as e:
+                est = {"texto": f"no se pudo estimar ({type(e).__name__}: {e})", "peor_caso": None, "pasos": []}
+            x.update(descripcion=wf["descripcion"], parametros=wf["parametros"], huella=wf["huella"],
+                     pasos=[{"id": p["id"], "titulo": p["titulo"], "depende_de": p["depende_de"],
+                             "motor": "{} {}".format(*_wf_motor(wf, p)).strip(), "al_fallar": p["al_fallar"]}
+                            for p in wf["pasos"]],
+                     estimado=est, ultima=wf_ultima(wf["id"]))
+        out.append(x)
+    return {"generado": _now_iso(), "carpeta": str(WF_DIR), "workflows": out, "umbral_plan": umbrales_gasto()[1]}
+
+
 def _process_one_impl(task_file):
     try:
         data = json.loads(task_file.read_text(encoding="utf-8"))
@@ -17554,6 +18144,8 @@ def _process_one_impl(task_file):
         cola_set(cid, estado="fallida", archivo=str(DONE / task_file.name),
                  motivo=f"definitivo, sin reintentos: {error}"[:300])
         _write_result(res)
+        if isinstance(data, dict) and isinstance(data.get("dag"), dict):
+            dag_fase_terminada(data, "fallida")  # una fase rechazada antes de empezar: su plan no se queda esperando
         return True
     is_model = bool(task.get("ollama_action"))
     if not is_model and isinstance(data, dict) and not data.get("run_id") and task.get("run_id"):
@@ -18565,6 +19157,13 @@ def vista_agentes(ahora=None):
                                 else "no aprobó" if rv.get("aprobado") is False else "sin revisión"),
                       terminada_hace_s=int(max(0, ahora - r["actualizado_ts"])))
         out[col].append(it)
+    try:
+        pasos_wf = wf_paso_txt([it["id"] for col in ("trabajando", "necesitan", "terminadas") for it in out[col]])
+    except Exception:
+        pasos_wf = {}
+    for col in ("trabajando", "necesitan", "terminadas"):
+        for it in out[col]:
+            it["workflow_txt"] = pasos_wf.get(it["id"])
     out["trabajando"].sort(key=lambda x: (x.get("hueco") or 9, -x["desde_ts"]))
     out["necesitan"].sort(key=lambda x: (not x["puede_aprobar"], -x["desde_ts"]))
     out["terminadas"].sort(key=lambda x: -x["desde_ts"])
@@ -18659,7 +19258,7 @@ def _va_tiempo(it, col):
 
 def _va_fijo(it):
     return tuple(it.get(k) for k in ("id", "estado", "encargo", "motor_txt", "cubo", "hueco", "ronda", "motivo",
-                                     "resultado", "revision", "puede_aprobar", "approval_id"))
+                                     "resultado", "revision", "puede_aprobar", "approval_id", "workflow_txt"))
 
 
 def _va_tarjeta(k, box, col, it):
@@ -18668,6 +19267,8 @@ def _va_tarjeta(k, box, col, it):
     color = ("blue" if col == "trabajando" else "red" if it["estado"] == "fallida"
              else "orange_text" if col == "necesitan" else "green_text" if it.get("revision") == "aprobó" else None)
     k.label(card, it["encargo"], bold=True, wrap=_VA_ANCHO).pack(anchor="w", fill="x", padx=10, pady=(8, 0))
+    if it.get("workflow_txt"):
+        k.label(card, it["workflow_txt"], wrap=_VA_ANCHO).pack(anchor="w", fill="x", padx=10)
     meta = (f"{it['id']} · {it['motor_txt']} · cubo {it['cubo']}" + (f" · hueco {it['hueco']}" if it.get("hueco") else "")
             + (f" · ronda {it['ronda']}" if it.get("ronda") else ""))
     k.label(card, meta, muted=True, wrap=_VA_ANCHO).pack(anchor="w", fill="x", padx=10)
@@ -18739,6 +19340,242 @@ def _va_decidir(it, ok):
 
 def _va_ver(it):
     _tarea_ver_en_lista(it["id"], "agentes", "desde el tablero")
+
+
+# ---- tarjeta Workflows en Tareas (t-workflows-052), debajo del tablero de agentes:
+# cada workflow guardado con su costo estimado, la ultima ejecucion (estimado
+# contra real) y «Ejecutar». Con parametros, un formulario corto dentro de la
+# tarjeta; si el peor caso pasa del umbral por plan, «Ejecutar igual» en la misma
+# tarjeta (sin dialogos). Leer y estimar va en un hilo: la ventana no se congela.
+WF_CADA_MS = 15000
+_WFUI: dict = {"kit": None, "box": None, "msg": None, "dato": None, "fp": None, "leyendo": False, "abiertos": set(),
+               "form": None, "confirmar": None, "entradas": {}, "botones": {}, "lanzando": False}
+
+
+def _workflows_build(page):
+    holder = tk.Frame(page, bg=THEME["bg"])
+    holder.pack(fill="x")
+    k = None
+    if _ctk_wanted():
+        try:
+            k = _KitCtk(holder)
+        except Exception as e:
+            log(f"workflows: CustomTkinter no disponible ({type(e).__name__}: {e}); tarjeta clásica")
+    k = k or _KitTk(holder)
+    _WFUI["kit"] = k
+    c = k.section("Workflows", "Secuencias de pasos guardadas en workflows\\. «Ejecutar» las encola como un plan: "
+                               "cada paso espera al anterior y pasa por tus aprobaciones de siempre. El costo "
+                               "estimado sale de sus ejecuciones previas.")
+    _WFUI["box"] = k.frame(c)
+    _WFUI["box"].pack(fill="x", padx=16, pady=(4, 2))
+    _WFUI["msg"] = k.label(c, "", muted=True, wrap=640)
+    _WFUI["msg"].pack(anchor="w", fill="x", padx=16)
+    fila = k.frame(c)
+    fila.pack(anchor="w", padx=16, pady=(4, 12))
+    k.button(fila, "Abrir la carpeta", _wf_abrir_carpeta).pack(side="left", padx=(0, 8))
+    k.button(fila, "Actualizar", lambda: _wf_pedir()).pack(side="left")
+    _WFUI["fp"] = None
+    _wf_tick()
+
+
+def _wf_abrir_carpeta():
+    WF_DIR.mkdir(parents=True, exist_ok=True)
+    open_folder(WF_DIR)
+    log(f"workflows: abierta la carpeta {WF_DIR}")
+
+
+def _wf_tick():
+    if _WFUI.get("msg") is None:
+        return
+    _wf_pedir()
+    try:
+        _WFUI["msg"].after(WF_CADA_MS, _wf_tick)
+    except Exception:
+        pass
+
+
+def _wf_pedir():
+    if _WFUI["leyendo"]:
+        return
+    _WFUI["leyendo"] = True
+
+    def leer():
+        try:
+            d = workflows_vista()
+        except Exception as e:
+            d = {"workflows": [], "error": f"{type(e).__name__}: {e}"}
+        finally:
+            _WFUI["leyendo"] = False
+        _ui_call(lambda: _wf_pintar(d))
+    threading.Thread(target=leer, daemon=True, name="workflows").start()
+
+
+def _wf_aviso(txt, color="muted"):
+    k = _WFUI.get("kit")
+    if k is not None and _WFUI.get("msg") is not None:
+        k.set_label(_WFUI["msg"], text=txt, color=color)
+
+
+def _wf_repintar():
+    _WFUI["fp"] = None
+    if _WFUI.get("dato") is not None:
+        _wf_pintar(_WFUI["dato"])
+
+
+def _wf_pintar(d):
+    k, box = _WFUI.get("kit"), _WFUI.get("box")
+    if k is None or box is None:
+        return
+    _WFUI["dato"] = d
+    fp = (json.dumps([{kk: v for kk, v in x.items() if kk != "archivo"} for x in d.get("workflows") or []],
+                     sort_keys=True, ensure_ascii=False, default=str), d.get("error"), tuple(sorted(_WFUI["abiertos"])),
+          _WFUI["form"], (_WFUI["confirmar"] or {}).get("id"), _WFUI["lanzando"])
+    if fp == _WFUI["fp"]:
+        return
+    _WFUI["fp"], _WFUI["entradas"], _WFUI["botones"] = fp, {}, {}
+    for ch in box.winfo_children():
+        ch.destroy()
+    if d.get("error"):
+        k.label(box, f"No se pudieron leer los workflows: {d['error']}", color="red", wrap=640).pack(anchor="w")
+        return
+    if not d.get("workflows"):
+        k.label(box, f"Todavía no hay ninguno. Escribe un {WF_DIR.name}\\<id>.json (el LEEME trae el formato) o, "
+                     "en el detalle de un plan de la lista, pulsa «Guardar como workflow».", muted=True,
+                wrap=640).pack(anchor="w")
+        return
+    for x in d["workflows"]:
+        _wf_tarjeta(k, box, x)
+
+
+def _wf_tarjeta(k, box, x):
+    card = k.card(box)
+    card.pack(fill="x", pady=(0, 6))
+    k.label(card, x["nombre"], bold=True, wrap=620).pack(anchor="w", fill="x", padx=12, pady=(8, 0))
+    if x.get("error"):
+        k.label(card, x["error"], color="red", wrap=620).pack(anchor="w", fill="x", padx=12, pady=(0, 8))
+        return
+    bt = _WFUI["botones"].setdefault(x["id"], {})
+    pasos = x.get("pasos") or []
+    k.label(card, f"{x['id']} · {len(pasos)} paso{'s' if len(pasos) != 1 else ''}"
+            + (f" · {x['descripcion']}" if x.get("descripcion") else ""), muted=True, wrap=620).pack(
+        anchor="w", fill="x", padx=12)
+    est = x.get("estimado") or {}
+    k.label(card, est.get("texto") or "", wrap=620).pack(anchor="w", fill="x", padx=12, pady=(2, 0))
+    if x.get("ultima"):
+        k.label(card, x["ultima"]["texto"], muted=True, wrap=620).pack(anchor="w", fill="x", padx=12)
+    if x["id"] in _WFUI["abiertos"]:
+        ep = {p["id"]: p for p in est.get("pasos") or []}
+        lineas = [f"{i}. {p['titulo']} — {p['motor']}" + (f" · después de {', '.join(p['depende_de'])}"
+                                                           if p["depende_de"] else " · empieza")
+                  + (f" · {ep[p['id']]['texto']}" if p["id"] in ep else "") for i, p in enumerate(pasos, 1)]
+        k.label(card, "\n".join(lineas), muted=True, wrap=620).pack(anchor="w", fill="x", padx=12, pady=(4, 0))
+    if _WFUI["form"] == x["id"]:
+        form = k.frame(card)
+        form.pack(fill="x", padx=12, pady=(6, 0))
+        for p in x.get("parametros") or []:
+            k.label(form, p["pregunta"] + ("" if p["por_defecto"] is None else " (opcional)"), wrap=620).pack(
+                anchor="w")
+            e = k.entry(form, width=50)
+            if p["por_defecto"] is not None:
+                e.insert(0, p["por_defecto"])
+            e.pack(anchor="w", pady=(0, 4))
+            _WFUI["entradas"][p["nombre"]] = e
+    conf = _WFUI["confirmar"] or {}
+    if conf.get("id") == x["id"]:
+        k.label(card, conf["motivo"], color="orange_text", wrap=620).pack(anchor="w", fill="x", padx=12, pady=(4, 0))
+    fila = k.frame(card)
+    fila.pack(anchor="w", padx=12, pady=(6, 8))
+    if conf.get("id") == x["id"]:
+        bt["igual"] = k.button(fila, "Ejecutar igual", lambda: _wf_lanzar(conf["id"], conf["valores"], True),
+                               accent=True)
+        bt["igual"].pack(side="left", padx=(0, 6))
+        k.button(fila, "Cancelar", _wf_cancelar).pack(side="left", padx=(0, 6))
+    elif _WFUI["form"] == x["id"]:
+        bt["lanzar"] = k.button(fila, "Lanzar", lambda i=x["id"]: _wf_lanzar(i, _wf_valores(), False), accent=True)
+        bt["lanzar"].pack(side="left", padx=(0, 6))
+        k.button(fila, "Cancelar", _wf_cancelar).pack(side="left", padx=(0, 6))
+    else:
+        bt["ejecutar"] = k.button(fila, "Ejecutando…" if _WFUI["lanzando"] == x["id"] else "Ejecutar",
+                                  lambda i=x: _wf_ejecutar(i), accent=True)
+        bt["ejecutar"].pack(side="left", padx=(0, 6))
+        if _WFUI["lanzando"]:
+            k.set_enabled(bt["ejecutar"], False)
+    bt["pasos"] = k.button(fila, "Ocultar pasos" if x["id"] in _WFUI["abiertos"] else "Pasos",
+                           lambda i=x["id"]: _wf_pasos(i))
+    bt["pasos"].pack(side="left")
+
+
+def _wf_valores():
+    return {n: e.get() for n, e in _WFUI["entradas"].items()}
+
+
+def _wf_cancelar():
+    _WFUI["form"] = _WFUI["confirmar"] = None
+    _wf_repintar()
+
+
+def _wf_pasos(wid):
+    _WFUI["abiertos"] ^= {wid}
+    _wf_repintar()
+
+
+def _wf_ejecutar(x):
+    if x.get("parametros"):
+        _WFUI["form"], _WFUI["confirmar"] = x["id"], None
+        _wf_repintar()
+        return
+    _wf_lanzar(x["id"], {}, False)
+
+
+def _wf_lanzar(wid, valores, confirmado):
+    """encolar_workflow en un hilo (estima otra vez con lo ultimo) y el resultado en la tarjeta."""
+    if _WFUI["lanzando"]:
+        return
+    _WFUI["lanzando"] = wid
+    _wf_repintar()
+
+    def correr():
+        try:
+            r = encolar_workflow(wid, valores, confirmado=confirmado)
+        except Exception as e:
+            r = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        _ui_call(lambda: _wf_lanzado(wid, valores, r))
+    threading.Thread(target=correr, daemon=True, name="workflow-lanzar").start()
+
+
+def _wf_lanzado(wid, valores, r):
+    _WFUI["lanzando"] = False
+    _WFUI["ultimo_lanzado"] = r
+    if r.get("ok"):
+        _WFUI["form"] = _WFUI["confirmar"] = None
+        _wf_aviso(f"Lanzado como {r['id']}: sus pasos aparecen en el tablero de arriba, uno detrás de otro. "
+                  f"{r['estimado']['texto']}", "green_text")
+    elif r.get("pide_confirmacion"):
+        _WFUI["confirmar"] = {"id": wid, "valores": valores, "motivo": "No se lanzó: " + r["error"] + "."}
+        _wf_aviso("")
+    else:
+        _wf_aviso(f"No se lanzó: {r.get('error')}.", "red")
+    _wf_repintar()
+    _wf_pedir()
+
+
+def _tdet_guardar_wf():
+    """«Guardar como workflow» del detalle: el plan de la fila (o el de su fase)."""
+    row = _tdet_fila()
+    k = _TDET.get("kit")
+    pid = wf_plan_de(row["id"]) if row else None
+    if not pid:
+        msg, color = "Solo un plan con fases (o una de sus fases) se puede guardar como workflow.", "orange_text"
+    else:
+        ok, out = wf_desde_plan(pid)
+        msg = (f"Guardado en {WF_DIR.name}\\{Path(out).name}: ya sale en Workflows, arriba." if ok else
+               f"No se guardó: {out}")
+        color = "green_text" if ok else "red"
+        if ok:
+            _wf_pedir()
+    if k is not None:
+        k.set_label(_TDET["aviso"], text=msg, color=color)
+    return msg
 
 
 def runner_loop(stop_event):
@@ -28418,7 +29255,9 @@ def _tdet_con(k, holder):
     _TDET["volver"] = k.button(btns, "Volver a la cola", _tdet_volver)
     _TDET["volver"].pack(side="left", padx=(0, 8))
     _TDET["reencolar"] = k.button(btns, "Volver a encolar", _requeue_ui)
-    _TDET["reencolar"].pack(side="left")
+    _TDET["reencolar"].pack(side="left", padx=(0, 8))
+    _TDET["wf_guardar"] = k.button(btns, "Guardar como workflow", _tdet_guardar_wf)  # t-workflows-052
+    _TDET["wf_guardar"].pack(side="left")
     # Todo lo demás de la revisión (encargo, criterios, jueces, reintentos, aprobación…), como antes.
     _widgets["tasks_detail"] = k.label(cuerpo, "", muted=True, wrap=640)
     _widgets["tasks_detail"].pack(fill="x", padx=16, pady=(0, 12))
@@ -28469,6 +29308,11 @@ def _tdet_pintar(row):
             k.label(r, txt, wrap=520).pack(side="left", fill="x", expand=True, anchor="w")
     k.set_label(_TDET["aviso"], text="" if tarea_resultados(row) else
                 "Esta tarea todavía no tiene resultados: «Abrir resultados» no tiene nada que abrir.")
+    if _TDET.get("wf_guardar") is not None:  # solo un plan con fases (o una fase suya) se guarda como workflow
+        try:
+            k.set_enabled(_TDET["wf_guardar"], bool(wf_plan_de(row["id"])))
+        except Exception:
+            pass
     k.set_label(_widgets["tasks_detail"], text=_task_detail_text(row))
     _TDET["rv_id"] = rv.get("id")
 
@@ -45053,6 +45897,10 @@ def build_gui():
         _vista_agentes_build(tabt)  # Trabajando / Te necesitan / Terminadas (t-vista-agentes-052)
     except Exception as e:
         log(f"agentes: no se pudo dibujar el tablero ({type(e).__name__}: {e})")
+    try:
+        _workflows_build(tabt)  # workflows guardados con su costo estimado (t-workflows-052)
+    except Exception as e:
+        log(f"workflows: no se pudo dibujar la tarjeta ({type(e).__name__}: {e})")
     _build_spend_card(tabt)
     _widgets["approvals_box"] = tk.Frame(tabt, bg=THEME["card"])
     ttk.Style().configure("Tareas.Treeview", font=(MONO, 10), rowheight=S(FILA_PX))

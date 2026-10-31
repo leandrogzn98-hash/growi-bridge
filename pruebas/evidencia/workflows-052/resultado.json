@@ -1,0 +1,387 @@
+{
+  "inicio": "2026-10-30 22:07:04",
+  "casos": {
+    "a_validacion": {
+      "ok": true,
+      "motivos": {
+        "ciclo": "«malo»: el plan tiene un ciclo: a ↔ b dependen unas de otras y ninguna podría empezar nunca. Rompe el ciclo y vuelve a mandarlo.",
+        "dependencia_inexistente": "«malo»: la fase «a» depende de «fantasma», que no existe en el plan",
+        "param_sin_declarar": "«malo»: el paso «a» usa {texto}, que no está en parametros",
+        "resultado_no_anterior": "«malo»: el paso «a» usa {resultado:b}, pero «b» no es un paso del que dependa (todavía no habría terminado)",
+        "motor_inexistente": "«malo», paso «a»: el motor «noexiste» no existe en engines.json (hay: claude, codex, llama, ollama, meshy, gemini)",
+        "id_raro": "el workflow: el id debe ser corto, en minúsculas, con números y guiones (tengo «Con Espacios»)",
+        "sin_pasos": "«malo» no trae pasos"
+      },
+      "bueno_depende_de": [
+        [],
+        [
+          "a"
+        ],
+        [
+          "b"
+        ]
+      ],
+      "falta_param": "falta: ¿Qué archivo?",
+      "roto": "roto.json no se puede leer (Expecting property name enclosed in double quotes: line 1 column 3 (char 2))"
+    },
+    "b_estimado": {
+      "ok": true,
+      "sin_historial": "Costo estimado: $0.004 eq. Max (rango $0.001–$0.012), sin ejecuciones previas: estimado grueso por tokens.",
+      "con_historial": "Costo estimado: $0.040 eq. Max (rango $0.035–$0.051), basado en 3 ejecuciones previas.",
+      "medio": 0.04,
+      "rango": [
+        0.035,
+        0.051
+      ],
+      "esperado": {
+        "medio": 0.04,
+        "rango": [
+          0.034999999999999996,
+          0.051
+        ]
+      },
+      "otra_version": "Costo estimado: $0.040 eq. Max (rango $0.035–$0.051), basado en 3 ejecuciones previas (0 con esta versión de los pasos).",
+      "nuevo": "Costo estimado: $0.014 eq. Max (rango $0.005–$0.030), más 1 paso a $0 extra, sin ejecuciones previas: basado en tus tareas parecidas del mismo motor."
+    },
+    "b_guardar_como_workflow": {
+      "ok": true,
+      "guardado": {
+        "id": "plan-manual",
+        "nombre": "Plan plan-manual",
+        "parametros": [],
+        "descripcion": "Guardado desde el plan plan-manual el 30/10/2026",
+        "pasos": [
+          {
+            "id": "a",
+            "prompt": "Fase a",
+            "depende_de": [],
+            "al_fallar": "saltar_con_aviso",
+            "criterios": [
+              "algo existe"
+            ],
+            "motor": "motor:codex"
+          },
+          {
+            "id": "b",
+            "prompt": "Fase b",
+            "depende_de": [
+              "a"
+            ],
+            "al_fallar": "saltar_con_aviso",
+            "criterios": [
+              "algo existe"
+            ],
+            "motor": "motor:codex"
+          }
+        ]
+      },
+      "detalle": "Guardado en workflows\\plan-manual-2.json: ya sale en Workflows, arriba.",
+      "copia": "plan-manual-2.json",
+      "fila_suelta": "Solo un plan con fases (o una de sus fases) se puede guardar como workflow."
+    },
+    "c_gateway_workflows": {
+      "ok": true,
+      "codigo": 200,
+      "sin_token": 401,
+      "workflows": [
+        [
+          "sembrado",
+          "Costo estimado: $0.040 eq. Max (rango $0.035–$0.051), basado en 3 ejecuciones previas."
+        ]
+      ]
+    },
+    "f_tarjeta_ctk": {
+      "ok": true,
+      "kit": "_KitCtk",
+      "lista": true,
+      "pasos": true,
+      "formulario": true,
+      "umbral_pide_confirmacion": true,
+      "lanzado": true,
+      "textos": [
+        "Con idioma",
+        "con-idioma · 1 paso",
+        "Costo estimado: $0.014 eq. Max (rango $0.005–$0.030), sin ejecuciones previas: basado en tus tareas parecidas del mismo motor.",
+        "Sembrado (3 pasos)",
+        "sembrado · 3 pasos · historial sembrado",
+        "Costo estimado: $0.040 eq. Max (rango $0.035–$0.051), basado en 3 ejecuciones previas.",
+        "Última (terminada, 2026-01-03 12:00): estimado $0.040 · real $0.051 (+27 %).",
+        "1. uno — claude haiku · empieza · $0.012 eq. Max (sus 3 ejecuciones previas)\n2. dos — claude haiku · después de uno · $0.022 eq. Max (sus 3 ejecuciones previas)\n3. tres — claude haiku · después de dos · $0.006 eq. Max (sus 3 ejecuciones previas)"
+      ],
+      "aviso": "Lanzado como wf-con-idioma-20261030-220737: sus pasos aparecen en el tablero de arriba, uno detrás de otro. Costo estimado: $0.014 eq. Max (rango $0.005–$0.030), sin ejecuciones previas: basado en tus tareas parecidas del mismo motor.",
+      "plan_fase": {
+        "id": "a",
+        "prompt": "Escribe sobre los gatos en es",
+        "depende_de": [],
+        "al_fallar": "pedir_decision",
+        "criterios": [],
+        "titulo": "a",
+        "plantilla": "Escribe sobre {tema} en {idioma}",
+        "dinero": "equiv",
+        "model": "haiku",
+        "timeout_min": 30,
+        "allowed_tools": "Read,Write,Edit,Bash",
+        "permission_mode": "acceptEdits"
+      }
+    },
+    "f_tarjeta_tk": {
+      "ok": true,
+      "kit": "_KitTk",
+      "lista": true,
+      "pasos": true,
+      "formulario": true,
+      "umbral_pide_confirmacion": true,
+      "lanzado": true,
+      "textos": [
+        "Con idioma",
+        "con-idioma · 1 paso",
+        "Costo estimado: $0.014 eq. Max (rango $0.005–$0.030), sin ejecuciones previas: basado en tus tareas parecidas del mismo motor.",
+        "Sembrado (3 pasos)",
+        "sembrado · 3 pasos · historial sembrado",
+        "Costo estimado: $0.040 eq. Max (rango $0.035–$0.051), basado en 3 ejecuciones previas.",
+        "Última (terminada, 2026-01-03 12:00): estimado $0.040 · real $0.051 (+27 %).",
+        "1. uno — claude haiku · empieza · $0.012 eq. Max (sus 3 ejecuciones previas)\n2. dos — claude haiku · después de uno · $0.022 eq. Max (sus 3 ejecuciones previas)\n3. tres — claude haiku · después de dos · $0.006 eq. Max (sus 3 ejecuciones previas)"
+      ],
+      "aviso": "Lanzado como wf-con-idioma-20261030-220742: sus pasos aparecen en el tablero de arriba, uno detrás de otro. Costo estimado: $0.014 eq. Max (rango $0.005–$0.030), sin ejecuciones previas: basado en tus tareas parecidas del mismo motor.",
+      "plan_fase": {
+        "id": "a",
+        "prompt": "Escribe sobre los gatos en es",
+        "depende_de": [],
+        "al_fallar": "pedir_decision",
+        "criterios": [],
+        "titulo": "a",
+        "plantilla": "Escribe sobre {tema} en {idioma}",
+        "dinero": "equiv",
+        "model": "haiku",
+        "timeout_min": 30,
+        "allowed_tools": "Read,Write,Edit,Bash",
+        "permission_mode": "acceptEdits"
+      }
+    },
+    "d_tres_ejecuciones_haiku": {
+      "ok": true,
+      "corridas": [
+        {
+          "n": 1,
+          "plan": "wf-tres-pasos-20261030-220745",
+          "estado_plan": "terminado",
+          "fin_en_tiempo": true,
+          "estimado_texto": "Costo estimado: $0.004 eq. Max (rango $0.001–$0.013), sin ejecuciones previas: estimado grueso por tokens.",
+          "estimado": 0.004174,
+          "rango": [
+            0.00079,
+            0.0126
+          ],
+          "fuentes": [
+            "grueso"
+          ],
+          "real": 0.0444,
+          "error_pct": 964,
+          "real_en_rango": false,
+          "pasos": [
+            {
+              "id": "rojo",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:08:07-04:00",
+              "fin": "2026-10-30T22:10:04-04:00",
+              "costo": 0.0141,
+              "respuesta": "ROJO",
+              "motor": "claude",
+              "modelo": "haiku"
+            },
+            {
+              "id": "verde",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:10:27-04:00",
+              "fin": "2026-10-30T22:11:28-04:00",
+              "costo": 0.0155,
+              "respuesta": "VERDE-1",
+              "motor": "claude",
+              "modelo": "haiku"
+            },
+            {
+              "id": "azul",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:11:39-04:00",
+              "fin": "2026-10-30T22:12:39-04:00",
+              "costo": 0.0148,
+              "respuesta": "AZUL",
+              "motor": "claude",
+              "modelo": "haiku"
+            }
+          ],
+          "orden_ok": true,
+          "resultado_rellenado": true,
+          "tres_txt": "rojo\nverde\nVERDE-1",
+          "ultima": "Última (terminada, 2026-10-30 22:07): estimado $0.004 · real $0.044 (+964 %)."
+        },
+        {
+          "n": 2,
+          "plan": "wf-tres-pasos-20261030-221246",
+          "estado_plan": "terminado",
+          "fin_en_tiempo": true,
+          "estimado_texto": "Costo estimado: $0.044 eq. Max (rango $0.044–$0.044), basado en 1 ejecución previa.",
+          "estimado": 0.0444,
+          "rango": [
+            0.0444,
+            0.0444
+          ],
+          "fuentes": [
+            "historial"
+          ],
+          "real": 0.0459,
+          "error_pct": 3,
+          "real_en_rango": false,
+          "pasos": [
+            {
+              "id": "rojo",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:12:54-04:00",
+              "fin": "2026-10-30T22:13:57-04:00",
+              "costo": 0.0152,
+              "respuesta": "ROJO",
+              "motor": "claude",
+              "modelo": "haiku"
+            },
+            {
+              "id": "verde",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:14:08-04:00",
+              "fin": "2026-10-30T22:16:33-04:00",
+              "costo": 0.0156,
+              "respuesta": "VERDE-2",
+              "motor": "claude",
+              "modelo": "haiku"
+            },
+            {
+              "id": "azul",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:18:51-04:00",
+              "fin": "2026-10-30T22:19:38-04:00",
+              "costo": 0.0151,
+              "respuesta": "AZUL",
+              "motor": "claude",
+              "modelo": "haiku"
+            }
+          ],
+          "orden_ok": true,
+          "resultado_rellenado": true,
+          "tres_txt": "rojo\nverde\nVERDE-2",
+          "ultima": "Última (terminada, 2026-10-30 22:12): estimado $0.044 · real $0.046 (+3 %)."
+        },
+        {
+          "n": 3,
+          "plan": "wf-tres-pasos-20261030-221943",
+          "estado_plan": "terminado",
+          "fin_en_tiempo": true,
+          "estimado_texto": "Costo estimado: $0.045 eq. Max (rango $0.044–$0.046), basado en 2 ejecuciones previas.",
+          "estimado": 0.04515,
+          "rango": [
+            0.0444,
+            0.0459
+          ],
+          "fuentes": [
+            "historial"
+          ],
+          "real": 0.0471,
+          "error_pct": 4,
+          "real_en_rango": false,
+          "pasos": [
+            {
+              "id": "rojo",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:19:52-04:00",
+              "fin": "2026-10-30T22:20:53-04:00",
+              "costo": 0.0162,
+              "respuesta": "ROJO",
+              "motor": "claude",
+              "modelo": "haiku"
+            },
+            {
+              "id": "verde",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:21:04-04:00",
+              "fin": "2026-10-30T22:22:05-04:00",
+              "costo": 0.015,
+              "respuesta": "VERDE-3",
+              "motor": "claude",
+              "modelo": "haiku"
+            },
+            {
+              "id": "azul",
+              "estado": "terminada",
+              "inicio": "2026-10-30T22:22:16-04:00",
+              "fin": "2026-10-30T22:24:37-04:00",
+              "costo": 0.0159,
+              "respuesta": "AZUL",
+              "motor": "claude",
+              "modelo": "haiku"
+            }
+          ],
+          "orden_ok": true,
+          "resultado_rellenado": true,
+          "tres_txt": "rojo\nverde\nVERDE-3",
+          "ultima": "Última (terminada, 2026-10-30 22:19): estimado $0.045 · real $0.047 (+4 %)."
+        }
+      ]
+    },
+    "e_fallo_a_mitad": {
+      "ok": true,
+      "retenida_esperando_aprobacion": true,
+      "fases_mientras_retenida": {
+        "codex": "en_cola",
+        "gemini": "pendiente",
+        "final": "pendiente"
+      },
+      "aprobada": [
+        true,
+        "aprobada; vuelve a la cola"
+      ],
+      "plan": "necesita_decision",
+      "fases": {
+        "codex": [
+          "terminada",
+          null
+        ],
+        "gemini": [
+          "necesita_decision",
+          "la tarea terminó fallida"
+        ],
+        "final": [
+          "pendiente",
+          null
+        ]
+      },
+      "archivo_paso1": true,
+      "plan_txt": "Plan wf-fallo-a-mitad-20261030-222444 (necesita tu decisión). Lo bloquea la Fase 2 (gemini). Fase 1 (codex): terminada; Fase 2 (gemini): necesita decisión (la tarea terminó fallida); Fase 3 (final): sin arrancar — espera a Fase 2."
+    }
+  },
+  "fin": "2026-10-30 22:25:46",
+  "todo_ok": true,
+  "workflow_runs": [
+    {
+      "plan_id": "wf-tres-pasos-20261030-220745",
+      "workflow_id": "tres-pasos",
+      "huella": "d423ff193914",
+      "estimado": "{\"medio\": {\"equiv\": 0.004174, \"real\": 0.0}, \"rango\": {\"equiv\": [0.00079, 0.0126], \"real\": [0.0, 0.0]}, \"peor_caso\": 0.0126, \"ejecuciones\": 0, \"texto\": \"Costo estimado: $0.004 eq. Max (rango $0.001–$0.013), sin ejecuciones previas: estimado grueso por tokens.\"}"
+    },
+    {
+      "plan_id": "wf-tres-pasos-20261030-221246",
+      "workflow_id": "tres-pasos",
+      "huella": "d423ff193914",
+      "estimado": "{\"medio\": {\"equiv\": 0.0444, \"real\": 0.0}, \"rango\": {\"equiv\": [0.0444, 0.0444], \"real\": [0.0, 0.0]}, \"peor_caso\": 0.0444, \"ejecuciones\": 1, \"texto\": \"Costo estimado: $0.044 eq. Max (rango $0.044–$0.044), basado en 1 ejecución previa.\"}"
+    },
+    {
+      "plan_id": "wf-tres-pasos-20261030-221943",
+      "workflow_id": "tres-pasos",
+      "huella": "d423ff193914",
+      "estimado": "{\"medio\": {\"equiv\": 0.04515, \"real\": 0.0}, \"rango\": {\"equiv\": [0.0444, 0.0459], \"real\": [0.0, 0.0]}, \"peor_caso\": 0.0459, \"ejecuciones\": 2, \"texto\": \"Costo estimado: $0.045 eq. Max (rango $0.044–$0.046), basado en 2 ejecuciones previas.\"}"
+    },
+    {
+      "plan_id": "wf-fallo-a-mitad-20261030-222444",
+      "workflow_id": "fallo-a-mitad",
+      "huella": "07407fb22f08",
+      "estimado": "{\"medio\": {\"equiv\": 0.0153, \"real\": 0.0}, \"rango\": {\"equiv\": [0.0141, 0.0162], \"real\": [0.0, 0.0]}, \"peor_caso\": 0.0162, \"ejecuciones\": 0, \"texto\": \"Costo estimado: $0.015 eq. Max (rango $0.014–$0.016), más 2 pasos a $0 extra, sin ejecuciones previas: basado en tus tareas parecidas del mismo motor.\"}"
+    }
+  ]
+}

@@ -211,6 +211,65 @@ Tres columnas, en lugar de la tarjeta «Agentes» de antes (t-vista-agentes-052)
   `/gateway/estado`) devuelve lo mismo, para la oficina u otro cliente sin
   tocar `cola.db`.
 
+## Workflows reutilizables (debajo del tablero de agentes)
+
+Una secuencia de pasos guardada que se ejecuta con un clic (t-workflows-052).
+Cada uno es un archivo `workflows\<id>.json` junto a `growi-bridge.py` (como
+`comandos-ia.json`); se escribe a mano o desde el detalle de un plan con
+**Guardar como workflow**. Vienen dos de ejemplo: `resumen-reunion` y
+`pipeline-video` (este necesita las skills de video).
+
+```json
+{
+  "id": "resumen-reunion",
+  "nombre": "Resumen de reunión",
+  "descripcion": "Transcripción → resumen → correo",
+  "parametros": [
+    {"nombre": "archivo", "pregunta": "¿Qué transcripción?"},
+    {"nombre": "idioma", "por_defecto": "es"}
+  ],
+  "motor": "haiku",
+  "al_fallar": "pedir_decision",
+  "pasos": [
+    {"id": "limpiar", "prompt": "Limpia {archivo}; deja limpio.md", "criterios": ["limpio.md existe"]},
+    {"id": "resumir", "prompt": "Resume limpio.md en {idioma}", "motor": "motor:codex"},
+    {"id": "correo", "prompt": "Redacta correo con {resultado:resumir}", "depende_de": ["resumir"]}
+  ]
+}
+```
+
+- **Orden:** un paso sin `depende_de` espera al anterior; con `depende_de` dices
+  de cuáles (`[]` = empieza solo). Ciclos o dependencias que no existen se
+  rechazan antes de ejecutar nada, con el motivo.
+- **Parámetros:** `{nombre}`, solo los declarados (uno sin declarar es un error
+  al validar, nunca al ejecutar). Sin `por_defecto` se piden al pulsar
+  **Ejecutar**, en un formulario dentro de la tarjeta.
+- **De un paso al siguiente:** todos comparten la carpeta de la ejecución
+  (`share\inbox\workflows\<ejecución>\`): lo normal es pasarse archivos.
+  `{resultado:<paso>}` pone lo que respondió ese paso (hasta 2 000
+  caracteres); solo vale de un paso del que dependa.
+- **Por paso:** `motor` (lo mismo que en «Pedirle algo»: `haiku`, `sonnet`,
+  `motor:codex`, `motor:gemini`…), `criterios`, `acciones`, `revisar`,
+  `al_fallar` y `titulo`. Lo que no diga el paso sale del workflow.
+- **Ejecutar** lo convierte en un plan con fases (el mismo motor de planes de
+  siempre): cada paso entra en la cola cuando termina el anterior y pasa por
+  tus aprobaciones, la revisión y las rondas como cualquier tarea. En el
+  tablero, cada paso dice «paso 2/3 de …».
+- **Costo estimado antes de ejecutar**, paso a paso: el historial de ese mismo
+  paso en ejecuciones anteriores (primero las de la misma versión de los
+  pasos); si no hay, tus tareas parecidas del mismo motor; si tampoco, una
+  cuenta por tokens («estimado grueso»). Los pasos de codex y agy dicen «$0
+  extra (va con la suscripción)» y los locales «$0 local»: nunca un $0.00
+  inventado. Real y equivalente Max van aparte. Ejemplo: «Costo estimado:
+  $0.040 eq. Max (rango $0.035–$0.051), basado en 3 ejecuciones previas».
+- **Umbral por plan** (Ajustes, «por plan $», 5 por defecto): si el peor caso
+  lo pasa, **Ejecutar** no encola y la tarjeta ofrece **Ejecutar igual**.
+- **Última ejecución:** estimado contra real (la suma de sus pasos), para ver
+  si el estimado acierta.
+- Un archivo roto o mal escrito sale en la lista en rojo con su motivo, sin
+  botón de ejecutar. **En JSON:** `GET /gateway/workflows` (mismo puerto y
+  token que `/gateway/estado`).
+
 ## Niveles de riesgo y vencimiento de las aprobaciones
 
 El silencio nunca es consentimiento: ningún pedido de aprobación espera para

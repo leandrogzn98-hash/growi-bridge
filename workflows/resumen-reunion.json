@@ -1,0 +1,21 @@
+{
+  "id": "resumen-reunion",
+  "nombre": "Resumen de reunión",
+  "descripcion": "Transcripción → resumen → correo de seguimiento",
+  "parametros": [
+    {"nombre": "archivo", "pregunta": "¿Qué transcripción? (ruta del .txt o .md)"},
+    {"nombre": "idioma", "pregunta": "¿En qué idioma?", "por_defecto": "es"}
+  ],
+  "motor": "haiku",
+  "al_fallar": "pedir_decision",
+  "pasos": [
+    {"id": "limpiar", "titulo": "Limpiar la transcripción",
+     "prompt": "Lee {archivo}, quita muletillas, marcas de tiempo y repeticiones sin cambiar lo que se dijo, y deja el texto en limpio.md en esta carpeta.",
+     "criterios": ["limpio.md existe y conserva todas las decisiones y nombres de la transcripción"]},
+    {"id": "resumir", "titulo": "Resumir",
+     "prompt": "Resume limpio.md en {idioma}: contexto, decisiones, tareas con su responsable y fecha. Déjalo en resumen.md.",
+     "motor": "motor:codex"},
+    {"id": "correo", "titulo": "Redactar el correo", "depende_de": ["resumir"],
+     "prompt": "Redacta en {idioma} el correo de seguimiento de la reunión para los asistentes, a partir de este resumen:\n{resultado:resumir}\nDéjalo en correo.md. No lo envíes."}
+  ]
+}

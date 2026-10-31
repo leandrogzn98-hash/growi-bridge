@@ -1,0 +1,19 @@
+{
+  "id": "t-workflows-052",
+  "model": "opus",
+  "timeout_min": 120,
+  "prompt": "MODO NO-INTERACTIVO (obligatorio): trabajas sin nadie al otro lado. NO hagas preguntas: decide con los criterios de este spec. Si algo exige borrar o gastar dinero real, NO lo hagas y anótalo como FALTA en el ESTADO.\n\nCOMPONENTE 3 de 5 de la 0.5.2: WORKFLOWS REUTILIZABLES (diseño aprobado por Leandro el 30 oct 2026).\n\nDecisiones aprobadas: aprobaciones paso a paso (como hoy) + confirmación del umbral por plan al lanzar; creación editando el JSON a mano + botón «Guardar como workflow» sobre un plan existente.\n\n1. Formato workflows\\<id>.json (junto a growi-bridge.py): id, nombre, descripcion, parametros [{nombre, pregunta, por_defecto}], motor, al_fallar, pasos [{id, prompt, depende_de, criterios, motor, acciones, revisar, al_fallar, titulo}]. Sin depende_de, el paso depende del anterior. {nombre} = parámetro declarado; {resultado:<paso>} = lo que respondió un paso del que depende.\n2. Ejecutar = compilar a un plan con fases (el motor de planes t-dag-fases-030, sin un segundo ejecutor): encolar_workflow() escribe el plan en runner-tasks\\ (atómico y exclusivo); cada paso pasa por la cola de siempre (guardrail, revisión, rondas). La fase admite su propio motor, acciones y revisar; dag_fases.extra y workflow_runs en cola.db.\n3. Costo estimado ANTES de ejecutar, paso a paso: historial de ese paso en ejecuciones previas (misma versión primero) → tus tareas parecidas (estimar_gasto) → cuenta por tokens («estimado grueso»). codex/agy: $0 extra (suscripción); locales: $0 local. Real y equivalente Max aparte. «Costo estimado: $X (rango), basado en N ejecuciones previas». Si el peor caso pasa umbral_plan_usd: pide confirmación.\n4. UI: tarjeta Workflows en Tareas (debajo del tablero): estimado, última ejecución (estimado contra real), Ejecutar (formulario de parámetros dentro de la tarjeta), Pasos; «Ejecutar igual» si pasa el umbral. «Guardar como workflow» en el detalle de un plan o de una fase suya. La Vista de Agentes dice «paso n/N de <workflow>». GET /gateway/workflows.",
+  "criterios": [
+    "wf_validar rechaza antes de ejecutar, con su motivo: ciclo, dependencia que no existe, {x} sin declarar, {resultado:p} de un paso que no es anterior, motor que no existe, id raro, sin pasos; un parámetro que falta al ejecutar no encola nada",
+    "Un paso sin depende_de depende del anterior; los pasos de una ejecución corren en orden (cada uno empieza después de que termina el anterior) y {resultado:p} llega rellenado al paso que lo usa",
+    "El costo estimado sale del historial del mismo paso (total = suma de medianas, rango = suma de extremos o p10-p90, «basado en N ejecuciones previas»), dice si es otra versión de los pasos, cae a tus tareas parecidas o al estimado grueso, y da $0 extra a codex/agy sin un $0.00 inventado",
+    "Si el peor caso pasa el umbral por plan, Ejecutar no encola y ofrece «Ejecutar igual»",
+    "Tres ejecuciones reales de un workflow de 3 pasos con Haiku: la tercera se estima con las dos anteriores y se informa el error estimado contra real, tal cual salga",
+    "Con el guardrail, cada paso pide su aprobación cuando le toca y el siguiente no arranca; si un paso falla con pedir_decision, el plan necesita tu decisión y los siguientes nunca se encolan",
+    "«Guardar como workflow» escribe un workflow válido desde un plan hecho (sin pisar archivos); la tarjeta funciona con CustomTkinter y Tk clásico; /gateway/workflows con token = workflows_vista(), sin token 401",
+    "Nada abre ventanas ni roba el foco; ESTADO-WORKFLOWS-052.md con LISTO y FALTA, y un commit sin push"
+  ],
+  "allowed_tools": "Read,Write,Edit,Bash,Glob,Grep",
+  "permission_mode": "acceptEdits",
+  "cwd": "C:\\Users\\forte\\source\\growi-bridge"
+}

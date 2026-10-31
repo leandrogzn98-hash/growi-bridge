@@ -1,0 +1,23 @@
+{
+  "id": "pipeline-video",
+  "nombre": "Pipeline de video",
+  "descripcion": "Transcribir → cortar → subtitular → renderizar. Necesita las skills de video (componente 4 de la 0.5.2): hasta tenerlas, los pasos lo intentan con lo que haya en el PC",
+  "parametros": [
+    {"nombre": "video", "pregunta": "¿Qué video? (ruta del archivo)"},
+    {"nombre": "idioma", "pregunta": "¿Idioma de los subtítulos?", "por_defecto": "es"}
+  ],
+  "motor": "sonnet",
+  "al_fallar": "pedir_decision",
+  "pasos": [
+    {"id": "transcribir", "titulo": "Transcribir",
+     "prompt": "Transcribe {video} con marcas de tiempo y deja transcripcion.srt en esta carpeta.",
+     "criterios": ["transcripcion.srt existe y tiene marcas de tiempo"]},
+    {"id": "cortar", "titulo": "Cortar",
+     "prompt": "Con transcripcion.srt, elige los tramos que valen la pena de {video} (sin silencios ni repeticiones) y deja cortes.json con inicio y fin de cada tramo."},
+    {"id": "subtitular", "titulo": "Subtitular",
+     "prompt": "Con cortes.json y transcripcion.srt, deja subtitulos.srt en {idioma} con los tiempos del video ya cortado."},
+    {"id": "renderizar", "titulo": "Renderizar",
+     "prompt": "Renderiza {video} con los cortes de cortes.json y los subtítulos de subtitulos.srt quemados; deja final.mp4 en esta carpeta.",
+     "criterios": ["final.mp4 existe"]}
+  ]
+}
