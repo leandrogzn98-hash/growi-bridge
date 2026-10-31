@@ -1,0 +1,32 @@
+; Oficina 0.5.0 — configuracion de proyecto fijada por t-oficina-motor-050 (spec 6 de 18).
+; Motor: Godot 4.7.2-stable (official), renderer Compatibility (OpenGL 3.3), GDScript.
+; Solo configuracion: las escenas, los sprites y el layout son de los specs 7 a 18.
+; Ver oficina/DECISION-MOTOR.md.
+config_version=5
+
+[application]
+config/name="Oficina Growi"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+run/low_processor_mode=true
+run/low_processor_mode_sleep_usec=33333
+run/max_fps=30
+
+[debug]
+settings/stdout/print_fps=false
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/scale_mode="integer"
+window/vsync/vsync_mode=1
+
+[physics]
+common/physics_ticks_per_second=30
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+rendering_device/fallback_to_opengl3=true
+gl_compatibility/fallback_to_angle=false
+textures/canvas_textures/default_texture_filter=0

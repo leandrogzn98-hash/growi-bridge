@@ -1,0 +1,13 @@
+{
+ "ajustes": {
+  "application/config/name": "Oficina Growi",
+  "application/run/low_processor_mode": true,
+  "application/run/max_fps": 30,
+  "display/window/vsync/vsync_mode": 1,
+  "rendering/renderer/rendering_method": "gl_compatibility",
+  "version": "4.7.2-stable (official)"
+ },
+ "conexiones_godot": [],
+ "codigo": 0,
+ "escenas_tscn": []
+}
