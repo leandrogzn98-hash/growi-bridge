@@ -44,4 +44,4 @@ Presupuesto §8 con la máquina de estados dentro (`presupuesto.json`): RAM 63 M
 python oficina\estados\simulador.py                       # 54/54
 python pruebas\oficina_estados_050\demo_estados.py        # prototipo: dormir, clic, tarea que despierta (25 s)
 ```
-Captura real de «revisando»: `python pruebasoficina_estados_050ptura_revisando.py`. Corre una tarea local de $0 en `_prueba-estados-050`.
+Captura real de «revisando»: `python pruebas\oficina_estados_050\captura_revisando.py`. Corre una tarea local de $0 en `_prueba-estados-050`.
