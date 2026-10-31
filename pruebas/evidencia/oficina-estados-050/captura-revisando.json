@@ -1,0 +1,135 @@
+{
+ "tarea": "t-20261030-223604",
+ "secuencia": [
+  {
+   "t": 0.0,
+   "orquestacion": null,
+   "runner_live": null,
+   "cola_live": null,
+   "cola_db": null,
+   "result_json": false,
+   "revision_json": false
+  },
+  {
+   "t": 10.8,
+   "orquestacion": null,
+   "runner_live": null,
+   "cola_live": "en_cola",
+   "cola_db": "en_cola",
+   "result_json": false,
+   "revision_json": false
+  },
+  {
+   "t": 10.9,
+   "orquestacion": null,
+   "runner_live": "en curso",
+   "cola_live": "en_cola",
+   "cola_db": "en_curso",
+   "result_json": false,
+   "revision_json": false
+  },
+  {
+   "t": 11.7,
+   "orquestacion": null,
+   "runner_live": "en curso",
+   "cola_live": "en_curso",
+   "cola_db": "en_curso",
+   "result_json": false,
+   "revision_json": false
+  },
+  {
+   "t": 13.2,
+   "orquestacion": "en_curso",
+   "runner_live": "en curso",
+   "cola_live": "en_curso",
+   "cola_db": "en_curso",
+   "result_json": false,
+   "revision_json": false
+  },
+  {
+   "t": 16.7,
+   "orquestacion": "en_curso",
+   "runner_live": "en curso",
+   "cola_live": "en_curso",
+   "cola_db": "en_curso",
+   "result_json": true,
+   "revision_json": false
+  },
+  {
+   "t": 16.8,
+   "orquestacion": "revisando",
+   "runner_live": "en curso",
+   "cola_live": "en_curso",
+   "cola_db": "en_curso",
+   "result_json": true,
+   "revision_json": false
+  },
+  {
+   "t": 19.0,
+   "orquestacion": "revisando",
+   "runner_live": "revisando",
+   "cola_live": "en_curso",
+   "cola_db": "en_curso",
+   "result_json": true,
+   "revision_json": false
+  },
+  {
+   "t": 22.8,
+   "orquestacion": "revisando",
+   "runner_live": "revisando",
+   "cola_live": "en_curso",
+   "cola_db": "en_curso",
+   "result_json": true,
+   "revision_json": true
+  },
+  {
+   "t": 23.0,
+   "orquestacion": "aprobada",
+   "runner_live": "terminado",
+   "cola_live": "terminada",
+   "cola_db": "terminada",
+   "result_json": true,
+   "revision_json": true
+  }
+ ],
+ "orquestacion_revisando": {
+  "raiz": "t-20261030-223604",
+  "tareas": [
+   "t-20261030-223604"
+  ],
+  "costo_usd": 0.0,
+  "creada": "2026-10-30T22:36:16-04:00",
+  "ronda": 0,
+  "max_rondas": 3,
+  "checkpoint": {
+   "task_id": "t-20261030-223604",
+   "ronda": 0,
+   "intento": 1,
+   "estado": "revisando",
+   "paso": "revision",
+   "siguiente_paso": "revisar",
+   "motor": "ollama",
+   "costo_acumulado": 0.0,
+   "degradado": false,
+   "reanudado_desde": null,
+   "actualizado": "2026-10-30T22:36:20-04:00"
+  },
+  "run_id": "t-20261030-223604",
+  "actualizado": "2026-10-30T22:36:20-04:00",
+  "final": false,
+  "estado": "revisando",
+  "motor": "ollama",
+  "modelo": null,
+  "en_curso": null,
+  "proximo_reintento": null,
+  "encargo": "Escribe en una sola línea tres colores primarios separados por comas.",
+  "criterios": [
+   "la respuesta nombra tres colores"
+  ],
+  "fase": null,
+  "siguiente_fase": false,
+  "ultimo_resultado": "t-20261030-223604",
+  "session_id": "s-0e4aa015963bd069",
+  "proyecto": null
+ }
+}

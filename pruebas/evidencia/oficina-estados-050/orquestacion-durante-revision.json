@@ -1,0 +1,40 @@
+{
+  "raiz": "t-20261030-223604",
+  "tareas": [
+    "t-20261030-223604"
+  ],
+  "costo_usd": 0.0,
+  "creada": "2026-10-30T22:36:16-04:00",
+  "ronda": 0,
+  "max_rondas": 3,
+  "checkpoint": {
+    "task_id": "t-20261030-223604",
+    "ronda": 0,
+    "intento": 1,
+    "estado": "revisando",
+    "paso": "revision",
+    "siguiente_paso": "revisar",
+    "motor": "ollama",
+    "costo_acumulado": 0.0,
+    "degradado": false,
+    "reanudado_desde": null,
+    "actualizado": "2026-10-30T22:36:20-04:00"
+  },
+  "run_id": "t-20261030-223604",
+  "actualizado": "2026-10-30T22:36:20-04:00",
+  "final": false,
+  "estado": "revisando",
+  "motor": "ollama",
+  "modelo": null,
+  "en_curso": null,
+  "proximo_reintento": null,
+  "encargo": "Escribe en una sola línea tres colores primarios separados por comas.",
+  "criterios": [
+    "la respuesta nombra tres colores"
+  ],
+  "fase": null,
+  "siguiente_fase": false,
+  "ultimo_resultado": "t-20261030-223604",
+  "session_id": "s-0e4aa015963bd069",
+  "proyecto": null
+}

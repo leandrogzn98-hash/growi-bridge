@@ -1,0 +1,9 @@
+{
+ "rss_mib_max": 63.0,
+ "rss_mib_media": 62.1,
+ "cpu_pct_media_del_pc": 0.43,
+ "cpu_pct_max": 0.68,
+ "nvidia_apps": "",
+ "gpu_mem_total_usada": "0 MiB",
+ "nucleos": 16
+}

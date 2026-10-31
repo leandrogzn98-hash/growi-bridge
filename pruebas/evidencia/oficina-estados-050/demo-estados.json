@@ -1,0 +1,151 @@
+{
+ "clic_enviado": true,
+ "codigo": 0,
+ "transiciones": [
+  {
+   "evento": "transicion",
+   "agente": "clau",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "haiku",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "cody",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "luma",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "hermes_directo",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "mensajero",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "blender",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "tripo",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "despertar",
+   "agente": "luma",
+   "desde": null,
+   "hacia": null,
+   "T": null,
+   "por": "clic del jugador",
+   "motivo": null
+  },
+  {
+   "evento": "transicion",
+   "agente": "luma",
+   "desde": "dormir",
+   "hacia": "sin_tarea",
+   "T": "T24",
+   "por": null,
+   "motivo": "no tiene ninguna tarea entre manos"
+  },
+  {
+   "evento": "transicion",
+   "agente": "sonny",
+   "desde": "trabajando",
+   "hacia": "sin_senal",
+   "T": "T21",
+   "por": null,
+   "motivo": "t-sonny está en_curso pero runner-live no lo confirma (las fuentes no coinciden)"
+  },
+  {
+   "evento": "transicion",
+   "agente": "luma",
+   "desde": "sin_tarea",
+   "hacia": "dormir",
+   "T": "T22",
+   "por": null,
+   "motivo": "sin tarea desde hace 0 min"
+  },
+  {
+   "evento": "transicion",
+   "agente": "sonny",
+   "desde": "sin_senal",
+   "hacia": "terminado",
+   "T": "resync",
+   "por": null,
+   "motivo": "t-sonny terminó"
+  },
+  {
+   "evento": "transicion",
+   "agente": "hermes_directo",
+   "desde": "dormir",
+   "hacia": "trabajando",
+   "T": "T23",
+   "por": null,
+   "motivo": "runner-live de hace 2 s"
+  }
+ ],
+ "T22": [
+  "blender",
+  "clau",
+  "cody",
+  "haiku",
+  "hermes_directo",
+  "luma",
+  "mensajero",
+  "tripo"
+ ],
+ "T23": [
+  "hermes_directo"
+ ],
+ "T24": [
+  "luma"
+ ],
+ "fuera_de_tabla": [],
+ "vigilante_o_leandro_dormidos": [],
+ "ok": true
+}

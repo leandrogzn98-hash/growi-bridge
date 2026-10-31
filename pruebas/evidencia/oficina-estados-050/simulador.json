@@ -1,0 +1,707 @@
+{
+ "ok": true,
+ "casos": [
+  {
+   "caso": "T1 sin_tarea→en_cola",
+   "esperado": [
+    "T1",
+    "en_cola"
+   ],
+   "obtenido": [
+    "T1",
+    "en_cola"
+   ],
+   "motivo": "t-1 espera turno (el runner está con t-otra)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T2 sin_tarea→trabajando",
+   "esperado": [
+    "T2",
+    "trabajando"
+   ],
+   "obtenido": [
+    "T2",
+    "trabajando"
+   ],
+   "motivo": "runner-live de hace 3 s",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T3 sin_tarea→esperando_aprobacion",
+   "esperado": [
+    "T3",
+    "esperando_aprobacion"
+   ],
+   "obtenido": [
+    "T3",
+    "esperando_aprobacion"
+   ],
+   "motivo": "t-1 retenida (esperando_aprobacion)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T4 en_cola→trabajando",
+   "esperado": [
+    "T4",
+    "trabajando"
+   ],
+   "obtenido": [
+    "T4",
+    "trabajando"
+   ],
+   "motivo": "runner-live de hace 3 s",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T5 en_cola→esperando_aprobacion",
+   "esperado": [
+    "T5",
+    "esperando_aprobacion"
+   ],
+   "obtenido": [
+    "T5",
+    "esperando_aprobacion"
+   ],
+   "motivo": "t-1 retenida (esperando_aprobacion)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T6 trabajando→en_revision",
+   "esperado": [
+    "T6",
+    "en_revision"
+   ],
+   "obtenido": [
+    "T6",
+    "en_revision"
+   ],
+   "motivo": "t-1: .orquestacion.json / runner-live dicen «revisando»",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T6b revision solo por .orquestacion (runner-live aun «en curso», medido 2 s)",
+   "esperado": [
+    "T6",
+    "en_revision"
+   ],
+   "obtenido": [
+    "T6",
+    "en_revision"
+   ],
+   "motivo": "t-1: .orquestacion.json / runner-live dicen «revisando»",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T7 trabajando→terminado",
+   "esperado": [
+    "T7",
+    "terminado"
+   ],
+   "obtenido": [
+    "T7",
+    "terminado"
+   ],
+   "motivo": "t-1 terminó",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T8 trabajando→fallido",
+   "esperado": [
+    "T8",
+    "fallido"
+   ],
+   "obtenido": [
+    "T8",
+    "fallido"
+   ],
+   "motivo": "t-1 fallida",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T9 trabajando→en_pausa",
+   "esperado": [
+    "T9",
+    "en_pausa"
+   ],
+   "obtenido": [
+    "T9",
+    "en_pausa"
+   ],
+   "motivo": "t-1: límite de uso: reintento",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T10 en_revision→terminado",
+   "esperado": [
+    "T10",
+    "terminado"
+   ],
+   "obtenido": [
+    "T10",
+    "terminado"
+   ],
+   "motivo": "t-1 terminó",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T11 en_revision→en_ronda",
+   "esperado": [
+    "T11",
+    "en_ronda"
+   ],
+   "obtenido": [
+    "T11",
+    "en_ronda"
+   ],
+   "motivo": "t-1-r1: ronda 1 de corrección",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T12 en_revision→fallido",
+   "esperado": [
+    "T12",
+    "fallido"
+   ],
+   "obtenido": [
+    "T12",
+    "fallido"
+   ],
+   "motivo": "t-1 necesita_decision",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T13 en_ronda→trabajando(ronda)",
+   "esperado": [
+    "=",
+    "en_ronda"
+   ],
+   "obtenido": [
+    "=",
+    "en_ronda"
+   ],
+   "motivo": "t-1-r1: corriendo la ronda 1",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T13 en_ronda→en_revision",
+   "esperado": [
+    "T13",
+    "en_revision"
+   ],
+   "obtenido": [
+    "T13",
+    "en_revision"
+   ],
+   "motivo": "t-1-r1: .orquestacion.json / runner-live dicen «revisando»",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T14 en_pausa→trabajando",
+   "esperado": [
+    "T14",
+    "trabajando"
+   ],
+   "obtenido": [
+    "T14",
+    "trabajando"
+   ],
+   "motivo": "runner-live de hace 3 s",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T15 en_pausa→fallido",
+   "esperado": [
+    "T15",
+    "fallido"
+   ],
+   "obtenido": [
+    "T15",
+    "fallido"
+   ],
+   "motivo": "t-1 fallida",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T16 esperando_aprobacion→trabajando (aprobada en la app)",
+   "esperado": [
+    "T16",
+    "trabajando"
+   ],
+   "obtenido": [
+    "T16",
+    "trabajando"
+   ],
+   "motivo": "runner-live de hace 3 s",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T16 esperando_aprobacion→en_cola (aprobada por WhatsApp, runner ocupado)",
+   "esperado": [
+    "T16",
+    "en_cola"
+   ],
+   "obtenido": [
+    "T16",
+    "en_cola"
+   ],
+   "motivo": "t-1 espera turno (el runner está con t-otra)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T17 esperando_aprobacion→fallido (vencida)",
+   "esperado": [
+    "T17",
+    "fallido"
+   ],
+   "obtenido": [
+    "T17",
+    "fallido"
+   ],
+   "motivo": "t-1 fallida",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T18 fallido→en_cola (re-encolada)",
+   "esperado": [
+    "T18",
+    "en_cola"
+   ],
+   "obtenido": [
+    "T18",
+    "en_cola"
+   ],
+   "motivo": "t-1 espera turno (el runner está con t-otra)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T19 terminado→sin_tarea (61 s)",
+   "esperado": [
+    "T19",
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "T19",
+    "sin_tarea"
+   ],
+   "motivo": "no tiene ninguna tarea entre manos",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T20 fallido→sin_tarea (61 s): el empleado no queda «fallido»",
+   "esperado": [
+    "T20",
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "T20",
+    "sin_tarea"
+   ],
+   "motivo": "no tiene ninguna tarea entre manos",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T21 trabajando→sin_senal (status ausente)",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "runner-status.json ausente o roto",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T21 trabajando→sin_senal (live ausente)",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "runner-live.json ausente o roto",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T21 trabajando→sin_senal (cola ausente)",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "cola-live.json ausente o roto",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T21 latido muerto",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "el Bridge no da latido",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T22 sin_tarea→dormir (61 min)",
+   "esperado": [
+    "T22",
+    "dormir"
+   ],
+   "obtenido": [
+    "T22",
+    "dormir"
+   ],
+   "motivo": "sin tarea desde hace 61 min",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T22 no: 59 min sigue sin_tarea",
+   "esperado": [
+    "=",
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "=",
+    "sin_tarea"
+   ],
+   "motivo": "no tiene ninguna tarea entre manos",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T23 dormir→trabajando (el runner toma su tarea)",
+   "esperado": [
+    "T23",
+    "trabajando"
+   ],
+   "obtenido": [
+    "T23",
+    "trabajando"
+   ],
+   "motivo": "runner-live de hace 3 s",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T24 dormir→sin_tarea (clic del jugador)",
+   "esperado": [
+    "T24",
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "T24",
+    "sin_tarea"
+   ],
+   "motivo": "no tiene ninguna tarea entre manos",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "T24 dormir→sin_tarea (vigilante)",
+   "esperado": [
+    "T24",
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "T24",
+    "sin_tarea"
+   ],
+   "motivo": "no tiene ninguna tarea entre manos",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA esperando→trabajando por hablar con el agente (la cola sigue retenida)",
+   "esperado": [
+    "=",
+    "esperando_aprobacion"
+   ],
+   "obtenido": [
+    "=",
+    "esperando_aprobacion"
+   ],
+   "motivo": "t-1 retenida (esperando_aprobacion)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA esperando→trabajando sin aprobación registrada",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "transición fuera de tabla: esperando_aprobacion → trabajando (runner-live de hace 3 s)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA esperando→trabajando por aprobar en el chat",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "transición fuera de tabla: esperando_aprobacion → trabajando (runner-live de hace 3 s)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA esperando→trabajando por cambiar el guardrail",
+   "esperado": [
+    "=",
+    "esperando_aprobacion"
+   ],
+   "obtenido": [
+    "=",
+    "esperando_aprobacion"
+   ],
+   "motivo": "t-1 retenida (esperando_aprobacion)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA sin_tarea→trabajando sin tarea en cola (live de una tarea que no está en la cola)",
+   "esperado": [
+    "=",
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "=",
+    "sin_tarea"
+   ],
+   "motivo": "no tiene ninguna tarea entre manos",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA fallido→trabajando sin re-encolar (misma tarea)",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "transición fuera de tabla: fallido → trabajando (runner-live de hace 3 s)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "PROHIBIDA trabajando→trabajando de dos agentes a la vez (serie)",
+   "esperado": [
+    "sobra 1"
+   ],
+   "obtenido": [
+    "dex"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "umbral runner-live 16 s = señal perdida (status viejo)",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "latido del runner muerto (runner-status de hace 200 s)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "umbral runner-status 200 s NO cuenta con runner-live fresco (latido congelado mientras trabaja)",
+   "esperado": [
+    "=",
+    "trabajando"
+   ],
+   "obtenido": [
+    "=",
+    "trabajando"
+   ],
+   "motivo": "runner-live de hace 4 s",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "umbral cola-live 61 s = vieja",
+   "esperado": [
+    "T21",
+    "sin_senal"
+   ],
+   "obtenido": [
+    "T21",
+    "sin_senal"
+   ],
+   "motivo": "cola-live.json vieja (61 s)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "umbral terminado visible 59 s",
+   "esperado": [
+    "=",
+    "terminado"
+   ],
+   "obtenido": [
+    "=",
+    "terminado"
+   ],
+   "motivo": "t-1 terminó",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "dormido con tarea en cola: sigue dormido (no la toma él)",
+   "esperado": [
+    "=",
+    "dormir"
+   ],
+   "obtenido": [
+    "=",
+    "dormir"
+   ],
+   "motivo": "dormido; su tarea t-1 está en_cola: lo despierta el runner al tomarla",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "con tarea nunca se duerme (en cola 2 h)",
+   "esperado": [
+    "=",
+    "en_cola"
+   ],
+   "obtenido": [
+    "=",
+    "en_cola"
+   ],
+   "motivo": "t-1 espera turno (el runner está con t-otra)",
+   "ok": true,
+   "registro": []
+  },
+  {
+   "caso": "vigilante no duerme (5 h sin tarea)",
+   "esperado": [
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "sin_tarea"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "leandro no duerme (5 h sin tarea)",
+   "esperado": [
+    "sin_tarea"
+   ],
+   "obtenido": [
+    "sin_tarea"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "Growi (gerente) también duerme",
+   "esperado": [
+    "dormir"
+   ],
+   "obtenido": [
+    "dormir"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "niveles separados: tras fallar una tarea, el empleado queda libre y toma la siguiente",
+   "esperado": [
+    "sin_tarea",
+    "trabajando"
+   ],
+   "obtenido": [
+    "sin_tarea",
+    "trabajando"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "sin tarea nunca teclea",
+   "obtenido": [
+    "estirarse",
+    "mirar_tablon",
+    "parpadear",
+    "respirar"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "gerente sin trabajo: tablón, ronda y espera; nunca teclea",
+   "obtenido": [
+    "esperar_mirando_telefono",
+    "mirar_tablon",
+    "revisar_oficina"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "gerente con algo esperando aprobación se queda junto al tablón",
+   "obtenido": "junto_al_tablon",
+   "ok": true
+  },
+  {
+   "caso": "gerente con el Bridge caído: junto al teléfono, gris",
+   "obtenido": "junto_al_telefono_gris",
+   "ok": true
+  },
+  {
+   "caso": "cobertura: las 24 transiciones probadas",
+   "obtenido": "todas",
+   "ok": true
+  }
+ ]
+}
