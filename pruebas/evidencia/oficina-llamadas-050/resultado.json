@@ -1,0 +1,234 @@
+{
+ "e_urgente": {
+  "encoladas_en_orden": [
+   "t-20261030-232827",
+   "t-20261030-232828",
+   "t-20261030-232829"
+  ],
+  "urgente": "t-20261030-232829",
+  "orden_de_ejecucion": [
+   "t-20261030-232829",
+   "t-20261030-232827",
+   "t-20261030-232828"
+  ],
+  "ok": true
+ },
+ "a_llamada_claude": {
+  "tarea": "t-20261030-232904",
+  "fases": [
+   [
+    3.0,
+    "marcando",
+    "Llamando a Claude...",
+    null
+   ],
+   [
+    6.89,
+    "timbre",
+    "Llamando a Claude...",
+    "¿Sí?"
+   ],
+   [
+    7.91,
+    "en_linea",
+    "Claude trabaja en t-20261030-232904",
+    "En ello."
+   ],
+   [
+    31.28,
+    "fin_ok",
+    "Listo, Claude se encarga.",
+    "✓"
+   ]
+  ],
+  "log_runner": [
+   "2026-10-30T23:29:09-04:00 corriendo claude en C:\\Users\\forte\\growi-bridge\\_prueba-llamadas-050\\app\\share\\i",
+   "2026-10-30T23:29:11-04:00 claude lanzado oculto (CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE), pid",
+   "2026-10-30T23:29:33-04:00 terminado: ok duracion=23.4s costo=0.00033591999999999997"
+  ],
+  "ok": true
+ },
+ "b_motor_inexistente": {
+  "encolar": {
+   "ok": true,
+   "id": "t-20261030-232935",
+   "error": null
+  },
+  "fila": {
+   "id": "t-20261030-232935",
+   "estado": "fallida",
+   "motor": "noexiste",
+   "ronda": 0,
+   "max_rondas": 3,
+   "raiz": "t-20261030-232935",
+   "intentos": 0,
+   "reintentos": 0,
+   "motivo": "definitivo, sin reintentos: el motor 'noexiste' no existe en engines.json (hay: claude, codex, llama, ollama, meshy, gemini)",
+   "creado_en": "2026-10-30T23:29:38-04:00",
+   "actualizado_en": "2026-10-30T23:29:38-04:00"
+  },
+  "llamada": {
+   "tarea": "t-20261030-232935",
+   "depto": "noexiste",
+   "jefe": null,
+   "fase": "suena_en_vacio",
+   "gerente": "Suena y suena: «noexiste» no existe en engines.json.",
+   "jefe_dice": null,
+   "duracion": null,
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": false
+  },
+  "ok": true
+ },
+ "c_meshy_sin_clave": {
+  "runner_status_meshy": {
+   "disponible": false,
+   "motivo": "sin credencial: no hay ninguna clave de meshy guardada (Ajustes → Claves)"
+  },
+  "llamada": {
+   "tarea": "t-meshy",
+   "depto": "Taller 3D",
+   "jefe": "mensajero",
+   "fase": "candado",
+   "gerente": "El buzón de Taller 3D tiene candado: sin credencial: no hay ninguna clave de meshy guardada (Ajustes → Claves). No lo dejo.",
+   "jefe_dice": null,
+   "duracion": null,
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": false
+  },
+  "ok": true
+ },
+ "c_meshy_con_clave_simulado": {
+  "llamada": {
+   "tarea": "t-meshy2",
+   "depto": "Taller 3D",
+   "jefe": "mensajero",
+   "fase": "buzon",
+   "gerente": "Dejo el encargo en el buzón de Taller 3D.",
+   "jefe_dice": "(el mensajero sale)",
+   "duracion": "00:00",
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": true
+  },
+  "ok": true
+ },
+ "e_tres_en_cola": {
+  "pregunta": "Local tiene 3 en cola. ¿Lo dejo en espera igual? (sí / no)",
+  "respuesta_no": "Vale, no lo encolo.",
+  "pregunta_2": "Local tiene 3 en cola. ¿Lo dejo en espera igual? (sí / no)",
+  "respuesta_si": "Voy, llamo a Local. t-20261030-232948 escrita; el runner aún no la recoge (¿está parado?).",
+  "ok": true
+ },
+ "simulado": {
+  "d_ocupado_t-c": {
+   "tarea": "t-c",
+   "depto": "Claude",
+   "jefe": "clau",
+   "fase": "ocupado",
+   "gerente": "Claude está ocupado. Tu tarea queda en cola, es la n.º 3 de 3 (posición calculada como la elige el runner).",
+   "jefe_dice": "En línea, te llamo en cuanto termine.",
+   "duracion": null,
+   "ambar": false,
+   "posicion": [
+    3,
+    3
+   ],
+   "urgente": false,
+   "linea": false,
+   "ocupado_con": "t-a"
+  },
+  "d_urgente_t-u": {
+   "tarea": "t-u",
+   "depto": "Local",
+   "jefe": "luma",
+   "fase": "ocupado",
+   "gerente": "! Local está ocupado. Tu tarea queda en cola, es la n.º 1 de 3 (posición calculada como la elige el runner).",
+   "jefe_dice": "En línea, te llamo en cuanto termine.",
+   "duracion": null,
+   "ambar": false,
+   "posicion": [
+    1,
+    3
+   ],
+   "urgente": true,
+   "linea": false,
+   "ocupado_con": "t-a"
+  },
+  "en_linea_ambar_t-a": {
+   "tarea": "t-a",
+   "depto": "Claude",
+   "jefe": "clau",
+   "fase": "en_linea",
+   "gerente": "Claude trabaja en t-a",
+   "jefe_dice": "Sigue en ello...",
+   "duracion": "03:18",
+   "ambar": true,
+   "posicion": null,
+   "urgente": false,
+   "linea": true
+  },
+  "f_no_contesta": {
+   "tarea": "t-x",
+   "depto": "Codex",
+   "jefe": "cody",
+   "fase": "no_contesta",
+   "gerente": "Codex no contesta. Lo reintento a las 23:31 (reintento 1 de 3).",
+   "jefe_dice": "No contesta.",
+   "duracion": null,
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": false
+  },
+  "f_necesita_revision": {
+   "tarea": "t-x",
+   "depto": "Codex",
+   "jefe": "cody",
+   "fase": "necesita_revision",
+   "gerente": "Codex no contestó 4 veces. Necesita revisión (queda marcada en la app).",
+   "jefe_dice": "No contesta.",
+   "duracion": null,
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": false
+  },
+  "g_fin_ok": {
+   "tarea": "t-a",
+   "depto": "Claude",
+   "jefe": "clau",
+   "fase": "fin_ok",
+   "gerente": "Listo, Claude se encarga.",
+   "jefe_dice": "✓",
+   "duracion": null,
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": false
+  },
+  "g_fin_aprobacion": {
+   "tarea": "t-a",
+   "depto": "Claude",
+   "jefe": "clau",
+   "fase": "fin_aprobacion",
+   "gerente": "Listo, te lo dejo por aprobar en la app.",
+   "jefe_dice": "Esperando tu aprobación.",
+   "duracion": null,
+   "ambar": false,
+   "posicion": null,
+   "urgente": false,
+   "linea": false
+  }
+ },
+ "d_ok": true,
+ "ambar_ok": true,
+ "f_ok": true,
+ "g_ok": true,
+ "todo_ok": true
+}

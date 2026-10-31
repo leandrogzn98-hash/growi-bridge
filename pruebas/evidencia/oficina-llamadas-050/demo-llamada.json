@@ -1,0 +1,16 @@
+{
+ "ventana": true,
+ "teclas_enviadas": true,
+ "log": [
+  "2026-10-30 23:35:24 [oficina pid 24524] telefono: «Pídele a ollama: escribe un poema de cuatro versos sobre una» -> leyendo"
+ ],
+ "confirmaciones": [
+  {
+   "t": 1793417727.264,
+   "evento": "telefono",
+   "mensaje": "Pídele a ollama: escribe un poema de cuatro versos sobre una oficina",
+   "respuesta": "Voy, llamo a Local. t-20261030-233524 en curso."
+  }
+ ],
+ "ok": true
+}

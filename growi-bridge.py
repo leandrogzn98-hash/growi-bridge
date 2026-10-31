@@ -7893,6 +7893,9 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
         _act_touch()  # el reloj de inactividad empieza al lanzar
         result["lanzamiento"] = _lanzamiento(proc)
         log(f"runner [{task['id']}]: {motor_id} lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
+        if rol == "tarea":  # t-oficina-llamadas-050: la oficina cuelga «marcando» con esto
+            live_set("tarea", lanzado_at=_now_iso())
+            live_write(force=True)  # al instante: no esperar al ritmo de 5 s
         _track_launch(proc, f"runner: tarea {task['id']}, motor {MOTOR_CORTO.get(motor_id, motor_id)}")
 
         def _reader():
@@ -8012,6 +8015,9 @@ def _run_cli_plain(task, motor_id, eng, result, prompt, cmd, rol="tarea"):
         _RUN["proc"] = proc
         result["lanzamiento"] = _lanzamiento(proc)
         log(f"runner [{task['id']}]: {motor_id} lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
+        if rol == "tarea":  # t-oficina-llamadas-050: la oficina cuelga «marcando» con esto
+            live_set("tarea", lanzado_at=_now_iso())
+            live_write(force=True)  # al instante: no esperar al ritmo de 5 s
         _track_launch(proc, f"runner: tarea {task['id']}, motor {MOTOR_CORTO.get(motor_id, motor_id)}")
         rc = None
         try:
@@ -16123,7 +16129,7 @@ COLA_LIVE_ACTIVAS = ("en_cola", "en_curso", "esperando_aprobacion", "esperando_l
 CL_CAMPOS_CABECERA = ("actualizado", "guardrail", "cola_pendiente", "proximo_reintento")
 CL_CAMPOS_TAREA = ("id", "estado", "motor", "modelo", "ronda", "max_rondas", "tarea_padre", "raiz",
                    "fase", "intentos", "reintentos", "proximo_intento", "motivo", "creado_en",
-                   "actualizado_en")
+                   "actualizado_en", "urgente")  # urgente: t-oficina-llamadas-050
 _CL_ESCRIBE_RE = re.compile(r"\s*(INSERT(?:\s+OR\s+\w+)?\s+INTO|UPDATE|DELETE\s+FROM)\s+tareas\b", re.I)
 _CL = {"t": 0.0, "dirty": False, "lock": threading.Lock(), "modelos": {}}
 
@@ -16147,6 +16153,15 @@ def _cl_modelo(r):
     return mod or None
 
 
+def _cl_urgente(r):
+    """Si el encargo pide urgente (su .task.json); sin archivo legible = no (no se inventa)."""
+    try:
+        d = json.loads(Path(r.get("archivo") or "").read_text(encoding="utf-8"))
+        return isinstance(d, dict) and d.get("urgente") is True
+    except (OSError, ValueError):
+        return False
+
+
 def _cl_tarea(r, ahora):
     t = {"id": r["id"], "estado": r["estado"], "motor": r.get("motor")}
     if state.get("current") == r["id"] and state.get("current_modelo"):
@@ -16162,6 +16177,8 @@ def _cl_tarea(r, ahora):
              creado_en=r.get("creado_en"), actualizado_en=r.get("actualizado_en"))
     if isinstance(r.get("proximo_intento"), (int, float)) and r["proximo_intento"] > ahora:
         t["proximo_intento"] = _hora(r["proximo_intento"])
+    if r["estado"] == "en_cola" and _cl_urgente(r):
+        t["urgente"] = True
     return {k: t[k] for k in CL_CAMPOS_TAREA if t.get(k) not in (None, "")}
 
 
@@ -19879,8 +19896,10 @@ def runner_loop(stop_event):
                             candidates.append(p)
                 except OSError:
                     continue
-            # Las rondas de correccion van primero (son la misma tarea).
-            candidates.sort(key=lambda p: (0 if _is_round_task(p) else 1, p.stat().st_mtime))
+            # Las rondas de correccion van primero (son la misma tarea); luego las urgentes
+            # (t-oficina-llamadas-050: adelantan, nunca interrumpen); luego el resto por antiguedad.
+            candidates.sort(key=lambda p: (0 if _is_round_task(p) else 1 if _is_urgent_task(p) else 2,
+                                           p.stat().st_mtime))
             if candidates:
                 if process_one(candidates[0]):
                     runner_heartbeat()
@@ -19889,6 +19908,14 @@ def runner_loop(stop_event):
             log(f"runner ERROR en el loop (se sigue): {type(e).__name__}: {e}")
         stop_event.wait(POLL_SECONDS)
     log("runner: parado")
+
+
+def _is_urgent_task(path):
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return isinstance(data, dict) and data.get("urgente") is True
+    except Exception:
+        return False
 
 
 def _is_round_task(path):
@@ -28880,7 +28907,7 @@ def _modelo_por_defecto():
         return "sonnet"
 
 
-def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app"):
+def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app", urgente=False):
     """Encola una tarea como «Pedirle algo». -> {"ok", "id", "archivo", "engine",
     "data", "error"}. model = el «model» del task que da el desplegable («sonnet»,
     «opus», «haiku», «motor:auto», «motor:llama», «ollama:<nombre>»...); sin model
@@ -28932,6 +28959,8 @@ def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app")
             data.pop("permission_mode")
     if criterios:
         data["criterios"] = criterios
+    if urgente:  # t-oficina-llamadas-050: adelanta en la cola, nunca interrumpe la tarea en curso
+        data["urgente"] = True
     # Escritura atomica y exclusiva: se escribe aparte (.tmp, que el runner no
     # mira: solo busca *.task.json) y se renombra; en Windows os.rename falla si
     # el nombre ya existe, asi que dos procesos que encolan en el mismo segundo

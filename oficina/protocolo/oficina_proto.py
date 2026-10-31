@@ -30,6 +30,8 @@ for _d in (AQUI.parent / "estados", AQUI / "estados"):
 import estados as E  # noqa: E402  (t-oficina-estados-050: derivar_estado, transiciones, dormir)
 sys.path.insert(0, str(AQUI.parent / "telefono"))
 import telefono as TF  # noqa: E402  (t-oficina-telefono-050: el telefono al gerente)
+sys.path.insert(0, str(AQUI.parent / "llamadas"))
+import llamadas as LL  # noqa: E402  (t-oficina-llamadas-050: la llamada que se ve = la invocacion real)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--share", default=str(Path.home() / "growi-bridge" / "share"))
@@ -118,6 +120,14 @@ def _per_live():
     d = v["datos"] if isinstance(v["datos"], dict) else {}
     activo = (v["clase"] in ("fresco", "viejo") and d.get("task_id") and d.get("estado") != "terminado"
               and (P.edad_iso(d.get("actualizado")) or 1e9) < P.LIVE_FRESCO_S * 4)
+    # «Con tarea en curso» lo dicen tambien cola-live y runner-status (t-oficina-llamadas-050): mirarlo solo en
+    # runner-live tardaba hasta 10 s en ver una llamada nueva (sin live todavia, se leia cada 10 s).
+    if not activo and "cola-live" in F:
+        cl = F["cola-live"].vista()["datos"]
+        activo = isinstance(cl, dict) and any(x.get("estado") == "en_curso" for x in cl.get("tareas") or [])
+    if not activo and "runner-status" in F:
+        stt = F["runner-status"].vista()["datos"]
+        activo = isinstance(stt, dict) and bool(stt.get("current"))
     return _per(P.PERIODO_LIVE_ACTIVO_S if activo else P.PERIODO_LIVE_REPOSO_S)()
 
 
@@ -399,6 +409,7 @@ ultimo_envio, ultimo_seguir, ultimo_estados = 0.0, 0.0, {}
 caja_in = pygame.Rect(30, H - 46, 560, 30)
 icono_tel = pygame.Rect(W - 56, H - 56, 40, 40)
 caido_antes = None
+en_curso_antes = frozenset()
 
 while True:
     dt = reloj.tick(30) / 1000.0
@@ -473,6 +484,12 @@ while True:
         metrica({"evento": "ritmo", "bridge_caido": caido})
         for f in F.values():
             f.ya()
+    _cl = F["cola-live"].vista()["datos"]
+    _en_curso = frozenset(x.get("id") for x in (_cl or {}).get("tareas") or [] if x.get("estado") == "en_curso") \
+        if isinstance(_cl, dict) else frozenset()
+    if _en_curso - en_curso_antes:  # una tarea nueva arranca: runner-live se lee YA (no al final de sus 10 s)
+        F["runner-live"].ya()
+    en_curso_antes = _en_curso
     V = {k: f.vista(ahora) for k, f in F.items()}
     est_p = P.derivar(V, "vivo" if eb == "vivo" else eb, ahora)
 
@@ -571,6 +588,36 @@ while True:
         texto(f"Bridge no disponible — {motivo_b}" if eb == "no_disponible" else motivo_b,
               F13, C["texto"], 30, 520, W - 60)
     # encargos: primero a disco; si no hay Bridge, borrador visible «pendiente de enviar»
+    # ---- llamada en curso (t-oficina-llamadas-050): solo si hay una fase real que mostrar
+    _motores = set(((V["engines"]["datos"] or {}).get("motores") or {}).keys()) if isinstance(V["engines"]["datos"], dict) else set()
+    _llam = None
+    for _f in (fu["cola"] or {}).get("tareas") or []:
+        if _f.get("estado") in ("en_curso", "en_cola", "esperando_aprobacion") or _f.get("proximo_intento"):
+            _l = LL.llamada(_f, fu["cola"], fu["live"], fu["status"], _motores, ahora, fu["live_edad"])
+            if _l["fase"] and (_llam is None or _l["fase"] in ("marcando", "timbre", "en_linea", "encendiendo", "buzon")):
+                _llam = _l
+                if _l["fase"] in ("marcando", "timbre", "en_linea", "encendiendo", "buzon"):
+                    break
+    if _llam:
+        gx, gy = POS["growi"]
+        jefe = _llam.get("jefe")
+        if _llam["linea"] and jefe in POS:
+            jx, jy = POS[jefe]
+            n = 24
+            for k in range(0, n, 2):  # linea punteada tenue
+                a, b = k / n, (k + 1) / n
+                pygame.draw.line(pantalla, C["linea"], (gx + 16 + (jx - gx) * a, gy + 10 + (jy - gy) * a),
+                                 (gx + 16 + (jx - gx) * b, gy + 10 + (jy - gy) * b), 2)
+            if _llam.get("jefe_dice"):
+                texto(_llam["jefe_dice"], F12, C["texto"], jx - 4, jy - 18, 160)
+        if _llam.get("duracion"):
+            texto(_llam["duracion"], F13, C["ambar"] if _llam["ambar"] else C["suave"], gx + 40, gy + 20)
+        linea_g = _llam.get("gerente") or ""
+        if _llam["fase"] == "ocupado" and _llam.get("posicion") is None:
+            linea_g = linea_g or "En cola, sin posición."
+        if linea_g and not (TEL.bocadillo and time.time() - TEL.bocadillo[1] < 8):
+            texto(f"[{_llam['fase']}] {linea_g}", F12, C["rojo"] if _llam["fase"] in ("no_contesta", "necesita_revision",
+                  "suena_en_vacio") else C["texto"], 30, 524, W - 60)
     # ---- telefono al gerente (t-oficina-telefono-050): una linea, sin historial
     pygame.draw.rect(pantalla, C["acento"] if tel_abierto else C["panel"], icono_tel, border_radius=10)
     pygame.draw.rect(pantalla, C["linea"], icono_tel, 1, border_radius=10)

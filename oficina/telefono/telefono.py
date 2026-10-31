@@ -11,9 +11,18 @@ Unico canal de texto del dueno en la oficina: todo va al gerente, que es un rout
 Sin historial: el telefono guarda solo el ultimo mensaje y su confirmacion.
 """
 import re
+import sys
+from pathlib import Path
 import threading
 import time
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "llamadas"))
+import llamadas as LL  # noqa: E402  (t-oficina-llamadas-050)
+
+RE_URGENTE = re.compile(r"\burgent", re.I)
+RE_NO = re.compile(r"^\s*(no|nop|mejor no|d[eé]jalo|cancela)\b", re.I)
+TOPE_EN_COLA = 3
 
 DEPTOS = {  # palabra del encargo -> (departamento, model del task)
     "claude": ("Claude", None), "opus": ("Claude", "opus"), "sonnet": ("Claude", "sonnet"), "haiku": ("Claude", "haiku"),
@@ -96,6 +105,7 @@ class Telefono:
         self.ultimo_motor = None
         self.confirmaciones = []  # (texto_del_mensaje, confirmacion): para la prueba de «una por mensaje»
         self.hitos = []
+        self.por_confirmar = None  # (texto, criterios, depto, model, clase): «¿lo dejo en espera igual?»
 
     def motor_sugerido(self):
         return self.ultimo_motor or "Claude"
@@ -126,7 +136,13 @@ class Telefono:
             t0 = self.reloj()
             self.hitos = [("enviado", 0.0)]
             clase, det = clasificar(texto)
-            if clase == "aprobacion":
+            if self.por_confirmar is not None:  # la respuesta al «¿lo dejo en espera igual?»
+                pend, self.por_confirmar = self.por_confirmar, None
+                if clase == "aprobacion":
+                    self._encolar(pend[0], pend[1], pend[2], pend[3], pend[4], t0, confirmado=True)
+                else:
+                    self._decir(texto, "Vale, no lo encolo.")
+            elif clase == "aprobacion":
                 self._decir(texto, "Aprobar es en la app (Tareas) o por WhatsApp con su código; desde la oficina no.")
             elif clase == "fuera":
                 self._decir(texto, (f"Son las {datetime.now():%H:%M}." if det == "hora" else "Eso no es de la oficina."))
@@ -141,14 +157,21 @@ class Telefono:
                     return
                 self.actual, self.en_espera = self.en_espera, None
 
-    def _encolar(self, texto, criterios, depto, model, clase, t0):
+    def _encolar(self, texto, criterios, depto, model, clase, t0, confirmado=False):
         if self.enc is None:
             self._decir(texto, "No puedo encolar ahora (el encolado no está disponible): lo guardo de borrador.")
             return
+        n = LL.en_cola_de(self.cola(), depto)
+        if n >= TOPE_EN_COLA and not confirmado:  # spec 13: con 3 o mas en cola, avisa y espera el si/no
+            self.por_confirmar = (texto, criterios, depto, model, clase)
+            self._decir(texto, f"{depto} tiene {n} en cola. ¿Lo dejo en espera igual? (sí / no)")
+            return
+        urgente = bool(RE_URGENTE.search(texto))
         aviso = threading.Timer(self.ESPERA_VISIBLE_S, lambda: self._aviso_espera(texto))
         aviso.start()
         try:
-            r = self.enc.encolar(texto, criterios=criterios or [], model=model)
+            r = (self.enc.encolar(texto, criterios=criterios or [], model=model, urgente=True) if urgente
+                 else self.enc.encolar(texto, criterios=criterios or [], model=model))
         except Exception as e:  # nunca tumbar la oficina
             r = {"ok": False, "error": f"{type(e).__name__}: {e}"}
         self.hitos.append(("task_json", round(self.reloj() - t0, 2)))
@@ -172,7 +195,9 @@ class Telefono:
             est = (self.enc.estado(tid) or {}).get("estado") or est
         aviso.cancel()
         self.hitos.append(("cola_db", round(self.reloj() - t0, 2), est))
-        verbo = "le paso tu corrección a" if clase == "correccion" else "llamo a"
+        verbo = ("le paso tu corrección a" if clase == "correccion" else "llamo a")
+        if urgente:
+            verbo = "! urgente: " + verbo  # adelanta en la cola, no interrumpe a nadie
         if est in ("esperando_aprobacion", "esperando_leandro"):
             frase = f"Voy, {verbo} {depto}. {tid} queda por aprobar: apruébala en la app."
         elif est:
