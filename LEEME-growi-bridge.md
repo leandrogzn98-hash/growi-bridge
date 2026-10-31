@@ -270,6 +270,21 @@ Cada uno es un archivo `workflows\<id>.json` junto a `growi-bridge.py` (como
   botón de ejecutar. **En JSON:** `GET /gateway/workflows` (mismo puerto y
   token que `/gateway/estado`).
 
+## Skills como unidades (pedirlas por su nombre)
+
+Además de elegirse solas por su descripción, una skill se puede **pedir por su nombre**
+(t-skills-unidades-052): `"skill": "carruseles"` en el `.task.json`, en un paso de workflow o
+con `encolar_tarea(skill=..., entradas={...})`. Se activa siempre. Si no existe, o le falta una
+entrada obligatoria, la tarea no se encola y se dice por qué.
+
+Una skill puede declarar en su frontmatter un **contrato**:
+- `entradas`: `"nombre | pregunta | por_defecto"`; sin valor por defecto es obligatoria.
+- `salidas`: archivos que deja. Cada salida se convierte en un criterio «existe» que la revisión
+  comprueba.
+
+`GET /gateway/skills` (mismo puerto y token) lista cada skill con su contrato, sus requisitos en
+este PC y sus estadísticas (usos, terminadas bien, costo mediano), sacadas de los resultados.
+
 ## Niveles de riesgo y vencimiento de las aprobaciones
 
 El silencio nunca es consentimiento: ningún pedido de aprobación espera para

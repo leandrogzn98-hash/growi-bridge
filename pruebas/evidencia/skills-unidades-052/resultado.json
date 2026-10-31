@@ -1,0 +1,137 @@
+{
+ "indice": [
+  [
+   "carruseles",
+   [],
+   []
+  ],
+  [
+   "edicion-video",
+   [],
+   []
+  ],
+  [
+   "nota-prueba",
+   [
+    {
+     "nombre": "texto",
+     "pregunta": "¿Qué escribo en la nota?",
+     "por_defecto": null
+    },
+    {
+     "nombre": "archivo",
+     "pregunta": "¿Cómo se llama el archivo?",
+     "por_defecto": "nota.txt"
+    }
+   ],
+   [
+    "nota.txt"
+   ]
+  ]
+ ],
+ "b_no_existe": {
+  "error": "la skill «no-existe» no existe o no es válida en este PC (hay: carruseles, edicion-video, nota-prueba)",
+  "ok": true
+ },
+ "c_entrada_obligatoria": {
+  "error": "falta la entrada «texto» de la skill «nota-prueba»: ¿Qué escribo en la nota?",
+  "ok": true
+ },
+ "a_pedida": {
+  "estado": "terminada",
+  "skills_activadas": [
+   "nota-prueba"
+  ],
+  "skills_pedidas": [
+   "nota-prueba"
+  ],
+  "registro": {
+   "pedidas": [
+    "nota-prueba"
+   ],
+   "activadas": [
+    {
+     "nombre": "nota-prueba",
+     "version": "1.0.0",
+     "origen": "propia",
+     "carpeta": "C:\\Users\\forte\\growi-bridge\\_prueba-skills-unidades-052\\app\\skills\\nota-prueba",
+     "puntuacion": "pedida",
+     "coincidencias": [
+      "pedida por la tarea"
+     ],
+     "caracteres_en_prompt": 185,
+     "recortada": false,
+     "requisitos_faltantes": []
+    }
+   ]
+  },
+  "criterios_tipados_derivados": [
+   {
+    "tipo": "existe",
+    "archivo": "nota.txt"
+   }
+  ],
+  "entradas_en_task": {
+   "texto": "las skills ya son unidades",
+   "archivo": "nota.txt"
+  },
+  "nota_txt": null,
+  "revision": {
+   "veredicto": "rechazado"
+  },
+  "ok": true
+ },
+ "d_workflow": {
+  "wf_valido": true,
+  "error": null,
+  "fase_skill": "nota-prueba",
+  "fase_entradas": {
+   "texto": "desde un workflow"
+  },
+  "ok": true
+ },
+ "e_estadisticas": {
+  "nota-prueba": {
+   "usos": 5,
+   "pedida": 2,
+   "por_descripcion": 3,
+   "ok": 5,
+   "ultima": "2026-10-31T00:35:19-04:00",
+   "costo_mediano": 0.0,
+   "tasa_ok": 1.0
+  },
+  "ok": true
+ },
+ "f_gateway": {
+  "codigo": 200,
+  "sin_token": 401,
+  "skills": [
+   [
+    "carruseles",
+    {
+     "skill": "carruseles",
+     "entradas": {}
+    }
+   ],
+   [
+    "edicion-video",
+    {
+     "skill": "edicion-video",
+     "entradas": {}
+    }
+   ],
+   [
+    "nota-prueba",
+    {
+     "skill": "nota-prueba",
+     "entradas": {
+      "texto": "<¿Qué escribo en la nota?>",
+      "archivo": "nota.txt"
+     }
+    }
+   ]
+  ],
+  "ok": true
+ },
+ "todo_ok": true
+}
