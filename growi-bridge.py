@@ -89,16 +89,23 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "0.4.6-alpha"
+VERSION = "0.5.2-alpha"
 # La version instalada es la del archivo VERSION de al lado (la que publica la
 # release). Con la constante sola, la raiz 0.2.0 se creia 0.1.0 y la
 # auto-actualizacion (cada 6 h) volvia a bajar GitHub encima, borrando lo
 # integrado a mano (27 oct 2026, 03:42: se llevo los atajos).
+# La constante es ademas el SELLO de la release: download_update() exige que
+# el growi-bridge.py bajado diga la misma version que el archivo VERSION de
+# main (30 oct 2026: VERSION subio a 0.4.6 con el codigo de la 0.2.0 y la
+# instalada se bajo ese codigo viejo). Subela siempre junto con VERSION.
 try:
-    _v_archivo = (Path(__file__).resolve().parent / "VERSION").read_text(encoding="utf-8").strip()
+    _v_bytes = (Path(__file__).resolve().parent / "VERSION").read_bytes()
+    # Tolera BOM y UTF-16 (un VERSION guardado asi tumbaba la app al importar)
+    _v_archivo = (_v_bytes.decode("utf-16") if _v_bytes[:2] in (b"\xff\xfe", b"\xfe\xff")
+                  else _v_bytes.decode("utf-8-sig", errors="replace")).strip()
     if _v_archivo:
         VERSION = _v_archivo
-except OSError:
+except (OSError, UnicodeError):
     pass
 GITHUB_REPO = "leandrogzn98-hash/growi-bridge"
 APP_DIR = Path(__file__).resolve().parent
@@ -1899,11 +1906,36 @@ def check_update_available():
     return ""
 
 
+def _sello_version(data):
+    """Version que declara un growi-bridge.py (la constante VERSION = "...") o ''."""
+    m = re.search(rb'^VERSION = "([^"\r\n]+)"', data[:20000], re.M)
+    return m.group(1).decode("utf-8", errors="replace").strip() if m else ""
+
+
+def _update_respaldar(nombres):
+    """Copia cada archivo que la actualizacion va a pisar a
+    <nombre>.pre-update-<version local>-<fecha>.bak. True si quedaron todas."""
+    sello = f"pre-update-{re.sub(r'[^A-Za-z0-9.-]', '_', VERSION)}-{datetime.now():%Y%m%d-%H%M%S}"
+    for name in nombres:
+        src = APP_DIR / name
+        if not src.exists():
+            continue
+        try:
+            shutil.copy2(src, APP_DIR / f"{name}.{sello}.bak")
+        except OSError as e:
+            log(f"actualizaciones: no se pudo respaldar {name} ({e}); no se actualiza")
+            return False
+    log(f"actualizaciones: respaldo de {len(nombres)} archivo(s) como *.{sello}.bak")
+    return True
+
+
 def download_update(version):
     """Baja TODOS los archivos de la nueva version y deja el actualizador
     listo (actualizar.bat mueve cada .new a su sitio y relanza la app).
     True si quedo todo, False si algo fallo. Los archivos opcionales
-    (catalogo de modelos, README) se saltan si el repo aun no los tiene."""
+    (catalogo de modelos, README) se saltan si el repo aun no los tiene.
+    Antes de dejarlo listo comprueba el sello de version del codigo bajado y
+    respalda cada archivo que se va a pisar (sin respaldo no se actualiza)."""
     optional = {"models-catalog.json", "README.md", "riesgos.json", "PROTOCOLO-PRUEBA-CORTE.md",
                 "politicas.ejemplo.json"}
     got = []
@@ -1917,6 +1949,11 @@ def download_update(version):
                                              or len(data) < 10000):
                 log("actualizaciones: growi-bridge.py descargado invalido")
                 return False
+            if name == "growi-bridge.py" and _sello_version(data) != str(version).strip():
+                # VERSION subido sin su codigo: bajarlo seria instalar algo mas viejo
+                log(f"actualizaciones: v{version} rechazada: el growi-bridge.py de main dice "
+                    f"«{_sello_version(data) or 'sin versión'}», no {version}; no se toca nada")
+                return False
             (APP_DIR / (name + ".new")).write_bytes(data)
             got.append(name)
         except Exception as e:
@@ -1925,6 +1962,10 @@ def download_update(version):
                 continue
             log(f"actualizaciones: fallo al bajar {name} ({e})")
             return False
+    if not _update_respaldar(got):
+        for name in got:
+            (APP_DIR / (name + ".new")).unlink(missing_ok=True)
+        return False
     lines = ["@echo off", "timeout /t 2 /nobreak >nul"]
     for name in got:
         lines.append(f'move /y "{name}.new" "{name}"')
