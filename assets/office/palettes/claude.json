@@ -1,0 +1,12 @@
+{
+ "departamento": "claude",
+ "base": "global.json",
+ "skins": {
+  "clau": {
+   "pelo": "#6B4A2E",
+   "ropa": "#D97757",
+   "piel": "#F2C9A0",
+   "corbata": "#D97757"
+  }
+ }
+}

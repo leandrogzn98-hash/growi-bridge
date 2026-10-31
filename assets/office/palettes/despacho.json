@@ -1,0 +1,11 @@
+{
+ "departamento": "despacho",
+ "base": "global.json",
+ "skins": {
+  "runa": {
+   "pelo": "#232323",
+   "ropa": "#232323",
+   "piel": "#F2C9A0"
+  }
+ }
+}

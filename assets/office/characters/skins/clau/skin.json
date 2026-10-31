@@ -1,0 +1,90 @@
+{
+ "id": "clau",
+ "nombre": "Clau",
+ "departamento": "claude",
+ "plataforma": "Claude Code",
+ "rol": "lider",
+ "paleta": "../../../palettes/claude.json",
+ "capas": {
+  "cuerpo": "base:cuerpo",
+  "pantalon": "base:pantalon",
+  "ropa": "base:ropa",
+  "brazos": "base:brazos",
+  "cara": "base:cara",
+  "pelo_atras": "base:pelo_corto_lado_atras",
+  "pelo_frente": "base:pelo_corto_lado_frente",
+  "accesorio": "accesorio",
+  "corbata": "base:corbata"
+ },
+ "colores": {
+  "pelo": "#6B4A2E",
+  "ropa": "#D97757",
+  "piel": "#F2C9A0",
+  "corbata": "#D97757"
+ },
+ "frame": {
+  "w": 32,
+  "h": 48
+ },
+ "ancla": [
+  16,
+  47
+ ],
+ "animaciones": [
+  {
+   "nombre": "idle",
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "escribir",
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "caminar",
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "cafe",
+   "frames": 2,
+   "fps": 4,
+   "bucle": true
+  },
+  {
+   "nombre": "telefono",
+   "frames": 2,
+   "fps": 4,
+   "bucle": true
+  },
+  {
+   "nombre": "vagancia",
+   "frames": 2,
+   "fps": 2,
+   "bucle": true
+  },
+  {
+   "nombre": "celebrar",
+   "frames": 4,
+   "fps": 8,
+   "bucle": false
+  },
+  {
+   "nombre": "dormir",
+   "frames": 2,
+   "fps": 2,
+   "bucle": true
+  }
+ ],
+ "efectos_compartidos": {
+  "dormir": "base:efectos/z",
+  "duda": "base:efectos/duda",
+  "aviso": "base:efectos/aviso"
+ },
+ "notas": "Alta (en la final, +1 px). Camisa naranja + corbata naranja; lápiz amarillo de 7 px en la oreja (§7: 6-8 px).",
+ "estado_arte": "BORRADOR generado por script (IA): valida el sistema de skins; retoque humano pendiente."
+}

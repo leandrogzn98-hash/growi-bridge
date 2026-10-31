@@ -1,0 +1,12 @@
+{
+ "departamento": "codex",
+ "base": "global.json",
+ "skins": {
+  "cody": {
+   "pelo": "#2E2A26",
+   "ropa": "#00805F",
+   "piel": "#E0B48A",
+   "corbata": "#00A67E"
+  }
+ }
+}

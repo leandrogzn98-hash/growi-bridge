@@ -1,0 +1,82 @@
+{
+ "id": "runa",
+ "nombre": "Runa",
+ "departamento": "despacho",
+ "plataforma": "—",
+ "rol": "subgerente",
+ "paleta": "../../../palettes/despacho.json",
+ "capas": {
+  "cuerpo": "base:cuerpo_runa",
+  "pantalon": "base:pantalon_runa",
+  "ropa": "base:ropa_runa",
+  "brazos": "base:brazos_runa",
+  "cara": "base:cara_runa",
+  "pelo_atras": "base:pelo_mono_alto_atras_runa",
+  "pelo_frente": "base:pelo_mono_alto_frente_runa",
+  "accesorio": "accesorio"
+ },
+ "colores": {
+  "pelo": "#232323",
+  "ropa": "#232323",
+  "piel": "#F2C9A0"
+ },
+ "frame": {
+  "w": 32,
+  "h": 48
+ },
+ "ancla": [
+  16,
+  47
+ ],
+ "animaciones": [
+  {
+   "nombre": "idle",
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "caminar",
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "entregar",
+   "frames": 2,
+   "fps": 4,
+   "bucle": false
+  },
+  {
+   "nombre": "esperar",
+   "frames": 2,
+   "fps": 2,
+   "bucle": true
+  },
+  {
+   "nombre": "recoger",
+   "frames": 2,
+   "fps": 4,
+   "bucle": false
+  },
+  {
+   "nombre": "celebrar",
+   "frames": 4,
+   "fps": 8,
+   "bucle": false
+  },
+  {
+   "nombre": "dormir",
+   "frames": 2,
+   "fps": 2,
+   "bucle": true
+  }
+ ],
+ "efectos_compartidos": {
+  "dormir": "base:efectos/z",
+  "duda": "base:efectos/duda",
+  "aviso": "base:efectos/aviso"
+ },
+ "notas": "Fuera del personal. Blazer negro, blusa #FFF6DC (cuello), jeans #33598C, pin ámbar «1», smartwatch; la ÚNICA con tableta. Sin corbata. Duerme apoyada en la mesa de despacho. Tinte de pensamiento azul (§15) pendiente de decidir sobre el blazer negro de §10.",
+ "estado_arte": "BORRADOR generado por script (IA): valida el sistema de skins; retoque humano pendiente."
+}

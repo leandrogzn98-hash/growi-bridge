@@ -1,0 +1,60 @@
+{
+ "skins": {
+  "clau": "OK",
+  "cody": "OK",
+  "gemi": "OK",
+  "luma": "OK",
+  "runa": "OK"
+ },
+ "pasa": true,
+ "autoprueba": [
+  {
+   "caso": "archivo que falta",
+   "falla": true,
+   "mensaje": [
+    "clau: la capa «accesorio» apunta a C:\\Users\\forte\\AppData\\Local\\Temp\\skins-rotos-45zch09r\\archivo_que_falta\\accesorio.png, que no existe"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "dimensiones distintas",
+   "falla": true,
+   "mensaje": [
+    "clau: la capa «accesorio» mide 96x384 y la hoja debe medir 128x384 (4 frames x 8 animaciones)"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "frames desiguales",
+   "falla": true,
+   "mensaje": [
+    "clau: en «cuerpo», la animación «idle» tiene contenido en los frames [0, 1, 2, 3] y el skin dice 3"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "campo que falta",
+   "falla": true,
+   "mensaje": [
+    "clau: falta el campo «plataforma»"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "líder sin corbata",
+   "falla": true,
+   "mensaje": [
+    "clau: un líder lleva corbata (capas.corbata) del color de su departamento"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "JSON roto",
+   "falla": true,
+   "mensaje": [
+    "C:\\Users\\forte\\AppData\\Local\\Temp\\skins-rotos-45zch09r\\JSON_roto\\skin.json: no se puede leer como JSON (JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1))"
+   ],
+   "ok": true
+  }
+ ]
+}

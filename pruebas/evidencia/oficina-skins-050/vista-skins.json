@@ -1,0 +1,75 @@
+{
+ "clau": {
+  "animaciones": [
+   "idle",
+   "escribir",
+   "caminar",
+   "cafe",
+   "telefono",
+   "vagancia",
+   "celebrar",
+   "dormir"
+  ],
+  "frames": 24,
+  "px_corbata_visibles": 36
+ },
+ "cody": {
+  "animaciones": [
+   "idle",
+   "escribir",
+   "caminar",
+   "cafe",
+   "telefono",
+   "vagancia",
+   "celebrar",
+   "dormir"
+  ],
+  "frames": 24,
+  "px_corbata_visibles": 26
+ },
+ "gemi": {
+  "animaciones": [
+   "idle",
+   "escribir",
+   "caminar",
+   "cafe",
+   "telefono",
+   "vagancia",
+   "celebrar",
+   "dormir"
+  ],
+  "frames": 24,
+  "px_corbata_visibles": 30
+ },
+ "luma": {
+  "animaciones": [
+   "idle",
+   "escribir",
+   "caminar",
+   "cafe",
+   "telefono",
+   "vagancia",
+   "celebrar",
+   "dormir"
+  ],
+  "frames": 24,
+  "px_corbata_visibles": 30
+ },
+ "runa": {
+  "animaciones": [
+   "idle",
+   "caminar",
+   "entregar",
+   "esperar",
+   "recoger",
+   "celebrar",
+   "dormir"
+  ],
+  "frames": 20
+ },
+ "editar_json": {
+  "pixeles_distintos": 205,
+  "ropa_azul_presente": true,
+  "lapiz_quitado": true
+ }
+}

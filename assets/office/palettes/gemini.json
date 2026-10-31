@@ -1,0 +1,12 @@
+{
+ "departamento": "gemini",
+ "base": "global.json",
+ "skins": {
+  "gemi": {
+   "pelo": "#4A3324",
+   "ropa": "#4285F4",
+   "piel": "#D9A47A",
+   "corbata": "#2B5CB8"
+  }
+ }
+}

@@ -1,0 +1,12 @@
+{
+ "departamento": "local",
+ "base": "global.json",
+ "skins": {
+  "luma": {
+   "pelo": "#232323",
+   "ropa": "#8C52C8",
+   "piel": "#F2C9A0",
+   "corbata": "#6A3A9E"
+  }
+ }
+}
