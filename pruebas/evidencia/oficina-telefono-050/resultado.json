@@ -1,0 +1,150 @@
+{
+ "c_clasificacion": {
+  "¿cómo va la cola?": {
+   "esperado": "pregunta",
+   "obtenido": "pregunta"
+  },
+  "Pídele a ollama: responde solo con la palabra hola": {
+   "esperado": "tarea",
+   "obtenido": "tarea"
+  },
+  "Corrige lo de Codex: el título va en mayúsculas": {
+   "esperado": "correccion",
+   "obtenido": "correccion"
+  },
+  "Sí, apruébalo": {
+   "esperado": "aprobacion",
+   "obtenido": "aprobacion"
+  },
+  "¿quién ganó el partido anoche?": {
+   "esperado": "fuera",
+   "obtenido": "fuera"
+  },
+  "¿qué hora es?": {
+   "esperado": "fuera",
+   "obtenido": "fuera"
+  },
+  "Resume el informe de ventas en 5 puntos": {
+   "esperado": "tarea",
+   "obtenido": "tarea"
+  }
+ },
+ "c_ok": true,
+ "d_retenida": {
+  "confirmacion": [
+   [
+    "Pídele a ollama: borra el archivo viejo.txt de la carpeta de pruebas",
+    "Voy, llamo a Local. t-20261030-230512 queda por aprobar: apruébala en la app."
+   ]
+  ],
+  "hitos": [
+   [
+    "enviado",
+    0.0
+   ],
+   [
+    "task_json",
+    0.07
+   ],
+   [
+    "aviso_espera",
+    null
+   ],
+   [
+    "cola_db",
+    8.0,
+    "esperando_aprobacion"
+   ]
+  ],
+  "max_s_sin_nada_visible": 3.0,
+  "ok": true
+ },
+ "b_task_json": {
+  "hitos": [
+   [
+    "enviado",
+    0.0
+   ],
+   [
+    "task_json",
+    0.07
+   ],
+   [
+    "aviso_espera",
+    null
+   ],
+   [
+    "cola_db",
+    8.0,
+    "esperando_aprobacion"
+   ]
+  ],
+  "archivo": false
+ },
+ "b_en_cola": {
+  "confirmacion": [
+   [
+    "Pídele a ollama: responde solo con la palabra hola",
+    "Voy, llamo a Local. t-20261030-230520 en curso."
+   ]
+  ],
+  "hitos": [
+   [
+    "enviado",
+    0.0
+   ],
+   [
+    "task_json",
+    0.01
+   ],
+   [
+    "aviso_espera",
+    null
+   ],
+   [
+    "cola_db",
+    3.05,
+    "en_curso"
+   ]
+  ],
+  "task_json_existe": true,
+  "ok": true
+ },
+ "e_cola_de_uno": {
+  "respuestas_enviar": [
+   "leyendo",
+   "en_espera",
+   "lleno"
+  ],
+  "confirmaciones": [
+   [
+    "¿cómo va la cola?",
+    "Ahora mismo: 1 en cola; 1 esperando tu aprobación en la app."
+   ],
+   [
+    "¿qué hora es?",
+    "Son las 23:05."
+   ]
+  ],
+  "ok": true
+ },
+ "f_fuera": {
+  "confirmacion": [
+   [
+    "¿quién ganó el partido anoche?",
+    "Eso no es de la oficina."
+   ]
+  ],
+  "ok": true
+ },
+ "no_aprueba": {
+  "confirmacion": [
+   [
+    "Sí, apruébalo",
+    "Aprobar es en la app (Tareas) o por WhatsApp con su código; desde la oficina no."
+   ]
+  ],
+  "ok": true
+ },
+ "todo_ok": true
+}

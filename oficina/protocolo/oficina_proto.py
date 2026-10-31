@@ -28,6 +28,8 @@ for _d in (AQUI.parent / "estados", AQUI / "estados"):
         sys.path.insert(0, str(_d))
         break
 import estados as E  # noqa: E402  (t-oficina-estados-050: derivar_estado, transiciones, dormir)
+sys.path.insert(0, str(AQUI.parent / "telefono"))
+import telefono as TF  # noqa: E402  (t-oficina-telefono-050: el telefono al gerente)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--share", default=str(Path.home() / "growi-bridge" / "share"))
@@ -174,6 +176,9 @@ log(f"abierta: share={SHARE} app={APP} bridge_pid={A.bridge_pid} mutex={A.mutex}
 # ---- encolar: la UNICA escritura hacia el Bridge, por oficina\encolar\encolar.py (import en 2o plano)
 BOR = P.Borradores(DATOS / "borradores.json")
 MEM = E.Memoria(registro=metrica)
+TEL = TF.Telefono(cola=lambda: F["cola-live"].vista()["datos"] if "cola-live" in F else None, registro=metrica)
+tel_abierto = False
+tragar_t = False
 ACTIVIDAD = {}
 ENC = {"mod": None, "error": None, "listo": False, "enviando": False}
 
@@ -392,6 +397,7 @@ t_seg, frames, peor, lentos_f = 0.0, 0, 0.0, 0
 codigo, cierre_t, cierre_motivo = None, None, ""
 ultimo_envio, ultimo_seguir, ultimo_estados = 0.0, 0.0, {}
 caja_in = pygame.Rect(30, H - 46, 560, 30)
+icono_tel = pygame.Rect(W - 56, H - 56, 40, 40)
 caido_antes = None
 
 while True:
@@ -406,24 +412,38 @@ while True:
             for _pid, (_x, _y) in POS.items():
                 if pygame.Rect(_x, _y, 32, 48).collidepoint(e.pos) and MEM.despertar(_pid, "clic del jugador"):
                     log(f"{_pid} despierta: clic del jugador (T24)")
-            foco = caja_in.collidepoint(e.pos)
+            if icono_tel.collidepoint(e.pos):
+                tel_abierto = not tel_abierto
+            foco = tel_abierto and caja_in.collidepoint(e.pos) or (tel_abierto and icono_tel.collidepoint(e.pos))
             (pygame.key.start_text_input if foco else pygame.key.stop_text_input)()
         elif e.type == pygame.TEXTINPUT and foco:
+            if tragar_t and e.text.lower() == "t":  # la T que abrio el telefono no se escribe
+                tragar_t = False
+                continue
+            tragar_t = False
             entrada = (entrada + e.text)[:500]
         elif e.type == pygame.KEYDOWN:
+            if e.key == pygame.K_t and not foco:
+                tel_abierto, foco, tragar_t = True, True, True  # el telefono: tecla T
+                pygame.key.start_text_input()
+                continue
             if e.key == pygame.K_TAB:
                 foco = not foco
+                tel_abierto = tel_abierto or foco
                 (pygame.key.start_text_input if foco else pygame.key.stop_text_input)()
             elif foco and e.key == pygame.K_BACKSPACE:
                 entrada = entrada[:-1]
             elif foco and e.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and entrada.strip():
-                it = BOR.nuevo(entrada.strip())  # primero a disco: no se pierde aunque caiga todo
-                log(f"encargo escrito: «{it['texto'][:60]}» -> " + (
-                    "se envía" if _puede_enviar() else "borrador local, pendiente de enviar"))
+                if _puede_enviar():  # el telefono: el gerente lo clasifica y, si es tarea, la encola como la app
+                    TEL.enc = ENC["mod"]
+                    r_tel = TEL.enviar(entrada.strip())
+                    log(f"telefono: «{entrada.strip()[:60]}» -> {r_tel}")
+                else:
+                    it = BOR.nuevo(entrada.strip())  # sin Bridge: borrador en disco, «pendiente de enviar»
+                    log(f"encargo escrito sin Bridge: «{it['texto'][:60]}» -> borrador local, pendiente de enviar")
                 entrada = ""
-                _enviar_pendientes()
             elif e.key == pygame.K_ESCAPE:
-                foco = False
+                foco, tel_abierto = False, False
                 pygame.key.stop_text_input()
     if codigo is not None and cierre_t is None:
         break
@@ -484,7 +504,9 @@ while True:
         metrica({"evento": "fuera_de_tabla", "agente": pid, "motivo": "serie"})
     ACTIVIDAD.clear()
     for pid, (e_, _m) in est.items():
-        if pid == "growi" and e_ in (E.SIN_TAREA, E.SIN_SENAL):
+        if pid == "growi" and TEL.estado != "colgado":
+            ACTIVIDAD[pid] = "al teléfono"
+        elif pid == "growi" and e_ in (E.SIN_TAREA, E.SIN_SENAL):
             ACTIVIDAD[pid] = E.gerente_rutina(t, any(x.get("estado") in E.TAREA_ESPERA_HUMANO for x in activas),
                                               e_ == E.SIN_SENAL, [f"mesa_{k}" for k in ("clau", "dex", "luma")])[0]
         elif pid == "runa" and e_ == E.SIN_TAREA and activas:
@@ -549,20 +571,33 @@ while True:
         texto(f"Bridge no disponible — {motivo_b}" if eb == "no_disponible" else motivo_b,
               F13, C["texto"], 30, 520, W - 60)
     # encargos: primero a disco; si no hay Bridge, borrador visible «pendiente de enviar»
-    texto("Pedirle algo (Tab para escribir, Enter para enviar). Nunca se finge enviado:", F12, C["suave"], 30, 540)
-    y = 556
-    for it in BOR.items[-3:]:
-        s = it["estado"] if it["estado"] != "enviado" else f"enviado {it['id']} · {it.get('estado_cola') or '…'}"
-        texto(f"• {it['texto'][:60]} — {s}", F12, C["ambar"] if it["estado"] != "enviado" else C["texto"],
-              30, y, W - 60)
-        y += 15
-    pygame.draw.rect(pantalla, C["panel"], caja_in, border_radius=6)
-    pygame.draw.rect(pantalla, C["acento"] if foco else C["linea"], caja_in, 1, border_radius=6)
-    texto(entrada + ("|" if foco and int(t * 2) % 2 else ""), F13, C["texto"], caja_in.x + 8, caja_in.y + 5,
-          caja_in.w - 16)
-    if not _puede_enviar():
-        texto("sin Bridge o sin runner: se guardará como borrador" if ENC["listo"] else "cargando encolado…",
-              F12, C["suave"], 600, H - 40)
+    # ---- telefono al gerente (t-oficina-telefono-050): una linea, sin historial
+    pygame.draw.rect(pantalla, C["acento"] if tel_abierto else C["panel"], icono_tel, border_radius=10)
+    pygame.draw.rect(pantalla, C["linea"], icono_tel, 1, border_radius=10)
+    texto("T", F18, C["panel"] if tel_abierto else C["texto"], icono_tel.x + 14, icono_tel.y + 8)
+    if tel_abierto:
+        gr = ((V["cola-live"]["datos"] or {}).get("guardrail") if isinstance(V["cola-live"]["datos"], dict) else None)
+        texto(f"Teléfono al gerente · guardrail: {gr or '—'} · motor sugerido: {TEL.motor_sugerido()}"
+              f"{' · Growi está leyendo…' if TEL.estado != 'colgado' else ''}", F12, C["suave"], 30, 540, W - 120)
+        pygame.draw.rect(pantalla, C["panel"], caja_in, border_radius=6)
+        pygame.draw.rect(pantalla, C["acento"] if foco else C["linea"], caja_in, 1, border_radius=6)
+        texto(entrada + ("|" if foco and int(t * 2) % 2 else ""), F13, C["texto"], caja_in.x + 8, caja_in.y + 5,
+              caja_in.w - 16)
+        texto("Enviar ⏎", F13, C["acento"], caja_in.right + 10, caja_in.y + 6)
+    else:
+        texto("Pulsa T (o el icono) para llamar al gerente.", F12, C["suave"], 30, H - 40)
+    pend = BOR.pendientes()
+    if pend:  # solo lo pendiente de enviar (sin Bridge), nunca un historial
+        texto(f"{len(pend)} pendiente(s) de enviar: «{pend[-1]['texto'][:50]}»", F12, C["ambar"], 30, 556, W - 120)
+    if TEL.bocadillo and time.time() - TEL.bocadillo[1] < 8:
+        gx, gy = POS["growi"]
+        caja_b = pygame.Rect(gx - 10, gy - 34, min(560, 12 + F12.size(TEL.bocadillo[0])[0]), 22)
+        pygame.draw.rect(pantalla, C["panel"], caja_b, border_radius=8)
+        pygame.draw.rect(pantalla, C["texto"], caja_b, 1, border_radius=8)
+        texto(TEL.bocadillo[0], F12, C["texto"], caja_b.x + 6, caja_b.y + 3, 548)
+    elif TEL.estado != "colgado":
+        gx, gy = POS["growi"]
+        texto("…", F18, C["texto"], gx + 8, gy - 26)
     if cierre_t is not None:
         pygame.draw.rect(pantalla, (40, 40, 42), (W // 2 - 260, 200, 520, 110), border_radius=12)
         texto("Bridge no disponible", F28, C["panel"], W // 2 - 150, 214)

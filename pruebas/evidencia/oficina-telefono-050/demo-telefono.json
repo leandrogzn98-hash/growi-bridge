@@ -1,0 +1,21 @@
+{
+ "ventana": true,
+ "teclas_enviadas": true,
+ "log": [
+  "2026-10-30 23:10:55 [oficina pid 10648] abierta: share=C:\\Users\\forte\\growi-bridge\\_prueba-telefono-050-demo\\app\\share app=C:\\Users\\forte\\growi-bridge\\_prueba-telefono-050-demo\\app bridge_pid=13020 mutex=Local\\GrowiDemoTelefono datos=C:\\Users\\forte\\growi-bridge\\_prueba-telefono-050-demo\\datos",
+  "2026-10-30 23:11:00 [oficina pid 10648] captura C:\\Users\\forte\\source\\growi-bridge-claude\\pruebas\\evidencia\\oficina-telefono-050\\a-telefono-cerrado.png a los 4.0 s",
+  "2026-10-30 23:11:04 [oficina pid 10648] telefono: «Pídele a ollama: responde solo con la palabra hola» -> leyendo",
+  "2026-10-30 23:11:05 [oficina pid 10648] captura C:\\Users\\forte\\source\\growi-bridge-claude\\pruebas\\evidencia\\oficina-telefono-050\\a-telefono-abierto-escribiendo.png a los 9.0 s",
+  "2026-10-30 23:11:07 [oficina pid 10648] captura C:\\Users\\forte\\source\\growi-bridge-claude\\pruebas\\evidencia\\oficina-telefono-050\\b-growi-leyendo.png a los 11.0 s",
+  "2026-10-30 23:11:13 [oficina pid 10648] captura C:\\Users\\forte\\source\\growi-bridge-claude\\pruebas\\evidencia\\oficina-telefono-050\\b-respuesta-con-id.png a los 17.0 s"
+ ],
+ "confirmaciones": [
+  {
+   "t": 1793416267.901,
+   "evento": "telefono",
+   "mensaje": "Pídele a ollama: responde solo con la palabra hola",
+   "respuesta": "Voy, llamo a Local. t-20261030-231104 en curso."
+  }
+ ],
+ "ok": true
+}
