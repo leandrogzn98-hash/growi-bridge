@@ -1,0 +1,62 @@
+{
+ "skin": "sonny",
+ "frame": {
+  "w": 32,
+  "h": 48
+ },
+ "animaciones": [
+  {
+   "nombre": "caminar_taza",
+   "frames": 4,
+   "fps": 4
+  },
+  {
+   "nombre": "servir_cafe",
+   "frames": 5,
+   "fps": 4
+  },
+  {
+   "nombre": "beber",
+   "frames": 3,
+   "fps": 4
+  },
+  {
+   "nombre": "estirarse",
+   "frames": 4,
+   "fps": 4
+  },
+  {
+   "nombre": "bostezar",
+   "frames": 3,
+   "fps": 4
+  },
+  {
+   "nombre": "ventana",
+   "frames": 2,
+   "fps": 4
+  },
+  {
+   "nombre": "gesticular",
+   "frames": 3,
+   "fps": 4
+  },
+  {
+   "nombre": "celular",
+   "frames": 2,
+   "fps": 4
+  },
+  {
+   "nombre": "pelota",
+   "frames": 2,
+   "fps": 4
+  },
+  {
+   "nombre": "bano_fundido",
+   "frames": 2,
+   "fps": 4
+  }
+ ],
+ "total_frames": 30,
+ "pasear": "reutiliza «caminar» del skin",
+ "estado_arte": "BORRADOR (script); retoque humano pendiente"
+}

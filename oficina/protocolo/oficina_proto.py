@@ -32,6 +32,8 @@ sys.path.insert(0, str(AQUI.parent / "telefono"))
 import telefono as TF  # noqa: E402  (t-oficina-telefono-050: el telefono al gerente)
 sys.path.insert(0, str(AQUI.parent / "llamadas"))
 import llamadas as LL  # noqa: E402  (t-oficina-llamadas-050: la llamada que se ve = la invocacion real)
+sys.path.insert(0, str(AQUI.parent / "vagancia"))
+import vagancia as VG  # noqa: E402  (t-oficina-vagancia-050)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--share", default=str(Path.home() / "growi-bridge" / "share"))
@@ -186,6 +188,10 @@ log(f"abierta: share={SHARE} app={APP} bridge_pid={A.bridge_pid} mutex={A.mutex}
 # ---- encolar: la UNICA escritura hacia el Bridge, por oficina\encolar\encolar.py (import en 2o plano)
 BOR = P.Borradores(DATOS / "borradores.json")
 MEM = E.Memoria(registro=metrica)
+_PLANO = AQUI.parent / "plano" / "plano.json"
+_POIS = ({p_["id"]: p_["capacidad"] for p_ in json.loads(_PLANO.read_text(encoding="utf-8"))["puntos_interes"]}
+         if _PLANO.is_file() else {"cafe": 2, "pasillo": 3})
+OFV = VG.Oficina(_POIS, registro_raros=str(DATOS / "vagancia-raros.jsonl"))
 TEL = TF.Telefono(cola=lambda: F["cola-live"].vista()["datos"] if "cola-live" in F else None, registro=metrica)
 tel_abierto = False
 tragar_t = False
@@ -434,6 +440,10 @@ while True:
             tragar_t = False
             entrada = (entrada + e.text)[:500]
         elif e.type == pygame.KEYDOWN:
+            if e.key == pygame.K_v and not foco:  # «oficina seria»: apaga la vagancia, no el sueño
+                OFV.vagancia_activa = not OFV.vagancia_activa
+                log(f"vagancia {'encendida' if OFV.vagancia_activa else 'apagada (oficina seria)'}")
+                continue
             if e.key == pygame.K_t and not foco:
                 tel_abierto, foco, tragar_t = True, True, True  # el telefono: tecla T
                 pygame.key.start_text_input()
@@ -530,6 +540,16 @@ while True:
             ACTIVIDAD[pid] = f"despachando {len(activas)}"
         elif e_ == E.SIN_TAREA:
             ACTIVIDAD[pid] = E.actividad_sin_tarea(pid, t)
+    for pid, (e_, _m) in est.items():  # R2: el estado real llega a la vagancia en el mismo fotograma
+        if pid not in ("growi", "runa", "vigilante"):
+            OFV.evento_estado(pid, e_, ahora)
+    for _ag, _tipo, _dato in OFV.tick(ahora):
+        if _tipo in ("raro", "bocadillo"):
+            metrica({"evento": "vagancia_" + _tipo, "agente": _ag, "dato": _dato})
+    for pid in list(ACTIVIDAD):
+        _act = OFV.actividad_de(pid)
+        if _act:
+            ACTIVIDAD[pid] = _act
     cambios = {k: v[0] for k, v in est.items() if ultimo_estados.get(k) != v[0]}
     if cambios:
         metrica({"evento": "estados", "cambios": cambios})
@@ -632,7 +652,9 @@ while True:
               caja_in.w - 16)
         texto("Enviar ⏎", F13, C["acento"], caja_in.right + 10, caja_in.y + 6)
     else:
-        texto("Pulsa T (o el icono) para llamar al gerente.", F12, C["suave"], 30, H - 40)
+        texto("Pulsa T (o el icono) para llamar al gerente · V: "
+              + ("vagancia encendida" if OFV.vagancia_activa else "oficina seria (vagancia apagada)"),
+              F12, C["suave"], 30, H - 40)
     pend = BOR.pendientes()
     if pend:  # solo lo pendiente de enviar (sin Bridge), nunca un historial
         texto(f"{len(pend)} pendiente(s) de enviar: «{pend[-1]['texto'][:50]}»", F12, C["ambar"], 30, 556, W - 120)

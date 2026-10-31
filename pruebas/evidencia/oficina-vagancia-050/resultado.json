@@ -1,0 +1,126 @@
+{
+ "R3_sin_red_ni_modelos": {
+  "sockets": 0,
+  "imports_red": [],
+  "ok": true
+ },
+ "R1_badge": {
+  "tomando_cafe_y_esperando": "esperando aprobacion",
+  "ok": true
+ },
+ "R2_interrupcion": {
+  "t_cafe": 184.0,
+  "fin_previsto_del_cafe": 293.33985273453334,
+  "interrumpido_en": 185.0,
+  "actividad_tras_evento": null,
+  "cafe_liberado": true,
+  "ok": true
+ },
+ "R4_oficina_seria": {
+  "actividades_tras_apagar": {
+   "sonny": null,
+   "dex": null,
+   "luma": null,
+   "cody": null,
+   "opus": null
+  },
+  "ok": true
+ },
+ "R5_capacidad": {
+  "maximo_simultaneo": {
+   "cafe": 1,
+   "ventana": 2,
+   "bano": 1,
+   "planta": 0,
+   "pasillo": 3
+  },
+  "capacidad": {
+   "cafe": 2,
+   "ventana": 2,
+   "bano": 1,
+   "planta": 1,
+   "pasillo": 3
+  },
+  "ok": true
+ },
+ "b_tick": {
+  "tick_s": 5.0,
+  "reproducible": true,
+  "decisiones": 907
+ },
+ "c_sin_repetir": {
+  "repeticiones": {
+   "luma": [],
+   "opus": [],
+   "cody": [],
+   "sonny": [],
+   "dex": []
+  },
+  "ok": true
+ },
+ "d_actividades": {
+  "vistas": {
+   "bano": 48,
+   "estirarse": 166,
+   "pasear": 205,
+   "celular": 123,
+   "cafe": 67,
+   "pelota": 112,
+   "charlar": 78,
+   "ventana": 108
+  },
+  "A4_sin_otro_ocioso": 0.0,
+  "aplazadas": {
+   "A5": "consola (más animación)",
+   "A7": "cartas (necesita 2 + mesa)",
+   "A10": "papeles (puede parecer trabajo: R1)",
+   "A11": "limpiar gafas (sustituto listo, aplazado)"
+  },
+  "ok": true
+ },
+ "e_frases": {
+  "charla": 24,
+  "sueltas": 10,
+  "fallan": {},
+  "trampas_detectadas": {
+   "ya terminé la tarea": "menciona «tarea»",
+   "revisando lo de Codex": "menciona «revis»",
+   "van 3 de 5": "tiene un número",
+   "listo el informe": "menciona «list»",
+   "¡ya acabé!": "«ya» + verbo de logro"
+  },
+  "ok": true
+ },
+ "f_raros": {
+  "en_40_h": {
+   "flor_nueva": 27,
+   "bostezo_cadena": 25,
+   "pajaro_ventana": 25,
+   "cafe_derramado": 12,
+   "duelo_miradas": 9
+  },
+  "gerente_disimulan_existe": true,
+  "ok": true
+ },
+ "h_degradacion": {
+  "pois": {
+   "cafe": 2,
+   "pasillo": 3
+  },
+  "usadas": [
+   "cafe",
+   "celular",
+   "charlar",
+   "estirarse",
+   "pasear",
+   "pelota"
+  ],
+  "ok": true
+ },
+ "i_dormir": {
+  "en_el_tick": false,
+  "actividades_de_sonny": [],
+  "ok": true
+ },
+ "todo_ok": true
+}
