@@ -57,6 +57,28 @@ def recolorear(im, hexcolor):
     return im.convert("RGBA")
 
 
+CORTE_PIERNAS = 41  # fila del muslo: aqui se estira o se encoge (la cabeza chibi no cambia)
+
+
+def estatura(im, px):
+    """+N: N px mas alto (repite N filas de las piernas y sube el resto); -N: N px mas bajo. Pies en su sitio."""
+    if px == 0:
+        return im
+    out = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    abajo = im.crop((0, CORTE_PIERNAS, FW, FH))
+    out.paste(abajo, (0, CORTE_PIERNAS))
+    if px > 0:
+        arriba = im.crop((0, px, FW, CORTE_PIERNAS))
+        out.alpha_composite(arriba, (0, 0))
+        tramo = im.crop((0, CORTE_PIERNAS - 1, FW, CORTE_PIERNAS))
+        for k in range(px):
+            out.alpha_composite(tramo, (0, CORTE_PIERNAS - px + k))
+    else:
+        arriba = im.crop((0, 0, FW, CORTE_PIERNAS + px))
+        out.alpha_composite(arriba, (0, -px))
+    return out
+
+
 class Skin:
     """Un personaje compuesto desde su skin.json. frames[(animacion, i)] = Image RGBA 32x48 (cacheado)."""
 
@@ -90,7 +112,7 @@ class Skin:
                 for _n, im in capas:
                     caja = (f * FW, filas[a["nombre"]] * FH, (f + 1) * FW, (filas[a["nombre"]] + 1) * FH)
                     out.alpha_composite(im.crop(caja))
-                self.frames[(a["nombre"], f)] = out
+                self.frames[(a["nombre"], f)] = estatura(out, int(self.d.get("estatura_px") or 0))
         Skin._cache[clave] = self.frames
 
     def hoja(self):

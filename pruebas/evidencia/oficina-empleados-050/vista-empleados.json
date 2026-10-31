@@ -1,0 +1,47 @@
+{
+ "deteccion": {
+  "growi": "ocupada",
+  "clau": "ocupada",
+  "sonny": "ocupada",
+  "opus": "ocupada",
+  "haiku": "ocupada",
+  "cody": "ocupada",
+  "dex": "ocupada",
+  "luma": "ocupada",
+  "hermes_directo": "ocupada",
+  "hermes_ollama": "ocupada",
+  "gemi": "ocupada",
+  "mensajero": "vacía · sin instalar",
+  "blender": "ocupada",
+  "tripo": "ocupada"
+ },
+ "entrecerrar": {
+  "pares_mas_parecidos": [
+   [
+    "luma~tripo",
+    5.62
+   ],
+   [
+    "hermes_directo~blender",
+    5.74
+   ],
+   [
+    "blender~tripo",
+    6.6
+   ],
+   [
+    "clau~sonny",
+    8.27
+   ],
+   [
+    "cody~dex",
+    8.74
+   ]
+  ],
+  "par_mas_distinto": [
+   "growi~opus",
+   40.6
+  ],
+  "minimo_sin_hermes": 5.62
+ }
+}

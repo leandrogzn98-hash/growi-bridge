@@ -1,0 +1,126 @@
+{
+ "personal": {
+  "growi": {
+   "departamento": "gerencia",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "es el Bridge (el orquestador)"
+  },
+  "clau": {
+   "departamento": "claude",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "claude: binario: C:\\Users\\forte\\.local\\bin\\claude.exe"
+  },
+  "sonny": {
+   "departamento": "claude",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "claude: binario: C:\\Users\\forte\\.local\\bin\\claude.exe (modelo sonnet: lo da Claude Code; no se prueba el alias por separado)"
+  },
+  "opus": {
+   "departamento": "claude",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "claude: binario: C:\\Users\\forte\\.local\\bin\\claude.exe (modelo opus: lo da Claude Code; no se prueba el alias por separado)"
+  },
+  "haiku": {
+   "departamento": "claude",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "claude: binario: C:\\Users\\forte\\.local\\bin\\claude.exe (modelo haiku: lo da Claude Code; no se prueba el alias por separado)"
+  },
+  "cody": {
+   "departamento": "codex",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "codex: binario: C:\\Users\\forte\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js"
+  },
+  "dex": {
+   "departamento": "codex",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "codex: binario: C:\\Users\\forte\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js"
+  },
+  "luma": {
+   "departamento": "local",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "llama: apagado; se arranca solo al usarlo; ollama: responde"
+  },
+  "hermes_directo": {
+   "departamento": "local",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "llama: apagado; se arranca solo al usarlo"
+  },
+  "hermes_ollama": {
+   "departamento": "local",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "ollama: responde"
+  },
+  "gemi": {
+   "departamento": "gemini",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "gemini: binario: C:\\Users\\forte\\AppData\\Local\\agy\\bin\\agy.EXE; sesión de agy (Google) iniciada; departamento EN OBRAS: Gemi está (agy responde) pero sin empleados: Flash y Pro, sillas vacías"
+  },
+  "mensajero": {
+   "departamento": "taller3d",
+   "detectado": false,
+   "silla": "vacía · sin instalar",
+   "motivo": "meshy: falta la clave en APIs (ponle de nombre 'meshy')"
+  },
+  "blender": {
+   "departamento": "especialistas",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "herramienta de Bridge: C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
+  },
+  "tripo": {
+   "departamento": "especialistas",
+   "detectado": true,
+   "silla": "ocupada",
+   "motivo": "skill de Bridge (C:\\Users\\forte\\growi-bridge\\skills\\tripo)"
+  }
+ },
+ "sillas_vacias_fijas": [
+  {
+   "silla": "silla_vacia_flash",
+   "departamento": "gemini",
+   "cartel": "Flash — por instalar"
+  },
+  {
+   "silla": "silla_vacia_pro",
+   "departamento": "gemini",
+   "cartel": "Pro — por instalar"
+  },
+  {
+   "silla": "silla_vacia_qwen",
+   "departamento": "local",
+   "cartel": "Qwen — en obras"
+  },
+  {
+   "silla": "silla_vacia_gemma",
+   "departamento": "local",
+   "cartel": "Gemma — en obras"
+  }
+ ],
+ "fuentes": {
+  "engines": "C:\\Users\\forte\\growi-bridge\\engines.json",
+  "runner_status": "C:\\Users\\forte\\growi-bridge\\share\\outbox\\runner-status.json",
+  "runner_status_edad_s": 42,
+  "skills": [
+   "aqualine",
+   "blender",
+   "canva",
+   "documentos-humanos",
+   "hypit",
+   "meta-ads",
+   "reverse-engineer-anything",
+   "summit-maker",
+   "tripo"
+  ]
+ }
+}

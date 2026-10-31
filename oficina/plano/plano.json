@@ -1,133 +1,946 @@
 {
   "_que_es": "Plano cenital de la oficina 0.5.0 (t-oficina-plano-050, spec 7 de 18). Solo datos: vale para Godot y Pygame-ce. Coordenadas en baldosas (rejilla.ancho x rejilla.alto); un rectangulo es {x, y, w, h}; un punto es [x, y]. Mesas, paredes, tablon, bandeja, mesa de despacho y puntos de interes son obstaculos; sillas y accesos son baldosas transitables. Lo valida validate_plano.py.",
   "version": 1,
-  "rejilla": {"ancho": 48, "alto": 30, "baldosa_px": 32, "vecindad": 4, "teletransporte": false},
-  "entrada": {"id": "entrada", "punto": [24, 29], "nota": "Por aqui aparece Leandro (presidente, avatar del jugador). Abajo, en el centro."},
+  "rejilla": {
+    "ancho": 48,
+    "alto": 30,
+    "baldosa_px": 32,
+    "vecindad": 4,
+    "teletransporte": false
+  },
+  "entrada": {
+    "id": "entrada",
+    "punto": [
+      24,
+      29
+    ],
+    "nota": "Por aqui aparece Leandro (presidente, avatar del jugador). Abajo, en el centro."
+  },
   "paredes": [
-    {"id": "pared_taller_oeste_a", "rect": {"x": 37, "y": 19, "w": 1, "h": 5}},
-    {"id": "pared_taller_oeste_b", "rect": {"x": 37, "y": 25, "w": 1, "h": 5}},
-    {"id": "pared_taller_norte", "rect": {"x": 38, "y": 19, "w": 10, "h": 1}},
-    {"id": "pared_gemini_oeste_a", "rect": {"x": 37, "y": 9, "w": 1, "h": 5}},
-    {"id": "pared_gemini_oeste_b", "rect": {"x": 37, "y": 15, "w": 1, "h": 4}},
-    {"id": "pared_gemini_norte", "rect": {"x": 38, "y": 9, "w": 10, "h": 1}},
-    {"id": "pared_bano_norte", "rect": {"x": 0, "y": 23, "w": 6, "h": 1}},
-    {"id": "pared_bano_este_a", "rect": {"x": 5, "y": 24, "w": 1, "h": 3}},
-    {"id": "pared_bano_este_b", "rect": {"x": 5, "y": 28, "w": 1, "h": 2}}
+    {
+      "id": "pared_taller_oeste_a",
+      "rect": {
+        "x": 37,
+        "y": 19,
+        "w": 1,
+        "h": 5
+      }
+    },
+    {
+      "id": "pared_taller_oeste_b",
+      "rect": {
+        "x": 37,
+        "y": 25,
+        "w": 1,
+        "h": 5
+      }
+    },
+    {
+      "id": "pared_taller_norte",
+      "rect": {
+        "x": 38,
+        "y": 19,
+        "w": 10,
+        "h": 1
+      }
+    },
+    {
+      "id": "pared_gemini_oeste_a",
+      "rect": {
+        "x": 37,
+        "y": 9,
+        "w": 1,
+        "h": 5
+      }
+    },
+    {
+      "id": "pared_gemini_oeste_b",
+      "rect": {
+        "x": 37,
+        "y": 15,
+        "w": 1,
+        "h": 4
+      }
+    },
+    {
+      "id": "pared_gemini_norte",
+      "rect": {
+        "x": 38,
+        "y": 9,
+        "w": 10,
+        "h": 1
+      }
+    },
+    {
+      "id": "pared_bano_norte",
+      "rect": {
+        "x": 0,
+        "y": 23,
+        "w": 6,
+        "h": 1
+      }
+    },
+    {
+      "id": "pared_bano_este_a",
+      "rect": {
+        "x": 5,
+        "y": 24,
+        "w": 1,
+        "h": 3
+      }
+    },
+    {
+      "id": "pared_bano_este_b",
+      "rect": {
+        "x": 5,
+        "y": 28,
+        "w": 1,
+        "h": 2
+      }
+    }
   ],
   "puertas": [
-    {"id": "puerta_taller", "punto": [37, 24]},
-    {"id": "puerta_gemini", "punto": [37, 14], "cartel": "En obras"},
-    {"id": "puerta_bano", "punto": [5, 27]}
+    {
+      "id": "puerta_taller",
+      "punto": [
+        37,
+        24
+      ]
+    },
+    {
+      "id": "puerta_gemini",
+      "punto": [
+        37,
+        14
+      ],
+      "cartel": "En obras"
+    },
+    {
+      "id": "puerta_bano",
+      "punto": [
+        5,
+        27
+      ]
+    }
   ],
   "departamentos": [
-    {"id": "gerencia", "nombre": "Gerencia", "zona": {"x": 0, "y": 0, "w": 12, "h": 8}, "estado": "activo"},
-    {"id": "claude", "nombre": "Claude", "zona": {"x": 15, "y": 0, "w": 15, "h": 9}, "estado": "activo"},
-    {"id": "codex", "nombre": "Codex", "zona": {"x": 38, "y": 0, "w": 10, "h": 9}, "estado": "activo"},
-    {"id": "local", "nombre": "Local", "zona": {"x": 0, "y": 10, "w": 15, "h": 10}, "estado": "activo"},
-    {"id": "gemini", "nombre": "Gemini", "zona": {"x": 38, "y": 10, "w": 10, "h": 9}, "estado": "en_obras",
-     "cartel": "Gemini — en obras", "polvo": true,
-     "nota": "Local vacio con cartel y polvo: agy no esta implementado. No se dibuja a nadie trabajando."},
-    {"id": "taller3d", "nombre": "Taller 3D", "zona": {"x": 38, "y": 20, "w": 10, "h": 10}, "estado": "activo",
-     "nota": "Aparte, tras su pared: sus encargos se hacen en la nube (Meshy) o fuera. Hay buzones y un mensajero (el sondeo del runner); nadie teclea aqui."},
-    {"id": "despacho", "nombre": "Despacho (Runa)", "zona": {"x": 18, "y": 11, "w": 12, "h": 11}, "estado": "activo"},
-    {"id": "especialistas", "nombre": "Sala de espera", "zona": {"x": 7, "y": 22, "w": 13, "h": 7}, "estado": "activo",
-     "nota": "Especialistas (skills) sin tarea: visibles y ociosos. Con tarea se sientan en el departamento que la ejecuta."}
+    {
+      "id": "gerencia",
+      "nombre": "Gerencia",
+      "zona": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "estado": "activo"
+    },
+    {
+      "id": "claude",
+      "nombre": "Claude",
+      "zona": {
+        "x": 15,
+        "y": 0,
+        "w": 15,
+        "h": 9
+      },
+      "estado": "activo"
+    },
+    {
+      "id": "codex",
+      "nombre": "Codex",
+      "zona": {
+        "x": 38,
+        "y": 0,
+        "w": 10,
+        "h": 9
+      },
+      "estado": "activo"
+    },
+    {
+      "id": "local",
+      "nombre": "Local",
+      "zona": {
+        "x": 0,
+        "y": 10,
+        "w": 15,
+        "h": 10
+      },
+      "estado": "activo"
+    },
+    {
+      "id": "gemini",
+      "nombre": "Gemini",
+      "zona": {
+        "x": 38,
+        "y": 10,
+        "w": 10,
+        "h": 9
+      },
+      "estado": "en_obras",
+      "cartel": "Gemini — en obras",
+      "polvo": true,
+      "nota": "Local vacio con cartel y polvo: agy no esta implementado. No se dibuja a nadie trabajando."
+    },
+    {
+      "id": "taller3d",
+      "nombre": "Taller 3D",
+      "zona": {
+        "x": 38,
+        "y": 20,
+        "w": 10,
+        "h": 10
+      },
+      "estado": "activo",
+      "nota": "Aparte, tras su pared: sus encargos se hacen en la nube (Meshy) o fuera. Hay buzones y un mensajero (el sondeo del runner); nadie teclea aqui."
+    },
+    {
+      "id": "despacho",
+      "nombre": "Despacho (Runa)",
+      "zona": {
+        "x": 18,
+        "y": 11,
+        "w": 12,
+        "h": 11
+      },
+      "estado": "activo"
+    },
+    {
+      "id": "especialistas",
+      "nombre": "Sala de espera",
+      "zona": {
+        "x": 7,
+        "y": 22,
+        "w": 13,
+        "h": 7
+      },
+      "estado": "activo",
+      "nota": "Especialistas (skills) sin tarea: visibles y ociosos. Con tarea se sientan en el departamento que la ejecuta."
+    }
   ],
   "mesas": [
-    {"id": "mesa_growi", "rect": {"x": 4, "y": 2, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "gerencia", "empleado": "growi"},
-    {"id": "mesa_clau", "rect": {"x": 16, "y": 2, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "claude", "empleado": "clau"},
-    {"id": "mesa_sonny", "rect": {"x": 21, "y": 2, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "claude", "empleado": "sonny"},
-    {"id": "mesa_opus", "rect": {"x": 25, "y": 2, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "claude", "empleado": "opus"},
-    {"id": "mesa_haiku", "rect": {"x": 27, "y": 6, "w": 2, "h": 1}, "tipo": "escritorio_pequeno", "tecleo": true, "departamento": "claude", "empleado": "haiku",
-     "nota": "Pasante: escritorio pequeno en la esquina de Claude."},
-    {"id": "mesa_cody", "rect": {"x": 40, "y": 2, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "codex", "empleado": "cody"},
-    {"id": "mesa_dex", "rect": {"x": 44, "y": 2, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "codex", "empleado": "dex"},
-    {"id": "mesa_luma", "rect": {"x": 2, "y": 11, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "local", "empleado": "luma"},
-    {"id": "mesa_hermes_directo", "rect": {"x": 6, "y": 11, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "local", "empleado": "hermes_directo"},
-    {"id": "mesa_hermes_ollama", "rect": {"x": 10, "y": 11, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": true, "departamento": "local", "empleado": "hermes_ollama"},
-    {"id": "mesa_gemi", "rect": {"x": 40, "y": 11, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": false, "departamento": "gemini", "empleado": "gemi",
-     "nota": "Lider de un departamento en obras: su mesa esta, pero sin motor detrás no teclea (spec 8 decide su estado)."},
-    {"id": "mesa_mensajero", "rect": {"x": 43, "y": 21, "w": 2, "h": 1}, "tipo": "mostrador_buzon", "tecleo": false, "departamento": "taller3d", "empleado": "mensajero",
-     "nota": "Mostrador del buzon de encargos, no un escritorio: el mensajero corre entre el buzon y los departamentos."},
-    {"id": "mesita_espera", "rect": {"x": 11, "y": 26, "w": 4, "h": 1}, "tipo": "mesita_sala_espera", "tecleo": false, "departamento": "especialistas", "empleado": null,
-     "compartida_por": ["blender", "tripo"]},
-    {"id": "mesa_vacia_flash", "rect": {"x": 44, "y": 11, "w": 2, "h": 2}, "tipo": "escritorio", "tecleo": false, "departamento": "gemini", "empleado": null},
-    {"id": "mesa_vacia_pro", "rect": {"x": 44, "y": 15, "w": 2, "h": 2}, "tipo": "escritorio", "tecleo": false, "departamento": "gemini", "empleado": null},
-    {"id": "mesa_vacia_qwen", "rect": {"x": 2, "y": 16, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": false, "departamento": "local", "empleado": null},
-    {"id": "mesa_vacia_gemma", "rect": {"x": 6, "y": 16, "w": 3, "h": 2}, "tipo": "escritorio", "tecleo": false, "departamento": "local", "empleado": null}
+    {
+      "id": "mesa_growi",
+      "rect": {
+        "x": 4,
+        "y": 2,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "gerencia",
+      "empleado": "growi"
+    },
+    {
+      "id": "mesa_clau",
+      "rect": {
+        "x": 16,
+        "y": 2,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "claude",
+      "empleado": "clau"
+    },
+    {
+      "id": "mesa_sonny",
+      "rect": {
+        "x": 21,
+        "y": 2,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "claude",
+      "empleado": "sonny"
+    },
+    {
+      "id": "mesa_opus",
+      "rect": {
+        "x": 25,
+        "y": 2,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "claude",
+      "empleado": "opus"
+    },
+    {
+      "id": "mesa_haiku",
+      "rect": {
+        "x": 27,
+        "y": 6,
+        "w": 2,
+        "h": 1
+      },
+      "tipo": "escritorio_pequeno",
+      "tecleo": true,
+      "departamento": "claude",
+      "empleado": "haiku",
+      "nota": "Pasante: escritorio pequeno en la esquina de Claude."
+    },
+    {
+      "id": "mesa_cody",
+      "rect": {
+        "x": 40,
+        "y": 2,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "codex",
+      "empleado": "cody"
+    },
+    {
+      "id": "mesa_dex",
+      "rect": {
+        "x": 44,
+        "y": 2,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "codex",
+      "empleado": "dex"
+    },
+    {
+      "id": "mesa_luma",
+      "rect": {
+        "x": 2,
+        "y": 11,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "local",
+      "empleado": "luma"
+    },
+    {
+      "id": "mesa_hermes_directo",
+      "rect": {
+        "x": 6,
+        "y": 11,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "local",
+      "empleado": "hermes_directo"
+    },
+    {
+      "id": "mesa_hermes_ollama",
+      "rect": {
+        "x": 10,
+        "y": 11,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": true,
+      "departamento": "local",
+      "empleado": "hermes_ollama"
+    },
+    {
+      "id": "mesa_gemi",
+      "rect": {
+        "x": 40,
+        "y": 11,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": false,
+      "departamento": "gemini",
+      "empleado": "gemi",
+      "nota": "Lider de un departamento en obras: su mesa esta, pero sin motor detrás no teclea (spec 8 decide su estado)."
+    },
+    {
+      "id": "mesa_mensajero",
+      "rect": {
+        "x": 43,
+        "y": 21,
+        "w": 2,
+        "h": 1
+      },
+      "tipo": "mostrador_buzon",
+      "tecleo": false,
+      "departamento": "taller3d",
+      "empleado": "mensajero",
+      "nota": "Mostrador del buzon de encargos, no un escritorio: el mensajero corre entre el buzon y los departamentos."
+    },
+    {
+      "id": "mesita_espera",
+      "rect": {
+        "x": 11,
+        "y": 26,
+        "w": 4,
+        "h": 1
+      },
+      "tipo": "mesita_sala_espera",
+      "tecleo": false,
+      "departamento": "especialistas",
+      "empleado": null,
+      "compartida_por": [
+        "blender",
+        "tripo"
+      ]
+    },
+    {
+      "id": "mesa_vacia_flash",
+      "rect": {
+        "x": 44,
+        "y": 11,
+        "w": 2,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": false,
+      "departamento": "gemini",
+      "empleado": null
+    },
+    {
+      "id": "mesa_vacia_pro",
+      "rect": {
+        "x": 44,
+        "y": 15,
+        "w": 2,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": false,
+      "departamento": "gemini",
+      "empleado": null
+    },
+    {
+      "id": "mesa_vacia_qwen",
+      "rect": {
+        "x": 2,
+        "y": 16,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": false,
+      "departamento": "local",
+      "empleado": null
+    },
+    {
+      "id": "mesa_vacia_gemma",
+      "rect": {
+        "x": 6,
+        "y": 16,
+        "w": 3,
+        "h": 2
+      },
+      "tipo": "escritorio",
+      "tecleo": false,
+      "departamento": "local",
+      "empleado": null
+    }
   ],
   "sillas": [
-    {"id": "silla_growi", "punto": [5, 4], "mesa": "mesa_growi", "empleado": "growi"},
-    {"id": "silla_clau", "punto": [17, 4], "mesa": "mesa_clau", "empleado": "clau"},
-    {"id": "silla_sonny", "punto": [22, 4], "mesa": "mesa_sonny", "empleado": "sonny"},
-    {"id": "silla_opus", "punto": [26, 4], "mesa": "mesa_opus", "empleado": "opus"},
-    {"id": "silla_haiku", "punto": [28, 7], "mesa": "mesa_haiku", "empleado": "haiku"},
-    {"id": "silla_cody", "punto": [41, 4], "mesa": "mesa_cody", "empleado": "cody"},
-    {"id": "silla_dex", "punto": [45, 4], "mesa": "mesa_dex", "empleado": "dex"},
-    {"id": "silla_luma", "punto": [3, 13], "mesa": "mesa_luma", "empleado": "luma"},
-    {"id": "silla_hermes_directo", "punto": [7, 13], "mesa": "mesa_hermes_directo", "empleado": "hermes_directo"},
-    {"id": "silla_hermes_ollama", "punto": [11, 13], "mesa": "mesa_hermes_ollama", "empleado": "hermes_ollama"},
-    {"id": "silla_gemi", "punto": [41, 13], "mesa": "mesa_gemi", "empleado": "gemi"},
-    {"id": "silla_mensajero", "punto": [44, 22], "mesa": "mesa_mensajero", "empleado": "mensajero", "tipo": "banco"},
-    {"id": "silla_blender", "punto": [12, 25], "mesa": "mesita_espera", "empleado": "blender", "tipo": "sillon_espera"},
-    {"id": "silla_tripo", "punto": [14, 25], "mesa": "mesita_espera", "empleado": "tripo", "tipo": "sillon_espera"},
-    {"id": "silla_vacia_flash", "punto": [45, 13], "mesa": "mesa_vacia_flash", "empleado": null, "cartel": "Flash — por instalar"},
-    {"id": "silla_vacia_pro", "punto": [45, 17], "mesa": "mesa_vacia_pro", "empleado": null, "cartel": "Pro — por instalar"},
-    {"id": "silla_vacia_qwen", "punto": [3, 18], "mesa": "mesa_vacia_qwen", "empleado": null, "cartel": "Qwen — en obras"},
-    {"id": "silla_vacia_gemma", "punto": [7, 18], "mesa": "mesa_vacia_gemma", "empleado": null, "cartel": "Gemma — en obras"},
-    {"id": "silla_vigilante", "punto": [27, 28], "mesa": null, "empleado": "vigilante", "tipo": "taburete_entrada",
-     "nota": "NPC del turno de noche, fuera de los 14."}
+    {
+      "id": "silla_growi",
+      "punto": [
+        5,
+        4
+      ],
+      "mesa": "mesa_growi",
+      "empleado": "growi"
+    },
+    {
+      "id": "silla_clau",
+      "punto": [
+        17,
+        4
+      ],
+      "mesa": "mesa_clau",
+      "empleado": "clau"
+    },
+    {
+      "id": "silla_sonny",
+      "punto": [
+        22,
+        4
+      ],
+      "mesa": "mesa_sonny",
+      "empleado": "sonny"
+    },
+    {
+      "id": "silla_opus",
+      "punto": [
+        26,
+        4
+      ],
+      "mesa": "mesa_opus",
+      "empleado": "opus"
+    },
+    {
+      "id": "silla_haiku",
+      "punto": [
+        28,
+        7
+      ],
+      "mesa": "mesa_haiku",
+      "empleado": "haiku"
+    },
+    {
+      "id": "silla_cody",
+      "punto": [
+        41,
+        4
+      ],
+      "mesa": "mesa_cody",
+      "empleado": "cody"
+    },
+    {
+      "id": "silla_dex",
+      "punto": [
+        45,
+        4
+      ],
+      "mesa": "mesa_dex",
+      "empleado": "dex"
+    },
+    {
+      "id": "silla_luma",
+      "punto": [
+        3,
+        13
+      ],
+      "mesa": "mesa_luma",
+      "empleado": "luma"
+    },
+    {
+      "id": "silla_hermes_directo",
+      "punto": [
+        7,
+        13
+      ],
+      "mesa": "mesa_hermes_directo",
+      "empleado": "hermes_directo"
+    },
+    {
+      "id": "silla_hermes_ollama",
+      "punto": [
+        11,
+        13
+      ],
+      "mesa": "mesa_hermes_ollama",
+      "empleado": "hermes_ollama"
+    },
+    {
+      "id": "silla_gemi",
+      "punto": [
+        41,
+        13
+      ],
+      "mesa": "mesa_gemi",
+      "empleado": "gemi"
+    },
+    {
+      "id": "silla_mensajero",
+      "punto": [
+        44,
+        22
+      ],
+      "mesa": "mesa_mensajero",
+      "empleado": "mensajero",
+      "tipo": "banco"
+    },
+    {
+      "id": "silla_blender",
+      "punto": [
+        12,
+        25
+      ],
+      "mesa": "mesita_espera",
+      "empleado": "blender",
+      "tipo": "sillon_espera"
+    },
+    {
+      "id": "silla_tripo",
+      "punto": [
+        14,
+        25
+      ],
+      "mesa": "mesita_espera",
+      "empleado": "tripo",
+      "tipo": "sillon_espera"
+    },
+    {
+      "id": "silla_vacia_flash",
+      "punto": [
+        45,
+        13
+      ],
+      "mesa": "mesa_vacia_flash",
+      "empleado": null,
+      "cartel": "Flash — por instalar"
+    },
+    {
+      "id": "silla_vacia_pro",
+      "punto": [
+        45,
+        17
+      ],
+      "mesa": "mesa_vacia_pro",
+      "empleado": null,
+      "cartel": "Pro — por instalar"
+    },
+    {
+      "id": "silla_vacia_qwen",
+      "punto": [
+        3,
+        18
+      ],
+      "mesa": "mesa_vacia_qwen",
+      "empleado": null,
+      "cartel": "Qwen — en obras"
+    },
+    {
+      "id": "silla_vacia_gemma",
+      "punto": [
+        7,
+        18
+      ],
+      "mesa": "mesa_vacia_gemma",
+      "empleado": null,
+      "cartel": "Gemma — en obras"
+    },
+    {
+      "id": "silla_vigilante",
+      "punto": [
+        27,
+        28
+      ],
+      "mesa": null,
+      "empleado": "vigilante",
+      "tipo": "taburete_entrada",
+      "nota": "NPC del turno de noche (coordinador nocturno), fuera de los 14. Gorra, linterna y llaves; su color está POR DEFINIR con Leandro (distinto del ámbar del gerente).",
+      "cartel": "Turno de noche"
+    }
   ],
   "personal": {
     "_que_es": "Los 14 personajes (PALETA-Y-SKINS: lideres con corbata, empleados sin ella). Leandro (jugador), Runa (subgerente) y el vigilante quedan fuera.",
     "personajes": [
-      {"id": "growi", "rol": "gerente", "departamento": "gerencia"},
-      {"id": "clau", "rol": "lider", "departamento": "claude"},
-      {"id": "sonny", "rol": "empleado", "departamento": "claude"},
-      {"id": "opus", "rol": "empleado", "departamento": "claude"},
-      {"id": "haiku", "rol": "pasante", "departamento": "claude"},
-      {"id": "cody", "rol": "lider", "departamento": "codex"},
-      {"id": "dex", "rol": "empleado", "departamento": "codex"},
-      {"id": "luma", "rol": "lider", "departamento": "local"},
-      {"id": "hermes_directo", "rol": "empleado", "departamento": "local"},
-      {"id": "hermes_ollama", "rol": "empleado", "departamento": "local"},
-      {"id": "gemi", "rol": "lider", "departamento": "gemini"},
-      {"id": "mensajero", "rol": "empleado", "departamento": "taller3d"},
-      {"id": "blender", "rol": "especialista", "departamento": "especialistas"},
-      {"id": "tripo", "rol": "especialista", "departamento": "especialistas"}
+      {
+        "id": "growi",
+        "rol": "gerente",
+        "departamento": "gerencia"
+      },
+      {
+        "id": "clau",
+        "rol": "lider",
+        "departamento": "claude"
+      },
+      {
+        "id": "sonny",
+        "rol": "empleado",
+        "departamento": "claude"
+      },
+      {
+        "id": "opus",
+        "rol": "empleado",
+        "departamento": "claude"
+      },
+      {
+        "id": "haiku",
+        "rol": "pasante",
+        "departamento": "claude"
+      },
+      {
+        "id": "cody",
+        "rol": "lider",
+        "departamento": "codex"
+      },
+      {
+        "id": "dex",
+        "rol": "empleado",
+        "departamento": "codex"
+      },
+      {
+        "id": "luma",
+        "rol": "lider",
+        "departamento": "local"
+      },
+      {
+        "id": "hermes_directo",
+        "rol": "empleado",
+        "departamento": "local"
+      },
+      {
+        "id": "hermes_ollama",
+        "rol": "empleado",
+        "departamento": "local"
+      },
+      {
+        "id": "gemi",
+        "rol": "lider",
+        "departamento": "gemini"
+      },
+      {
+        "id": "mensajero",
+        "rol": "empleado",
+        "departamento": "taller3d"
+      },
+      {
+        "id": "blender",
+        "rol": "especialista",
+        "departamento": "especialistas"
+      },
+      {
+        "id": "tripo",
+        "rol": "especialista",
+        "departamento": "especialistas"
+      }
     ],
     "fuera_del_personal": [
-      {"id": "leandro", "rol": "presidente", "aparece_en": "entrada"},
-      {"id": "runa", "rol": "subgerente", "puesto": "mesa_despacho", "silla_fija": false},
-      {"id": "vigilante", "rol": "vigilante_noche", "puesto": "silla_vigilante"}
+      {
+        "id": "leandro",
+        "rol": "presidente",
+        "aparece_en": "entrada"
+      },
+      {
+        "id": "runa",
+        "rol": "subgerente",
+        "puesto": "mesa_despacho",
+        "silla_fija": false
+      },
+      {
+        "id": "vigilante",
+        "rol": "vigilante_noche",
+        "puesto": "silla_vigilante"
+      }
     ]
   },
   "despacho": {
-    "mesa": {"id": "mesa_despacho", "rect": {"x": 21, "y": 13, "w": 6, "h": 2}, "de": "runa", "silla_fija": false,
-             "tablero_cola": {"punto": [23, 13], "nota": "El tablero de la cola sobre la mesa (lo lleva tambien en la tableta)."}},
-    "bandeja_entrada": {"id": "bandeja_entrada", "rect": {"x": 23, "y": 19, "w": 2, "h": 1},
-                        "nota": "Entre la entrada y la mesa de Runa: lo que llega pasa por aqui antes de ir a los puestos."}
+    "mesa": {
+      "id": "mesa_despacho",
+      "rect": {
+        "x": 21,
+        "y": 13,
+        "w": 6,
+        "h": 2
+      },
+      "de": "runa",
+      "silla_fija": false,
+      "tablero_cola": {
+        "punto": [
+          23,
+          13
+        ],
+        "nota": "El tablero de la cola sobre la mesa (lo lleva tambien en la tableta)."
+      }
+    },
+    "bandeja_entrada": {
+      "id": "bandeja_entrada",
+      "rect": {
+        "x": 23,
+        "y": 19,
+        "w": 2,
+        "h": 1
+      },
+      "nota": "Entre la entrada y la mesa de Runa: lo que llega pasa por aqui antes de ir a los puestos."
+    }
   },
-  "tablon": {"id": "tablon", "rect": {"x": 12, "y": 0, "w": 3, "h": 1}, "frente": [[12, 1], [13, 1], [14, 1]],
-             "columnas": ["en curso", "pendientes", "esperando aprobación"],
-             "nota": "Junto a la oficina del gerente: lo mantiene el."},
-  "telefono": {"id": "telefono", "punto": [6, 2], "en_mesa": "mesa_growi",
-               "nota": "Solo en la mesa del gerente: llamar es hablar con el orquestador, no con un motor."},
+  "tablon": {
+    "id": "tablon",
+    "rect": {
+      "x": 12,
+      "y": 0,
+      "w": 3,
+      "h": 1
+    },
+    "frente": [
+      [
+        12,
+        1
+      ],
+      [
+        13,
+        1
+      ],
+      [
+        14,
+        1
+      ]
+    ],
+    "columnas": [
+      "en curso",
+      "pendientes",
+      "esperando aprobación"
+    ],
+    "nota": "Junto a la oficina del gerente: lo mantiene el."
+  },
+  "telefono": {
+    "id": "telefono",
+    "punto": [
+      6,
+      2
+    ],
+    "en_mesa": "mesa_growi",
+    "nota": "Solo en la mesa del gerente: llamar es hablar con el orquestador, no con un motor."
+  },
   "taller3d": {
     "buzones": [
-      {"id": "buzon_meshy", "rect": {"x": 39, "y": 21, "w": 1, "h": 1}, "motor": "meshy", "acceso": [[39, 22]]},
-      {"id": "buzon_tripo", "rect": {"x": 41, "y": 21, "w": 1, "h": 1}, "motor": "tripo", "acceso": [[41, 22]],
-       "nota": "Duda 16: Tripo como motor o como skill sin decidir; el buzon existe, el encaje no."}
+      {
+        "id": "buzon_meshy",
+        "rect": {
+          "x": 39,
+          "y": 21,
+          "w": 1,
+          "h": 1
+        },
+        "motor": "meshy",
+        "acceso": [
+          [
+            39,
+            22
+          ]
+        ]
+      },
+      {
+        "id": "buzon_tripo",
+        "rect": {
+          "x": 41,
+          "y": 21,
+          "w": 1,
+          "h": 1
+        },
+        "motor": "tripo",
+        "acceso": [
+          [
+            41,
+            22
+          ]
+        ],
+        "nota": "Duda 16: Tripo como motor o como skill sin decidir; el buzon existe, el encaje no."
+      }
     ],
-    "mensajero": {"empleado": "mensajero", "ruta": ["buzon_meshy", "buzon_tripo", "puerta_taller", "mesa_despacho"],
-                  "nota": "El sondeo del runner: corre entre los buzones y el despacho. Nadie teclea mientras Meshy genera en su nube."}
+    "mensajero": {
+      "empleado": "mensajero",
+      "ruta": [
+        "buzon_meshy",
+        "buzon_tripo",
+        "puerta_taller",
+        "mesa_despacho"
+      ],
+      "nota": "El sondeo del runner: corre entre los buzones y el despacho. Nadie teclea mientras Meshy genera en su nube."
+    }
   },
   "puntos_interes": [
-    {"id": "cafe", "nombre": "Máquina de café", "rect": {"x": 31, "y": 18, "w": 2, "h": 1}, "capacidad": 2, "acceso": [[31, 19], [32, 19]]},
-    {"id": "ventana", "nombre": "Ventana", "rect": {"x": 32, "y": 0, "w": 3, "h": 1}, "capacidad": 2, "acceso": [[32, 1], [34, 1]]},
-    {"id": "bano", "nombre": "Baño", "rect": {"x": 1, "y": 25, "w": 2, "h": 2}, "capacidad": 1, "acceso": [[2, 27]]},
-    {"id": "planta", "nombre": "Planta", "rect": {"x": 16, "y": 21, "w": 1, "h": 1}, "capacidad": 1, "acceso": [[16, 22]]},
-    {"id": "pasillo", "nombre": "Mesa del pasillo", "rect": {"x": 30, "y": 24, "w": 3, "h": 2}, "capacidad": 3, "acceso": [[29, 24], [33, 25], [31, 26]]}
+    {
+      "id": "cafe",
+      "nombre": "Máquina de café",
+      "rect": {
+        "x": 31,
+        "y": 18,
+        "w": 2,
+        "h": 1
+      },
+      "capacidad": 2,
+      "acceso": [
+        [
+          31,
+          19
+        ],
+        [
+          32,
+          19
+        ]
+      ]
+    },
+    {
+      "id": "ventana",
+      "nombre": "Ventana",
+      "rect": {
+        "x": 32,
+        "y": 0,
+        "w": 3,
+        "h": 1
+      },
+      "capacidad": 2,
+      "acceso": [
+        [
+          32,
+          1
+        ],
+        [
+          34,
+          1
+        ]
+      ]
+    },
+    {
+      "id": "bano",
+      "nombre": "Baño",
+      "rect": {
+        "x": 1,
+        "y": 25,
+        "w": 2,
+        "h": 2
+      },
+      "capacidad": 1,
+      "acceso": [
+        [
+          2,
+          27
+        ]
+      ]
+    },
+    {
+      "id": "planta",
+      "nombre": "Planta",
+      "rect": {
+        "x": 16,
+        "y": 21,
+        "w": 1,
+        "h": 1
+      },
+      "capacidad": 1,
+      "acceso": [
+        [
+          16,
+          22
+        ]
+      ]
+    },
+    {
+      "id": "pasillo",
+      "nombre": "Mesa del pasillo",
+      "rect": {
+        "x": 30,
+        "y": 24,
+        "w": 3,
+        "h": 2
+      },
+      "capacidad": 3,
+      "acceso": [
+        [
+          29,
+          24
+        ],
+        [
+          33,
+          25
+        ],
+        [
+          31,
+          26
+        ]
+      ]
+    }
   ],
   "puntos_que_no_hay": [],
   "_nota_puntos": "Si falta algun punto de interes, va en puntos_que_no_hay con su motivo y las actividades de vagancia que dependen de el no existen (spec 15). Hoy estan los 5."
