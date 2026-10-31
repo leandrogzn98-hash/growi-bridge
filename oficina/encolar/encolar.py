@@ -71,13 +71,17 @@ def cargar_app(ruta=None):
     return gb
 
 
-def encolar(prompt, criterios=None, model=None, ruta_app=None, origen="oficina", urgente=False):
+def encolar(prompt, criterios=None, model=None, ruta_app=None, origen="oficina", urgente=False,
+            despues_de=None):
     """Encola como «Pedirle algo». -> dict de encolar_tarea() (ok, id, archivo,
     engine, data, error). Nunca lanza por un encargo malo: ok False + error."""
     try:
         gb = cargar_app(ruta_app)
     except EncolarNoDisponible as e:
         return {"ok": False, "error": str(e)}
+    if despues_de:  # t-oficina-paseo-050
+        return gb.encolar_tarea(prompt, criterios, model=model, origen=origen, urgente=urgente,
+                                despues_de=despues_de)
     if urgente:  # t-oficina-llamadas-050
         return gb.encolar_tarea(prompt, criterios, model=model, origen=origen, urgente=True)
     return gb.encolar_tarea(prompt, criterios, model=model, origen=origen)

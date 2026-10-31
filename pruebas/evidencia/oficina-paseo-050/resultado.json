@@ -1,0 +1,177 @@
+{
+ "a_movimiento": {
+  "pasos": 47,
+  "saltos": [],
+  "pisa_obstaculos": [],
+  "segundos_hasta_dex": 15.33,
+  "velocidad_baldosas_s": 3.0,
+  "camara_dentro": true,
+  "wasd_contra_pared": false,
+  "ok": true
+ },
+ "b_proximidad": {
+  "al_acercarse": {
+   "sonny": "endereza la espalda y mira su pantalla vacía",
+   "dex": "endereza la espalda y hojea sus papeles",
+   "opus": "teclea más rápido",
+   "haiku": "levanta la mano un poco más y te mira",
+   "growi": "levanta la vista del tablón y asiente"
+  },
+  "a_los_11s": {},
+  "al_volver": [
+   "dex",
+   "growi",
+   "haiku",
+   "opus",
+   "sonny"
+  ],
+  "ok": true
+ },
+ "c_ficha": "Sonnet (Depto. Claude) — trabajando · Tarea: t-1 · ronda 0/3",
+ "f_tabla": {
+  "sin_tarea": [
+   "crear",
+   null
+  ],
+  "dormir": [
+   "despertar",
+   "(se despierta con un sobresalto y se estira)"
+  ],
+  "trabajando": [
+   "crear_detras",
+   "Estoy con t-9; lo tuyo va detrás (posición 2 de 3)."
+  ],
+  "en_cola": [
+   "crear_detras",
+   "Estoy con t-9; lo tuyo va detrás (posición 2 de 3)."
+  ],
+  "en_revision": [
+   "crear_detras",
+   "Estoy con t-9; lo tuyo va detrás (posición 2 de 3)."
+  ],
+  "en_ronda": [
+   "crear_detras",
+   "Estoy con t-9; lo tuyo va detrás (posición 2 de 3)."
+  ],
+  "esperando_aprobacion": [
+   "rechazar",
+   "No puedo: tengo t-9 esperando tu aprobación. Apruébala o recházala en el tablón y seguimos. (Puedes decir «después de esto».)"
+  ],
+  "en_pausa": [
+   "crear_detras",
+   "Estoy con t-9; lo tuyo va detrás (posición 2 de 3)."
+  ],
+  "terminado": [
+   "crear",
+   null
+  ],
+  "fallido": [
+   "crear",
+   null
+  ],
+  "sin_senal": [
+   "sin_senal",
+   "Sin señal: no sé si este agente está."
+  ],
+  "esperando_aprobacion+despues": [
+   "crear_despues",
+   "Queda en cola para después de la revisión."
+  ]
+ },
+ "f_ok": true,
+ "frases_sin_repetir": true,
+ "recordatorios": {
+  "4min": [],
+  "6min": [
+   [
+    "bocadillo",
+    "Te espero en revisión."
+   ]
+  ],
+  "7min": [],
+  "31min": [
+   [
+    "bocadillo",
+    "Te espero en revisión."
+   ],
+   [
+    "toast",
+    "Hay una tarea esperando tu aprobación desde hace 30 min."
+   ]
+  ],
+  "40min": [
+   [
+    "bocadillo",
+    "Te espero en revisión."
+   ]
+  ]
+ },
+ "d_pregunta_sonnet": {
+  "pedido": {
+   "accion": "crear",
+   "frase": null,
+   "id": "t-20261030-234406",
+   "nombre": "Sonnet",
+   "modo": "preguntar"
+  },
+  "estados": [
+   "en_cola",
+   "en_curso",
+   "terminada"
+  ],
+  "bocadillo": {
+   "texto": "Sonnet dice: La capital de Francia es París. · $0.0523",
+   "ver_completo": false,
+   "detalle": {
+    "result": "La capital de Francia es París.",
+    "cost_usd": 0.0523206,
+    "num_turns": 1,
+    "session_id": "3f88e7b3-37f9-4a3b-827f-867282bc8cf4",
+    "status": "ok"
+   }
+  },
+  "task_model": "sonnet",
+  "task_criterios": null,
+  "ok": true
+ },
+ "e_tarea_ollama": {
+  "pedido": {
+   "accion": "crear",
+   "frase": null,
+   "id": "t-20261030-234536",
+   "nombre": "Hermes Ollama",
+   "modo": "tarea"
+  },
+  "frase_antes_de_existir": null,
+  "frase_al_existir": "Me pongo en ello.",
+  "motor_del_task": "ollama",
+  "ok": true
+ },
+ "g_despues_de_esto": {
+  "rechazo": {
+   "accion": "rechazar",
+   "frase": "No puedo: tengo t-20261030-234553 esperando tu aprobación. Apruébala o recházala en el tablón y seguimos. (Puedes decir «después de esto».)",
+   "id": null
+  },
+  "pedido": {
+   "accion": "crear_despues",
+   "frase": "Queda en cola para después de la revisión.",
+   "id": "t-20261030-234557",
+   "nombre": "Hermes Ollama",
+   "modo": "tarea"
+  },
+  "estado_10s_con_aprobacion_pendiente": "en_cola",
+  "aprobada": [
+   true,
+   "aprobada; vuelve a la cola"
+  ],
+  "estados_tras_aprobar": [
+   "en_cola",
+   "en_curso",
+   "terminada"
+  ],
+  "corre_despues_de_la_pendiente": true,
+  "ok": true
+ },
+ "todo_ok": true
+}

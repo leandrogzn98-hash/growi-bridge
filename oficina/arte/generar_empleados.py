@@ -45,6 +45,10 @@ EMPLEADOS = {
     "hermes_ollama": {"nombre": "Hermes Ollama", "departamento": "local", "plataforma": "Ollama", "rol": "empleado",
                       "pelo": "corto", "colores": {"pelo": "#232323", "ropa": "#9A6AD0", "piel": "#E0B48A"},
                       "notas": "Camisa morada, gorra blanca. Mismo modelo que Hermes Directo, distinto proceso."},
+    "leandro": {"nombre": "Leandro", "departamento": "gerencia", "plataforma": "—", "rol": "presidente",
+                "pelo": "corto", "colores": {"pelo": "#2E2A26", "ropa": "#052048", "piel": "#E0B48A"},
+                "notas": "El dueño (avatar del jugador), fuera de los 14: camisa azul Summit #052048, jeans oscuros, "
+                         "zapatillas blancas, pelo corto oscuro, rasgos neutros (sin intento de parecido). Sin corbata."},
     "mensajero": {"nombre": "Mensajero 3D", "departamento": "taller3d", "plataforma": "Meshy (sondeo del runner)",
                   "rol": "empleado", "pelo": "corto", "colores": {"pelo": "#4A3324", "ropa": "#B08A60", "piel": "#C68E62"},
                   "notas": "Gorra marrón + bandolera de mensajero; corre entre el buzón y los departamentos (es el sondeo del runner)."},
@@ -109,6 +113,9 @@ def accesorio(sid, anims, manos):
             if sid == "hermes_directo":  # chip dorado en el pecho
                 r(14, t + 3, 17, t + 6, (212, 175, 55, 255))
                 r(15, t + 4, 16, t + 5, (150, 120, 30, 255))
+            if sid == "leandro":  # zapatillas blancas
+                r(10, 46, 14, 47, (247, 247, 247, 255))
+                r(17, 46, 21, 47, (247, 247, 247, 255))
             if sid == "mensajero":  # bandolera
                 for k in range(0, 12):
                     px(10 + k, t + 1 + k, (90, 60, 35, 255))

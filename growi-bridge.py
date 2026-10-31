@@ -19892,7 +19892,7 @@ def runner_loop(stop_event):
                 try:
                     if now - p.stat().st_mtime >= 2 and not _is_model_task(p):
                         _cola_ver(p)  # se apunta en cola.db antes de recogerla
-                        if p.name not in espera:
+                        if p.name not in espera and not _espera_aprobacion_de(p):
                             candidates.append(p)
                 except OSError:
                     continue
@@ -19908,6 +19908,23 @@ def runner_loop(stop_event):
             log(f"runner ERROR en el loop (se sigue): {type(e).__name__}: {e}")
         stop_event.wait(POLL_SECONDS)
     log("runner: parado")
+
+
+def _espera_aprobacion_de(path):
+    """t-oficina-paseo-050: True si la tarea es «después de» otra que sigue esperando aprobacion."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    dep = data.get("despues_de") if isinstance(data, dict) else None
+    if not dep:
+        return False
+    if (WAITING / f"{dep}.task.json").exists():
+        return True
+    fila = cola_get(str(dep)) or {}
+    # «después de esto» = después de ESA tarea: mientras espera aprobación y, si se aprueba, hasta que
+    # termine (al aprobarla vuelve a la cola con mtime nuevo y si no, la de «después» se le colaba).
+    return fila.get("estado") in ("esperando_aprobacion", "esperando_leandro", "en_cola", "en_curso")
 
 
 def _is_urgent_task(path):
@@ -28907,7 +28924,8 @@ def _modelo_por_defecto():
         return "sonnet"
 
 
-def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app", urgente=False):
+def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app", urgente=False,
+                  despues_de=None):
     """Encola una tarea como «Pedirle algo». -> {"ok", "id", "archivo", "engine",
     "data", "error"}. model = el «model» del task que da el desplegable («sonnet»,
     «opus», «haiku», «motor:auto», «motor:llama», «ollama:<nombre>»...); sin model
@@ -28961,6 +28979,10 @@ def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app",
         data["criterios"] = criterios
     if urgente:  # t-oficina-llamadas-050: adelanta en la cola, nunca interrumpe la tarea en curso
         data["urgente"] = True
+    if despues_de:  # t-oficina-paseo-050: «después de esto», espera a que se resuelva esa aprobacion
+        if not _safe_id(str(despues_de)):
+            return {"ok": False, "error": f"despues_de no válido: {despues_de}"}
+        data["despues_de"] = str(despues_de)
     # Escritura atomica y exclusiva: se escribe aparte (.tmp, que el runner no
     # mira: solo busca *.task.json) y se renombra; en Windows os.rename falla si
     # el nombre ya existe, asi que dos procesos que encolan en el mismo segundo
