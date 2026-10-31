@@ -1,0 +1,23 @@
+{
+  "id": "ventas-semana",
+  "nombre": "Ventas de la semana (borrador)",
+  "descripcion": "Prospectar de tu lista → redactar propuestas → plan de seguimiento. Todo en borrador: nada se envía (0.5.2, componente 5).",
+  "parametros": [
+    {"nombre": "lista", "pregunta": "¿Qué CSV de prospectos uso?", "por_defecto": "lista.csv"},
+    {"nombre": "nicho", "pregunta": "¿A qué nicho le vendemos?"},
+    {"nombre": "oferta", "pregunta": "¿Qué ofrecemos?", "por_defecto": "[PENDIENTE: oferta]"}
+  ],
+  "motor": "haiku",
+  "al_fallar": "pedir_decision",
+  "cwd": "",
+  "pasos": [
+    {"id": "prospectar", "titulo": "Prospectar", "skill": "prospectar",
+     "entradas": {"lista": "{lista}", "nicho": "{nicho}", "cuantos": "5"},
+     "prompt": "Prospecta con la skill «prospectar»: lista {lista}, nicho {nicho}. Solo la lista; no busques en internet."},
+    {"id": "propuestas", "titulo": "Redactar propuestas", "skill": "redactar-propuesta",
+     "entradas": {"oferta": "{oferta}", "cuantas": "3"},
+     "prompt": "Redacta en borrador las propuestas con la skill «redactar-propuesta» para la oferta: {oferta}. No envíes nada."},
+    {"id": "seguimiento", "titulo": "Plan de seguimiento", "skill": "seguimiento", "entradas": {"dias": "3"},
+     "prompt": "Prepara el plan de seguimiento con la skill «seguimiento». Nada se envía ni se agenda."}
+  ]
+}

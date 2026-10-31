@@ -18308,6 +18308,8 @@ def encolar_workflow(wid, parametros=None, confirmado=False, origen="app"):
                 for k in ("acciones", "revisar", "skill", "entradas"):  # skill: t-skills-unidades-052
                     if k in p:
                         f[k] = p[k]
+                if isinstance(f.get("entradas"), dict):  # t-agente-ventas-052: {param} tambien en las entradas
+                    f["entradas"] = {str(k): _wf_rellenar(str(v), valores) for k, v in f["entradas"].items()}
                 fases.append(f)
             data = {"id": pid, "cwd": str(cwd), "fases": fases,
                     "workflow": {"id": wid, "nombre": wf["nombre"], "huella": wf["huella"], "parametros": valores,

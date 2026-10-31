@@ -1,0 +1,246 @@
+{
+ "perfil_y_skills": {
+  "perfil": {
+   "nombre": "Ventas",
+   "skills": [
+    "prospectar",
+    "redactar-propuesta",
+    "seguimiento"
+   ],
+   "guardrail": "siempre",
+   "carpetas": [
+    [
+     "C:\\Users\\forte\\growi-bridge\\ventas",
+     "escritura"
+    ]
+   ]
+  },
+  "skills": {
+   "prospectar": [
+    [
+     {
+      "nombre": "lista",
+      "pregunta": "¿Qué archivo CSV de la carpeta uso como fuente?",
+      "por_defecto": "lista.csv"
+     },
+     {
+      "nombre": "nicho",
+      "pregunta": "¿A qué nicho le vendemos?",
+      "por_defecto": null
+     },
+     {
+      "nombre": "ciudad",
+      "pregunta": "¿En qué ciudad o zona?",
+      "por_defecto": "cualquiera"
+     },
+     {
+      "nombre": "cuantos",
+      "pregunta": "¿Cuántos prospectos como máximo?",
+      "por_defecto": "10"
+     }
+    ],
+    [
+     "prospectos.csv"
+    ]
+   ],
+   "redactar-propuesta": [
+    [
+     {
+      "nombre": "oferta",
+      "pregunta": "¿Qué ofrecemos? (servicio y para quién)",
+      "por_defecto": "[PENDIENTE: oferta]"
+     },
+     {
+      "nombre": "cuantas",
+      "pregunta": "¿Para cuántos prospectos (los de mayor prioridad)?",
+      "por_defecto": "3"
+     }
+    ],
+    [
+     "propuestas.md"
+    ]
+   ],
+   "seguimiento": [
+    [
+     {
+      "nombre": "dias",
+      "pregunta": "¿Cada cuántos días se hace seguimiento?",
+      "por_defecto": "3"
+     }
+    ],
+    [
+     "seguimiento.md"
+    ]
+   ]
+  },
+  "estado_skills": [
+   [
+    {
+     "origen": "propia",
+     "origen_txt": "propia",
+     "carpeta": "C:\\Users\\forte\\growi-bridge\\_prueba-agente-ventas-052\\app\\skills\\prospectar",
+     "rel": "prospectar",
+     "archivo": "C:\\Users\\forte\\growi-bridge\\_prueba-agente-ventas-052\\app\\skills\\prospectar\\SKILL.md",
+     "estado": "ok",
+     "motivos": [],
+     "avisos": [],
+     "secretos": [],
+     "name": "prospectar",
+     "description": "Prospección comercial en borrador: filtra y prioriza prospectos de una lista CSV que el usuario deja en la carpeta, según nicho y ciudad, y escribe prospectos.csv con el motivo de cada uno. Sin raspar webs ni servicios de pago; nunca contacta a nadie.",
+     "version": "0.1.0",
+     "requires": {
+      "env": [],
+      "bins": [],
+      "primaryEnv": null
+     },
+     "bytes": 1620,
+     "mtime": 1793421442.866047,
+     "sha": "3b84553b04003b3f",
+     "entradas": [
+      {
+       "nombre": "lista",
+       "pregunta": "¿Qué archivo CSV de la carpeta uso como fuente?",
+       "por_defecto": "lista.csv"
+      },
+      {
+       "nombre": "nicho",
+       "pregunta": "¿A qué nicho le vendemos?",
+       "por_defecto": null
+      },
+      {
+       "nombre": "ciudad",
+       "pregunta": "¿En qué ciudad o zona?",
+       "por_defecto": "cualquiera"
+      },
+      {
+       "nombre": "cuantos",
+       "pregunta": "¿Cuántos prospectos como máximo?",
+       "por_defecto": "10"
+      }
+     ],
+     "salidas": [
+      "prospectos.csv"
+     ],
+     "_tok": "{'escrib', 'deja', 'raspar', 'nicho', 'ciudad', 'nadie', 'nunca', 'pago', 'carpet', 'motivo', 'servic', 'lista', 'borrad', 'priori', 'usuari', 'contac', 'filtra', 'comerc', 'prospe', 'webs'}"
+    },
+    {
+     "origen": "propia",
+     "origen_txt": "propia",
+     "carpeta": "C:\\Users\\forte\\growi-bridge\\_prueba-agente-ventas-052\\app\\skills\\redactar-propuesta",
+     "rel": "redactar-propuesta",
+     "archivo": "C:\\Users\\forte\\growi-bridge\\_prueba-agente-ventas-052\\app\\skills\\redactar-propuesta\\SKILL.md",
+     "estado": "ok",
+     "motivos": [],
+     "avisos": [],
+     "secretos": [],
+     "name": "redactar-propuesta",
+     "description": "Redacta propuestas comerciales en borrador, una por prospecto de prospectos.csv: mensaje corto y una propuesta en Markdown con la oferta que dé el usuario, sin precios ni casos inventados. Nunca envía: solo deja archivos para revisar.",
+     "version": "0.1.0",
+     "requires": {
+      "env": [],
+      "bins": [],
+      "primaryEnv": null
+     },
+     "bytes": 1633,
+     "mtime": 1793421443.2130551,
+     "sha": "ab16954fb8892975",
+     "entradas": [
+      {
+       "nombre": "oferta",
+       "pregunta": "¿Qué ofrecemos? (servicio y para quién)",
+       "por_defecto": "[PENDIENTE: oferta]"
+      },
+      {
+       "nombre": "cuantas",
+       "pregunta": "¿Para cuántos prospectos (los de mayor prioridad)?",
+       "por_defecto": "3"
+      }
+     ],
+     "salidas": [
+      "propuestas.md"
+     ],
+     "_tok": "{'casos', 'nunca', 'propue', 'envia', 'archiv', 'comerc', 'corto', 'borrad', 'prospe', 'deja', 'usuari', 'mensaj', 'precio', 'revisa', 'invent', 'oferta', 'markdo', 'redact'}"
+    },
+    {
+     "origen": "propia",
+     "origen_txt": "propia",
+     "carpeta": "C:\\Users\\forte\\growi-bridge\\_prueba-agente-ventas-052\\app\\skills\\seguimiento",
+     "rel": "seguimiento",
+     "archivo": "C:\\Users\\forte\\growi-bridge\\_prueba-agente-ventas-052\\app\\skills\\seguimiento\\SKILL.md",
+     "estado": "ok",
+     "motivos": [],
+     "avisos": [],
+     "secretos": [],
+     "name": "seguimiento",
+     "description": "Plan de seguimiento comercial en borrador: a partir de prospectos.csv y propuestas.md, escribe seguimiento.md con a quién tocar, cuándo y qué decirle en un recordatorio corto. Nunca envía mensajes ni agenda nada.",
+     "version": "0.1.0",
+     "requires": {
+      "env": [],
+      "bins": [],
+      "primaryEnv": null
+     },
+     "bytes": 1115,
+     "mtime": 1793421443.3272836,
+     "sha": "439e46dc23dd6682",
+     "entradas": [
+      {
+       "nombre": "dias",
+       "pregunta": "¿Cada cuántos días se hace seguimiento?",
+       "por_defecto": "3"
+      }
+     ],
+     "salidas": [
+      "seguimiento.md"
+     ],
+     "_tok": "{'nunca', 'propue', 'escrib', 'plan', 'envia', 'comerc', 'seguim', 'borrad', 'prospe', 'partir', 'quien', 'corto', 'mensaj', 'agenda', 'decirl', 'tocar', 'record'}"
+    }
+   ],
+   []
+  ],
+  "ok": true
+ },
+ "workflow": {
+  "valido": true,
+  "error": null,
+  "estimado": "Costo estimado: $0.011 eq. Max (rango $0.004–$0.033), sin ejecuciones previas: estimado grueso por tokens.",
+  "ok": true
+ },
+ "corrida": {
+  "plan": "wf-ventas-semana-20261031-003854",
+  "estado": "terminado",
+  "fases": {
+   "prospectar": "terminada",
+   "propuestas": "terminada",
+   "seguimiento": "terminada"
+  },
+  "entradas_rellenadas": {
+   "prospectar": {
+    "lista": "lista.csv",
+    "nicho": "comercios de comida en Barquisimeto",
+    "cuantos": "5"
+   },
+   "propuestas": {
+    "oferta": "[PENDIENTE: oferta]",
+    "cuantas": "3"
+   },
+   "seguimiento": {
+    "dias": "3"
+   }
+  },
+  "existe": {
+   "prospectos.csv": true,
+   "propuestas.md": true,
+   "seguimiento.md": true
+  },
+  "propuestas_borrador": true,
+  "precios_en_propuestas": [],
+  "pendiente_oferta": true,
+  "ok": true
+ },
+ "sin_envio": {
+  "patrones_de_envio": [],
+  "acciones_declaradas": {},
+  "ok": true
+ },
+ "todo_ok": true
+}

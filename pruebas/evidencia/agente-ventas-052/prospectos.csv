@@ -1,0 +1,5 @@
+nombre,empresa,ciudad,sector,contacto,prioridad,motivo
+Ana Prueba,Panadería Ficticia,Barquisimeto,panadería,[PENDIENTE: dato],1,Panadería en Barquisimeto: coincide con el nicho de comercios de comida y la ciudad.
+María Demo,Café Imaginario,Barquisimeto,cafetería,[PENDIENTE: dato],1,Cafetería en Barquisimeto: coincide con el nicho de comercios de comida y la ciudad.
+Luis Ejemplo,Ferretería Inventada,Caracas,ferretería,[PENDIENTE: dato],3,Ferretería en Caracas: no es comercio de comida ni está en Barquisimeto.
+Pedro Falso,Taller Supuesto,Valencia,taller mecánico,[PENDIENTE: dato],3,Taller mecánico en Valencia: no es comercio de comida ni está en Barquisimeto.

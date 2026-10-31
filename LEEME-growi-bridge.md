@@ -285,6 +285,15 @@ Una skill puede declarar en su frontmatter un **contrato**:
 `GET /gateway/skills` (mismo puerto y token) lista cada skill con su contrato, sus requisitos en
 este PC y sus estadísticas (usos, terminadas bien, costo mediano), sacadas de los resultados.
 
+## Agente de ventas (en borrador)
+
+El asistente **Ventas** (`asistentes/ventas.md`, t-agente-ventas-052) prospecta de una lista CSV
+tuya, redacta propuestas y prepara el seguimiento. **Nunca envía nada:** todo queda en borrador en
+su carpeta, con `[PENDIENTE: …]` donde falte un dato (no inventa contactos, precios ni casos).
+Usa las skills `prospectar`, `redactar-propuesta` y `seguimiento`, y el workflow
+**Ventas de la semana (borrador)**. Qué se vende, con qué fuentes y cómo se envía lo decides tú
+(`DISENO-052-SKILLS-Y-VENTAS.md`).
+
 ## Niveles de riesgo y vencimiento de las aprobaciones
 
 El silencio nunca es consentimiento: ningún pedido de aprobación espera para
