@@ -4888,6 +4888,36 @@ def live_finish(nota=None):
     live_write(force=True)
 
 
+LIVE_SIN_DATO = "sin dato"
+
+
+def _live_parte_honesta(p, terminado):
+    """t-oficina-consumo-vivo-050 (honestidad de la ficha): lo que el motor NO dio se publica como
+    «sin dato», nunca como 0 ni como un estimado inventado. Un motor local sin precio sigue
+    siendo $0 (eso SI es un dato: no cuesta)."""
+    if p.get("modo_vivo") != "en vivo" and not p.get("tokens_in") and not p.get("tokens_out"):
+        p["tokens_in"] = p["tokens_out"] = LIVE_SIN_DATO
+    if p.get("cost_usd_estimado") is None:
+        p["cost_usd_estimado"] = LIVE_SIN_DATO
+    if terminado and p.get("cost_usd_final") is None:
+        p["cost_usd_final"] = LIVE_SIN_DATO
+
+
+def _live_publicable(d):
+    """Copia de d lista para el archivo (la memoria del runner sigue numerica) + `paso`.
+    `paso` = lo que el runner dice que esta haciendo (state['paso']); el paso fino del motor
+    (herramienta en curso) no se publica: ningun motor lo entrega hoy (FALTA documentada)."""
+    out = json.loads(json.dumps(d))
+    term = out.get("estado") == "terminado"
+    _live_parte_honesta(out, term)
+    if isinstance(out.get("revision"), dict):
+        _live_parte_honesta(out["revision"], term)
+    paso = state.get("paso") if state.get("current") == out.get("task_id") else None
+    if paso and not term:
+        out["paso"] = str(paso)[:200]
+    return out
+
+
 def live_write(force=False):
     """Escribe runner-live.json (como mucho cada ~5 s salvo force)."""
     with _LIVE_LOCK:
@@ -4901,7 +4931,7 @@ def live_write(force=False):
                 d["idle_s"] = round(time.time() - _ACT["t"])
         d["actualizado"] = _now_iso()
         _LIVE["written"] = time.time()
-        text = json.dumps(d, ensure_ascii=False, indent=2)
+        text = json.dumps(_live_publicable(d), ensure_ascii=False, indent=2)
         try:
             OUTBOX.mkdir(parents=True, exist_ok=True)
             tmp = LIVE_FILE.with_suffix(".tmp")
@@ -4923,6 +4953,66 @@ def read_live():
         return d if isinstance(d, dict) else None
     except (OSError, ValueError):
         return None
+
+
+# ---- Regla de la oficina para «¿esta tarea esta trabajando?» (t-oficina-consumo-vivo-050)
+# La oficina es OTRO proceso; esta es la regla de referencia (funcion pura, probada en
+# _prueba-oficina-live-050) que ese proceso debe aplicar. INVESTIGACION-0.5.0 §3.3:
+#   1. runner-live.json con task_id == tarea y edad < LIVE_FRESCO_S (15 s) y estado distinto de
+#      «terminado»                                   -> "trabajando"   (senal fina)
+#   2. live terminado y de menos de LIVE_TERMINADO_S (60 s)  -> "terminado"
+#   3. DEGRADADO (live ausente, viejo o de otra tarea): solo cuenta si runner-status.json esta
+#      fresco (edad < STATUS_FRESCO_S = 120 s: el pulso lo reescribe cada 60 s MIENTRAS corre una
+#      tarea) y ademas cola-live.json (tambien fresco, < COLA_FRESCA_S = 45 s) dice que la tarea
+#      esta en_curso:
+#        status.current.id == tarea.id              -> "trabajando_degradado"
+#        status.current es None                     -> "en_cola" (si cola-live la da en_cola)
+#   4. todo lo demas que no se puede leer o esta viejo   -> "sin_senal" (NUNCA «trabajando»)
+# Leccion del 25 oct: runner-status.json miente por omision (last_poll congelado, tasks_done en 0
+# aunque la cola corra): por eso NUNCA decide solo; sin cola-live fresco que lo respalde no hay
+# degradado. Un live fresco de OTRA tarea no hace trabajar a esta (el runner es serie).
+LIVE_FRESCO_S = 15
+LIVE_TERMINADO_S = 60
+STATUS_FRESCO_S = 120
+COLA_FRESCA_S = 45
+
+
+def _edad_iso(iso, ahora):
+    try:
+        return ahora - datetime.fromisoformat(str(iso)).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def oficina_estado_tarea(tarea_id, live, status, cola, ahora=None):
+    """live / status / cola = los dicts ya parseados de runner-live.json, runner-status.json y
+    cola-live.json (None si ausente o roto). Devuelve (estado, por_que)."""
+    ahora = time.time() if ahora is None else ahora
+    fila = None
+    edad_cola = _edad_iso((cola or {}).get("actualizado"), ahora) if isinstance(cola, dict) else None
+    if edad_cola is not None and edad_cola < COLA_FRESCA_S:
+        fila = next((t for t in cola.get("tareas") or [] if isinstance(t, dict) and t.get("id") == tarea_id), None)
+    if isinstance(live, dict) and live.get("task_id") == tarea_id:
+        edad = _edad_iso(live.get("actualizado"), ahora)
+        if edad is not None:
+            if live.get("estado") == "terminado":
+                if edad < LIVE_TERMINADO_S:
+                    return "terminado", f"live terminado hace {edad:.0f} s"
+            elif edad < LIVE_FRESCO_S:
+                return "trabajando", f"live de hace {edad:.0f} s"
+    edad_st = _edad_iso((status or {}).get("last_poll"), ahora) if isinstance(status, dict) else None
+    if edad_st is None or edad_st >= STATUS_FRESCO_S:
+        return "sin_senal", "sin live fresco y runner-status.json ausente o viejo"
+    if fila is None:
+        return "sin_senal", "sin live fresco y cola-live.json ausente, vieja o sin esta tarea"
+    cur = status.get("current")
+    if isinstance(cur, dict) and cur.get("id") == tarea_id:
+        if fila.get("estado") == "en_curso":
+            return "trabajando_degradado", "sin live fresco; runner-status.current y cola-live coinciden"
+        return "sin_senal", f"runner-status dice que corre pero cola-live la da {fila.get('estado')}"
+    if cur is None and fila.get("estado") == "en_cola":
+        return "en_cola", "runner-status sin tarea en curso y cola-live la da en_cola"
+    return "sin_senal", "las fuentes no coinciden"
 
 
 def _uso_from_result_event(ev):
@@ -15890,6 +15980,8 @@ def _cola(sql, args=(), fetch=False):
             finally:
                 con.close()
         _cola_err[0] = None
+        if not fetch and _CL_ESCRIBE_RE.match(sql):
+            cola_live_touch()  # t-oficina-cola-live-050: cada cambio de tareas republica el tablon
         return out
     except sqlite3.Error as e:
         if str(e) != _cola_err[0]:
@@ -16005,6 +16097,139 @@ def cola_resumen():
     prox = min((r["prox"] for r in rows if r["prox"]), default=None)
     return {"cuenta": cuenta, "pendiente": cuenta.get("en_cola", 0) + cuenta.get("en_curso", 0),
             "proximo_reintento": _hora(prox) if prox else None}
+
+
+# ---------------------------------------------------------------- cola-live.json
+# t-oficina-cola-live-050. Snapshot de la cola legible por OTRO proceso (la oficina).
+# Lo publica el runner (este mismo proceso, hilo de pulso y cada cambio de `tareas`),
+# no la ventana. Escritura atomica (tmp + os.replace): quien lee ve el archivo anterior
+# o el nuevo, nunca uno a medias. Formato EXACTO (nada fuera de esta lista):
+#   cabecera: actualizado, guardrail, cola_pendiente, proximo_reintento (+ "tareas", la lista)
+#   por tarea: id, estado, motor, modelo, ronda, max_rondas, tarea_padre, raiz, fase,
+#              intentos, reintentos, proximo_intento, motivo, creado_en, actualizado_en
+# Un campo sin dato real se OMITE; nunca se rellena con un 0. El guardrail es el valor real
+# de settings.json en este instante: cambiarlo NO suelta lo ya retenido (leccion del 25 oct),
+# asi que el snapshot solo REFLEJA el estado, no promete soltar nada.
+# Si cola.db falla, NO se reescribe (el archivo envejece y la oficina dice «cola sin señal»).
+# PLAN B (no es la via principal): leer cola.db con sqlite3 «file:...?mode=ro» desde el
+# lector (ver _cola_leer). Riesgo: dos lectores sobre WAL + bloqueo en un corte; si se usa,
+# el tablon tiene que decir «leído de cola.db (plan B)».
+COLA_LIVE_FILE = OUTBOX / "cola-live.json"
+COLA_LIVE_EVERY_S = 10        # latido: como mucho 10 s entre escrituras (el contrato pide <= 30 s)
+COLA_LIVE_MIN_S = 0.3         # cambios seguidos se juntan: no mas de ~3 escrituras por segundo
+COLA_LIVE_RECIENTES_S = 900   # terminadas/falladas se ven 15 min (para que la oficina las vea «terminar»)
+COLA_LIVE_MAX = 200
+COLA_LIVE_ACTIVAS = ("en_cola", "en_curso", "esperando_aprobacion", "esperando_leandro")
+CL_CAMPOS_CABECERA = ("actualizado", "guardrail", "cola_pendiente", "proximo_reintento")
+CL_CAMPOS_TAREA = ("id", "estado", "motor", "modelo", "ronda", "max_rondas", "tarea_padre", "raiz",
+                   "fase", "intentos", "reintentos", "proximo_intento", "motivo", "creado_en",
+                   "actualizado_en")
+_CL_ESCRIBE_RE = re.compile(r"\s*(INSERT(?:\s+OR\s+\w+)?\s+INTO|UPDATE|DELETE\s+FROM)\s+tareas\b", re.I)
+_CL = {"t": 0.0, "dirty": False, "lock": threading.Lock(), "modelos": {}}
+
+
+def _cl_modelo(r):
+    """Modelo de una tarea: el del encargo (.task.json donde este ahora). Sin dato = None."""
+    c = _CL["modelos"].get(r["id"])
+    if c is not None:
+        return c or None
+    mod = None
+    try:
+        d = json.loads(Path(r.get("archivo") or "").read_text(encoding="utf-8"))
+        mod = (d.get("model") if r.get("motor") == "api" else d.get("modelo")) if isinstance(d, dict) else None
+    except (OSError, ValueError):
+        return None  # el archivo no esta ahora (se mueve entre carpetas): se vuelve a intentar
+    if not isinstance(mod, str) or not mod or mod.startswith("@"):
+        mod = ""  # alias sin resolver = sin dato
+    if len(_CL["modelos"]) > 2000:
+        _CL["modelos"].clear()
+    _CL["modelos"][r["id"]] = mod
+    return mod or None
+
+
+def _cl_tarea(r, ahora):
+    t = {"id": r["id"], "estado": r["estado"], "motor": r.get("motor")}
+    if state.get("current") == r["id"] and state.get("current_modelo"):
+        t["modelo"] = state["current_modelo"]
+    else:
+        t["modelo"] = _cl_modelo(r)
+    if r.get("ronda") is not None:
+        t["ronda"] = int(r["ronda"])
+        if r.get("motor") != "modelos":
+            t["max_rondas"] = MAX_ROUNDS
+    t.update(tarea_padre=r.get("tarea_padre"), raiz=r.get("raiz"), fase=r.get("fase"),
+             intentos=r.get("intentos"), reintentos=r.get("reintentos"), motivo=r.get("motivo"),
+             creado_en=r.get("creado_en"), actualizado_en=r.get("actualizado_en"))
+    if isinstance(r.get("proximo_intento"), (int, float)) and r["proximo_intento"] > ahora:
+        t["proximo_intento"] = _hora(r["proximo_intento"])
+    return {k: t[k] for k in CL_CAMPOS_TAREA if t.get(k) not in (None, "")}
+
+
+def cola_live_snapshot():
+    """El dict de cola-live.json, o None si cola.db no se pudo leer (no se inventa la lista)."""
+    ahora = time.time()
+    marcas = ",".join("?" * len(COLA_LIVE_ACTIVAS))
+    rows = _cola(f"SELECT * FROM tareas WHERE estado IN ({marcas}) OR "
+                 "(estado != 'archivada' AND actualizado_ts > ?) "
+                 "ORDER BY creado_en LIMIT ?",
+                 (*COLA_LIVE_ACTIVAS, ahora - COLA_LIVE_RECIENTES_S, COLA_LIVE_MAX), fetch=True)
+    if _cola_err[0]:
+        return None
+    res = cola_resumen()
+    if _cola_err[0]:
+        return None
+    snap = {"actualizado": _now_iso(), "guardrail": guardrail_level(),
+            "cola_pendiente": res["pendiente"]}
+    if res.get("proximo_reintento"):
+        snap["proximo_reintento"] = res["proximo_reintento"]
+    snap["tareas"] = [_cl_tarea(r, ahora) for r in rows]
+    return snap
+
+
+def cola_live_write():
+    """Publica cola-live.json (tmp + os.replace). False si otro hilo ya lo esta escribiendo
+    (queda `dirty` y el hilo de pulso lo repite en <= 1 s) o si no hubo base que leer."""
+    if not _CL["lock"].acquire(blocking=False):
+        return False
+    try:
+        _CL["dirty"] = False  # antes de leer: un cambio durante la lectura vuelve a marcarlo
+        snap = cola_live_snapshot()
+        if snap is None:
+            _CL["dirty"] = True
+            return False
+        text = json.dumps(snap, ensure_ascii=False, indent=2)
+        OUTBOX.mkdir(parents=True, exist_ok=True)
+        tmp = COLA_LIVE_FILE.with_suffix(".json.tmp")
+        tmp.write_text(text, encoding="utf-8")
+        for i in range(6):
+            try:
+                os.replace(tmp, COLA_LIVE_FILE)
+                break
+            except PermissionError:  # un lector lo tiene abierto justo ahora
+                if i == 5:
+                    raise
+                time.sleep(0.05 * (i + 1))
+        _CL["t"] = time.time()
+        return True
+    except Exception as e:  # nunca tumbar al runner por el tablon
+        _CL["dirty"] = True
+        log(f"cola-live: no se pudo publicar ({type(e).__name__}: {e}); el runner sigue")
+        return False
+    finally:
+        _CL["lock"].release()
+
+
+def cola_live_touch():
+    """Algo cambio en `tareas`: se republica ya (o, si acaba de escribirse, en el siguiente pulso)."""
+    _CL["dirty"] = True
+    if time.time() - _CL["t"] >= COLA_LIVE_MIN_S:
+        cola_live_write()
+
+
+def cola_live_pulso():
+    """Desde el hilo de pulso (1 s): escribe lo pendiente y, como minimo, cada COLA_LIVE_EVERY_S."""
+    if _CL["dirty"] or time.time() - _CL["t"] >= COLA_LIVE_EVERY_S:
+        cola_live_write()
 
 
 def _es_transitorio(result):
@@ -18563,6 +18788,7 @@ def _runner_pulse_loop(stop_event):
             d = _LIVE["d"]
             if d is not None and d.get("estado") != "terminado":
                 live_write()
+            cola_live_pulso()  # cola-live.json: lo pendiente y, como minimo, cada 10 s
             if state.get("current") and time.time() - _HB["t"] >= HEARTBEAT_SECONDS:
                 runner_heartbeat()
             # Con un motor trabajando el bucle no da vueltas: el pulso vence por el.
@@ -19598,6 +19824,7 @@ def runner_loop(stop_event):
         rec, _av = cola_recuperar()
         cola_archivar()
         log(f"cola: {COLA_DB} lista ({len(rec)} recuperada(s) tras corte)")
+        cola_live_write()  # el tablon existe desde el primer segundo del runner
         # Aviso visible (no solo en el registro): bandeja + panel de Estado.
         GATEWAY.update(recuperadas=list(rec), avisos_cola=list(_av), arranque_at=_now_iso())
         if rec:
@@ -28617,53 +28844,71 @@ def _comp_tk(holder, al_abrir_motores):
     _widgets["ask_status"].pack(anchor="w", padx=16, pady=(0, 12))
 
 
-def _send_ask():
-    """Manda la tarea escrita en la pagina Tareas al runner (Claude u
-    Ollama local, segun el motor elegido)."""
-    w = _widgets
-    text = w.get("ask_text")
-    if text is None:
-        return
-    prompt = text.get("1.0", "end").strip()
-    if not prompt:
-        return
-    if mem_comando_ui(prompt, "chat de Tareas"):  # «/nuevo» y «recuerda esto»: memoria, no tarea
-        text.delete("1.0", "end")
-        return
-    engine = "Claude Sonnet"
+# ---------------------------------------------------------------- encolar (sin ventana)
+# t-oficina-encolar-externa-050: lo que hace «Pedirle algo» (Tareas y Ctrl+K ->
+# «Pedirle algo a Claude») ya no vive solo en la ventana. encolar_tarea() arma y
+# escribe el MISMO .task.json en runner-tasks/; _send_ask (la ventana) la llama, y
+# otro proceso (la oficina: oficina\encolar\encolar.py) la importa y la llama igual.
+# Lo que pasa despues es del runner, no de quien encola: lo apunta en cola.db
+# (cola_registrar via _cola_ver, ANTES de recogerlo) y le aplica el guardrail
+# (_approval_needed -> _park_for_approval -> «esperando_aprobacion»). Esta
+# funcion NUNCA escribe cola.db, runner-live.json, runner-status.json,
+# .revision.json, .orquestacion.json ni settings.json (settings solo se lee).
+def criterios_de_texto(texto):
+    """Una frase por linea (sin viñetas); una linea {...} es un criterio tipado."""
+    criterios = []
+    for c in str(texto or "").splitlines():
+        c = c.strip(" -•\t")
+        if c.startswith("{"):
+            try:
+                d = json.loads(c)
+                if isinstance(d, dict):  # criterio tipado; el runner lo valida al encolar
+                    criterios.append(d)
+                    continue
+            except ValueError:
+                pass
+        if c:
+            criterios.append(c)
+    return criterios
+
+
+def _modelo_por_defecto():
+    """El model del task que la ventana pone por defecto (Ajustes)."""
     try:
-        engine = w["ask_engine"].get() or engine
+        return _ASK_ENGINES.get(_default_engine_label(engine_choices()), "sonnet")
     except Exception:
-        pass
-    model = _ASK_ENGINES.get(engine, "sonnet")
+        return "sonnet"
+
+
+def encolar_tarea(prompt, criterios=None, model=None, engine=None, origen="app"):
+    """Encola una tarea como «Pedirle algo». -> {"ok", "id", "archivo", "engine",
+    "data", "error"}. model = el «model» del task que da el desplegable («sonnet»,
+    «opus», «haiku», «motor:auto», «motor:llama», «ollama:<nombre>»...); sin model
+    va el de por defecto de Ajustes. criterios = lista (frases o dicts tipados) o
+    texto con una frase por linea. origen solo va al Registro: el .task.json es
+    identico venga de la ventana o de otro proceso."""
+    prompt = str(prompt or "").strip()
+    if not prompt:
+        return {"ok": False, "error": "el encargo está vacío"}
+    if re.match(r"^\s*/nuevo\b", prompt, re.I) or _MEM_RECUERDA_RE.match(prompt):
+        return {"ok": False, "error": "«/nuevo» y «recuerda esto» son de la memoria, no una tarea"}
+    if isinstance(criterios, str):
+        criterios = criterios_de_texto(criterios)
+    criterios = [c if isinstance(c, dict) else str(c).strip(" -•\t") for c in (criterios or [])]
+    criterios = [c for c in criterios if isinstance(c, dict) or c]
+    if not model:
+        model = _modelo_por_defecto()
+    model = str(model).strip()
+    if engine is None:
+        engine = next((l for l, m in _ASK_ENGINES.items() if m == model), model)
     if model.startswith("ollama:") and not valid_model_name(model.split(":", 1)[1]):
         model = "sonnet"
     model, fell = local_fallback_model(model)
     if fell:
         engine = "el modelo local (sin nube, calidad menor)"
-    crit_box = w.get("ask_criterios")
-    criterios = []
-    if crit_box is not None:
-        for c in crit_box.get("1.0", "end").splitlines():
-            c = c.strip(" -•\t")
-            if c.startswith("{"):
-                try:
-                    d = json.loads(c)
-                    if isinstance(d, dict):  # criterio tipado; el runner lo valida al encolar
-                        criterios.append(d)
-                        continue
-                except ValueError:
-                    pass
-            if c:
-                criterios.append(c)
     TASKS.mkdir(parents=True, exist_ok=True)
     base = "t-" + datetime.now().strftime("%Y%m%d-%H%M%S")
-    task_id = base
-    i = 1
-    while (TASKS / f"{task_id}.task.json").exists():
-        task_id = f"{base}-{i}"
-        i += 1
-    data = {"id": task_id, "prompt": prompt, "cwd": asis_cwd_envio(), "model": model,
+    data = {"id": base, "prompt": prompt, "cwd": asis_cwd_envio(), "model": model,
             "timeout_min": 30, "allowed_tools": "Read,Write,Edit,Bash",
             "permission_mode": "acceptEdits"}
     _asis = asis_activo()
@@ -28687,14 +28932,72 @@ def _send_ask():
             data.pop("permission_mode")
     if criterios:
         data["criterios"] = criterios
-    (TASKS / f"{task_id}.task.json").write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    log(f"tareas: '{task_id}' enviado al runner ({engine})")
+    # Escritura atomica y exclusiva: se escribe aparte (.tmp, que el runner no
+    # mira: solo busca *.task.json) y se renombra; en Windows os.rename falla si
+    # el nombre ya existe, asi que dos procesos que encolan en el mismo segundo
+    # nunca se pisan (el segundo toma el sufijo -1, -2...).
+    tmp = TASKS / f".{base}-{os.getpid()}-{threading.get_ident()}.tmp"
+    i = 0
+    try:
+        while True:
+            tid = base if i == 0 else f"{base}-{i}"
+            i += 1
+            dest = TASKS / f"{tid}.task.json"
+            if dest.exists() or any((d / f"{tid}.task.json").exists()
+                                    for d in (PROCESSING, DONE, WAITING)):
+                continue
+            data["id"] = tid
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            try:
+                os.rename(tmp, dest)
+                break
+            except FileExistsError:
+                continue
+    except OSError as e:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        return {"ok": False, "error": f"no se pudo escribir en {TASKS} ({type(e).__name__}: {e})"}
+    log(f"tareas: '{tid}' enviado al runner ({engine})"
+        + ("" if origen == "app" else f"; pedido desde {str(origen)[:40]}"))
+    return {"ok": True, "id": tid, "archivo": str(dest), "engine": engine, "data": data, "error": None}
+
+
+def _send_ask():
+    """Manda la tarea escrita en la pagina Tareas al runner (Claude u
+    Ollama local, segun el motor elegido). El encargo lo arma y lo escribe
+    encolar_tarea(); aqui solo se lee la ventana y se pinta el resultado."""
+    w = _widgets
+    text = w.get("ask_text")
+    if text is None:
+        return
+    prompt = text.get("1.0", "end").strip()
+    if not prompt:
+        return
+    if mem_comando_ui(prompt, "chat de Tareas"):  # «/nuevo» y «recuerda esto»: memoria, no tarea
+        text.delete("1.0", "end")
+        return
+    engine = "Claude Sonnet"
+    try:
+        engine = w["ask_engine"].get() or engine
+    except Exception:
+        pass
+    model = _ASK_ENGINES.get(engine, "sonnet")
+    crit_box = w.get("ask_criterios")
+    criterios = criterios_de_texto(crit_box.get("1.0", "end")) if crit_box is not None else []
+    r = encolar_tarea(prompt, criterios, model=model, engine=engine, origen="app")
+    if not r["ok"]:
+        log(f"tareas: no se pudo enviar ({r['error']})")
+        if w.get("ask_status") is not None:
+            w["ask_status"].config(text=f"No se pudo enviar: {r['error']}", fg=THEME["orange_text"])
+        return
+    task_id, engine = r["id"], r["engine"]
     text.delete("1.0", "end")
     if crit_box is not None:
         crit_box.delete("1.0", "end")
     if w.get("ask_status") is not None:
-        w["ask_status"].config(text=f"✓ Enviado al runner ({engine})")
+        w["ask_status"].config(text=f"✓ Enviado al runner ({engine})", fg=THEME["green_text"])
         _ask_spinner(task_id, engine)
 
 
@@ -28912,9 +29215,10 @@ def _live_values(lv, corto=False):
     mod = lv.get("modelo_real") or lv.get("modelo")
     mtxt = _motor_modelo(MOTOR_CORTO.get(lv.get("motor"), lv.get("motor") or "—"), mod)
     sin = lv.get("modo_vivo") == "sin vivo"
-    if lv.get("modo_vivo") == "esperando" and not lv.get("tokens_in") and not lv.get("tokens_out"):
+    _ti, _to = (lv.get(k) if isinstance(lv.get(k), (int, float)) else 0 for k in ("tokens_in", "tokens_out"))
+    if lv.get("modo_vivo") == "esperando" and not _ti and not _to:  # «sin dato» (texto) = no hay numero
         toks = "esperando al motor"
-    elif sin and not lv.get("tokens_in") and not lv.get("tokens_out"):
+    elif sin and not _ti and not _to:
         toks = "sin vivo"
     else:
         toks = f"{_fmt_tok(lv.get('tokens_in'))} / {_fmt_tok(lv.get('tokens_out'))}"

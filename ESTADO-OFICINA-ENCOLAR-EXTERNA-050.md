@@ -124,3 +124,13 @@ Contra la app instalada, lo hace Leandro:
 - Importar cuesta ≈ 0,5 s y ≈ 20 MB **una vez por proceso**: conviene hacerlo al arrancar la oficina, no en cada clic.
 - La oficina **no** decide nada del guardrail. Si la tarea sale `esperando_aprobacion`, se aprueba en la app (Tareas) o por WhatsApp.
 - Queda abierto lo del campo `canal` (FALTA 4).
+
+## Actualización 30 oct 2026, 22:35: integrado en el repo (junto con el lote-live, specs 2+3)
+- **FALTA 9 cerrada para el repo.** `growi-bridge.py` del repo lleva ahora:
+  - El lote-live (`cola-live.json` + `oficina_estado_tarea()`). Es el diff de la copia `growi-bridge-app` (`.pre-oficina-live-050.bak` → `.pre-encolar-externa.bak`): 8 bloques que entran limpios con `patch --binary`, solo con desplazamiento. Guardado en `parches/lote_live_050.diff`.
+  - `encolar_tarea()`. `oficina/encolar/parche_encolar.py` acepta ahora también la variante de `_send_ask` con proyectos (`proyecto_activo()`); `encolar_tarea()` guarda el proyecto igual que la ventana.
+- **Verificado en instancia aislada** (`_prueba-lote-live-repo`, `pruebas/lote_live_repo/lote_live_repo.py`, evidencia `pruebas/evidencia/lote-live-repo/resultado.json`):
+  - `cola-live.json` aparece a los 0,4 s de arrancar el runner y el pulso lo reescribe en ≤ 10 s sin cambios.
+  - Una tarea encolada con `encolar_tarea` (motor:ollama, $0) se ve `en_cola → en_curso → terminada`, sin campos fuera del contrato.
+  - `oficina/encolar/encolar.py` encola desde otro proceso contra el código del repo.
+- **La app instalada sigue igual:** encolar sí, lote-live no. Instalar el `growi-bridge.py` del repo es cosa de Leandro (hay que reiniciar).

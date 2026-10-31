@@ -1,0 +1,77 @@
+{
+ "cola_live_al_arrancar_s": 0.4,
+ "cabecera": {
+  "actualizado": "2026-10-30T22:33:16-04:00",
+  "guardrail": "nunca",
+  "cola_pendiente": 0
+ },
+ "encolar": {
+  "ok": true,
+  "id": "t-20261030-223316",
+  "error": null
+ },
+ "estados_vistos": [
+  "en_cola",
+  "en_curso",
+  "terminada"
+ ],
+ "muestras": [
+  {
+   "t": 35.1,
+   "fila": {
+    "id": "t-20261030-223316",
+    "estado": "en_cola",
+    "motor": "ollama",
+    "ronda": 0,
+    "max_rondas": 3,
+    "raiz": "t-20261030-223316",
+    "intentos": 0,
+    "reintentos": 0,
+    "creado_en": "2026-10-30T22:33:51-04:00",
+    "actualizado_en": "2026-10-30T22:33:51-04:00"
+   },
+   "actualizado": "2026-10-30T22:33:51-04:00"
+  },
+  {
+   "t": 36.1,
+   "fila": {
+    "id": "t-20261030-223316",
+    "estado": "en_curso",
+    "motor": "ollama",
+    "modelo": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+    "ronda": 0,
+    "max_rondas": 3,
+    "raiz": "t-20261030-223316",
+    "intentos": 0,
+    "reintentos": 0,
+    "creado_en": "2026-10-30T22:33:51-04:00",
+    "actualizado_en": "2026-10-30T22:33:51-04:00"
+   },
+   "actualizado": "2026-10-30T22:33:52-04:00"
+  },
+  {
+   "t": 57.7,
+   "fila": {
+    "id": "t-20261030-223316",
+    "estado": "terminada",
+    "motor": "ollama",
+    "ronda": 0,
+    "max_rondas": 3,
+    "raiz": "t-20261030-223316",
+    "intentos": 1,
+    "reintentos": 0,
+    "creado_en": "2026-10-30T22:33:51-04:00",
+    "actualizado_en": "2026-10-30T22:34:13-04:00"
+   },
+   "actualizado": "2026-10-30T22:34:13-04:00"
+  }
+ ],
+ "latido": [
+  "2026-10-30T22:34:13-04:00",
+  "2026-10-30T22:34:24-04:00"
+ ],
+ "latido_ok": true,
+ "campos_fuera_de_contrato": [],
+ "runner_live": "t-20261030-223316",
+ "ok": true
+}

@@ -238,6 +238,13 @@ def _send_ask():
         _ask_spinner(task_id, engine)
 '''
 
+ASIS = '        data["asistente"] = _asis["id"]  # la tarea queda con el asistente con el que se mando\n'
+PROY = '    _proy = proyecto_activo()\n    if _proy is not None:\n        data["proyecto"] = _proy["nombre"]  # y con su proyecto: cambiar de proyecto después no la mueve\n'
+# Variante con proyectos (t-proyectos): la copia que ya guarda el proyecto activo en la tarea.
+# Se aplica igual, y encolar_tarea() tambien lo guarda (el .task.json sigue siendo el mismo).
+OLD_PROY = OLD.replace(ASIS, ASIS + PROY, 1)
+NEW_PROY = NEW.replace(ASIS, ASIS + PROY, 1)
+
 for f in sys.argv[1:]:
     p = Path(f)
     raw = p.read_bytes()
@@ -246,11 +253,16 @@ for f in sys.argv[1:]:
     if "def encolar_tarea(" in src:
         print("ya parcheado:", p)
         continue
-    assert src.count(OLD) == 1, f"no encuentro _send_ask exacto en {p}"
+    if src.count(OLD) == 1:
+        old, new = OLD, NEW
+    elif src.count(OLD_PROY) == 1:
+        old, new = OLD_PROY, NEW_PROY
+    else:
+        raise SystemExit(f"no encuentro _send_ask exacto en {p} (ni la variante con proyectos)")
     bak = p.with_name(p.name + ".pre-encolar-externa.bak")
     assert not bak.exists(), bak
     shutil.copy2(p, bak)
-    out = src.replace(OLD, NEW)
+    out = src.replace(old, new)
     if crlf:
         out = out.replace("\n", "\r\n")
     p.write_bytes(out.encode("utf-8"))
