@@ -1,0 +1,215 @@
+{
+ "a_corte": {
+  "texto": "Una sola frase muy larga xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+  "ok": true
+ },
+ "a_real": {
+  "bocadillo": "La capital de Francia es París, una ciudad con más de dos millones de habitantes en su núcleo urbano y muchos más en su área metropolitana.",
+  "largo": 139,
+  "estilo": {
+   "forma": "dialogo",
+   "borde": [
+    232,
+    131,
+    58
+   ],
+   "marca": "real",
+   "texto": [
+    29,
+    29,
+    31
+   ],
+   "italica": false,
+   "origen": "log",
+   "cola_recta": true
+  },
+  "ref_log": "2026-10-30.md#3",
+  "completo_en_log": true,
+  "duracion_s": 10.0,
+  "es_cita_literal": true,
+  "ok": true
+ },
+ "b_cola": {
+  "visibles_t0": [
+   "sonny",
+   "dex",
+   "luma"
+  ],
+  "visibles_t20": [
+   "opus"
+  ],
+  "cola_sonny_tras_3": [
+   "mensaje 1",
+   "mensaje 2"
+  ],
+  "ok": true
+ },
+ "b_fijado": {
+  "vivo_a_los_40s_fijado": true
+ },
+ "c_senales": {
+  "real": {
+   "forma": "dialogo",
+   "borde": [
+    46,
+    160,
+    90
+   ],
+   "marca": "real",
+   "texto": [
+    29,
+    29,
+    31
+   ],
+   "italica": false,
+   "origen": "log",
+   "cola_recta": true
+  },
+  "decorativo": {
+   "forma": "nube",
+   "borde": [
+    174,
+    174,
+    178
+   ],
+   "marca": null,
+   "texto": [
+    120,
+    120,
+    125
+   ],
+   "italica": true,
+   "origen": "charla de oficina",
+   "cola_recta": false
+  },
+  "decorativo_ref_log": null,
+  "charla_en_log": null,
+  "ok": true
+ },
+ "d_resumen_hermes": {
+  "modelo": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+  "intentos": [
+   {
+    "respuesta": "Revisé el proyecto: fusionar funciones duplicadas en el primer archivo, actualizar librería antigua con fallo de seguridad en el segundo, y el tercero está bien.",
+    "caracteres": 161,
+    "cabe": false
+   },
+   {
+    "respuesta": "Revisé proyecto: duplicado de funciones en primer archivo, librería obsoleta con fallo de seguridad conocido en segundo archivo, tercer archivo está bien.",
+    "caracteres": 154,
+    "cabe": false
+   },
+   {
+    "respuesta": "Revisé los tres archivos: fusionar funciones duplicadas, actualizar librería vieja y seguridad, tercero está bien.",
+    "caracteres": 114,
+    "cabe": true
+   },
+   {
+    "respuesta": "Revisé proyecto: duplicado de funciones en archivo 1, librería obsoleta con fallo de seguridad en archivo 2, archivo 3 correcto.",
+    "caracteres": 128,
+    "cabe": true
+   },
+   {
+    "respuesta": "Revisé los archivos: duplicidad de funciones en el primero, actualización de librería segura en el segundo, y el tercero está bien.",
+    "caracteres": 131,
+    "cabe": true
+   }
+  ],
+  "cumplen_140": 3,
+  "primera_frase_literal": "Revisé los tres archivos del proyecto.",
+  "via_elegida": "primera frase literal",
+  "ok": true
+ },
+ "e_avisos": {
+  "politica": {
+   "terminada": {
+    "avisaria": true,
+    "la_oficina_avisa": false,
+    "clave": "t-1:terminada",
+    "motivo": "ya lo avisa la app (_watch_families: un toast por raiz+estado (aprobada / sin revisión / necesita decisión / fallida)): la oficina no lo repite"
+   },
+   "esperando_aprobacion": {
+    "avisaria": true,
+    "la_oficina_avisa": false,
+    "clave": "t-1:esperando_aprobacion",
+    "motivo": "ya lo avisa la app (popup del guardrail (uno por evento, agrupado)): la oficina no lo repite"
+   },
+   "error": {
+    "avisaria": true,
+    "la_oficina_avisa": false,
+    "clave": "t-1:error",
+    "motivo": "ya lo avisa la app (_watch_families (fallida / necesita decisión)): la oficina no lo repite"
+   },
+   "aceptada": {
+    "avisaria": false,
+    "la_oficina_avisa": false,
+    "motivo": "no se avisa (§5.7)",
+    "clave": null
+   },
+   "encolada": {
+    "avisaria": false,
+    "la_oficina_avisa": false,
+    "motivo": "no se avisa (§5.7)",
+    "clave": null
+   },
+   "charla": {
+    "avisaria": false,
+    "la_oficina_avisa": false,
+    "motivo": "no se avisa (§5.7)",
+    "clave": null
+   },
+   "progreso": {
+    "avisaria": false,
+    "la_oficina_avisa": false,
+    "motivo": "no se avisa (§5.7)",
+    "clave": null
+   },
+   "resumen": {
+    "avisaria": false,
+    "la_oficina_avisa": false,
+    "motivo": "no se avisa (§5.7)",
+    "clave": null
+   }
+  },
+  "texto": "Diseño terminó el reporte de SalPro. [Revisar]",
+  "ok": true
+ },
+ "f_log": {
+  "archivo": "2026-10-30.md",
+  "contenido": [
+   "# Oficina — 2026-10-30",
+   "",
+   "## Resumen del día",
+   "1. Tareas cerradas: 1.",
+   "2. Pendientes de tu aprobación: 1.",
+   "3. Errores: 1.",
+   "",
+   "- 23:59:10 · Sonnet → Leandro · bocadillo de respuesta · respuesta: La capital de Francia es París, una ciudad con más de dos millones de habitantes en su núcleo urbano y muchos más en su área metropolitana. Es conocida por la Torre Eiffel, el Louvre y Notre Dame. Además... · costo: $0.0123 · sonnet",
+   "- 23:59:19 · Growi → Codex · llamada entre departamentos · estado: Cody acepta la tarea t-2",
+   "- 23:59:19 · Codex → Leandro · bocadillo de estado · estado: terminó t-2 · costo: $0 extra (suscripción)",
+   "- 23:59:19 · Opus → Leandro · bocadillo de estado · esperando: t-3 queda por aprobar",
+   "- 23:59:19 · Hermes Directo → Growi · llamada entre departamentos · error: no contesta (reintento 1 de 3)"
+  ],
+  "resumen": [
+   "1. Tareas cerradas: 1.",
+   "2. Pendientes de tu aprobación: 1.",
+   "3. Errores: 1."
+  ],
+  "archivados": [
+   "2026-07-27.md"
+  ],
+  "sigue_en_archivo": true,
+  "busqueda_codex": [
+   "- 23:59:19 · Growi → Codex · llamada entre departamentos · estado: Cody acepta la tarea t-2",
+   "- 23:59:19 · Codex → Leandro · bocadillo de estado · estado: terminó t-2 · costo: $0 extra (suscripción)"
+  ],
+  "ok": true
+ },
+ "g_contador": {
+  "dos_esperando": "2",
+  "sin_senal": "—",
+  "vacia": "0"
+ },
+ "g_ok": true,
+ "todo_ok": true
+}

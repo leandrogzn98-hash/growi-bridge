@@ -1,0 +1,20 @@
+{
+ "log_diario": [
+  "C:\\Users\\forte\\growi-bridge\\_prueba-bocadillos-050-demo\\app\\oficina\\2026-10-31.md"
+ ],
+ "log_contenido": "# Oficina — 2026-10-31\n\n- 00:05:35 · Leandro → Growi · teléfono al gerente · estado: «Pídele a ollama: responde solo con la palabra hola» → Voy, llamo a Local. t-20261031-000533 en curso.\n",
+ "ventana": true,
+ "teclas_enviadas": true,
+ "log": [
+  "2026-10-31 00:05:33 [oficina pid 10700] telefono: «Pídele a ollama: responde solo con la palabra hola» -> leyendo"
+ ],
+ "confirmaciones": [
+  {
+   "t": 1793419535.998,
+   "evento": "telefono",
+   "mensaje": "Pídele a ollama: responde solo con la palabra hola",
+   "respuesta": "Voy, llamo a Local. t-20261031-000533 en curso."
+  }
+ ],
+ "ok": true
+}

@@ -34,6 +34,8 @@ sys.path.insert(0, str(AQUI.parent / "llamadas"))
 import llamadas as LL  # noqa: E402  (t-oficina-llamadas-050: la llamada que se ve = la invocacion real)
 sys.path.insert(0, str(AQUI.parent / "vagancia"))
 import vagancia as VG  # noqa: E402  (t-oficina-vagancia-050)
+sys.path.insert(0, str(AQUI.parent / "bocadillos"))
+import bocadillos as BC  # noqa: E402  (t-oficina-bocadillos-050)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--share", default=str(Path.home() / "growi-bridge" / "share"))
@@ -191,6 +193,9 @@ MEM = E.Memoria(registro=metrica)
 _PLANO = AQUI.parent / "plano" / "plano.json"
 _POIS = ({p_["id"]: p_["capacidad"] for p_ in json.loads(_PLANO.read_text(encoding="utf-8"))["puntos_interes"]}
          if _PLANO.is_file() else {"cafe": 2, "pasillo": 3})
+GB = BC.Gestor()
+LOGD = BC.LogDiario(APP / "oficina")
+_ult_conf = [0]
 OFV = VG.Oficina(_POIS, registro_raros=str(DATOS / "vagancia-raros.jsonl"))
 TEL = TF.Telefono(cola=lambda: F["cola-live"].vista()["datos"] if "cola-live" in F else None, registro=metrica)
 tel_abierto = False
@@ -546,6 +551,12 @@ while True:
     for _ag, _tipo, _dato in OFV.tick(ahora):
         if _tipo in ("raro", "bocadillo"):
             metrica({"evento": "vagancia_" + _tipo, "agente": _ag, "dato": _dato})
+        if _tipo == "bocadillo" and _dato and _dato != "...":
+            GB.poner(BC.Bocadillo(_ag, "charla", _dato, ahora=ahora))  # nube, sin log
+    for _c in TEL.confirmaciones[_ult_conf[0]:]:  # cada confirmacion del telefono: bocadillo + log con lo dicho
+        _ref = LOGD.escribir("Leandro", "Growi", "teléfono al gerente", f"«{_c[0]}» → {_c[1]}", tipo="estado")
+        GB.poner(BC.Bocadillo("growi", "aceptacion", _c[1], depto="Gerencia", ref_log=_ref, ahora=ahora))
+    _ult_conf[0] = len(TEL.confirmaciones)
     for pid in list(ACTIVIDAD):
         _act = OFV.actividad_de(pid)
         if _act:
@@ -566,6 +577,8 @@ while True:
     pygame.draw.rect(pantalla, C["panel"], (0, 0, W, 92))
     pygame.draw.line(pantalla, C["linea"], (0, 92), (W, 92))
     texto("Oficina Growi · prototipo de protocolo", F15, C["texto"], 20, 8)
+    _tn = BC.te_necesitan(fu["cola"] if "fu" in dir() else None)
+    texto(f"Te necesitan: {_tn}", F15, C["ambar"] if _tn not in ("0", "—") else C["suave"], W - 430, 8)
     ejemplo = any(v["ejemplo"] for v in V.values())
     if ejemplo:
         texto("DATOS DE EJEMPLO — no son del runner", F15, C["ambar"], 330, 8)
@@ -658,7 +671,32 @@ while True:
     pend = BOR.pendientes()
     if pend:  # solo lo pendiente de enviar (sin Bridge), nunca un historial
         texto(f"{len(pend)} pendiente(s) de enviar: «{pend[-1]['texto'][:50]}»", F12, C["ambar"], 30, 556, W - 120)
-    if TEL.bocadillo and time.time() - TEL.bocadillo[1] < 8:
+    for _b in GB.tick(ahora):  # bocadillos con las 3 señales (t-oficina-bocadillos-050)
+        if _b.agente not in POS:
+            continue
+        bx, by = POS[_b.agente]
+        es = BC.estilo(_b.tipo, _b.depto)
+        fnt = F12
+        ancho = min(260, 16 + fnt.size(_b.texto)[0])
+        caja = pygame.Rect(bx + 16 - ancho // 2, by - 40, ancho, 22)
+        caja.x = max(4, min(W - ancho - 4, caja.x))  # dentro de la ventana (la cola sigue apuntando al sprite)
+        if es["forma"] == "nube":  # pensamiento: borde ondulado, sin cola recta, gris italica
+            for k in range(0, ancho, 10):
+                pygame.draw.circle(pantalla, C["panel"], (caja.x + k + 5, caja.y + 2), 6)
+                pygame.draw.circle(pantalla, es["borde"], (caja.x + k + 5, caja.y + 2), 6, 1)
+            pygame.draw.rect(pantalla, C["panel"], caja, border_radius=11)
+            pygame.draw.circle(pantalla, es["borde"], (bx + 18, by - 12), 3, 1)
+            fnt.set_italic(True)
+            texto(_b.texto, fnt, es["texto"], caja.x + 8, caja.y + 3, ancho - 12)
+            fnt.set_italic(False)
+        else:  # dialogo: borde solido de 2 px del departamento y cola recta al sprite
+            pygame.draw.rect(pantalla, C["panel"], caja, border_radius=8)
+            pygame.draw.rect(pantalla, es["borde"], caja, 2, border_radius=8)
+            pygame.draw.polygon(pantalla, es["borde"], [(bx + 12, caja.bottom), (bx + 20, caja.bottom), (bx + 16, by - 8)])
+            texto(_b.texto, fnt, es["texto"], caja.x + 8, caja.y + 3, ancho - 24)
+            if es["marca"] == "real":
+                pygame.draw.circle(pantalla, C["verde"], (caja.right - 8, caja.y + 11), 4)
+    if False:
         gx, gy = POS["growi"]
         caja_b = pygame.Rect(gx - 10, gy - 34, min(560, 12 + F12.size(TEL.bocadillo[0])[0]), 22)
         pygame.draw.rect(pantalla, C["panel"], caja_b, border_radius=8)
