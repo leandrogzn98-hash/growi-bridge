@@ -1,7 +1,7 @@
 {
   "nombre": "Oscuro Raycast",
   "tipo": "oscuro",
-  "descripcion": "Direccion Raycast (0.4.5): ventana #0F0F0F, tarjetas #1A1A1C con borde #2C2C2E, barra lateral un paso mas oscura, acento rojo #FF6363 solo en acciones primarias (texto oscuro encima), verde #34C759 encendido, aviso #FA5102, error #E5484D (texto #E64C51 para llegar a 4,5:1), en curso #0A84FF. Texto #F5F5F6 (no #F5F5F7: ese valor ya es la tarjeta del tema claro y la tabla de traduccion de colores los confundiria). Fuente Inter si esta instalada.",
+  "descripcion": "Direccion Raycast (0.4.5): ventana #0F0F0F, tarjetas #1A1A1C con borde #2C2C2E, barra lateral un paso mas oscura, acento azul #6AA9FF en acciones primarias (texto oscuro encima; el rojo queda para errores y acciones destructivas, B3), verde #34C759 encendido, aviso #FA5102, error #E5484D (texto #E64C51 para llegar a 4,5:1), en curso #0A84FF. Texto #F5F5F6 (no #F5F5F7: ese valor ya es la tarjeta del tema claro y la tabla de traduccion de colores los confundiria). Fuente Inter si esta instalada.",
   "tokens": {
     "bg": "#0F0F0F",
     "sidebar": "#141416",
@@ -28,8 +28,8 @@
     "seg_bg": "#2a2a2e",
     "seg_sel": "#45454d",
     "seg_hover": "#35353b",
-    "accent": "#ff6363",
-    "accent_hover": "#ff7b7b",
+    "accent": "#6aa9ff",
+    "accent_hover": "#85baff",
     "off_track": "#3a3a3f",
     "on_accent": "#0f0f0f"
   },

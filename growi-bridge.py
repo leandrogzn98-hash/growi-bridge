@@ -89,7 +89,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "0.1.0-alpha"
+VERSION = "0.4.6-alpha"
 # La version instalada es la del archivo VERSION de al lado (la que publica la
 # release). Con la constante sola, la raiz 0.2.0 se creia 0.1.0 y la
 # auto-actualizacion (cada 6 h) volvia a bajar GitHub encima, borrando lo
@@ -24592,6 +24592,10 @@ def conn_text():
     if st is None:
         return "○ Comprobando la conexión…"
     if st == "conectado":
+        # El proxy no dice nada de la VM: si el puente no se alcanza por la
+        # IP de Tailscale, nunca «Conectado» (B2).
+        if _tailscale_caido():
+            return "● Tailscale caído"
         if state.get("proxy_on") and p.get("estado") == "ok":
             pais = _country_name(load_availability() or {}, _AV.get("country_proxy"))
             return f"● Conectado — sales por {pais}"
@@ -24601,7 +24605,29 @@ def conn_text():
     return "● Sin conexión"
 
 
+def _tailscale_sonda(timeout=2.0):
+    """¿Se alcanza el puente por la IP de Tailscale de este PC? True / False /
+    None (túnel apagado en ajustes o puente apagado: nada que probar).
+    Conecta de verdad a ip:puerto, directo (sin proxy); no usar en el hilo de la UI."""
+    if _tunel_modo() == "ninguno" or _bridge_server is None:
+        return None
+    ip = tunel_ip()
+    if not ip or _tunel_server is None:
+        return False
+    try:
+        socket.create_connection((ip, BRIDGE_PORT), timeout=timeout).close()
+        return True
+    except OSError:
+        return False
+
+
+def _tailscale_caido():
+    return _IPX.get("tailscale") is False
+
+
 def _conn_color():
+    if conn_state() == "conectado" and _tailscale_caido():
+        return THEME["red"]
     return {"conectado": THEME["green_text"], "local": THEME["orange_text"],
             "sin": THEME["red"]}.get(conn_state(), THEME["muted"])
 
@@ -25321,6 +25347,10 @@ def _ipx_vigia_paso(n):
         _ipx_append(TUNEL_LOG, f"{_ipx_ahora()} | volvió: Tailscale (VM↔PC) | caído desde {_IPX['tunel_caido_at']}")
         _IPX["tunel_caido_at"] = None
     _IPX["tunel"] = t
+    ts = _tailscale_sonda()
+    if ts != _IPX.get("tailscale"):
+        _IPX["tailscale"] = ts
+        _ui_call(_refresh_conn_widgets)
     if n % 2 == 0:  # cada ~60 s
         _ts_vigia()  # Tailscale atascado en «Starting…»
         avast_comprobar()
@@ -25343,6 +25373,7 @@ def _ipx_arranque():
         _ipx_apagon_al_arrancar()
         avast_comprobar(al_arrancar=True)
         _IPX["tunel"] = _ipx_tunel_arriba()
+        _IPX["tailscale"] = _tailscale_sonda()
         # El aviso de Avast sale ya, sin esperar a la IP (con el proxy lento,
         # la detección puede tardar ~1 min; visto el 27 oct con SecureLine).
         _ui_call(_ipx_pintar)
@@ -27959,8 +27990,17 @@ def _scrollable(parent):
     inner = tk.Frame(canvas, bg=THEME["bg"])
     win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
-    def _on_inner(_e=None):
+    _pend = [False]
+
+    def _set_region():
+        _pend[0] = False
         canvas.configure(scrollregion=canvas.bbox("all"))
+
+    def _on_inner(_e=None):
+        # Un solo reajuste por tanda de cambios (antes uno por cada <Configure>).
+        if not _pend[0]:
+            _pend[0] = True
+            canvas.after_idle(_set_region)
 
     def _on_canvas(e):
         canvas.itemconfig(win_id, width=e.width)
@@ -27975,11 +28015,23 @@ def _scrollable(parent):
     # (antes cada pagina pisaba al anterior y solo la ultima hacia scroll).
     _scroll_canvases.append(canvas)
 
+    _acum = [0.0]
+
     def _on_wheel(e):
+        # Rueda de 120 por muesca; el touchpad manda deltas pequeños y muy
+        # seguidos: se acumulan y se mueve en pasos enteros (sin saltos de
+        # una unidad por evento), y se repinta al momento para que no queden
+        # restos del texto anterior.
+        _acum[0] += -e.delta / 120.0
+        paso = int(_acum[0])
+        if paso == 0:
+            return
+        _acum[0] -= paso
         for c in _scroll_canvases:
             try:
                 if c.winfo_ismapped():
-                    c.yview_scroll(-1 if e.delta > 0 else 1, "units")
+                    c.yview_scroll(paso, "units")
+                    c.update_idletasks()
                     break
             except Exception:
                 pass
@@ -37052,7 +37104,9 @@ def _gw_rows(d, est):
             ctext = (f"{cr['proveedor']}, clave «{cr['activa']}»"
                      + (f" (activa para «{cr['referencia']}»)" if cr["activa"] != cr["referencia"] else "")
                      + (f", termina en {cr['ultimos4']}" if cr.get("ultimos4") else ", no está guardada"))
-            rows.append((f"m_{m['id']}_c", "    Credencial", ctext, None if cr["guardada"] else "red", False))
+            rows.append((f"m_{m['id']}_c", "    Credencial", ctext, None if cr["guardada"] else "red", False,
+                         None if cr["guardada"] else
+                         ("Configurar", lambda p=cr["proveedor"]: _gw_configurar(p))))  # B10
         else:
             rows.append((f"m_{m['id']}_c", "    Credencial", "no usa clave", None, False))
         if _GW.get("detalle"):
@@ -37216,6 +37270,24 @@ def _gw_render(est, d):
             if b is not None:
                 k.set_label(a, text=lab)
                 k.set_label(b, text=val, color=col or "text")
+
+
+def _gw_configurar(prov):
+    """«Configurar» junto a «no está guardada» (B10): lleva a la página APIs con el
+    proveedor elegido y el cursor en la casilla de la clave."""
+    W = _widgets
+    if prov not in CRED_PROVIDERS or not W.get("show_page"):
+        return
+    W["show_page"]("apis")
+    inst = _CLV["inst"].get("apis")
+    if not inst or not inst.get("f_prov"):
+        return
+    lab = CRED_PROVIDERS[prov]["label"]
+    inst["f_prov"].set(lab)
+    _claves_form_prov(inst, lab)
+    inst["f_etq"].delete(0, "end")
+    inst["f_etq"].insert(0, "principal")
+    inst["f_key"].focus_set()
 
 
 # ---------------------------------------------------------------- Ajustes -> Claves (BYOK: una fila POR CLAVE)
@@ -38137,8 +38209,8 @@ def _mdl4_quien(k):
         k.button(row, "Ver nombre exacto", _toggle_ids).pack(side="left")
     else:
         cb.pack(side="left")
-        tk.Button(row, text="Ver nombre exacto", font=(FONT, 9), bg=THEME["card"], fg=THEME["blue"],
-                  activebackground=THEME["card"], activeforeground=THEME["blue"], bd=0, cursor="hand2",
+        tk.Button(row, text="Ver nombre exacto", font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"],
+                  activebackground=THEME["card"], activeforeground=THEME["text"], bd=0, cursor="hand2",
                   command=_toggle_ids).pack(side="left", padx=10)
         _MDL4.update(motores_box=None, motores_kit=None)
     _widgets["mdl_engine_desc"] = k.label(card, "", wrap=600)
@@ -38524,7 +38596,8 @@ def llm_textos(snap, cargando=None, busy=None):
             est, col = (f"{SRV_NO_RESPONDE}: el proceso del puerto {p} (pid {pr.get('oyente')}) no contesta "
                         "GET /models. «Parar» lo cierra y «Arrancar» lanza uno nuevo."), "red"
         else:
-            est, col = f"{SRV_NO_RESPONDE}: está apagado (puerto {p} libre, sin VRAM ocupada). «Arrancar» lo enciende.", "red"
+            est, col = (f"Apagado (arranca bajo demanda): puerto {p} libre, sin VRAM ocupada. "
+                        "Se enciende solo al usarlo, o con «Arrancar»."), "muted"
     elif loaded:
         est, col = f"{SRV_LOCAL_LISTO}: {', '.join(loaded)} cargado (GET /models: loaded)", "green_text"
     elif snap.get("rol") == "mono":
@@ -38575,7 +38648,7 @@ def _llm_render():
     arr_on = bool(snap) and inst_ok and not snap.get("responde") and not ocupado \
         and not (pr.get("oyente") and not pr.get("nuestro"))
     k.set_enabled(W["llm_btn_arrancar"], arr_on)
-    if isinstance(k, _KitCtk):  # el azul de acento solo cuando se puede pulsar
+    if isinstance(k, _KitCtk):  # el acento solo cuando se puede pulsar
         W["llm_btn_arrancar"].configure(fg_color=k.accent if arr_on else k.seg_bg,
                                         hover_color=k.accent_hover if arr_on else k.seg_hover)
     k.set_enabled(W["llm_btn_parar"], bool(pr.get("nuestro") or pr.get("huerfanos")) and not _LLM.get("busy"))
@@ -38790,6 +38863,11 @@ def _tripo_form_pintar():
     k.set_label(W["tp_costo"], txt)
     k.set_label(W["tp_costo_fuente"], f"Costo {est['fuente']}. Saldo: {st['fuente']}.")
     _tripo_pintar_aviso(W["tp_aviso2"], st, W["tp_btn_row"])
+    if st["clave"] is None:  # sin clave el boton lo dice y lleva a ponerla (no se pinta de rojo)
+        W["tp_generar"].configure(text="Poner clave de Tripo…")
+        k.set_label(W["tp_gen_estado"], "Falta la clave de Tripo: guárdala en Ajustes → APIs y vuelve aquí.")
+    else:
+        W["tp_generar"].configure(text="Generar…")
 
 
 def _tripo_pintar_aviso(box, st, before):
@@ -38887,6 +38965,12 @@ def tripo_confirmar_ui():
     W = _widgets
     if _TRIPO.get("gen") and not _TRIPO["gen"].get("fin"):
         _TRIPO["kit"].set_label(W["tp_gen_estado"], "Ya hay una generación en curso; espera a que termine.")
+        return
+    if cred_activa("tripo") is None:
+        _TRIPO["kit"].set_label(W["tp_gen_estado"],
+                                "Falta la clave de Tripo: guárdala en Ajustes → APIs y vuelve aquí.")
+        if W.get("show_page"):
+            W["show_page"]("apis")
         return
     tipo, calidad, prompt, fotos = _tripo_form()
     err = _tripo_validar(tipo, prompt, fotos)
@@ -41076,8 +41160,9 @@ class _CampoAtajo:
     sin guardar. Mientras captura, los atajos globales de Bridge se apartan
     para que no se coman la combinacion."""
 
-    def __init__(self, foco, aid, ambito, pintar, msg):
+    def __init__(self, foco, aid, ambito, pintar, msg, al_cambiar=None):
         self.foco, self.aid, self.ambito, self.pintar, self.msg = foco, aid, ambito, pintar, msg
+        self.al_cambiar = al_cambiar
         self.capt = False
         self.vistos = set()
         self._tope = None
@@ -41095,6 +41180,8 @@ class _CampoAtajo:
             if not self.capt:
                 act = atajo_actual(self.aid, self.ambito)
                 self.pintar(act or "Sin atajo", False, bool(act))
+                if self.al_cambiar:
+                    self.al_cambiar(bool(act))
                 err = _ATAJOS["error"].get((self.aid, self.ambito))
                 if err:
                     self.msg.poner(err, "error")
@@ -41256,6 +41343,20 @@ def _atajos_filas_todas():
     _atajos_refrescar()
 
 
+def _atajo_botones(boton, der, holder):
+    """«Quitar» solo si hay atajo; sin atajo, «Asignar» (empieza la captura).
+    Devuelve el callback que alterna uno u otro."""
+    quitar = boton(der, "Quitar", lambda: holder["c"].quitar())
+    asignar = boton(der, "Asignar", lambda: holder["c"].empezar())
+
+    def alternar(hay):
+        mostrar, ocultar = (quitar, asignar) if hay else (asignar, quitar)
+        ocultar.pack_forget()
+        if not mostrar.winfo_manager():
+            mostrar.pack(side="left", padx=(8, 0))
+    return alternar
+
+
 def _atajo_fila(kit, cont, aid, ambito):
     a = ATAJO_ACCIONES[aid]
     r = kit["row"](cont)
@@ -41264,11 +41365,11 @@ def _atajo_fila(kit, cont, aid, ambito):
     campo, foco, pintar = kit["campo"](der)
     campo.pack(side="left")
     holder = {}
-    kit["boton"](der, "Quitar", lambda: holder["c"].quitar()).pack(side="left", padx=(8, 0))
+    alternar = _atajo_botones(kit["boton"], der, holder)
     izq = kit["frame"](r)
     izq.pack(side="left", fill="x", expand=True)
     kit["texto"](izq, a["nombre"] + (" (comando guardado)" if a["grupo"] == "comando" else ""), a["expl"])
-    c = _CampoAtajo(foco, aid, ambito, pintar, kit["msg"](izq))
+    c = _CampoAtajo(foco, aid, ambito, pintar, kit["msg"](izq), alternar)
     holder["c"] = c
     kit["al_clic"](campo, c.empezar)
     _widgets[f"atajo_{aid}_{ambito}"] = c
@@ -42595,11 +42696,11 @@ def _cmdia_form_atajo(kit, st):
         campo, foco, pintar = ak["campo"](der)
         campo.pack(side="left")
         holder = {}
-        ak["boton"](der, "Quitar", lambda h=holder: h["c"].quitar()).pack(side="left", padx=(8, 0))
+        alternar = _atajo_botones(ak["boton"], der, holder)
         izq = kit.frame(r)
         izq.pack(side="left", fill="x", expand=True)
         kit.label(izq, nombre).pack(anchor="w")
-        c = _CampoAtajo(foco, aid, ambito, pintar, ak["msg"](mh))
+        c = _CampoAtajo(foco, aid, ambito, pintar, ak["msg"](mh), alternar)
         holder["c"] = c
         ak["al_clic"](campo, c.empezar)
         st["campos_atajo"][ambito] = c
@@ -47161,13 +47262,17 @@ def main():
         save_settings(settings)
     # Claves de la 0.2.0 (apis.json, una por servicio) -> almacen de claves,
     # como «principal» con su base URL por defecto, sin volver a pegarlas.
-    try:
-        n = migrar_apis_json()
-        if n:
-            log(f"claves: {n} clave(s) de apis.json pasadas al almacén ({cred_via()}); apis.json sigue ahí "
-                "hasta que lo borres en Ajustes → Claves")
-    except Exception as e:
-        log(f"claves: la migración de apis.json falló ({type(e).__name__}); apis.json no se tocó")
+    # En un hilo: el almacén de claves puede tardar y no debe congelar la
+    # ventana al arrancar.
+    def _migrar_claves():
+        try:
+            n = migrar_apis_json()
+            if n:
+                log(f"claves: {n} clave(s) de apis.json pasadas al almacén ({cred_via()}); apis.json sigue ahí "
+                    "hasta que lo borres en Ajustes → Claves")
+        except Exception as e:
+            log(f"claves: la migración de apis.json falló ({type(e).__name__}); apis.json no se tocó")
+    threading.Thread(target=_migrar_claves, daemon=True).start()
 
     def _uncaught(exc_type, exc_value, exc_tb):
         # Red de seguridad: si algo falla fuera del arranque (por ejemplo, en

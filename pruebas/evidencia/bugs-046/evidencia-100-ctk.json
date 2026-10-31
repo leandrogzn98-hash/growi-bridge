@@ -1,0 +1,70 @@
+{
+ "copia": "C:\\Users\\forte\\AppData\\Local\\Temp\\growi-prueba-bugs-046-4v4lp2b1",
+ "variante": "ctk",
+ "dpi": "100",
+ "build_gui_s": 14.41,
+ "checks": {
+  "B3_acento_azul": {
+   "ok": true,
+   "detalle": "#6aa9ff"
+  },
+  "B2_tailscale_caido": {
+   "ok": true,
+   "detalle": "● Tailscale caído"
+  },
+  "B2_tailscale_ok": {
+   "ok": true,
+   "detalle": "● Conectado — sales por EEUU"
+  },
+  "B2_sin_tunel_no_cambia": {
+   "ok": true,
+   "detalle": "● Conectado — sales por EEUU"
+  },
+  "B2_sonda_responde": {
+   "ok": true,
+   "detalle": "True"
+  },
+  "B6_sin_atajo_asignar": {
+   "ok": true,
+   "detalle": "['Asignar']"
+  },
+  "B6_con_atajo_quitar": {
+   "ok": true,
+   "detalle": "(['Quitar'], ['Quitar'])"
+  },
+  "B6_filas_reales_con_alternar": {
+   "ok": true,
+   "detalle": "13 campos"
+  },
+  "B7_apagado_gris": {
+   "ok": true,
+   "detalle": "('Apagado (arranca bajo demanda): puerto 8080 libre, sin VRAM ocupada. Se enciende solo al usarlo, o con «Arrancar».', 'muted')"
+  },
+  "B7_errores_rojo": {
+   "ok": true,
+   "detalle": "('red', 'red')"
+  },
+  "B10_boton_configurar": {
+   "ok": true,
+   "detalle": "('m_gemini_c', '    Credencial', 'gemini, clave «principal», no está guardada', 'red', False, ('Configurar', <function _gw_rows.<locals>.<lambda> at 0x0000026F88B0ECA0>))"
+  },
+  "B10_guardada_sin_boton": {
+   "ok": true,
+   "detalle": "('m_deepseek_c', '    Credencial', 'deepseek, clave «principal», termina en abcd', None, False, None)"
+  },
+  "B8_rueda_acumula": {
+   "ok": true,
+   "detalle": "[1, -1, 1]"
+  },
+  "B1_migracion_en_hilo": {
+   "ok": true,
+   "detalle": ""
+  },
+  "B1_mapa_en_hilo_ui": {
+   "ok": true,
+   "detalle": ""
+  }
+ },
+ "ok": true,
+ "tracebacks_en_log": 0
+}
