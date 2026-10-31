@@ -1,0 +1,2 @@
+2026-10-31 11:07:59 [oficina pid 28120] [DEMO — sin agentes reales] cámara: centrada en hermes_ollama (espera aprobación)
+2026-10-31 11:08:03 [oficina pid 28120] [DEMO — sin agentes reales] cámara: centrada en haiku (espera aprobación)

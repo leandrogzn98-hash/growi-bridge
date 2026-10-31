@@ -8,7 +8,12 @@ aparte: lo lanza el Bridge como subproceso (o se lanza a mano para probar), nunc
                           [--datos <carpeta>] [--captura ruta.png@segundos] [--salir-a segundos]
 
 Codigos de salida: 0 cerrada por el usuario · 2 «Bridge no disponible» (autocierre) ·
-3 ya hay otra oficina abierta (mutex) · 4 la app pidio cerrarla · 5 falta pygame-ce.
+3 ya hay otra oficina abierta (mutex) · 4 la app pidio cerrarla · 5 falta pygame-ce ·
+6 cerrada por la escalera de rendimiento (falta de recursos; no se reabre sola).
+
+--demo (t-oficina-ciclo-vida-050): personajes SIMULADOS para ensenar la oficina sin agentes reales.
+Rotulado «DEMO — sin agentes reales» siempre (titulo, franja fija, cada linea del log); lee una
+carpeta propia (datos/demo/outbox), nunca el share del Bridge, y no puede encolar nada.
 """
 import argparse
 import ctypes
@@ -38,6 +43,8 @@ sys.path.insert(0, str(AQUI.parent / "bocadillos"))
 import bocadillos as BC  # noqa: E402  (t-oficina-bocadillos-050)
 sys.path.insert(0, str(AQUI.parent / "rendimiento"))
 import rendimiento as RD  # noqa: E402  (t-oficina-rendimiento-050)
+sys.path.insert(0, str(AQUI.parent / "ciclo"))
+import ciclo as CV  # noqa: E402  (t-oficina-ciclo-vida-050: DEMO, faro, camara, aprobacion espacializada)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--share", default=str(Path.home() / "growi-bridge" / "share"))
@@ -52,6 +59,8 @@ ap.add_argument("--pos", default=None)
 ap.add_argument("--sensores-falsos", default=None)  # PRUEBA: JSON con ram_pct / vram_libre_mb simulados
 ap.add_argument("--sin-noche", action="store_true")  # PRUEBA: ignora el horario nocturno
 ap.add_argument("--sueno-min", type=float, default=None)  # DEMO: acelera IDLE_SLEEP_MINUTES (se rotula)
+ap.add_argument("--pulsar", action="append", default=[])  # PRUEBA: "n@6" pulsa la tecla n a los 6 s
+ap.add_argument("--demo", action="store_true")  # personajes simulados, rotulados «DEMO — sin agentes reales»
 A = ap.parse_args()
 if A.sueno_min is not None:
     E.IDLE_SLEEP_MINUTES = A.sueno_min
@@ -62,6 +71,9 @@ APP = Path(A.app) if A.app else SHARE.parent
 DATOS = Path(A.datos) if A.datos else AQUI / "datos"
 DATOS.mkdir(parents=True, exist_ok=True)
 LOG = DATOS / "oficina-protocolo.log"
+# DEMO: las fuentes simuladas van a una carpeta de la oficina; el share del Bridge solo da el latido.
+DEMO = CV.Demo(DATOS / "demo" / "outbox") if A.demo else None
+FUENTES = DEMO.outbox if DEMO else OUTBOX
 METRICAS = DATOS / f"metricas-{datetime.now():%Y%m%d-%H%M%S}-{os.getpid()}.jsonl"
 # t-oficina-rendimiento-050: datos de estado <= 50 MB con rotacion (solo las metricas propias, las mas viejas primero)
 _viejas = sorted(DATOS.glob("metricas-*.jsonl"), key=lambda q: q.stat().st_mtime)
@@ -73,7 +85,8 @@ _mlock = threading.Lock()
 
 
 def log(msg):
-    linea = f"{datetime.now():%Y-%m-%d %H:%M:%S} [oficina pid {os.getpid()}] {msg}"
+    demo = f" [{CV.DEMO_ETIQUETA}]" if A.demo else ""
+    linea = f"{datetime.now():%Y-%m-%d %H:%M:%S} [oficina pid {os.getpid()}]{demo} {msg}"
     try:
         with open(LOG, "a", encoding="utf-8") as f:
             f.write(linea + "\n")
@@ -150,8 +163,9 @@ def _leer_skills():
 
 
 _estado_bridge = ["esperando", "", None]
-RESULTS = OUTBOX / "runner-results"
-APR_REG = OUTBOX / "aprobaciones-registro.jsonl"
+RESULTS = FUENTES / "runner-results"
+APR_REG = FUENTES / "aprobaciones-registro.jsonl"
+APR_PEDIDOS = FUENTES / "aprobaciones"  # pedidos que publica la app (solo lectura: la tarjeta de la mesa del gerente)
 
 
 def _leer_orq():
@@ -180,12 +194,14 @@ def _leer_orq():
                     apr[d["tarea"]] = d.get("canal") or "app"
     except OSError:
         pass
-    return "ok", {"orq": orq, "apr": apr}, "", 1
-F["runner-live"] = P.Fuente("runner-live", OUTBOX / "runner-live.json", _per_live,
+    return "ok", {"orq": orq, "apr": apr, "pedidos": CV.leer_pedidos(APR_PEDIDOS)}, "", 1
+if DEMO:
+    DEMO.paso()  # el primer juego de fuentes simuladas antes de arrancar los lectores
+F["runner-live"] = P.Fuente("runner-live", FUENTES / "runner-live.json", _per_live,
                             marca=lambda d: d.get("actualizado"), limite=P.LIVE_FRESCO_S, registro=metrica)
-F["cola-live"] = P.Fuente("cola-live", OUTBOX / "cola-live.json", _per(P.PERIODO_COLA_S),
+F["cola-live"] = P.Fuente("cola-live", FUENTES / "cola-live.json", _per(P.PERIODO_COLA_S),
                           marca=lambda d: d.get("actualizado"), limite=P.COLA_FRESCA_S, registro=metrica)
-F["runner-status"] = P.Fuente("runner-status", OUTBOX / "runner-status.json", _per(P.PERIODO_STATUS_S),
+F["runner-status"] = P.Fuente("runner-status", FUENTES / "runner-status.json", _per(P.PERIODO_STATUS_S),
                               marca=lambda d: d.get("last_poll"), limite=P.STATUS_FRESCO_S, registro=metrica)
 F["engines"] = P.Fuente("engines", APP / "engines.json", lambda: P.PERIODO_CONFIG_S, registro=metrica)
 F["skills"] = P.Fuente("skills", APP / "skills", lambda: P.PERIODO_CONFIG_S, leer=_leer_skills, registro=metrica)
@@ -195,10 +211,11 @@ F["latido"] = P.Fuente("latido", Path(A.latido) if A.latido else OUTBOX / "bridg
 LAT = P.Latido(F["latido"], A.bridge_pid)
 for f in F.values():
     f.arrancar()
-log(f"abierta: share={SHARE} app={APP} bridge_pid={A.bridge_pid} mutex={A.mutex} datos={DATOS}")
+log(f"abierta: share={SHARE} app={APP} bridge_pid={A.bridge_pid} mutex={A.mutex} datos={DATOS}"
+    + (f" · DEMO: fuentes simuladas en {FUENTES}; no encola nada" if DEMO else ""))
 
 # ---- encolar: la UNICA escritura hacia el Bridge, por oficina\encolar\encolar.py (import en 2o plano)
-BOR = P.Borradores(DATOS / "borradores.json")
+BOR = P.Borradores((DATOS / "demo" if A.demo else DATOS) / "borradores.json")
 MEM = E.Memoria(registro=metrica)
 _PLANO = AQUI.parent / "plano" / "plano.json"
 _POIS = ({p_["id"]: p_["capacidad"] for p_ in json.loads(_PLANO.read_text(encoding="utf-8"))["puntos_interes"]}
@@ -232,12 +249,26 @@ def _cargar_encolar():
     ENC["listo"] = True
 
 
-if not os.environ.get("GROWI_OFICINA_SIN_ENCOLAR"):  # gancho de prueba
+def _demo_hilo():
+    while True:
+        try:
+            DEMO.paso()
+        except OSError as e:
+            log(f"DEMO: no se pudieron escribir las fuentes simuladas ({e})")
+        time.sleep(2)
+
+
+if DEMO:
+    threading.Thread(target=_demo_hilo, daemon=True).start()
+if not os.environ.get("GROWI_OFICINA_SIN_ENCOLAR") and not A.demo:  # gancho de prueba; el DEMO nunca carga encolar
     threading.Thread(target=_cargar_encolar, daemon=True).start()
 
 
+_hay_ejemplo = [False]  # alguna fuente trae «_ejemplo»: se rotula DEMO y no se encola
+
+
 def _puede_enviar():
-    return ENC["mod"] is not None and not _bridge_caido()
+    return ENC["mod"] is not None and not _bridge_caido() and not A.demo and not _hay_ejemplo[0]
 
 
 def _enviar_pendientes():
@@ -285,7 +316,8 @@ def _seguir_enviados():
 pygame.init()
 W, H = 1000, 660
 pantalla = pygame.display.set_mode((W, H))
-pygame.display.set_caption("Oficina Growi — prototipo de protocolo (Pygame-ce)")
+pygame.display.set_caption(f"Oficina Growi — {CV.DEMO_ETIQUETA}" if A.demo
+                           else "Oficina Growi — prototipo de protocolo (Pygame-ce)")
 
 
 def _fuente(t, bold=False):
@@ -310,8 +342,9 @@ DEPTO = {"gerencia": ((245, 166, 35), "Gerencia"), "claude": ((232, 131, 58), "C
          "gemini": ((43, 92, 184), "Gemini (en obras)"), "taller3d": ((150, 105, 70), "Taller 3D"),
          "especialistas": ((90, 140, 160), "Sala de espera"), "despacho": ((0, 122, 255), "Despacho"),
          "noche": ((51, 89, 140), "Noche")}
-ZONAS = [("gerencia", 30, 120, 120), ("despacho", 160, 120, 120), ("noche", 290, 120, 120),
-         ("claude", 420, 120, 340), ("especialistas", 770, 120, 200),
+# t-oficina-ciclo-vida-050: gerencia mas ancha, para que quepa quien espera aprobacion junto a su mesa
+ZONAS = [("gerencia", 30, 120, 200), ("despacho", 240, 120, 100), ("noche", 350, 120, 100),
+         ("claude", 460, 120, 340), ("especialistas", 810, 120, 180),
          ("codex", 30, 300, 180), ("local", 220, 300, 260), ("gemini", 490, 300, 150),
          ("taller3d", 650, 300, 150)]
 POS = {}
@@ -319,6 +352,9 @@ for depto, zx, zy, _w in ZONAS:
     miembros = [r for r in P.ROSTER if r[2] == depto]
     for i, r in enumerate(miembros):
         POS[r[0]] = (zx + 24 + i * 82, zy + 34)
+CAM = CV.Camara()  # N: centra en el agente que espera aprobacion (t-oficina-ciclo-vida-050)
+CAMIN = CV.Caminantes(POS)  # quien espera camina a la mesa del gerente y vuelve a su mesa
+MUNDO = (0, 93, W, 387)  # la parte de la ventana que es oficina (la camara solo amplia esto)
 ROT = {P.TRABAJANDO: "trabajando", P.EN_COLA: "en cola", P.SIN_TAREA: "sin tarea",
        P.SIN_SENAL: "sin señal", P.SIN_INSTALAR: "sin instalar"}
 
@@ -363,8 +399,8 @@ def _z():
     return _Z
 
 
-def dibujar_sprite(pid, nombre, depto, est, t, actividad=None):
-    x, y = POS[pid]
+def dibujar_sprite(pid, nombre, depto, est, t, actividad=None, xy=None, ancho_txt=80):
+    x, y = (int(xy[0]), int(xy[1])) if xy else POS[pid]
     col = DEPTO[depto][0]
     caja = pygame.Rect(x, y, 32, 48)
     cara = (242, 230, 204)
@@ -406,13 +442,13 @@ def dibujar_sprite(pid, nombre, depto, est, t, actividad=None):
         if marca:
             pygame.draw.circle(pantalla, marca[1], (x + 30, y + 2), 7)
             texto(marca[0], F12, C["panel"], x + 26, y - 7)
-    texto(nombre, F12, C["texto"], x - 6, y + 56, 80)
+    texto(nombre, F12, C["texto"], x - 6, y + 56, ancho_txt)
     col_e = {E.TRABAJANDO: C["acento"], E.EN_COLA: C["acento"], E.ESPERANDO_APROBACION: C["ambar"],
              E.FALLIDO: C["rojo"], E.TERMINADO: C["verde"]}.get(est, C["suave"])
     etq = E.ETIQUETA.get(est) or ROT.get(est, est)
     if actividad and actividad not in ("respirar", "parpadear"):
         etq = f"{etq} · {actividad.replace('_', ' ')}"
-    texto(etq, F12, col_e, x - 6, y + 70, 80)
+    texto(etq, F12, col_e, x - 6, y + 70, ancho_txt)
 
 
 # ---- vigia de fotogramas congelados: si un fotograma tarda mas de 1 s, faulthandler (hilo en C,
@@ -428,6 +464,7 @@ for c in A.captura:
     ruta, _, seg = c.rpartition("@")
     capturas.append([float(seg), ruta, False])
 entrada, foco = "", False
+PULSAR = [[float(c.rpartition("@")[2]), c.rpartition("@")[0], False] for c in A.pulsar]
 t_seg, frames, peor, lentos_f = 0.0, 0, 0.0, 0
 codigo, cierre_t, cierre_motivo = None, None, ""
 ultimo_envio, ultimo_seguir, ultimo_estados = 0.0, 0.0, {}
@@ -435,6 +472,7 @@ caja_in = pygame.Rect(30, H - 46, 560, 30)
 icono_tel = pygame.Rect(W - 56, H - 56, 40, 40)
 caido_antes = None
 en_curso_antes = frozenset()
+ESPERAN = []  # agentes en esperando_aprobacion, en orden de pantalla (N los recorre)
 
 while True:
     _f = RD.fps(REND["nivel"], pygame.key.get_focused(), not pygame.display.get_active())
@@ -446,6 +484,9 @@ while True:
     if A.salir_a is not None and t >= A.salir_a and codigo is None:  # vale dormida y minimizada
         codigo, cierre_motivo = 0, f"--salir-a {A.salir_a}"
         break
+    for _k in [k_ for k_ in PULSAR if not k_[2] and t >= k_[0]]:
+        _k[2] = True
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.key.key_code(_k[1]), mod=0, unicode=_k[1]))
     for e in pygame.event.get():
         if e.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.TEXTINPUT):
             REND["ultimo_input"] = time.time()
@@ -490,6 +531,16 @@ while True:
                 OFV.vagancia_activa = not OFV.vagancia_activa
                 log(f"vagancia {'encendida' if OFV.vagancia_activa else 'apagada (oficina seria)'}")
                 continue
+            if e.key == pygame.K_n and not foco:  # N: la camara al que espera (el faro dice donde)
+                _f_n = CAM.siguiente(ESPERAN, time.time())
+                log(f"cámara: centrada en {_f_n} (espera aprobación)" if _f_n
+                    else "cámara: N sin nadie esperando aprobación; no se mueve")
+                metrica({"evento": "camara_n", "foco": _f_n, "esperan": list(ESPERAN)})
+                continue
+            if e.key == pygame.K_ESCAPE and CAM.foco and not foco:
+                CAM.soltar()
+                log("cámara: vuelve a la oficina entera (Esc)")
+                continue
             if e.key == pygame.K_t and not foco:
                 tel_abierto, foco, tragar_t = True, True, True  # el telefono: tecla T
                 pygame.key.start_text_input()
@@ -501,7 +552,10 @@ while True:
             elif foco and e.key == pygame.K_BACKSPACE:
                 entrada = entrada[:-1]
             elif foco and e.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and entrada.strip():
-                if _puede_enviar():  # el telefono: el gerente lo clasifica y, si es tarea, la encola como la app
+                if A.demo or _hay_ejemplo[0]:  # DEMO: nada sale de aqui, ni como borrador
+                    log(f"DEMO: el teléfono no encola nada («{entrada.strip()[:60]}» descartado)")
+                    metrica({"evento": "demo_no_encola", "texto": entrada.strip()[:60]})
+                elif _puede_enviar():  # el telefono: el gerente lo clasifica y, si es tarea, la encola como la app
                     TEL.enc = ENC["mod"]
                     r_tel = TEL.enviar(entrada.strip())
                     log(f"telefono: «{entrada.strip()[:60]}» -> {r_tel}")
@@ -624,6 +678,20 @@ while True:
         _act = OFV.actividad_de(pid)
         if _act:
             ACTIVIDAD[pid] = _act
+    # ---- aprobacion espacializada (§9.2): quien espera camina a la mesa del gerente y espera ahi
+    _ahora_esp = {r[0] for r in P.ROSTER if est.get(r[0], (None,))[0] == E.ESPERANDO_APROBACION and r[0] != "growi"}
+    ESPERAN[:] = [p_ for p_ in ESPERAN if p_ in _ahora_esp] + sorted(_ahora_esp - set(ESPERAN))  # por llegada
+    _puestos = CV.puestos_gerente(*POS["growi"], max(1, len(ESPERAN)))
+    for pid, *_r in P.ROSTER:
+        if pid in ESPERAN and ESPERAN.index(pid) < 2:  # 2 puestos junto a la mesa; el resto espera en su silla (con faro)
+            CAMIN.mandar(pid, _puestos[ESPERAN.index(pid)])
+        elif pid in CAMIN.casa:
+            CAMIN.a_casa(pid)
+    CAMIN.paso(0.0 if REND["nivel"] >= 3 else dt, ahora)
+    if REND["nivel"] >= 3:  # sin animacion: se colocan directamente donde tocan
+        CAMIN.pos.update({k: tuple(map(float, v)) for k, v in CAMIN.objetivo.items()})
+    CAM.activa(ESPERAN, ahora)
+    _hay_ejemplo[0] = any(v["ejemplo"] for v in V.values())
     cambios = {k: v[0] for k, v in est.items() if ultimo_estados.get(k) != v[0]}
     if cambios:
         metrica({"evento": "estados", "cambios": cambios})
@@ -646,9 +714,9 @@ while True:
     texto(("Modo ahorro: ON (A)" if ESC.ahorro else "Modo ahorro (A)") + " · Dormir (Z)", F12,
           C["ambar"] if ESC.ahorro else C["suave"], W - 230, 76)
     texto(f"Te necesitan: {_tn}", F15, C["ambar"] if _tn not in ("0", "—") else C["suave"], W - 430, 8)
-    ejemplo = any(v["ejemplo"] for v in V.values())
-    if ejemplo:
-        texto("DATOS DE EJEMPLO — no son del runner", F15, C["ambar"], 330, 8)
+    ejemplo = _hay_ejemplo[0]
+    if A.demo or ejemplo:  # marca permanente: nunca hay personajes simulados sin rotulo
+        texto(CV.DEMO_ETIQUETA if A.demo else "DATOS DE EJEMPLO — no son del runner", F15, C["ambar"], 330, 8)
     if A.sueno_min is not None:
         texto(f"DEMO: se duermen a los {A.sueno_min * 60:.0f} s sin tarea", F13, C["ambar"], 600, 488)
     if eb == "vivo":
@@ -675,9 +743,24 @@ while True:
         pygame.draw.rect(pantalla, C["linea"], (zx, zy, ancho, 160), 1, border_radius=8)
         pygame.draw.rect(pantalla, DEPTO[depto][0], (zx + 10, zy + 12, 10, 10))
         texto(DEPTO[depto][1], F13, C["texto"], zx + 26, zy + 7, ancho - 30)
+    _tq = 0.0 if REND["nivel"] >= 3 else t
+    _nm = dict((r[0], r[1]) for r in P.ROSTER)
+    for pid in ESPERAN:  # faro sobre el escritorio del que espera (aunque este en la mesa del gerente)
+        fx, fy = POS[pid]
+        _on = int(_tq * 2) % 2 == 0
+        pygame.draw.line(pantalla, C["texto"], (fx + 16, fy - 4), (fx + 16, fy - 16), 2)
+        pygame.draw.circle(pantalla, C["rojo"] if _on else C["ambar"], (fx + 16, fy - 22), 7)
+        if _on:
+            pygame.draw.circle(pantalla, C["ambar"], (fx + 16, fy - 22), 12, 2)
+        if CAMIN.fuera(pid):  # la silla vacia con su nombre: se sabe de quien es la mesa
+            pygame.draw.rect(pantalla, C["linea"], (fx, fy + 20, 32, 28), 1)
+            texto(f"{_nm[pid]}: en la mesa del gerente", F12, C["ambar"], fx - 6, fy + 56, 90)
     for pid, nombre, depto, _tipo, _cl in P.ROSTER:
-        dibujar_sprite(pid, nombre, depto, est[pid][0], 0.0 if REND["nivel"] >= 3 else t,
-                       None if REND["nivel"] >= 3 else ACTIVIDAD.get(pid))
+        _vis = pid in ESPERAN and CAMIN.fuera(pid)
+        etq_act = ("camina a la mesa del gerente" if CAMIN.andando(pid) and pid in ESPERAN
+                   else "vuelve a su mesa" if CAMIN.andando(pid) else ACTIVIDAD.get(pid))
+        dibujar_sprite(pid, nombre, depto, est[pid][0], _tq, None if REND["nivel"] >= 3 else etq_act,
+                       xy=CAMIN.pos.get(pid), ancho_txt=50 if (_vis or (pid == "growi" and ESPERAN)) else 80)
     # leyenda de motivos (de donde sale cada estado)
     pygame.draw.rect(pantalla, C["panel"], (0, 480, W, H - 480))
     pygame.draw.line(pantalla, C["linea"], (0, 480), (W, 480))
@@ -739,10 +822,24 @@ while True:
     pend = BOR.pendientes()
     if pend:  # solo lo pendiente de enviar (sin Bridge), nunca un historial
         texto(f"{len(pend)} pendiente(s) de enviar: «{pend[-1]['texto'][:50]}»", F12, C["ambar"], 30, 556, W - 120)
+    # tarjeta despues del panel de abajo (si no, el panel la tapa)
+    _vfoco = CAM.foco or next((p_ for p_ in ESPERAN if p_ in CAMIN.llego), None)
+    if _vfoco and _vfoco in CAMIN.llego:  # tarjeta con el comando exacto: SIN botones (aprobar es en la app)
+        _fila = asig.get(_vfoco)
+        _lin = CV.tarjeta(_fila, oq.get("pedidos", {}).get((_fila or {}).get("id")), ahora)
+        _lin[0] = f"{_nm[_vfoco]} en la mesa del gerente · {_lin[0]}"
+        # en el panel de abajo: no tapa ningun faro ni mesa, y se lee entera aunque la camara amplie
+        _cw = min(660, 20 + max(F12.size(l_)[0] for l_ in _lin))
+        _card = pygame.Rect(W - _cw - 10, 486, _cw, 18 * len(_lin) + 10)
+        pygame.draw.rect(pantalla, C["panel"], _card, border_radius=8)
+        pygame.draw.rect(pantalla, C["ambar"], _card, 2, border_radius=8)
+        for i_, l_ in enumerate(_lin):
+            texto(l_, F13 if i_ == 0 else F12, C["texto"] if 0 < i_ < len(_lin) - 1 else C["ambar"],
+                  _card.x + 10, _card.y + 6 + 18 * i_, _cw - 20)
     for _b in GB.tick(ahora):  # bocadillos con las 3 señales (t-oficina-bocadillos-050)
         if _b.agente not in POS:
             continue
-        bx, by = POS[_b.agente]
+        bx, by = map(int, CAMIN.pos.get(_b.agente, POS[_b.agente]))  # el bocadillo va con quien camina
         es = BC.estilo(_b.tipo, _b.depto)
         fnt = F12
         ancho = min(260, 16 + fnt.size(_b.texto)[0])
@@ -773,6 +870,23 @@ while True:
     elif TEL.estado != "colgado":
         gx, gy = POS["growi"]
         texto("…", F18, C["texto"], gx + 8, gy - 26)
+    if CAM.foco and CAM.foco in CAMIN.pos:  # N: la camara centra (zoom x2) en el que espera
+        _rx, _ry, _rw, _rh = CAM.recorte(MUNDO, (CAMIN.pos[CAM.foco][0] + 16, CAMIN.pos[CAM.foco][1] + 60), dt)
+        _zoom = pygame.transform.scale(pantalla.subsurface((_rx, _ry, _rw, _rh)).copy(), MUNDO[2:])
+        pantalla.blit(_zoom, MUNDO[:2])
+        texto(f"Cámara en {CAM.foco} · N: siguiente · Esc: toda la oficina", F12, C["suave"], 12, MUNDO[1] + 4)
+    else:
+        CAM.centro = None
+    if ESPERAN:  # banner imposible de ignorar: cuantos (te necesitan) + donde (el faro) + la tecla
+        _nm = dict((r[0], r[1]) for r in P.ROSTER)
+        pygame.draw.rect(pantalla, C["ambar"], (0, MUNDO[1] + MUNDO[3] - 26, W, 26))
+        texto(f"Te necesitan: {_tn} · espera tu aprobación: {', '.join(_nm[p_] for p_ in ESPERAN)}"
+              " · se aprueba en la app (Tareas) o por WhatsApp · N: ir al agente", F13, C["texto"],
+              12, MUNDO[1] + MUNDO[3] - 23, W - 24)
+    if A.demo:  # franja fija: sale en la ventana y en CADA captura (pygame.image.save guarda esta pantalla)
+        pygame.draw.rect(pantalla, (40, 40, 42), (0, H - 20, W, 20))
+        texto(f"{CV.DEMO_ETIQUETA} · los personajes son simulados · esta oficina no encola nada", F12,
+              C["ambar"], 12, H - 18, W - 24)
     if cierre_t is not None:
         pygame.draw.rect(pantalla, (40, 40, 42), (W // 2 - 260, 200, 520, 110), border_radius=12)
         texto("Bridge no disponible", F28, C["panel"], W // 2 - 150, 214)

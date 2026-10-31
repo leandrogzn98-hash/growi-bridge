@@ -1,0 +1,13 @@
+{
+ "texto_inicial": "Abrir",
+ "tras_pulsar": {
+  "texto": "Cerrar",
+  "abierta": true,
+  "pid": 3028
+ },
+ "tras_pulsar_otra_vez": {
+  "texto": "Abrir",
+  "abierta": false
+ },
+ "ok": true
+}

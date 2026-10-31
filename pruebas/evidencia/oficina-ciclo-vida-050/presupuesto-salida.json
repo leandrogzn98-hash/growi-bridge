@@ -1,0 +1,14 @@
+{
+ "muestras": 32,
+ "ram_max_mb": 48.8,
+ "cpu_media_equipo_pct": 0.39,
+ "cpu_max_equipo_pct": 0.88,
+ "cpu_media_un_nucleo_pct": 6.2,
+ "nucleos": 16,
+ "topes": {
+  "ram_mb": 350,
+  "cpu_reposo_pct": 2
+ },
+ "nota": "Con DEMO activo NO es reposo: 2 agentes esperando (faro parpadeando, paseo) y la camara de N a los 34-38 s.",
+ "ok_ram": true
+}

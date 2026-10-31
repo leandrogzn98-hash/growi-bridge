@@ -1,0 +1,10 @@
+pygame-ce 2.5.8 (SDL 2.32.10, Python 3.12.10)
+2026-10-31 11:06:33 [oficina pid 7612] [DEMO — sin agentes reales] abierta: share=C:\Users\forte\growi-bridge\_prueba-ciclo-vida\share app=C:\Users\forte\growi-bridge\_prueba-ciclo-vida\app bridge_pid=26404 mutex=Local\GrowiOficinaPruebaCiclo datos=C:\Users\forte\growi-bridge\_prueba-ciclo-vida\datos · DEMO: fuentes simuladas en C:\Users\forte\growi-bridge\_prueba-ciclo-vida\datos\demo\outbox; no encola nada
+2026-10-31 11:06:38 [oficina pid 7612] [DEMO — sin agentes reales] captura C:\Users\forte\growi-bridge\_prueba-ciclo-vida\evidencia\f-demo-4s.png a los 4.1 s
+2026-10-31 11:06:46 [oficina pid 7612] [DEMO — sin agentes reales] captura C:\Users\forte\growi-bridge\_prueba-ciclo-vida\evidencia\h-mesa-gerente-12s.png a los 12.0 s
+2026-10-31 11:06:54 [oficina pid 7612] [DEMO — sin agentes reales] cámara: centrada en hermes_ollama (espera aprobación)
+2026-10-31 11:06:56 [oficina pid 7612] [DEMO — sin agentes reales] captura C:\Users\forte\growi-bridge\_prueba-ciclo-vida\evidencia\g-camara-n-22s.png a los 22.0 s
+2026-10-31 11:06:59 [oficina pid 7612] [DEMO — sin agentes reales] cámara: centrada en hermes_ollama (espera aprobación)
+2026-10-31 11:07:01 [oficina pid 7612] [DEMO — sin agentes reales] captura C:\Users\forte\growi-bridge\_prueba-ciclo-vida\evidencia\g-camara-n2-27s.png a los 27.0 s
+2026-10-31 11:07:10 [oficina pid 7612] [DEMO — sin agentes reales] captura C:\Users\forte\growi-bridge\_prueba-ciclo-vida\evidencia\f-demo-36s.png a los 36.0 s
+2026-10-31 11:07:14 [oficina pid 7612] [DEMO — sin agentes reales] cerrada (código 0): --salir-a 40.0

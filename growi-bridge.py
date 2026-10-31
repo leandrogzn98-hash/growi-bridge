@@ -22972,10 +22972,15 @@ def _fin_de_sesion_registrar(icon):
 OFICINA_LATIDO = OUTBOX / "bridge-latido.json"
 OFICINA_PID_FILE = APP_DIR / "oficina.pid.json"
 OFICINA_LATIDO_MS = 5000
-_OFICINA = {"proc": None, "pid": None, "after": None, "inicio": None}
+_OFICINA = {"proc": None, "pid": None, "after": None, "inicio": None, "job": None, "demo": False,
+            "ultimo_codigo": None, "reabrir_after": None}
+# t-oficina-ciclo-vida-050: la oficina va en un Job Object de Windows con «matar al cerrar»: si la app
+# muere (aunque sea de golpe, o al apagar el PC) Windows mata la oficina y lo que haya lanzado
+# (el python.exe de un venv es un lanzador con un hijo). El latido de 15 s queda de segunda red.
+OFICINA_REABRIR_RAM_MAX = 60  # % de RAM en uso por debajo del cual «sobran recursos» (solo si se configuró)
 _OFICINA_CODIGOS = {0: "cerrada por el usuario", 2: "Bridge no disponible (autocierre)",
                     3: "ya había otra oficina abierta", 4: "la app pidió cerrarla",
-                    5: "falta pygame-ce en ese Python"}
+                    5: "falta pygame-ce en ese Python", 6: "cerrada por falta de recursos (no se reabre sola)"}
 
 
 def _oficina_script():
@@ -23031,11 +23036,13 @@ def _oficina_olvidar():
             _root.after_cancel(_OFICINA["after"])
         except Exception:
             pass
-    _OFICINA.update(proc=None, pid=None, after=None, inicio=None)
+    _oficina_job_cerrar()
+    _OFICINA.update(proc=None, pid=None, after=None, inicio=None, demo=False)
     try:
         OFICINA_PID_FILE.unlink()
     except OSError:
         pass
+    _oficina_ui()
 
 
 def _oficina_tick():
@@ -23046,7 +23053,10 @@ def _oficina_tick():
     rc = p.poll()
     if rc is not None:
         log(f"oficina: se cerró (pid {p.pid}, código {rc}: {_OFICINA_CODIGOS.get(rc, 'otro')}); la app sigue")
+        _OFICINA["ultimo_codigo"] = rc
         _oficina_olvidar()
+        if rc == 6:  # falta de recursos: NO se reabre sola, salvo que el usuario lo haya configurado
+            _oficina_reabrir_programar()
         return
     _oficina_latido()
     if _root is not None:
@@ -23056,10 +23066,14 @@ def _oficina_tick():
             pass
 
 
-def oficina_abrir():
-    """Lanza la oficina (subproceso). False si ya estaba abierta o no se puede."""
+def oficina_abrir(demo=False):
+    """Lanza la oficina (subproceso). False si ya estaba abierta o no se puede.
+    demo=True: personajes simulados, rotulados «DEMO — sin agentes reales», sin encolar nada."""
     if oficina_abierta():
         log(f"oficina: ya está abierta (pid {_OFICINA['pid']}); no lanzo otra")
+        return False
+    _oficina_reabrir_cancelar()
+    if _oficina_huerfana_limpiar("antes de abrir") == "viva":
         return False
     script = _oficina_script()
     if script is None:
@@ -23073,21 +23087,30 @@ def oficina_abrir():
     _oficina_latido()  # el primer latido ANTES de lanzarla (y borra un «cerrar» viejo)
     env = dict(os.environ, PYTHONIOENCODING="utf-8", **extra)
     cmd = [exe, str(script), "--share", str(SHARE), "--app", str(APP_DIR), "--bridge-pid", str(os.getpid()),
-           "--latido", str(OFICINA_LATIDO)]
+           "--latido", str(OFICINA_LATIDO)] + (["--demo"] if demo else [])
+    suspendida = os.name == "nt"  # se lanza suspendida para meterla en el job ANTES de que cree hijos
     try:
         p = subprocess.Popen(cmd, env=env, cwd=str(script.parent), stdin=subprocess.DEVNULL,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) | (0x4 if suspendida else 0))
     except OSError as e:
         log(f"oficina: no se pudo lanzar ({e})")
         return False
-    _OFICINA.update(proc=p, pid=p.pid, inicio=time.time())
+    job = _oficina_job(p) if suspendida else None
+    if suspendida and not _oficina_reanudar(p):
+        log("oficina: no se pudo reanudar el proceso suspendido; se mata")
+        p.kill()
+        _oficina_job_cerrar(job)
+        return False
+    _OFICINA.update(proc=p, pid=p.pid, inicio=time.time(), job=job, demo=bool(demo))
     try:
         OFICINA_PID_FILE.write_text(json.dumps({"pid": p.pid, "bridge_pid": os.getpid(), "inicio": _now_iso(),
-                                                "cmd": cmd}, ensure_ascii=False), encoding="utf-8")
+                                                "demo": bool(demo), "cmd": cmd}, ensure_ascii=False), encoding="utf-8")
     except OSError:
         pass
-    log(f"oficina: abierta (pid {p.pid}, {motivo})")
+    log(f"oficina: abierta{' en DEMO (sin agentes reales)' if demo else ''} (pid {p.pid}, {motivo}; "
+        f"{'en un Job Object: muere con la app' if job else 'sin Job Object: solo el latido la cierra'})")
+    _oficina_ui()
     if _root is not None:
         try:
             _OFICINA["after"] = _root.after(OFICINA_LATIDO_MS, _oficina_tick)
@@ -23119,7 +23142,8 @@ def oficina_cerrar(motivo="desde la app"):
             except subprocess.TimeoutExpired:
                 pass
     log(f"oficina: cerrada {motivo} (pid {p.pid}, {como}, código {p.poll()})")
-    _oficina_olvidar()
+    _OFICINA["ultimo_codigo"] = p.poll()
+    _oficina_olvidar()  # cierra el job: si algo de la oficina seguia vivo (un hijo), Windows lo mata
     return True
 
 
@@ -23129,6 +23153,181 @@ def oficina_alternar():
 
 def _tray_oficina_label(_item=None):
     return "Cerrar oficina" if oficina_abierta() else "Abrir oficina"
+
+
+# ---- t-oficina-ciclo-vida-050: Job Object, huerfanas, boton y reapertura (solo si se configuro)
+def _oficina_job(p):
+    """Job Object con KILL_ON_JOB_CLOSE y la oficina dentro. None si Windows no deja (sigue el latido)."""
+    if os.environ.get("GROWI_OFICINA_SIN_JOB"):  # gancho de prueba: solo el latido
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.windll.kernel32
+        k32.CreateJobObjectW.restype = wintypes.HANDLE
+        k32.OpenProcess.restype = wintypes.HANDLE
+
+        class _BASIC(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                        ("SchedulingClass", wintypes.DWORD)]
+
+        class _IO(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_uint64) for n in ("r", "w", "o", "rb", "wb", "ob")]
+
+        class _EXT(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", _BASIC), ("IoInfo", _IO),
+                        ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            raise OSError(ctypes.get_last_error() or "CreateJobObjectW")
+        info = _EXT()
+        info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
+            k32.CloseHandle(job)
+            raise OSError("SetInformationJobObject")
+        h = k32.OpenProcess(0x0101 | 0x0400, False, p.pid)  # SET_QUOTA | TERMINATE | QUERY_INFORMATION
+        ok = bool(h) and bool(k32.AssignProcessToJobObject(job, h))
+        if h:
+            k32.CloseHandle(h)
+        if not ok:
+            k32.CloseHandle(job)
+            raise OSError("AssignProcessToJobObject")
+        return job
+    except Exception as e:  # noqa: BLE001
+        log(f"oficina: sin Job Object ({type(e).__name__}: {e}); la cierra el latido si la app muere")
+        return None
+
+
+def _oficina_reanudar(p):
+    try:
+        import ctypes
+        return ctypes.windll.ntdll.NtResumeProcess(ctypes.c_void_p(int(p._handle))) == 0
+    except Exception as e:  # noqa: BLE001
+        log(f"oficina: NtResumeProcess falló ({type(e).__name__}: {e})")
+        return False
+
+
+def _oficina_job_cerrar(job=None):
+    """Cierra el job (KILL_ON_JOB_CLOSE): todo lo que quede de la oficina muere con el."""
+    job = job if job is not None else _OFICINA.get("job")
+    if job is None:
+        return
+    try:
+        import ctypes
+        ctypes.windll.kernel32.CloseHandle(job)
+    except Exception:
+        pass
+    if job == _OFICINA.get("job"):
+        _OFICINA["job"] = None
+
+
+def _oficina_huerfana_limpiar(cuando="al arrancar"):
+    """oficina.pid.json de una app anterior que murio sin cerrarla: si esa oficina sigue viva y su
+    Bridge ya no, se cierra (se comprueba que de verdad es oficina_proto.py, contra pids reciclados).
+    -> None (no habia), "limpiada", o "viva" (es de un Bridge vivo: no se lanza una segunda)."""
+    try:
+        d = json.loads(OFICINA_PID_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    pid, bpid = d.get("pid"), d.get("bridge_pid")
+    if not isinstance(pid, int) or pid == _OFICINA.get("pid"):
+        return None
+    try:
+        import psutil
+        pr = psutil.Process(pid)
+        es_oficina = any("oficina_proto.py" in a for a in pr.cmdline())
+    except Exception:
+        es_oficina = False
+    if not es_oficina:
+        try:
+            OFICINA_PID_FILE.unlink()
+        except OSError:
+            pass
+        return None
+    if isinstance(bpid, int) and bpid != os.getpid() and _pid_vivo(bpid):
+        log(f"oficina: ya hay una abierta (pid {pid}) de otro Bridge vivo (pid {bpid}); no lanzo otra")
+        return "viva"
+    try:
+        for h in pr.children(recursive=True):
+            h.kill()
+        pr.kill()
+        pr.wait(3)
+    except psutil.NoSuchProcess:
+        pass  # ya se habia cerrado sola (su latido): tambien vale
+    except Exception as e:  # noqa: BLE001
+        log(f"oficina: no pude cerrar la huérfana pid {pid} ({type(e).__name__}: {e})")
+        return "viva"
+    try:
+        OFICINA_PID_FILE.unlink()
+    except OSError:
+        pass
+    log(f"oficina: huérfana de una app anterior cerrada {cuando} (pid {pid}, su Bridge {bpid} ya no existe)")
+    return "limpiada"
+
+
+def _oficina_ui():
+    """El boton de la barra lateral dice lo que hara al pulsarlo."""
+    b = _widgets.get("sb_oficina_btn") if isinstance(globals().get("_widgets"), dict) else None
+    if b is None:
+        return
+    try:
+        abierta = oficina_abierta()
+        b.config(text="Cerrar" if abierta else "Abrir")
+        lab = _widgets.get("sb_oficina_lab")
+        if lab is not None:
+            lab.config(text="Oficina · DEMO" if abierta and _OFICINA.get("demo") else "Oficina")
+    except Exception:
+        pass
+
+
+def _oficina_ram_pct():
+    try:
+        import psutil
+        return psutil.virtual_memory().percent
+    except Exception:
+        return None
+
+
+def _oficina_reabrir_cancelar():
+    if _OFICINA.get("reabrir_after") is not None and _root is not None:
+        try:
+            _root.after_cancel(_OFICINA["reabrir_after"])
+        except Exception:
+            pass
+    _OFICINA["reabrir_after"] = None
+
+
+def _oficina_reabrir_programar():
+    """Tras un cierre por falta de recursos (código 6) la oficina NO se reabre sola. Solo si el usuario
+    puso «oficina_reabrir_con_recursos»: true en settings.json, la app mira cada 60 s y la reabre
+    cuando la RAM en uso baja de OFICINA_REABRIR_RAM_MAX %. (La VRAM no la mide la app: FALTA.)"""
+    try:
+        quiere = bool(load_settings().get("oficina_reabrir_con_recursos", False))
+    except Exception:
+        quiere = False
+    if not quiere:
+        log("oficina: cerrada por falta de recursos; no se reabre sola (ábrela tú cuando quieras)")
+        return
+    if _root is None:
+        return
+
+    def _mirar():
+        _OFICINA["reabrir_after"] = None
+        if oficina_abierta() or _OFICINA.get("ultimo_codigo") != 6:
+            return
+        ram = _oficina_ram_pct()
+        if ram is not None and ram < OFICINA_REABRIR_RAM_MAX:
+            log(f"oficina: sobran recursos (RAM {ram:.0f} %) y está configurado reabrirla: se reabre")
+            oficina_abrir()
+            return
+        _OFICINA["reabrir_after"] = _root.after(60000, _mirar)
+    log("oficina: cerrada por falta de recursos; se reabrirá cuando sobren (configurado en Ajustes)")
+    _OFICINA["reabrir_after"] = _root.after(60000, _mirar)
 
 
 
@@ -23142,6 +23341,7 @@ def quit_app():
         oficina_cerrar("al salir de la app")
     except Exception:
         pass
+    _oficina_job_cerrar()  # t-oficina-ciclo-vida-050: si algo de la oficina sigue, muere aqui
     try:
         atajos_salir()  # UnregisterHotKey de cada atajo global: quedan libres
     except Exception:
@@ -46375,6 +46575,19 @@ def build_gui():
     grc.bind("<space>", lambda _e: abrir_permisos())
     _widgets["sb_gr_card"] = grc
     tk.Frame(foot, bg=THEME["line"], height=S(1)).pack(fill="x", pady=(0, 10))
+    # t-oficina-ciclo-vida-050: «Abrir oficina» a la vista (tambien Ctrl+Shift+O, Ctrl+K y la bandeja).
+    # Nunca se abre sola: solo con este boton o los atajos.
+    orow = tk.Frame(foot, bg=THEME["sidebar"])
+    orow.pack(fill="x", pady=(0, 8))
+    _widgets["sb_oficina_lab"] = tk.Label(orow, text="Oficina", font=(FONT, 11, "bold"),
+                                          bg=THEME["sidebar"], fg=THEME["text"])
+    _widgets["sb_oficina_lab"].pack(side="left")
+    _widgets["sb_oficina_btn"] = tk.Button(orow, text="Abrir", command=oficina_alternar, font=(FONT, 10),
+                                           bg=THEME["sidebar"], fg=THEME["blue"], activebackground=THEME["sidebar"],
+                                           activeforeground=THEME["blue"], relief="flat", bd=0, cursor="hand2",
+                                           highlightthickness=S(2), highlightbackground=THEME["sidebar"],
+                                           highlightcolor=THEME["blue"])
+    _widgets["sb_oficina_btn"].pack(side="right")
     frow = tk.Frame(foot, bg=THEME["sidebar"])
     frow.pack(fill="x")
     mini = None
@@ -46894,7 +47107,9 @@ def build_gui():
           more=[("Escribirle a Growi", open_prompt_box)]),
         C("oficina", "Abrir o cerrar la oficina", "oficina escena agentes pixel ver abrir cerrar",
           oficina_alternar, chip="Ctrl+Shift+O",
-          more=[("Abrir la oficina", oficina_abrir), ("Cerrar la oficina", oficina_cerrar, True)]),
+          more=[("Abrir la oficina", oficina_abrir),
+                ("Abrir la oficina en DEMO (sin agentes reales)", lambda: oficina_abrir(demo=True)),
+                ("Cerrar la oficina", oficina_cerrar, True)]),
         C("aprobar", "Ver tareas que esperan tu aprobación", "aprobar aprobacion permisos plan",
           abrir_lista_espera),
         C("reencolar", "Volver a encolar la tarea elegida", "reintentar repetir encolar cola corte",
@@ -47411,6 +47626,9 @@ def main():
         root.after(400, maybe_onboarding)
     root.after(1000, _tick)
     root.after(300, _mostrar_poll)
+    # t-oficina-ciclo-vida-050: al arrancar NO se abre la oficina; solo se cierra una huerfana de una
+    # app anterior que murio de golpe (si su Bridge ya no existe).
+    threading.Thread(target=_oficina_huerfana_limpiar, daemon=True).start()
     try:
         root.mainloop()
     except KeyboardInterrupt:

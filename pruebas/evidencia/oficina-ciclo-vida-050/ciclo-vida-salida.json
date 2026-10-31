@@ -1,0 +1,144 @@
+{
+ "c_no_se_abre_sola": {
+  "procesos": 0,
+  "abierta": false,
+  "ok": true
+ },
+ "a_abrir_cerrar_3": {
+  "ciclos": [
+   {
+    "abrir": true,
+    "pid": 24724,
+    "pid_guardado": true,
+    "job": true,
+    "procesos_abierta": 1,
+    "cerrar": true,
+    "cerrar_s": 0.87,
+    "codigo": 4,
+    "restos_tras_cerrar": 0,
+    "pid_file_tras_cerrar": false
+   },
+   {
+    "abrir": true,
+    "pid": 15652,
+    "pid_guardado": true,
+    "job": true,
+    "procesos_abierta": 1,
+    "cerrar": true,
+    "cerrar_s": 0.64,
+    "codigo": 4,
+    "restos_tras_cerrar": 0,
+    "pid_file_tras_cerrar": false
+   },
+   {
+    "abrir": true,
+    "pid": 11204,
+    "pid_guardado": true,
+    "job": true,
+    "procesos_abierta": 1,
+    "cerrar": true,
+    "cerrar_s": 0.67,
+    "codigo": 4,
+    "restos_tras_cerrar": 0,
+    "pid_file_tras_cerrar": false
+   }
+  ],
+  "ok": true
+ },
+ "b_segunda_instancia": {
+  "procesos_antes": [
+   [
+    22676,
+    26648
+   ]
+  ],
+  "segunda_abrir": false,
+  "procesos_despues": [
+   [
+    22676,
+    26648
+   ]
+  ],
+  "ok": true
+ },
+ "d1_app_muerta_job": {
+  "oficina_cerrada_en_s": 0.68,
+  "restos": [],
+  "ok": true
+ },
+ "d2_app_colgada_latido": {
+  "oficina_cerrada_en_s": 17.1,
+  "aviso": "2026-10-31 11:03:50 [oficina pid 26220] Bridge no disponible: el Bridge no responde: último latido hace 15 s. La oficina se cierra sola en 3 s",
+  "restos": [],
+  "ok": true
+ },
+ "d3_sin_job_latido": {
+  "oficina_cerrada_en_s": 3.35,
+  "aviso": "2026-10-31 11:04:02 [oficina pid 16992] Bridge no disponible: el proceso del Bridge (pid 14896) ya no existe. La oficina se cierra sola en 3 s",
+  "restos": [],
+  "ok": true
+ },
+ "e_salir_app": {
+  "host": {
+   "pid": 6624,
+   "abrir": true,
+   "salio": true,
+   "abierta_tras_salir": false
+  },
+  "restos": [],
+  "en_s": 0.64,
+  "ok": true
+ },
+ "f_demo": {
+  "lanzador_pid": 17092,
+  "oficina_pid": "17092",
+  "lineas": 2,
+  "muestra": [
+   "2026-10-31 11:04:21 [oficina pid 17092] [DEMO — sin agentes reales] abierta: share=C:\\Users\\forte\\growi-bridge\\_prueba-ciclo-vida\\app\\share app=C:\\Users\\forte\\growi-bridge\\_prueba-ciclo-vida\\app bridge_pid=25892 mutex=Local\\GrowiOficinaInstanciaUnica datos=C:\\Users\\forte\\growi-bridge\\_prueba-ciclo-vida\\app\\share\\inbox\\oficina\\protocolo\\datos · DEMO: fuentes simuladas en C:\\Users\\forte\\growi-bridge\\_prueba-ciclo-vida\\app\\share\\inbox\\oficina\\protocolo\\datos\\demo\\outbox; no encola nada",
+   "2026-10-31 11:04:23 [oficina pid 17092] [DEMO — sin agentes reales] nivel 0 -> 2: RAM > 80 %"
+  ],
+  "todas_rotuladas": true,
+  "encolar_cargado": false,
+  "cola_antes": {
+   "filas_cola_db": null,
+   "encargos": []
+  },
+  "cola_despues": {
+   "filas_cola_db": null,
+   "encargos": []
+  },
+  "ok": true
+ },
+ "r_falta_recursos": {
+  "abierta": false,
+  "procesos": 0,
+  "reabrir_programado": false,
+  "ok": true
+ },
+ "s_huerfana_al_arrancar": {
+  "resultado": "limpiada",
+  "en_s": 0.51,
+  "restos": [],
+  "ok": true
+ },
+ "registro_app": [
+  "2026-10-31T11:02:58-04:00 oficina: abierta (pid 24724, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:03:04-04:00 oficina: cerrada prueba (a) (pid 24724, pidió cerrar, código 4)",
+  "2026-10-31T11:03:05-04:00 oficina: abierta (pid 15652, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:03:11-04:00 oficina: cerrada prueba (a) (pid 15652, pidió cerrar, código 4)",
+  "2026-10-31T11:03:12-04:00 oficina: abierta (pid 11204, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:03:18-04:00 oficina: cerrada prueba (a) (pid 11204, pidió cerrar, código 4)",
+  "2026-10-31T11:03:20-04:00 oficina: abierta (pid 22676, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:03:24-04:00 oficina: ya hay una abierta (pid 22676) de otro Bridge vivo (pid 26648); no lanzo otra",
+  "2026-10-31T11:03:30-04:00 oficina: abierta (pid 26220, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:03:54-04:00 oficina: se cerró (pid 26220, código 2: Bridge no disponible (autocierre)); la app sigue",
+  "2026-10-31T11:03:56-04:00 oficina: abierta (pid 16992, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; sin Job Object: solo el latido la cierra)",
+  "2026-10-31T11:04:07-04:00 oficina: abierta (pid 18924, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:04:18-04:00 oficina: cerrada al salir de la app (pid 18924, pidió cerrar, código 4)",
+  "2026-10-31T11:04:20-04:00 oficina: abierta en DEMO (sin agentes reales) (pid 17092, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages; en un Job Object: muere con la app)",
+  "2026-10-31T11:04:36-04:00 oficina: se cerró (pid 999999, código 6: cerrada por falta de recursos (no se reabre sola)); la app sigue",
+  "2026-10-31T11:04:36-04:00 oficina: cerrada por falta de recursos; no se reabre sola (ábrela tú cuando quieras)",
+  "2026-10-31T11:04:41-04:00 oficina: huérfana de una app anterior cerrada al arrancar (prueba) (pid 24076, su Bridge 17136 ya no existe)"
+ ],
+ "ok": true
+}
