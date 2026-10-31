@@ -1,0 +1,120 @@
+{
+ "plano": "C:\\Users\\forte\\source\\growi-bridge\\oficina\\plano\\plano.json",
+ "pasa": true,
+ "fallos": [],
+ "informe": {
+  "baldosas_alcanzables": 1267,
+  "tablon_a_baldosas_de_gerencia": 0,
+  "pasos_entrada_bandeja_runa_puesto_mediano": [
+   9,
+   15,
+   32
+  ],
+  "pasos_desde_entrada": {
+   "silla_growi": 44,
+   "silla_clau": 32,
+   "silla_sonny": 31,
+   "silla_opus": 29,
+   "silla_haiku": 26,
+   "silla_cody": 42,
+   "silla_dex": 46,
+   "silla_luma": 37,
+   "silla_hermes_directo": 33,
+   "silla_hermes_ollama": 29,
+   "silla_gemi": 33,
+   "silla_mensajero": 27,
+   "silla_blender": 16,
+   "silla_tripo": 14,
+   "silla_vacia_flash": 37,
+   "silla_vacia_pro": 39,
+   "silla_vacia_qwen": 32,
+   "silla_vacia_gemma": 28,
+   "silla_vigilante": 4
+  },
+  "obstaculos": 36,
+  "sillas": 19,
+  "personal": 14
+ },
+ "autoprueba": [
+  {
+   "caso": "solape mesa-punto",
+   "falla": true,
+   "mensaje": [
+    "solape: «cafe» y «mesa_clau» comparten la baldosa [16, 2]"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "silla encerrada",
+   "falla": true,
+   "mensaje": [
+    "«silla_cody» en [41, 4] no se alcanza a pie desde la entrada"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "sin silla",
+   "falla": true,
+   "mensaje": [
+    "«opus» no tiene silla"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "capacidad café",
+   "falla": true,
+   "mensaje": [
+    "«cafe» debe tener capacidad 2 (tiene 3)"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "teclea en taller",
+   "falla": true,
+   "mensaje": [
+    "«mesa_mensajero»: en el taller 3D nadie teclea (sus encargos se hacen fuera)"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "teléfono fuera",
+   "falla": true,
+   "mensaje": [
+    "el teléfono tiene que estar sobre la mesa del gerente (mesa_growi)"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "tablón lejos",
+   "falla": true,
+   "mensaje": [
+    "el tablón está a 19 baldosas de la gerencia (máximo 2): tiene que estar junto al gerente"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "Runa con silla",
+   "falla": true,
+   "mensaje": [
+    "Runa no tiene silla fija (casi siempre de pie o caminando)"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "JSON sin rejilla",
+   "falla": true,
+   "mensaje": [
+    "falta la clave «rejilla»"
+   ],
+   "ok": true
+  },
+  {
+   "caso": "una silla de Gemini menos",
+   "falla": true,
+   "mensaje": [
+    "Gemini debe tener 2 sillas vacías con cartel (tiene 1)"
+   ],
+   "ok": true
+  }
+ ]
+}
