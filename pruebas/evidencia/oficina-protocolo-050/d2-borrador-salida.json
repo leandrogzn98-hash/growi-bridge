@@ -1,0 +1,10 @@
+{
+ "persistio_tras_cierre": [
+  "pendiente de enviar"
+ ],
+ "codigo": 0,
+ "estado_tras_8s_sin_bridge": [
+  "pendiente de enviar"
+ ],
+ "ok": true
+}

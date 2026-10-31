@@ -1,0 +1,24 @@
+{
+ "_ejemplo": true,
+ "actualizado": "2026-10-30T10:42:28-04:00",
+ "guardrail": "siempre",
+ "cola_pendiente": 2,
+ "tareas": [
+  {
+   "id": "t-ejemplo-1",
+   "estado": "en_curso",
+   "motor": "claude",
+   "modelo": "sonnet"
+  },
+  {
+   "id": "t-ejemplo-2",
+   "estado": "en_cola",
+   "motor": "llama"
+  },
+  {
+   "id": "t-ejemplo-3",
+   "estado": "esperando_aprobacion",
+   "motor": "codex"
+  }
+ ]
+}

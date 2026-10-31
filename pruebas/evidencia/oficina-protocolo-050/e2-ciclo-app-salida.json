@@ -1,0 +1,29 @@
+{
+ "script": "C:\\Users\\forte\\growi-bridge\\share\\inbox\\oficina\\protocolo\\oficina_proto.py",
+ "python": "pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages",
+ "al_importar_sin_oficina": true,
+ "abrir": true,
+ "pid_guardado": true,
+ "viva_tras_6s": true,
+ "segunda_apertura": false,
+ "procesos_tras_segunda": 1,
+ "cerrar": true,
+ "cerrar_s": 0.84,
+ "tras_cerrar": {
+  "procesos": 0,
+  "pid_file": false
+ },
+ "oficina_muerta_app_sigue": {
+  "abierta": false,
+  "pid_file": false,
+  "app_viva": true
+ },
+ "registro": [
+  "2026-10-30T22:17:34-04:00 oficina: abierta (pid 4156, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages)",
+  "2026-10-30T22:17:44-04:00 oficina: ya está abierta (pid 4156); no lanzo otra",
+  "2026-10-30T22:17:48-04:00 oficina: cerrada prueba (pid 4156, pidió cerrar, código 4)",
+  "2026-10-30T22:17:53-04:00 oficina: abierta (pid 20504, pygame-ce de C:\\Users\\forte\\source\\growi-bridge\\oficina\\mediciones\\.venv\\Lib\\site-packages)",
+  "2026-10-30T22:18:00-04:00 oficina: se cerró (pid 20504, código 1: otro); la app sigue"
+ ],
+ "ok": true
+}

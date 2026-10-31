@@ -1,0 +1,14 @@
+{
+ "_ejemplo": true,
+ "runner": "growi-bridge/ejemplo",
+ "alive": true,
+ "last_poll": "2026-10-30T10:42:28-04:00",
+ "tasks_done": 3,
+ "current": {
+  "id": "t-ejemplo-1",
+  "motor": "claude",
+  "modelo": "sonnet"
+ },
+ "guardrail": "siempre",
+ "cola_pendiente": 2
+}

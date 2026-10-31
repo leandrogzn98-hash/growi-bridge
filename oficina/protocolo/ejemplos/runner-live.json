@@ -1,0 +1,10 @@
+{
+ "_ejemplo": true,
+ "task_id": "t-ejemplo-1",
+ "estado": "corriendo",
+ "motor": "claude",
+ "modelo": "sonnet",
+ "tokens_in": "sin dato",
+ "tokens_out": "sin dato",
+ "actualizado": "2026-10-30T10:42:28-04:00"
+}

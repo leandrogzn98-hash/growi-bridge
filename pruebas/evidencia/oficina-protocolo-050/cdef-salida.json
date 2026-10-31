@@ -1,0 +1,215 @@
+{
+ "c_autocierre": {
+  "codigo": 2,
+  "s_desde_matar_hasta_salir": 3.1,
+  "huerfano": false,
+  "evento": [
+   {
+    "t": 1793412823.198,
+    "evento": "bridge_no_disponible",
+    "motivo": "el proceso del Bridge (pid 19656) ya no existe",
+    "sin_latido_s": null
+   }
+  ],
+  "ok": true
+ },
+ "c2_sin_latido_15s": {
+  "codigo": 2,
+  "s_desde_ultimo_latido_hasta_salir": 13.7,
+  "huerfano": false,
+  "ok": true
+ },
+ "d_ausentes": {
+  "codigo": 0,
+  "estados": {
+   "growi": "sin señal",
+   "clau": "sin señal",
+   "sonny": "sin señal",
+   "opus": "sin señal",
+   "haiku": "sin señal",
+   "cody": "sin señal",
+   "dex": "sin señal",
+   "luma": "sin señal",
+   "hermes_directo": "sin señal",
+   "hermes_ollama": "sin señal",
+   "gemi": "sin señal",
+   "mensajero": "sin señal",
+   "blender": "sin señal",
+   "tripo": "sin señal",
+   "runa": "sin señal",
+   "vigilante": "sin señal"
+  },
+  "todos_sin_senal": true,
+  "ok": true
+ },
+ "e_mutex": {
+  "primera": 0,
+  "segunda": 3,
+  "segunda_tardo_s": 8.9,
+  "ok": true
+ },
+ "f_resumenes": {
+  "runner-live": [
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 3.44,
+    "p95_ms": 3.56,
+    "max_ms": 3.56
+   },
+   {
+    "lecturas": 4,
+    "a_tiempo": 4,
+    "tarde": 0,
+    "p50_ms": 3.22,
+    "p95_ms": 21.4,
+    "max_ms": 21.4
+   },
+   {
+    "lecturas": 2,
+    "a_tiempo": 0,
+    "tarde": 2,
+    "p50_ms": 202.93,
+    "p95_ms": 202.93,
+    "max_ms": 202.93
+   }
+  ],
+  "cola-live": [
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 2.98,
+    "p95_ms": 5.93,
+    "max_ms": 5.93
+   },
+   {
+    "lecturas": 4,
+    "a_tiempo": 4,
+    "tarde": 0,
+    "p50_ms": 2.87,
+    "p95_ms": 4.68,
+    "max_ms": 4.68
+   },
+   {
+    "lecturas": 2,
+    "a_tiempo": 0,
+    "tarde": 2,
+    "p50_ms": 211.28,
+    "p95_ms": 211.28,
+    "max_ms": 211.28
+   }
+  ],
+  "runner-status": [
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 3.62,
+    "p95_ms": 4.02,
+    "max_ms": 4.02
+   },
+   {
+    "lecturas": 4,
+    "a_tiempo": 4,
+    "tarde": 0,
+    "p50_ms": 3.12,
+    "p95_ms": 20.62,
+    "max_ms": 20.62
+   },
+   {
+    "lecturas": 2,
+    "a_tiempo": 0,
+    "tarde": 2,
+    "p50_ms": 202.74,
+    "p95_ms": 202.74,
+    "max_ms": 202.74
+   }
+  ],
+  "engines": [
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 1.38,
+    "p95_ms": 1.76,
+    "max_ms": 1.76
+   },
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 1.5,
+    "p95_ms": 19.6,
+    "max_ms": 19.6
+   },
+   {
+    "lecturas": 2,
+    "a_tiempo": 2,
+    "tarde": 0,
+    "p50_ms": 7.81,
+    "p95_ms": 7.81,
+    "max_ms": 7.81
+   }
+  ],
+  "skills": [
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 8.81,
+    "p95_ms": 25.3,
+    "max_ms": 25.3
+   },
+   {
+    "lecturas": 3,
+    "a_tiempo": 3,
+    "tarde": 0,
+    "p50_ms": 8.94,
+    "p95_ms": 35.14,
+    "max_ms": 35.14
+   },
+   {
+    "lecturas": 2,
+    "a_tiempo": 2,
+    "tarde": 0,
+    "p50_ms": 29.04,
+    "p95_ms": 29.04,
+    "max_ms": 29.04
+   }
+  ],
+  "latido": [
+   {
+    "lecturas": 14,
+    "a_tiempo": 14,
+    "tarde": 0,
+    "p50_ms": 0.65,
+    "p95_ms": 12.7,
+    "max_ms": 12.7
+   },
+   {
+    "lecturas": 23,
+    "a_tiempo": 23,
+    "tarde": 0,
+    "p50_ms": 0.67,
+    "p95_ms": 10.75,
+    "max_ms": 14.11
+   },
+   {
+    "lecturas": 9,
+    "a_tiempo": 9,
+    "tarde": 0,
+    "p50_ms": 0.71,
+    "p95_ms": 18.29,
+    "max_ms": 18.29
+   }
+  ]
+ },
+ "f_frames": {
+  "segundos": 19,
+  "fps_min": 28.9,
+  "peor_ms": 43.0,
+  "frames_50ms": 0
+ }
+}
