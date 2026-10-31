@@ -1,0 +1,11 @@
+{
+ "efecto": "z_dormir",
+ "frame": {
+  "w": 8,
+  "h": 8
+ },
+ "compartido": true,
+ "movimiento": "sube 18 px y se desvanece en 3 s; la mueve el motor",
+ "sonido": null,
+ "estado_arte": "BORRADOR (script)"
+}

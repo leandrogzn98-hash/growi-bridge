@@ -1,0 +1,46 @@
+GIMP Palette
+Name: Oficina Growi (parcial)
+Columns: 3
+#
+167 154 135	crema_oscuro
+232 216 192	crema_base
+240 230 214	crema_claro
+184 176 156	crema_palido_oscuro
+255 246 220	crema_palido_base
+255 249 232	crema_palido_claro
+174 142 109	piel_oscuro
+242 201 160	piel_base
+247 220 193	piel_claro
+ 25  25  25	negro_sueter_oscuro
+ 35  35  35	negro_sueter_base
+112 112 112	negro_sueter_claro
+ 19  19  20	negro_cautela_oscuro
+ 26  26  28	negro_cautela_base
+106 106 107	negro_cautela_claro
+ 30  60 101	jeans_oscuro
+ 51  89 140	jeans_base
+122 147 180	jeans_claro
+156  79  53	naranja_claude_oscuro
+217 119  87	naranja_claude_base
+230 167 146	naranja_claude_claro
+  0 120  91	verde_codex_oscuro
+  0 166 126	verde_codex_base
+ 89 197 171	verde_codex_claro
+ 35  88 176	azul_gemini_oscuro
+ 66 133 244	azul_gemini_base
+132 176 248	azul_gemini_claro
+ 21  60 132	azul_gemi_corbata_oscuro
+ 43  92 184	azul_gemi_corbata_base
+117 149 209	azul_gemi_corbata_claro
+176 114  10	ambar_oscuro
+245 166  35	ambar_base
+248 197 112	ambar_claro
+174 109 116	rubor_oscuro
+242 160 168	rubor_base
+247 193 198	rubor_claro
+  0  21  52	azul_noche_oscuro
+  5  32  72	azul_noche_base
+ 92 110 136	azul_noche_claro
+110 115 120	gris_ribete_oscuro
+154 160 166	gris_ribete_base
+189 193 197	gris_ribete_claro

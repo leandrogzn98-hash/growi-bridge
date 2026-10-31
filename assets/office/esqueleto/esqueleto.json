@@ -1,0 +1,22 @@
+{
+ "frame": {
+  "w": 32,
+  "h": 48
+ },
+ "ancla": [
+  16,
+  47
+ ],
+ "cabeza_px": 22,
+ "cuerpo_px": 20,
+ "proporcion": "chibi",
+ "capas": [
+  "cuerpo_ropa",
+  "cara",
+  "pelo",
+  "accesorio",
+  "efectos"
+ ],
+ "uso": "base comun de los 14 personajes + Runa: cada skin recolorea capas (spec 10)",
+ "estado_arte": "BORRADOR (script)"
+}

@@ -1,0 +1,62 @@
+{
+ "personaje": "growi",
+ "formato": "hoja por personaje, filas = animaciones",
+ "frame": {
+  "w": 32,
+  "h": 48
+ },
+ "ancla": [
+  16,
+  47
+ ],
+ "filtro": "nearest",
+ "animaciones": [
+  {
+   "nombre": "idle",
+   "fila": 0,
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "escribir",
+   "fila": 1,
+   "frames": 4,
+   "fps": 8,
+   "bucle": true
+  },
+  {
+   "nombre": "celebrar",
+   "fila": 2,
+   "frames": 4,
+   "fps": 8,
+   "bucle": false
+  },
+  {
+   "nombre": "dormir",
+   "fila": 3,
+   "frames": 2,
+   "fps": 2,
+   "bucle": true
+  }
+ ],
+ "capas": [
+  "cuerpo_ropa",
+  "cara",
+  "pelo",
+  "accesorio",
+  "efectos"
+ ],
+ "capas_png": {
+  "cuerpo_ropa": "capas/growi_cuerpo_ropa.png",
+  "cara": "capas/growi_cara.png",
+  "pelo": "capas/growi_pelo.png",
+  "accesorio": "capas/growi_accesorio.png",
+  "efectos": "capas/growi_efectos.png"
+ },
+ "efecto_compartido_dormir": "../comun/z.png",
+ "paleta": "../paleta.json",
+ "licencia": "© Leandro / HAYAI (a formalizar). Arte original de Bridge; sin assets de terceros.",
+ "estado_arte": "BORRADOR generado por script (IA): valida el pipeline; requiere retoque humano pixel a pixel en Pixelorama antes de usarse como arte final (regla §7.4).",
+ "descripcion": "Peluche crema redondo, capucha difusa, sueter negro de cuello alto, jeans azules, ojos negros ovalados grandes, sonrisa pequena, rubor rosa, sin nariz, corbata ambar, telefono."
+}

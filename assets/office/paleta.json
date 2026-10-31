@@ -1,0 +1,90 @@
+{
+ "nombre": "Oficina Growi (parcial)",
+ "_estado": "PARCIAL: 14 de 24 colores base con fuente escrita; PALETA-Y-SKINS.md §1 no esta en este PC. Faltan: morado Local; azul Summit; rosa frambuesa del depto Diseno (#C2185B solo propuesto); y el resto hasta 24: la lista de PALETA-Y-SKINS §1 no esta en este PC",
+ "colores": {
+  "crema": {
+   "oscuro": "#A79A87",
+   "base": "#E8D8C0",
+   "claro": "#F0E6D6",
+   "fuente": "mascota growi.png (color dominante del peluche, muestreado)"
+  },
+  "crema_palido": {
+   "oscuro": "#B8B09C",
+   "base": "#FFF6DC",
+   "claro": "#FFF9E8",
+   "fuente": "spec 9 §8: blusa de Runa"
+  },
+  "piel": {
+   "oscuro": "#AE8E6D",
+   "base": "#F2C9A0",
+   "claro": "#F7DCC1",
+   "fuente": "specs 050"
+  },
+  "negro_sueter": {
+   "oscuro": "#191919",
+   "base": "#232323",
+   "claro": "#707070",
+   "fuente": "specs 050 (pelo de Runa); el sueter negro del gerente es identidad de marca"
+  },
+  "negro_cautela": {
+   "oscuro": "#131314",
+   "base": "#1A1A1C",
+   "claro": "#6A6A6B",
+   "fuente": "PALETA-Y-SKINS §15 (tinte negro)"
+  },
+  "jeans": {
+   "oscuro": "#1E3C65",
+   "base": "#33598C",
+   "claro": "#7A93B4",
+   "fuente": "spec 9 §8: jeans de Runa"
+  },
+  "naranja_claude": {
+   "oscuro": "#9C4F35",
+   "base": "#D97757",
+   "claro": "#E6A792",
+   "fuente": "spec 9 §1 (marca, de memoria: no verificado, duda 24)"
+  },
+  "verde_codex": {
+   "oscuro": "#00785B",
+   "base": "#00A67E",
+   "claro": "#59C5AB",
+   "fuente": "spec 9 §1 (marca, de memoria: no verificado, duda 24)"
+  },
+  "azul_gemini": {
+   "oscuro": "#2358B0",
+   "base": "#4285F4",
+   "claro": "#84B0F8",
+   "fuente": "spec 9 §1 (marca, de memoria: no verificado, duda 24)"
+  },
+  "azul_gemi_corbata": {
+   "oscuro": "#153C84",
+   "base": "#2B5CB8",
+   "claro": "#7595D1",
+   "fuente": "spec 9 §5: corbata de Gemi"
+  },
+  "ambar": {
+   "oscuro": "#B0720A",
+   "base": "#F5A623",
+   "claro": "#F8C570",
+   "fuente": "spec 9: corbata del gerente y pin de Runa"
+  },
+  "rubor": {
+   "oscuro": "#AE6D74",
+   "base": "#F2A0A8",
+   "claro": "#F7C1C6",
+   "fuente": "spec 9 §5: rubor de 1-2 px"
+  },
+  "azul_noche": {
+   "oscuro": "#001534",
+   "base": "#052048",
+   "claro": "#5C6E88",
+   "fuente": "specs 050 (PALETA-Y-SKINS §2)"
+  },
+  "gris_ribete": {
+   "oscuro": "#6E7378",
+   "base": "#9AA0A6",
+   "claro": "#BDC1C5",
+   "fuente": "PALETA-Y-SKINS §15 (ribete)"
+  }
+ }
+}
