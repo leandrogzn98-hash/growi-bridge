@@ -1,0 +1,19 @@
+{
+ "modelo": "hf.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF:Q4_K_M",
+ "vram_libre_antes_mb": 2013.0,
+ "vram_libre_min_mb": 1979.0,
+ "cruce_300MB": null,
+ "reaccion_oficina": null,
+ "segundos_hasta_ceder": null,
+ "niveles": [
+  [
+   "00:25:00",
+   0,
+   5,
+   "RAM > 93 %"
+  ]
+ ],
+ "ollama_respondio": true,
+ "nota": "el modelo se cargó y respondió sin error (sin OOM)",
+ "ok": false
+}

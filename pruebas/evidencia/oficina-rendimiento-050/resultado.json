@@ -1,0 +1,293 @@
+{
+ "b_niveles": {
+  "0": [
+   0,
+   "todo en verde"
+  ],
+  "1": [
+   1,
+   "RAM > 75 %"
+  ],
+  "2": [
+   2,
+   "VRAM libre 350 MB < 400"
+  ],
+  "3": [
+   3,
+   "RAM > 85 %"
+  ],
+  "4": [
+   4,
+   "VRAM libre 150 MB < 200"
+  ],
+  "5": [
+   5,
+   "RAM > 93 %"
+  ]
+ },
+ "b_disparadores_dormida": {
+  "ram>90": 4,
+  "vram<200": 4,
+  "5min": 4,
+  "usuario": 4,
+  "noche": 4
+ },
+ "b_histeresis": {
+  "cambios": [
+   {
+    "hora": "2026-10-30T18:40:05",
+    "de": 0,
+    "a": 4,
+    "motivo": "VRAM libre 150 MB < 200"
+   },
+   {
+    "hora": "2026-10-30T18:40:40",
+    "de": 4,
+    "a": 3,
+    "motivo": "recursos recuperados (todo en verde); baja un nivel tras 30 s en verde"
+   },
+   {
+    "hora": "2026-10-30T18:41:10",
+    "de": 3,
+    "a": 2,
+    "motivo": "recursos recuperados (todo en verde); baja un nivel tras 30 s en verde"
+   },
+   {
+    "hora": "2026-10-30T18:41:40",
+    "de": 2,
+    "a": 1,
+    "motivo": "recursos recuperados (todo en verde); baja un nivel tras 30 s en verde"
+   },
+   {
+    "hora": "2026-10-30T18:42:10",
+    "de": 1,
+    "a": 0,
+    "motivo": "recursos recuperados (todo en verde); baja un nivel tras 30 s en verde"
+   }
+  ],
+  "segundos_entre_bajadas": [
+   30,
+   30,
+   30
+  ],
+  "colores": {
+   "0": [
+    52,
+    199,
+    89
+   ],
+   "1": [
+    255,
+    204,
+    0
+   ],
+   "2": [
+    255,
+    204,
+    0
+   ],
+   "3": [
+    255,
+    149,
+    0
+   ],
+   "4": [
+    142,
+    142,
+    147
+   ],
+   "5": [
+    142,
+    142,
+    147
+   ]
+  },
+  "ok": true
+ },
+ "b_ok": true,
+ "e_ahorro": {
+  "con_ahorro_en_verde_100s": [
+   2
+  ],
+  "al_quitarlo": 0,
+  "fps_nivel_2": 15,
+  "ok": true
+ },
+ "fps": {
+  "foco": 30,
+  "sin_foco": 15,
+  "minimizada": 0,
+  "nivel1": 15,
+  "dormida": 0
+ },
+ "A_escalera_real": {
+  "cambios": [
+   [
+    "00:22:16",
+    0,
+    1,
+    "VRAM libre 450 MB < 500"
+   ],
+   [
+    "00:22:19",
+    1,
+    2,
+    "VRAM libre 350 MB < 400"
+   ],
+   [
+    "00:22:22",
+    2,
+    3,
+    "VRAM libre 250 MB < 300"
+   ],
+   [
+    "00:22:30",
+    3,
+    4,
+    "VRAM libre 150 MB < 200"
+   ],
+   [
+    "00:23:10",
+    4,
+    3,
+    "recursos recuperados (todo en verde); baja un nivel tras 30 s en verde"
+   ]
+  ],
+  "medidas": {
+   "trabajando_nivel0": {
+    "rss_mb": 62.0,
+    "cpu_pct_nucleo": 4.98,
+    "vram_mb": 0.0
+   },
+   "solo_estados_nivel3": {
+    "rss_mb": 62.8,
+    "cpu_pct_nucleo": 5.7,
+    "vram_mb": 0.0
+   },
+   "dormida_nivel4": {
+    "rss_mb": 62.9,
+    "cpu_pct_nucleo": 1.26,
+    "vram_mb": 0.0
+   }
+  },
+  "fps_medidos": {
+   "0": [
+    14.9,
+    15.1
+   ],
+   "1": [
+    15.0,
+    15.0
+   ],
+   "2": [
+    15.0,
+    15.0
+   ],
+   "3": [
+    15.0,
+    15.1
+   ],
+   "4": [
+    4.0,
+    15.0
+   ]
+  },
+  "ok": true
+ },
+ "d_dormida": {
+  "ram_dormida": {
+   "rss_mb": 61.9,
+   "cpu_pct_nucleo": 3.13,
+   "vram_mb": 0.0
+  },
+  "despertar_ms": [
+   9.5,
+   8.9,
+   5.5
+  ],
+  "dormidas": 4,
+  "ok": true
+ },
+ "f_cerrada": {
+  "codigo": 6,
+  "proceso_vivo_tras_cerrar": false,
+  "estados_al_reabrir": [
+   {
+    "growi": "sin_tarea",
+    "clau": "sin_tarea",
+    "sonny": "trabajando",
+    "opus": "sin_tarea",
+    "haiku": "sin_tarea",
+    "cody": "sin_tarea",
+    "dex": "sin_tarea",
+    "luma": "sin_tarea",
+    "hermes_directo": "sin_tarea",
+    "hermes_ollama": "sin_tarea",
+    "gemi": "sin instalar",
+    "mensajero": "sin_tarea",
+    "blender": "sin_tarea",
+    "tripo": "sin_tarea",
+    "runa": "sin_tarea",
+    "vigilante": "sin_tarea"
+   }
+  ],
+  "ok": true
+ },
+ "fps_minimizada": {
+  "fps_por_segundo": [
+   14.9,
+   15.0,
+   15.0,
+   14.9,
+   15.0
+  ],
+  "medida_minimizada": {
+   "rss_mb": 62.1,
+   "cpu_pct_nucleo": 4.2,
+   "vram_mb": 0.0
+  },
+  "ok": true
+ },
+ "a_presupuestos": {
+  "assets_mb": 0.09,
+  "tope_assets_mb": 100,
+  "codigo_oficina_mb": 0.32,
+  "sprites_mayores_de_512": [],
+  "tauri": "Topes Tauri (RAM <=150 MB, tope 250 MB) no aplican: el spec 6 eligio Godot (prototipo Pygame-ce).",
+  "medidas": {
+   "trabajando_0": {
+    "rss_mb": 62.0,
+    "cpu_pct_nucleo": 4.98,
+    "vram_mb": 0.0
+   },
+   "solo_estados_3": {
+    "rss_mb": 62.8,
+    "cpu_pct_nucleo": 5.7,
+    "vram_mb": 0.0
+   },
+   "dormida": {
+    "rss_mb": 61.9,
+    "cpu_pct_nucleo": 3.13,
+    "vram_mb": 0.0
+   },
+   "minimizada": {
+    "rss_mb": 62.1,
+    "cpu_pct_nucleo": 4.2,
+    "vram_mb": 0.0
+   }
+  }
+ },
+ "h_que_no_hacer": {
+  "escribir en la cola": [
+   "oficina\\encolar\\encolar.py:98: con = sqlite3.connect(uri, uri=True, timeout=5)",
+   "oficina\\encolar\\pruebas\\encolar_comparar.py:27: con = sqlite3.connect((APP / \"cola.db\").as_uri() + \"?mode=ro\", uri=True)"
+  ],
+  "descargas": [
+   "oficina\\protocolo\\oficina_proto.py:115: log(\"falta pygame-ce en este Python (python -m pip install pygame-ce==2.5.8): no se abre\")"
+  ],
+  "captura de pantalla": [
+   "oficina\\encolar\\pruebas\\encolar_desde_app.py:76: u.PrintWindow(hwnd, mdc, 2)"
+  ]
+ },
+ "todo_ok": true
+}

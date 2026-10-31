@@ -36,6 +36,8 @@ sys.path.insert(0, str(AQUI.parent / "vagancia"))
 import vagancia as VG  # noqa: E402  (t-oficina-vagancia-050)
 sys.path.insert(0, str(AQUI.parent / "bocadillos"))
 import bocadillos as BC  # noqa: E402  (t-oficina-bocadillos-050)
+sys.path.insert(0, str(AQUI.parent / "rendimiento"))
+import rendimiento as RD  # noqa: E402  (t-oficina-rendimiento-050)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--share", default=str(Path.home() / "growi-bridge" / "share"))
@@ -47,6 +49,8 @@ ap.add_argument("--mutex", default=os.environ.get("GROWI_OFICINA_MUTEX") or "Loc
 ap.add_argument("--captura", action="append", default=[])
 ap.add_argument("--salir-a", type=float, default=None)
 ap.add_argument("--pos", default=None)
+ap.add_argument("--sensores-falsos", default=None)  # PRUEBA: JSON con ram_pct / vram_libre_mb simulados
+ap.add_argument("--sin-noche", action="store_true")  # PRUEBA: ignora el horario nocturno
 ap.add_argument("--sueno-min", type=float, default=None)  # DEMO: acelera IDLE_SLEEP_MINUTES (se rotula)
 A = ap.parse_args()
 if A.sueno_min is not None:
@@ -59,6 +63,12 @@ DATOS = Path(A.datos) if A.datos else AQUI / "datos"
 DATOS.mkdir(parents=True, exist_ok=True)
 LOG = DATOS / "oficina-protocolo.log"
 METRICAS = DATOS / f"metricas-{datetime.now():%Y%m%d-%H%M%S}-{os.getpid()}.jsonl"
+# t-oficina-rendimiento-050: datos de estado <= 50 MB con rotacion (solo las metricas propias, las mas viejas primero)
+_viejas = sorted(DATOS.glob("metricas-*.jsonl"), key=lambda q: q.stat().st_mtime)
+while _viejas and sum(q.stat().st_size for q in DATOS.glob("*") if q.is_file()) > 40 * 2 ** 20:
+    _q = _viejas.pop(0)
+    _q.unlink()
+    print(f"rotación: {_q.name} (datos de la oficina > 40 MB)", flush=True)
 _mlock = threading.Lock()
 
 
@@ -194,6 +204,10 @@ _PLANO = AQUI.parent / "plano" / "plano.json"
 _POIS = ({p_["id"]: p_["capacidad"] for p_ in json.loads(_PLANO.read_text(encoding="utf-8"))["puntos_interes"]}
          if _PLANO.is_file() else {"cafe": 2, "pasillo": 3})
 GB = BC.Gestor()
+ESC = RD.Escalera(registro=lambda d_: (metrica(d_), log(f"nivel {d_['de']} -> {d_['a']}: {d_['motivo']}")))
+SEN = RD.Sensores(os.getpid(), 1.0)
+SEN.arrancar()
+REND = {"ultimo_input": time.time(), "dormir": False, "dormida_desde": None, "nivel": 0, "fps": 30}
 LOGD = BC.LogDiario(APP / "oficina")
 _ult_conf = [0]
 OFV = VG.Oficina(_POIS, registro_raros=str(DATOS / "vagancia-raros.jsonl"))
@@ -423,11 +437,38 @@ caido_antes = None
 en_curso_antes = frozenset()
 
 while True:
-    dt = reloj.tick(30) / 1000.0
+    _f = RD.fps(REND["nivel"], pygame.key.get_focused(), not pygame.display.get_active())
+    REND["fps"] = _f
+    dt = reloj.tick(_f if _f else 4) / 1000.0
     faulthandler.dump_traceback_later(1.0, repeat=False, file=_congelado)
     t = time.perf_counter() - t0
     ahora = time.time()
+    if A.salir_a is not None and t >= A.salir_a and codigo is None:  # vale dormida y minimizada
+        codigo, cierre_motivo = 0, f"--salir-a {A.salir_a}"
+        break
     for e in pygame.event.get():
+        if e.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.TEXTINPUT):
+            REND["ultimo_input"] = time.time()
+            if REND["nivel"] == 4 and e.type != pygame.MOUSEMOTION:
+                REND["dormir"] = False
+                REND["despertar_t"] = time.time()  # el siguiente fotograma pintado mide el despertar
+                _sw = dict(SEN.ultimo)
+                if A.sensores_falsos:
+                    try:
+                        _sw.update(json.loads(Path(A.sensores_falsos).read_text(encoding="utf-8")))
+                    except (OSError, ValueError):
+                        pass
+                ESC.despertar(dict(_sw, noche=False), time.time())
+                REND["nivel"] = ESC.efectivo()
+                log("despierta (entrada del usuario)")
+        if e.type == pygame.KEYDOWN and e.key == pygame.K_a and not foco:
+            ESC.ahorro = not ESC.ahorro
+            log(f"modo ahorro {'activado' if ESC.ahorro else 'quitado'} (manual, persistente)")
+            continue
+        if e.type == pygame.KEYDOWN and e.key == pygame.K_z and not foco:
+            REND["dormir"] = True
+            log("dormir: lo pide el usuario")
+            continue
         if e.type == pygame.QUIT:
             codigo, cierre_motivo = 0, "ventana cerrada por el usuario"
         elif e.type == pygame.MOUSEBUTTONDOWN:
@@ -493,6 +534,28 @@ while True:
         codigo = 2
         break
 
+    _sens = dict(SEN.ultimo)
+    if A.sensores_falsos:
+        try:
+            _sens.update(json.loads(Path(A.sensores_falsos).read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
+    _sens.update(sin_mirar_s=time.time() - REND["ultimo_input"], usuario_dormir=REND["dormir"],
+                 noche=(not A.sin_noche) and RD.es_noche(datetime.now().hour))
+    REND["nivel"] = ESC.paso(_sens, time.time())
+    if REND["nivel"] >= 5:
+        codigo, cierre_motivo = 6, f"cerrada por la escalera: {ESC.cambios[-1]['motivo'] if ESC.cambios else 'nivel 5'}"
+        break
+    OFV.vagancia_activa = REND["nivel"] < 2
+    if REND["nivel"] == 4:  # DORMIDA: sin render; atiende eventos 4 veces por segundo para despertar rapido
+        if REND["dormida_desde"] is None:
+            REND["dormida_desde"] = time.time()
+            metrica({"evento": "dormida", "motivo": ESC.cambios[-1]["motivo"] if ESC.cambios else ""})
+        reloj.tick(4)
+        continue
+    REND["dormida_desde"] = None
+    if not pygame.display.get_active():  # minimizada: 0 FPS, sin pintar nada (el proceso sigue y atiende el latido)
+        continue
     caido = _bridge_caido()
     if caido != caido_antes:  # cambia el ritmo: las fuentes no esperan al final de su periodo viejo
         caido_antes = caido
@@ -578,6 +641,10 @@ while True:
     pygame.draw.line(pantalla, C["linea"], (0, 92), (W, 92))
     texto("Oficina Growi · prototipo de protocolo", F15, C["texto"], 20, 8)
     _tn = BC.te_necesitan(fu["cola"] if "fu" in dir() else None)
+    pygame.draw.circle(pantalla, RD.color(REND["nivel"]), (W - 446, 18), 6)
+    texto(RD.metricas_texto(SEN.ultimo, REND["nivel"], reloj.get_fps(), "—"), F12, C["suave"], 20, 466, W - 40)
+    texto(("Modo ahorro: ON (A)" if ESC.ahorro else "Modo ahorro (A)") + " · Dormir (Z)", F12,
+          C["ambar"] if ESC.ahorro else C["suave"], W - 230, 76)
     texto(f"Te necesitan: {_tn}", F15, C["ambar"] if _tn not in ("0", "—") else C["suave"], W - 430, 8)
     ejemplo = any(v["ejemplo"] for v in V.values())
     if ejemplo:
@@ -609,7 +676,8 @@ while True:
         pygame.draw.rect(pantalla, DEPTO[depto][0], (zx + 10, zy + 12, 10, 10))
         texto(DEPTO[depto][1], F13, C["texto"], zx + 26, zy + 7, ancho - 30)
     for pid, nombre, depto, _tipo, _cl in P.ROSTER:
-        dibujar_sprite(pid, nombre, depto, est[pid][0], t, ACTIVIDAD.get(pid))
+        dibujar_sprite(pid, nombre, depto, est[pid][0], 0.0 if REND["nivel"] >= 3 else t,
+                       None if REND["nivel"] >= 3 else ACTIVIDAD.get(pid))
     # leyenda de motivos (de donde sale cada estado)
     pygame.draw.rect(pantalla, C["panel"], (0, 480, W, H - 480))
     pygame.draw.line(pantalla, C["linea"], (0, 480), (W, 480))
@@ -711,6 +779,8 @@ while True:
         texto(f"La oficina se cierra sola en {max(0, 3 - (t - cierre_t)):.0f} s", F13, C["panel"],
               W // 2 - 120, 262)
     pygame.display.flip()
+    if REND.get("despertar_t"):
+        metrica({"evento": "despertar", "ms": round((time.time() - REND.pop("despertar_t")) * 1000, 1)})
 
     for c in capturas:
         if not c[2] and t >= c[0]:
