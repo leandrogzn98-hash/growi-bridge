@@ -1,0 +1,9 @@
+{
+  "motores": {
+    "claude": {"nombre": "Claude Code", "tipo": "cuota_mensual", "limite": 100, "unidad": "USD", "reset": "mensual"},
+    "codex": {"nombre": "Codex", "tipo": "suscripcion", "limite": 20, "unidad": "USD/mes", "reset": "mensual"},
+    "gemini": {"nombre": "Gemini", "tipo": "cuota_diaria", "limite": 1500, "unidad": "requests/dia", "reset": "diario"},
+    "deepseek": {"nombre": "DeepSeek", "tipo": "pago_por_uso", "limite": null, "unidad": "USD", "reset": "nunca"},
+    "llama": {"nombre": "Llama Local", "tipo": "ilimitado", "limite": null, "unidad": "local", "reset": "nunca"}
+  }
+}
