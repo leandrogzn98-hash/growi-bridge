@@ -1,17 +1,46 @@
 # Fase 6 — Seguridad avanzada en Linux: intermediario de root y contenedores por proyecto
 
-Diseño previo a la implementación, para revisión (Opus 5.5 vía MWAPI) y
-como contrato de aceptación de la fase. Sigue el patrón de las Fases 1
-a 5: módulos puros con lógica testeable + cableado fino en el monolito.
-Rama: `fase-6-seguridad`. Es la última fase del plan.
+Diseño de la fase **tal como se implementó**, y contrato de aceptación
+de la misma. Sigue el patrón de las Fases 1 a 5: módulos puros con
+lógica testeable + cableado fino en el monolito. Rama:
+`fase-6-seguridad`. Es la última fase del plan.
 
-Piezas nuevas: `privilegios.py` (el lado de la app: detección de vías,
-lectura del catálogo, petición de acciones de sistema, vale de
-confirmación e invocación), `contenedores.py` (detección del runtime,
-ciclo de vida y envoltura de ejecución), la carpeta `intermediario/`
-(el despachador `growi-rootbroker.py` — biblioteca estándar pura, se
-instala como root fuera de la carpeta de la app —, su instalador para
-el dueño y el catálogo de ejemplo) y campos nuevos en `proyectos.json`.
+> Este documento se reescribió el 2026-11-16, a petición del dueño,
+> para dejar una sola descripción coherente del sistema: la de la
+> arquitectura que el código hace. La primera versión del diseño
+> describía otra arquitectura (un despachador residente como root
+> con vales firmados) que la revisión de Opus 5.5 tumbó y nunca se
+> implementó; su historia, con los bloqueantes que la descartaron,
+> está en el Anexo A. Nada de lo que el cuerpo de este documento
+> describe como comportamiento difiere del código: donde el diseño
+> original y el código se separaron, manda el código.
+
+Piezas de la fase:
+
+- `raiz.py` — el lado de la app del intermediario: el **registro
+  cerrado de acciones en código**, la validación, la huella de
+  parámetros, los topes de ritmo, las órdenes de un solo uso, la
+  detección de vía y la composición de la regla de sudoers.
+- `growi-ayudante.py` — el ejecutable que la regla de sudoers
+  autoriza por su ruta exacta. **Sin privilegios propios y sin
+  importar nada del proyecto**: trae su propia copia de la
+  especificación del registro y revalida todo antes de ejecutar.
+- `instalar-raiz.py` — el generador de reglas que ejecuta **el
+  dueño, en su terminal**: compone la regla desde el registro, la
+  verifica con `visudo` si está, la muestra entera y dice los
+  comandos exactos de instalación. La app jamás instala nada ni ve
+  una contraseña.
+- `contenedores.py` — detección del runtime, ciclo de vida y
+  envoltura de ejecución de los contenedores por proyecto.
+- `permission-layer.py` gana `registrar_sistema()` (el asiento de
+  auditoría por cuenta Muse de cada acción del intermediario) y
+  `git_trabajo.py` los campos de contenedor de `proyectos.json`,
+  validados en `guardar_proyecto()`.
+- El monolito gana el cableado fino `_f6_*`: la interceptación de
+  las tareas `sistema` en el runner, el gancho de contenedor en la
+  preparación de la Fase 3 y la sección «Seguridad avanzada» de la
+  página Cuentas.
+
 Todos los `.py` nuevos son LF; el monolito solo gana cableado fino,
 conservando su CRLF.
 
@@ -19,762 +48,470 @@ La fase tiene dos mitades independientes que comparten filosofía
 (fail-closed, confirmación humana por el circuito que ya existe,
 auditoría por cuenta y degradación honesta):
 
-1. **Intermediario de root.** Ninguna Muse conoce ni usa la clave de
-   root — ni la del usuario con sudo — jamás. Lo privilegiado pasa por
-   un despachador mínimo instalado como root que solo sabe ejecutar
-   las acciones de una **lista blanca cerrada** (comandos concretos con
-   argumentos acotados), cada una con su nivel de riesgo y su
-   confirmación humana previa por el circuito existente
-   (`permission-layer.py` + aprobaciones del monolito), y deja asiento
-   en dos auditorías: la de la cuenta que lo pidió y la suya propia.
-2. **Contenedores por proyecto.** Un contenedor por proyecto con los
-   dos worktrees dentro (decisión registrada en la Fase 3, §9 de su
-   diseño), como caja de arena **opcional y por proyecto** para
-   ejecutar los motores. Las credenciales de git no entran nunca: la
-   subida sigue siendo la puerta `subir` de la Fase 3, desde fuera.
+1. **Intermediario de root.** Ninguna Muse conoce ni usa la clave
+   de root — ni la del usuario con sudo — jamás; de hecho **no hay
+   ninguna clave de root guardada en ningún sitio** ni ningún
+   componente residente como root. Lo privilegiado nace como
+   declaración estructurada en una tarea, lo valida código contra
+   un registro cerrado, lo confirma una persona por el circuito de
+   aprobaciones de siempre y lo ejecuta el ayudante, elevado solo
+   para esa invocación por la regla que el dueño instaló. Cada
+   ejecución deja asiento en dos auditorías: la de la cuenta que
+   lo pidió y la del propio ayudante.
+2. **Contenedores por proyecto.** Un contenedor por proyecto con
+   los dos worktrees dentro (decisión registrada en la Fase 3, §9
+   de su diseño), como caja de arena **opcional y por proyecto**
+   para ejecutar los motores. Las credenciales de git no entran
+   nunca: la subida sigue siendo la puerta `subir` de la Fase 3,
+   desde fuera.
 
-Lo que esta fase NO hace: tocar Windows (el intermediario es Linux; en
-Windows las acciones de sistema quedan «no disponibles» y se declara),
-dar a ningún agente una shell privilegiada o un comando libre, ni
-permitir editar la lista blanca desde la app (solo el dueño, con su
-editor y su sudo, fuera de la app).
+Lo que esta fase NO hace: tocar Windows (el intermediario es Linux;
+en Windows las acciones de sistema quedan «no disponibles» y se
+declara, y el gancho de contenedores del monolito solo se activa en
+POSIX), dar a ningún agente una shell privilegiada o un comando
+libre, ni permitir editar el registro o la lista del dueño desde la
+app (el registro es código; la lista la edita el dueño, fuera de la
+app).
 
 ===
 
 ## 1. Principios
 
-1. **El agente nunca toca la palanca.** Una acción privilegiada nace
-   como declaración estructurada en una tarea (`sistema: [...]`, §3.2),
-   la clasifica código, la confirma una persona y la ejecuta el
-   despachador. No existe ningún camino «el motor ejecuta sudo»: el
-   entorno del motor no gana ningún privilegio nuevo en esta fase.
-2. **Lista blanca cerrada, argv exactos, nada de shell.** El
-   despachador ejecuta con `execve` (vía `subprocess` con lista,
-   `shell=False`) plantillas de argv cuyos huecos se rellenan con
-   parámetros validados contra dominios cerrados (enumeraciones,
-   prefijos de ruta, rangos). Un parámetro es siempre **un elemento
-   entero** de argv: nunca se concatena dentro de un elemento ni se
-   interpreta. Lo que no está en el catálogo no existe.
-3. **La lista blanca vive fuera del alcance de la app.** El catálogo
-   autoritativo es `/etc/growi-bridge/acciones.json`, propiedad de
-   root, legible por todos (0644) y escribible solo por root. La app
-   lo lee para mostrar y clasificar; ni la app ni un agente pueden
-   ampliarlo. Ampliarlo es un acto del dueño en su terminal.
+1. **El agente nunca toca la palanca.** Una acción privilegiada
+   nace como declaración estructurada en una tarea
+   (`tipo: "sistema"`, §3.4), la clasifica código, la confirma una
+   persona y la ejecuta el ayudante. No existe ningún camino «el
+   motor ejecuta sudo»: el entorno del motor no gana ningún
+   privilegio nuevo en esta fase, y el prompt de la tarea no manda
+   — manda el registro.
+2. **Registro cerrado en código, argv exactos, nada de shell.** Las
+   únicas acciones que existen están escritas en `raiz.py` (y
+   espejadas en el ayudante): plantillas de argv cuyos huecos
+   ocupan **elementos enteros** y se rellenan con parámetros
+   validados contra dominios cerrados. Un parámetro nunca se
+   concatena dentro de un elemento ni se interpreta. Lo que no
+   está en el registro no existe, y pedirlo se **rechaza en
+   validación**: fail-closed, nunca fail-hang.
+3. **Ampliar lo permitido es un acto del dueño, fuera de la app.**
+   Qué acciones existen lo fija el código. Qué unidades de systemd
+   puede tocar el intermediario lo fija la lista del dueño
+   (`raiz-config.json`, §3.3), que la app solo lee: una entrada
+   inválida se descarta y **estrecha**, nunca amplía.
 4. **La confirmación es la de siempre.** No se crea ningún circuito
-   nuevo: las tareas `sistema` pasan por la puerta de aprobaciones del
-   monolito según su nivel (tabla de `riesgos.json`), y la decisión
-   humana se materializa en un registro del circuito de
-   `permission-layer.py` (firma HMAC, origen humano), atado a la
-   acción, a sus parámetros exactos y al catálogo vigente por hash.
-   Ese registro es la **solicitud**; el vale que el despachador
-   ejecuta es otra cosa: lo **sella el propio despachador** como root
-   y vive solo en su dominio (`/var/lib/growi-bridge/vales/`,
-   §3.5), porque la revisión de esta fase (§12, B1) demostró que un
-   vale guardado en el dominio del usuario no es un control.
-5. **El despachador no importa código del usuario.** Es un único
-   archivo de biblioteca estándar, instalado en
-   `/usr/local/libexec/growi-rootbroker.py`, propiedad de root. Si
-   importara módulos de la carpeta de la app, quien escriba ahí
-   tendría root: por eso reimplementa en 100 líneas lo poco que
-   necesita (leer el catálogo, validar, verificar el vale, ejecutar,
-   auditar) y no importa nada del proyecto.
-6. **Fail-closed y degradación honesta.** Sin intermediario instalado,
-   las acciones privilegiadas **no están disponibles** y las tareas
-   que las piden esperan con ese motivo (no se ejecutan «sin» el paso
-   privilegiado ni se salta el paso en silencio). Sin runtime de
-   contenedores, un proyecto que lo exige no corre fuera «porque no
-   haya» contenedor (§5.7). Todo lo no disponible se dice, en la UI y
-   en el resultado de la tarea.
-7. **Doble auditoría contrastable.** La app asienta la petición y el
-   resultado en el audit-log de la cuenta (Fase 1). El despachador
-   asienta lo que ejecutó de verdad en su propio log encadenado,
-   propiedad de root. Si difieren, manda el del despachador y la
-   diferencia es en sí misma una señal de alarma.
+   nuevo: las tareas `sistema` pasan por la puerta de aprobaciones
+   del monolito con el nivel que sale del registro, y la decisión
+   humana es la del circuito existente (`permission-layer.py` +
+   aprobaciones). Tras la aprobación, el runner deja una **orden
+   de un solo uso** que el ayudante exige y consume (§3.5). La
+   orden no es una credencial criptográfica y este diseño no la
+   presenta como tal: su valor es de consumo y de auditoría, y el
+   control real es el circuito.
+5. **El ayudante no importa código del proyecto.** Es un único
+   archivo de biblioteca estándar. Si importara módulos de la
+   carpeta de la app, quien escriba ahí tendría root: por eso trae
+   su propia copia de la especificación y la **revalida entera**
+   (la doble validación: la app validó al pedir, el ayudante
+   revalida al ejecutar). Una prueba verifica que ambas copias del
+   registro coinciden.
+6. **Fail-closed y degradación honesta.** Sin intermediario
+   instalado, las acciones privilegiadas **no están disponibles**
+   y las tareas que las piden esperan con ese motivo, **sin gastar
+   ninguna aprobación**. Sin runtime de contenedores, un proyecto
+   que lo exige no corre fuera «porque no haya» contenedor (§4.7).
+   Todo lo no disponible se dice, en la UI y en el resultado de la
+   tarea.
+7. **Doble auditoría contrastable.** La app asienta cada acción en
+   el audit-log de la cuenta Muse que la pidió (§3.8). El
+   ayudante asienta lo que ejecutó de verdad en su propio log
+   encadenado por hashes. Ambas entradas comparten la huella de
+   los parámetros: si difieren, la diferencia es en sí misma una
+   señal de alarma.
 8. **Frontera declarada, sin maquillaje.** Como la bóveda de la
-   Fase 1, esto es una frontera frente al **agente** (un proceso
-   acotado por la capa de permisos: sin tools de firma, sin lectura
-   arbitraria de archivos, sin forma de invocar
-   `resolver_confirmacion`). La primera versión de este diseño decía
-   que la fase «no empeora» esa frontera; la revisión (§12, B1) lo
-   corrigió: en cuanto una confirmación firmada con
-   `permission-secret.key` abre acciones de root, esa clave pasa a
-   ser **material root-equivalente** y hay que tratarla como tal. Por
-   eso el diseño final no ejecuta contra registros del dominio del
-   usuario: el despachador verifica la solicitud firmada una sola
-   vez, al **sellar**, y lo que ejecuta después es su propio vale,
-   acuñado y consumido en el dominio de root (§3.5). Un proceso
-   arbitrario del mismo usuario que leyera la clave podría fabricar
-   una solicitud y pedir el sello por la vía sudo: sigue fuera del
-   modelo de amenaza del proyecto (es el límite declarado desde la
-   Fase 1), pero ya no puede reescribir, resucitar ni reutilizar un
-   vale sellado, ni alargar su ventana. Y las acciones R3 exigen
-   además un acto del dueño en su terminal (§3.5), fuera del alcance
-   de cualquier proceso. Lo que la fase cierra de verdad: que el
-   **motor** (el LLM y sus herramientas) no tenga ningún camino a
-   root.
+   Fase 1, esto es una frontera frente al **motor** (el LLM y sus
+   herramientas, acotados por la capa de permisos: sin forma de
+   crear órdenes ni de invocar la confirmación humana), no frente
+   a un proceso arbitrario corriendo como el propio dueño — el
+   mismo límite declarado desde la Fase 1. La orden de un solo uso
+   vive en el dominio del usuario y no autentica nada entre
+   procesos del mismo uid; lo que impide es que una petición
+   suelta, sin aprobación previa viva, se ejecute, y lo que
+   garantiza es que cada ejecución quema su aprobación y deja
+   doble asiento.
 
 ## 2. Mapa general
 
-```
- TAREA (tipo "sistema" o con paso declarado)
-   │  el runner la clasifica (riesgos.json + nivel del catálogo)
-   ▼
- PUERTA DE APROBACIONES del monolito  ── el dueño aprueba en la app
-   │  (R1/R2 por su canal permitido; R3 solo en la app)   │
-   │                                                       ▼
-   │                          permission-layer: SOLICITUD firmada
-   │                          (tool "rootbroker", acción
-   │                           sistema:<id>:<huella completa>)
-   ▼  al recoger la tarea, el runner pide el SELLO:
- sudo -n /usr/local/libexec/growi-rootbroker.py --sellar
-   │  el despachador (root) verifica la solicitud HMAC una vez y
-   │  acuña SU vale en /var/lib/growi-bridge/vales/ (clave propia,
-   │  nonce, tarea y aprobación ligados, ventana por nivel)
-   ▼  y acto seguido, con el nonce del vale:
- privilegios.ejecutar(acción, params, cuenta, vale)
-   │  petición JSON por stdin a:
-   ▼
- sudo -n /usr/local/libexec/growi-rootbroker.py ejecutar
-   │  (o pkexec al envoltorio de la acción, según su lanzador: §3.4;
-   │   con euid 0 no hay lanzador: vía «root-local», §3.4)
-   ▼
- DESPACHADOR (root): valida catálogo → dominios → llamante
-   (SUDO_UID/PKEXEC_UID contra su config, o euid 0 en root-local) →
-   vale PROPIO fresco y sin consumir (R3: + autorización del dueño
-   en su terminal) → lo consume → asienta intención → ejecuta el
-   argv exacto bajo systemd-run con timeout → asienta resultado →
-   responde JSON por stdout
+El camino de una acción de sistema:
+
+```text
+tarea {"tipo": "sistema", "sistema": [{"accion": …, "params": {…}}, …]}
+  │  (el runner la intercepta: no pasa por process_one, no hay motor)
+  ▼
+_f6_procesar_sistema ── forma estricta ──► ¿permiso ya aprobado?
+  │                                            │ sí: se consume al
+  │ no                                         │ recoger y se ejecuta
+  ▼                                            ▼
+¿vía? ── ninguna ──► la tarea ESPERA (sin gastar aprobación)
+  │ sudoers / pkexec
+  ▼
+nivel_de(): valida todo contra el registro ── desconocida ──►
+  │                                            necesita_decision
+  ▼
+¿nivel < nivel de guardia del dueño? ── sí ──► ejecutar
+  │ no
+  ▼
+puerta de aprobaciones (_park_for_approval) ── el dueño decide ──►
+  la tarea vuelve, el permiso se consume al recoger y se ejecuta
+
+ejecutar = por cada acción, en orden (se para en el primer fallo):
+  crear_orden(raiz-ordenes/) ─► raiz.ejecutar ─► sudo -n / pkexec
+  ─► growi-ayudante.py ejecutar: revalida, exige y consume la
+     orden, impone su ritmo, ejecuta el argv exacto, asienta en
+     su log ─► resultado + asiento en la auditoría de la cuenta
 ```
 
-Y para los motores, cuando el proyecto lo pide:
+El camino de un contenedor:
 
+```text
+tarea con proyecto (preparación de la Fase 3, _f3_preparar)
+  │  alquileres y worktree ya preparados; solo si el proyecto
+  │  pide contenedor (contenedor_modo != "no") y no es Windows
+  ▼
+_f6_asegurar_contenedor ─► contenedores.asegurar()
+  ├─ listo     ─► prep["contenedor"] ─► al lanzar el motor,
+  │               _f4_envolver_cmd lo envuelve con argv_exec
+  │               (sin systemd-run: el tope va en el contenedor)
+  ├─ degradado ─► (modo opcional) la tarea corre fuera, con aviso
+  └─ esperar   ─► (modo requerido) se sueltan los alquileres y
+                  la tarea espera, como con un alquiler ocupado
+al cerrar: el resultado anota contenedor, runtime y aviso
 ```
- _f3_preparar (Fase 3) prepara worktree ──► prep gana «contenedor»
-   │                                          (nombre, runtime, espejo)
-   ▼
- el lanzamiento del motor se envuelve:  podman exec -w <worktree> …
-   │  (el motor edita/compila/prueba dentro; sin credenciales,
-   │   sin HOME, sin la carpeta de la app)
-   ▼
- al cerrar la tarea: la subida sigue siendo git_trabajo.subir(),
-   desde el anfitrión, con su escaneo de secretos (Fase 3)
-```
+
+Archivos y lugares:
+
+| Qué | Dónde |
+|---|---|
+| Registro, validación, órdenes, detección, reglas | `raiz.py` (app) y su espejo en `growi-ayudante.py` |
+| Ayudante instalado (el que autoriza sudoers) | `/usr/local/libexec/growi-ayudante.py` |
+| Regla de sudoers (la instala el dueño) | `/etc/sudoers.d/growi-bridge` |
+| Lista del dueño (unidades autorizadas) | `raiz-config.json`, carpeta compartida |
+| Ritmo de la app | `raiz-estado.json`, carpeta compartida |
+| Órdenes de un solo uso | `raiz-ordenes/`, carpeta compartida |
+| Log del ayudante (encadenado por hashes) | `raiz-ayudante.jsonl`, carpeta compartida |
+| Auditoría por cuenta | `audit-log-<cuenta>.json` (Fase 1), vía `registrar_sistema()` |
+| Estado vivo del contenedor | campo `contenedor` en `proyectos.json` |
+
+===
 
 ## 3. El intermediario de root
 
-### 3.1 Qué proceso es y con qué privilegios corre
+### 3.1 Las piezas y los privilegios de cada una
 
-El despachador **no es un demonio residente**: es un programa que se
-invoca una vez por acción y muere al terminar. Esto es deliberado:
+No hay ningún demonio residente y ninguna clave guardada. Hay tres
+piezas, y solo una se ejecuta alguna vez como root:
 
-- Sin superficie permanente: no escucha en ningún puerto ni socket;
-  entre acciones no hay nada privilegiado corriendo.
-- El privilegio dura lo que dura la acción (segundos), no la sesión.
-- El modelo de invocación es el clásico «sudo a un ayudante propiedad
-  de root»: `sudo` (o `pkexec`) eleva **ese binario concreto**, y el
-  binario es la lista blanca hecha código.
+- **`raiz.py`** corre dentro de la app, sin privilegios: valida,
+  clasifica, crea órdenes, detecta la vía, invoca y audita.
+- **`growi-ayudante.py`** es un ejecutable sin privilegios propios
+  al que la regla de sudoers del dueño autoriza **por su ruta
+  exacta** (`/usr/local/libexec/growi-ayudante.py`). Solo actúa
+  cuando llega elevado por el circuito (`sudo -n` o `pkexec`) y
+  con una orden viva: invocarlo a mano, incluso como root, no
+  ejecuta nada, porque exige `SUDO_UID`/`PKEXEC_UID` en el entorno
+  (los pone el circuito de elevación, no el llamante). Tiene dos
+  modos y ningún otro: `sonda` (responde versión y acciones; es
+  como la app detecta la vía) y `ejecutar` (el camino de §3.6).
+- **`instalar-raiz.py`** corre cuando el dueño quiere, en su
+  terminal, sin privilegios (§5.1).
 
-Ficha del despachador:
+La petición viaja al ayudante como **JSON por stdin** (nunca texto
+libre por argv): `{v, accion, params, huella, cuenta, raiz}`. La
+respuesta es un JSON por stdout; la app lee la última línea.
 
-| Aspecto | Decisión |
-|---|---|
-| Archivo | `/usr/local/libexec/growi-rootbroker.py`, dueño root, 0755 |
-| Lenguaje | Python 3, **solo biblioteca estándar**, sin imports del proyecto |
-| Configuración propia | `/etc/growi-bridge/intermediario.json` (root, **0600**): rutas del registro de confirmaciones y de la clave HMAC, uid del dueño autorizado, ventanas de frescura por nivel, rutas de su log, de sus vales y de su clave de vales. Las rutas que fija hacia su propio dominio (`/var/lib/growi-bridge/…`) no pueden apuntar a nada escribible por el uid del dueño: si apuntan, `no_configurado` |
-| Catálogo | `/etc/growi-bridge/acciones.json` (root, 0644): §3.3 |
-| Sus vales | `/var/lib/growi-bridge/vales/` (root, 0700; ficheros 0600), con clave propia `/var/lib/growi-bridge/vale.key` (root, 0400): §3.5 |
-| Autorizaciones R3 | `/var/lib/growi-bridge/autorizaciones/` (root, 0700): las crea el subcomando `autorizar`, que el dueño ejecuta en su terminal (§3.5) |
-| Su log | `/var/log/growi-bridge/rootbroker.jsonl` (root, 0600, append-only, cadena de hashes propia con ancla: §3.7) |
-| Subcomandos | sin subcomando = ejecutar (petición por stdin); `--sellar` (acuña el vale desde la solicitud firmada), `autorizar` (acto del dueño para R3), `sonda` (presencia sin ejecutar), `--validar-catalogo`, `--verificar-log` |
-| Entrada | JSON por **stdin** (nunca un archivo en ruta del usuario, nunca argumentos de línea de comandos con datos) |
-| Salida | JSON por stdout: `{ok, rc, salida, duracion_s, motivo}`; la salida del comando va truncada (§3.6) |
-| Entorno al ejecutar | Mínimo y fijo: `PATH` de sistema, `LANG=C.UTF-8`, sin variables del llamante (sudo ya hace `env_reset`; el despachador además construye el entorno desde cero) |
-| cwd al ejecutar | `/` |
-| stdin del comando | `DEVNULL`, salvo acciones que lo declaren (ninguna del catálogo inicial) |
+### 3.2 El registro cerrado de acciones
 
-La configuración del despachador vive en `/etc` y **no** en la
-petición: qué registro de confirmaciones se acepta y qué clave lo
-firma lo decide el dueño al instalar, no quien llama. Si
-`intermediario.json` falta o no valida, el despachador no ejecuta
-nada y responde `no_configurado`.
+El registro vive **en código**, idéntico en `raiz.py` y en el
+ayudante (una prueba verifica que las dos copias coinciden: mismos
+ids, mismos argv, mismos timeouts). Es esto, entero:
 
-El despachador **no lee ninguna variable de entorno para
-configurarse** (§12, B14): ni rutas, ni catálogo, ni ventanas. Las
-rutas de `/etc` y `/var` están fijas en el código del binario
-instalado. Su única entrada del entorno son `SUDO_UID`/`SUDO_USER`
-(los pone sudo) o `PKEXEC_UID` (lo pone pkexec), que usa para
-verificar al llamante (§3.4); en la vía «root-local» (§3.4) verifica
-el euid directamente. La lógica interna sí acepta las rutas como
-parámetros — así la prueban las unitarias con directorios temporales
-—, pero el punto de entrada instalado las pasa fijas y ningún
-entorno puede cambiarlas: una prueba física lo verifica
-(`GROWI_BROKER_ETC=… sonda` no cambia nada, §9.2).
+| Acción | argv (los `{…}` ocupan un elemento entero) | Nivel | Timeout |
+|---|---|---|---|
+| `servicio-estado` | `/usr/bin/systemctl status {unidad} --no-pager` | R1 | 30 s |
+| `servicio-arrancar` | `/usr/bin/systemctl start {unidad}` | R2 | 120 s |
+| `servicio-parar` | `/usr/bin/systemctl stop {unidad}` | R2 | 120 s |
+| `servicio-reiniciar` | `/usr/bin/systemctl restart {unidad}` | R2 | 180 s |
+| `apt-actualizar` | `/usr/bin/apt-get update` | R2 | 600 s |
+| `apt-instalar` | `/usr/bin/apt-get install -y {paquete}` | R2 | 600 s |
 
-### 3.2 Cómo nace una petición: la tarea `sistema`
+Dominios cerrados, los únicos que existen:
 
-Una acción privilegiada solo puede nacer declarada en una tarea, de
-dos formas:
+- **`unidad`**: debe pasar la regex estricta
+  `^[a-z0-9][a-z0-9._@-]{0,80}$` (minúscula o dígito inicial — jamás
+  podrá leerse como una opción de systemctl —, sin espacios ni
+  metacaracteres) **y** estar en la lista del dueño (§3.3). La
+  regex es defensa en profundidad; la puerta de verdad es la
+  pertenencia a la lista.
+- **`paquete`**: regex de nombre Debian
+  `^[a-z0-9][a-z0-9+.-]{1,80}$` (nunca empieza por guión: no puede
+  convertirse en un flag de `apt-get`).
 
-- **Tarea dedicada**: `{"tipo": "sistema", "sistema": [...]}` — no
-  lleva motor; el runner ejecuta las acciones en orden y se detiene
-  en el primer fallo. Es la forma normal: «reinicia el servicio del
-  juego», «monta el disco de respaldo y luego…» (el resto del encargo
-  va en tareas hermanas del mismo encargo de la Fase 4, con su raíz
-  de correlación).
-- **Sin forma libre**: no hay campo «comando» ni «shell» en ninguna
-  parte del esquema. Una tarea que traiga claves desconocidas en
-  `sistema` se rechaza entera en la validación, como hacen las demás
-  validaciones del proyecto. Las tareas `sistema` no preparan repo:
-  no toman alquileres ni worktrees de la Fase 3, así que su espera
-  (sin intermediario, vale caducado, lo que sea) no retiene ningún
-  recurso de otra fase.
+La validación (`validar_peticion` en la app, `validar` en el
+ayudante, la misma especificación) exige además que el conjunto de
+parámetros sea **exactamente** el declarado: ni sobrantes ni
+faltantes. Una acción que no está en el registro produce
+`acción de sistema desconocida: <id>` y se rechaza ahí — en
+validación, antes de cualquier puerta — de modo que no existe el
+estado «esperando una decisión sobre algo inclasificable».
 
-Cada elemento de `sistema` es `{"accion": "<id del catálogo>",
-"params": {...}}` con los parámetros por nombre. Ejemplo:
+El **nivel** de una acción es el del registro, con una única
+subida posible: la lista del dueño puede declarar un nivel mayor
+para una unidad concreta, y entonces manda el mayor (nunca se
+baja). El nivel de una tarea es el mayor de sus acciones
+(`nivel_de()`), calculado validándolo todo: si alguna acción no
+existe o no valida, la tarea no se clasifica a ciegas.
+
+La **huella** de unos parámetros es el SHA-256 del JSON canónico
+(claves ordenadas, separadores fijos), primeros 16 hex
+(`huella_params`, la misma función en las dos piezas). Liga lo
+aprobado con lo ejecutado y es la clave de cruce entre las dos
+auditorías y el nombre de la orden.
+
+### 3.3 La lista del dueño (`raiz-config.json`)
+
+En la carpeta compartida vive la única parte «configurable» del
+intermediario: qué unidades puede tocar.
+
+```json
+{"unidades": ["ssh", {"nombre": "growi-vigilante", "nivel": "R3"}]}
+```
+
+- Cada entrada es un nombre o un `{nombre, nivel}` (el nivel solo
+  puede subir el del registro, §3.2).
+- Sin archivo: ninguna unidad permitida (las acciones de paquetes
+  siguen disponibles, no dependen de la lista).
+- Una entrada con nombre inválido o nivel desconocido se descarta
+  y marca la config como **degradada**; una config degradada
+  bloquea la generación de reglas (§5.1) hasta que el dueño la
+  arregle. Leer la lista nunca falla en silencio a favor de
+  permitir más: lo dudoso estrecha.
+- El ayudante **relee la lista en cada petición** (solo los
+  nombres; los niveles son cosa de la clasificación, en la app):
+  si el dueño retira una unidad, la siguiente petición ya no la
+  encuentra.
+
+Ampliar la lista es editar ese archivo, un acto del dueño fuera
+de la app. La UI la muestra (las unidades autorizadas, en la
+sección «Seguridad avanzada») pero no la edita.
+
+### 3.4 Cómo nace una petición: la tarea `sistema` y su camino
+
+Una tarea de sistema se declara así, sin forma libre:
 
 ```json
 {"tipo": "sistema",
- "prompt": "Reinicia el servidor del juego para aplicar el cambio",
- "sistema": [{"accion": "reiniciar-servicio",
-              "params": {"servicio": "servidor-juego"}}]}
+ "sistema": [{"accion": "servicio-reiniciar",
+              "params": {"unidad": "growi-vigilante"}}],
+ "prompt": "texto para el humano, no manda"}
 ```
 
-El `prompt` sigue existiendo (lo lee el dueño al aprobar y queda en
-la auditoría), pero **no manda**: lo que se ejecuta sale solo del
-catálogo y los parámetros validados. Si el prompt dice otra cosa que
-los parámetros, el dueño lo ve al confirmar (la confirmación muestra
-la descripción construida desde el catálogo y los parámetros, §3.5,
-no el prompt).
+El runner la intercepta en el bucle de candidatas (tras la puerta
+del tablero) y **no pasa por `process_one`**: no hay motor. El
+camino es `_f6_procesar_sistema`, en este orden, que es el del
+código:
 
-Clasificación y niveles: el runner trata `sistema` como un tipo de
-acción declarada más de `riesgos.json` (las acciones declaradas son
-«lo más fiable» según la propia tabla), con dos reglas propias:
+1. **Forma estricta** (`_f6_acciones_de`): `sistema` debe ser una
+   lista no vacía de objetos con las claves `accion` (texto) y
+   `params` (objeto) y **ninguna clave más** — no hay campo
+   «comando» ni nada parecido. Si la forma no vale, la tarea se
+   cierra como `necesita_decision` sin ejecutar nada.
+2. **¿Permiso ya aprobado?** Si la cola de aprobaciones tiene una
+   fila `aprobada` para esta tarea con «sistema» entre sus
+   acciones, el permiso **se consume al recoger** (pasa a
+   `consumida`, un solo uso, como el de las pruebas físicas de la
+   Fase 4) y se ejecuta directamente. Es el camino de vuelta de
+   una tarea aparcada y aprobada.
+3. **¿Hay intermediario?** Se detecta la vía (§5.3). Si es
+   «ninguna», la tarea **espera**: queda en la cola con reintento
+   a los 120 s y el motivo «intermediario de root no instalado
+   (…)», se emite el aviso `sistema_sin_intermediario` y **no se
+   gasta ninguna aprobación** — si el dueño lo instala después,
+   la tarea sigue su curso.
+4. **Clasificación**: `nivel_de()` valida todas las acciones
+   contra el registro y la lista. Una desconocida o inválida
+   cierra la tarea como `necesita_decision` con el motivo exacto
+   («acción de sistema desconocida o inválida: …»): puede ser un
+   registro recién editado o un intento de pedir lo que no
+   existe; decide el dueño, pero nada queda colgado.
+5. **La puerta**: si el nivel de la tarea queda por debajo del
+   **nivel de guardia del dueño** (el mismo umbral de la tabla de
+   riesgos que gobierna el resto de aprobaciones de Growi), corre
+   sin preguntar — es la política del dueño, como en
+   `_approval_needed`. Si no, se aparca con
+   `_park_for_approval`: el pedido lleva por acción su tipo
+   `sistema:<id>`, su nivel, su descripción legible («Reiniciar
+   el servicio «growi-vigilante»») y su huella, y se emite el
+   aviso `sistema_pendiente`. La decisión es la del circuito de
+   siempre, con sus orígenes humanos y sus canales (incluido el
+   de la Fase 5, con su muro R3).
+6. **Ejecución** (`_f6_ejecutar_acciones`): las acciones se
+   ejecutan **en orden y parando en el primer fallo**. De cada
+   una: se revalida, se crea su orden (§3.5) justo antes de
+   ejecutarla y se llama a `raiz.ejecutar`. El resultado de la
+   tarea trae la lista por acción (argv, rc, salida, motivo) y
+   queda `terminada` solo si todas salieron bien; se emiten los
+   avisos `sistema_ejecutada`/`sistema_fallida`.
 
-- El nivel de la tarea es el **mayor** de los niveles de sus acciones
-  según el catálogo (el catálogo manda sobre la tabla genérica: una
-  acción marcada R3 en el catálogo es R3 aunque la tabla dijera
-  menos; y al revés no: la tabla puede subir, nunca bajar el nivel
-  del catálogo — se toma el máximo de ambos).
-- Si alguna acción no existe en el catálogo, la tarea se
-  **rechaza en la validación** con el motivo `accion_desconocida:
-  <id>` (la app relee el catálogo antes de validar). La primera
-  versión de este diseño la dejaba «en espera de decisión»; la
-  revisión (§12, B4) lo corrigió: sin entrada en el catálogo no hay
-  nivel, sin nivel no hay clasificación ni puerta, y
-  `decidir_aprobacion` no tendría nada que decidir — la tarea
-  colgaría para siempre (fail-hang, no fail-closed). Por la misma
-  regla se rechazan en validación una lista `sistema` vacía y un
-  elemento sin `accion`.
+Dos notas de encaje con el resto del sistema:
 
-### 3.3 El catálogo de acciones (`acciones.json`)
+- **Exención de la puerta dual.** `_f4_dual_aplica` devuelve
+  falso para las tareas `sistema`, como para `consulta` y
+  `encargo`: son tareas de control y de **esta** máquina, se
+  procesan en local siempre. Enviar una acción de root de este PC
+  a la sesión del servidor la dejaría `por_confirmar` para
+  siempre (defecto cazado en las pruebas físicas, §8.2).
+- **Sin vía en Windows**: la interceptación existe, pero la
+  detección declara la vía no disponible en Windows y la tarea
+  espera con ese motivo, como manda el principio 6.
 
-Esquema v1:
+### 3.5 La confirmación y la orden de un solo uso
 
-```json
-{
-  "version": 1,
-  "acciones": [
-    {
-      "id": "reiniciar-servicio",
-      "descripcion": "Reiniciar el servicio «{servicio}»",
-      "argv": ["/usr/bin/systemctl", "restart", "{servicio}"],
-      "params": {
-        "servicio": {"tipo": "enum",
-                     "valores": ["servidor-juego"]}
-      },
-      "nivel": "R2",
-      "lanzador": "sudoers",
-      "timeout_s": 120
-    }
-  ]
-}
+La aprobación la da el circuito existente; lo que esta fase añade
+es cómo una aprobación se convierte en exactamente una ejecución.
+
+Tras la decisión humana (o tras la política que exime de
+preguntar, §3.4 paso 5), y solo entonces, el runner crea la orden
+con `raiz.crear_orden()`:
+
+```text
+raiz-ordenes/<accion>--<huella>.json
+{"v": 1, "cuenta": …, "accion": …, "huella": …,
+ "approval_id": …, "ts": …, "vence_ts": ts + 900}
 ```
 
-Reglas del esquema (las valida el instalador al escribir, la app al
-leer y el despachador en cada arranque: un catálogo que no valida
-**inhabilita todo**, no abre nada):
+- Vive **15 minutos** desde la aprobación.
+- El ayudante la exige: la lee, comprueba que es de la misma
+  cuenta que la petición y que no caducó, y **la borra antes de
+  ejecutar** (consumida: un solo uso; si no puede borrarla, no
+  ejecuta). Una petición sin orden viva se rechaza con «sin orden
+  viva del circuito de aprobaciones: el ayudante no ejecuta
+  peticiones sueltas», venga de donde venga.
+- Cada acción de una tarea con varias tiene **su propia orden**
+  (su propia huella), creada justo antes de ejecutarla: aprobar
+  la tarea no deja una ventana abierta para «otras cosas con la
+  misma huella», porque la huella es de esos parámetros exactos.
 
-- `id`: `[a-z0-9-]{2,48}`, único. Es el nombre que las tareas usan.
-- `argv`: lista no vacía de cadenas. La plantilla se **parsea una
-  vez** y cada elemento es exactamente una de dos cosas (§12, B5):
-  un **literal** sin `{`, sin `}` y sin caracteres de shell
-  (`` *?$`\"'\\|&;<>() `` ni caracteres de control), o **un único
-  hueco** `{nombre}` declarado en `params`. Nada de huecos pegados
-  a texto ni a otro hueco (`"--config={ruta}"` y `"{a}{b}"` no
-  valen): si un comando necesita un flag con valor, se usan dos
-  elementos (`"--config", "{ruta}"`). El primer elemento,
-  `argv[0]`, es siempre un literal: ruta absoluta a un ejecutable
-  propiedad de root y no escribible por otros (el despachador lo
-  comprueba con `stat` al validar el catálogo; un `argv[0]`
-  parametrizable apuntaría a `/bin/sh` y se acabó la lista blanca).
-- `params`: cada hueco de `argv` tiene exactamente una entrada, y
-  cada entrada tiene un `tipo` con su dominio:
-  - `enum`: `valores` (lista cerrada de cadenas, 1–64, cada una
-    `[A-Za-z0-9._-]{1,64}`). Es el tipo preferido: servicios,
-    paquetes y nombres salen de aquí.
-  - `ruta`: `prefijos` (lista de rutas absolutas canónicas): el
-    valor, canonicalizado con `realpath`, debe caer dentro de un
-    prefijo y no contener `..` tras canonicalizar. Los valores con
-    caracteres de control se rechazan (un salto de línea en una ruta
-    acabaría dentro de la descripción que lee el dueño). Para
-    desmontar.
-  - `dispositivo`: para el origen de un montaje (§12, I2):
-    `realpath` sobre `/dev/disk/by-label/<etiqueta>` escapaba del
-    prefijo por diseño (resuelve a `/dev/sdN`), así que este tipo
-    valida la **etiqueta** (`[A-Za-z0-9._-]{1,32}`) sin resolver, el
-    despachador construye la ruta `by-label` él mismo y además
-    exige que el destino resuelto case con
-    `^/dev/(sd|hd|vd|nvme[0-9]n[0-9]|mmcblk[0-9])[a-z0-9]*$`.
-  - `entero`: `min`/`max`, con forma canónica (§12, I1): el valor
-    llega como cadena `^[0-9]{1,9}$` (nada de `+1`, `007`, espacios
-    ni dígitos Unicode, que `int()` aceptaría y harían que lo
-    ejecutado no fuera lo hasheado) y se usa `str(int(v))` tanto
-    para el hash del vale como para argv. Para puertos de escucha
-    internos o tamaños, si algún día hace falta.
-  - `nombre`: regex completa fijada en el propio tipo
-    (`^[a-z0-9][a-z0-9-]{0,62}$`): nombres de unidad, de contenedor
-    o de lo que no merezca un enum porque lo crea el propio sistema
-    (p. ej. unidades temporales). Se usa con cuentagotas: el enum
-    siempre es preferible.
-- `nivel`: `R1` | `R2` | `R3` — el vocabulario de `riesgos.json`.
-  Fija la puerta de aprobación y la ventana de frescura del vale
-  (§3.5). No hay acciones R0: si no necesita root, no pasa por aquí.
-- `lanzador`: `sudoers` | `polkit` (§3.4). Por defecto, `sudoers`.
-  La primera versión admitía `ambos`; la revisión (§12, I4) lo
-  quitó: no fijaba orden ni qué pasa si el primero falla, y una
-  acción con dos vías es una acción cuya vía real nadie puede
-  declarar.
-- **Invariante de contenido** (§12, B7): los dominios acotan argv,
-  no lo que el comando *consume*. Ninguna acción puede interpretar
-  contenido del usuario como código o configuración (intérpretes,
-  hooks, `cp`/`chown -R` sobre rutas del usuario, paquetes
-  construidos por el llamante…), y ningún parámetro `ruta` puede
-  apuntar bajo árboles escribibles por el usuario (su HOME, la
-  carpeta de la app, los worktrees) salvo los puntos de montaje
-  declarados, en los que el despachador rechaza si **algún
-  componente del camino es un symlink** (la única indirección
-  permitida es la del tipo `dispositivo`, validada aparte).
-  `instalar-paquete` no viola el invariante — los scripts de un
-  paquete firmado de la distro corren como root por definición de
-  apt — pero consta en su fila: por eso su dominio es un enum
-  cerrado y su nivel R2.
-- `timeout_s`: 1–600. El despachador mata el árbol al vencer (§3.6).
-- `descripcion`: la frase que el dueño lee al confirmar, con los
-  huecos ya rellenados. Se construye en la app desde el catálogo y
-  los parámetros validados — nunca desde el prompt de la tarea — y
-  escapando cualquier carácter de control que un valor pudiera
-  traer (§12, I2): la descripción es texto que una persona lee para
-  decidir, no un canal para colarle escapes ANSI.
+**Honestidad sobre la orden** (principio 4): la orden vive en la
+carpeta compartida, en el dominio del usuario. No es una
+credencial criptográfica y no autentica nada entre procesos del
+mismo uid — un proceso arbitrario del dueño podría escribir una,
+igual que podría escribir en `confirmaciones.json`, y ese es el
+límite declarado de todo el sistema de confirmaciones desde la
+Fase 1. Su valor es triple y es el que es: **consumo** (cada
+aprobación se quema en una ejecución), **liga** (acción + huella +
+cuenta + `approval_id` quedan atados en un solo objeto) y
+**auditoría** (el ayudante asienta la huella que consumió). El
+control de que haya un humano detrás es el circuito de
+aprobaciones, no este archivo.
 
-**Catálogo inicial** (el que instala el instalador, con los dominios
-de ejemplo que el dueño ajusta a su máquina editando el archivo como
-root; los valores de ejemplo son inofensivos a propósito):
+### 3.6 El ayudante por dentro
 
-| id | argv | dominio | nivel | porqué |
-|---|---|---|---|---|
-| `reiniciar-servicio` | `systemctl restart {servicio}` | enum de servicios suyos (ej.: su servidor de juego) | R2 | el caso típico: la Muse desplegó y hay que reiniciar el servicio |
-| `instalar-paquete` | `apt-get install -y {paquete}` | enum de paquetes (ej.: `ffmpeg`, `imagemagick`) | R2 | dependencias concretas que un proyecto necesita (los scripts del paquete corren como root: es apt, y por eso el enum es cerrado) |
-| `montar` | `mount {dispositivo} {punto}` | `dispositivo` de tipo `dispositivo` (etiqueta) y `punto` ruta con prefijos `/mnt/`, `/media/` | R2 | montar el disco de respaldo antes de copiar |
-| `desmontar` | `umount {punto}` | rutas con prefijos (`/mnt/`, `/media/`) | R2 | la pareja de la anterior |
-| `reiniciar-equipo` | `systemctl reboot` | sin parámetros | R3 | su PC es también su servidor casero: reiniciarlo desde fuera es el caso extremo, solo en app y con vale muy fresco |
-| `apagar-equipo` | `systemctl poweroff` | sin parámetros | R3 | igual que la anterior |
+`procesar_peticion()` hace, en orden y todo fail-closed:
 
-Y lo que **no** entra, dicho en el propio diseño para que conste:
-`apt-get upgrade` o `update` genéricos (efectos no acotados),
-`systemctl` con la unidad libre (eso es una shell con pasos extra),
-cualquier acción cuyo argv incluya un intérprete (`sh`, `bash`,
-`python`, `env`…) como ejecutable o como parámetro, y montar con
-opciones libres (`-o` con datos del llamante convierte `mount` en
-una puerta giratoria). Si el dueño quiere una de esas, la hace él en
-su terminal: el intermediario no está para eso.
+1. Forma de la petición: JSON, `v == 1`, acción y cuenta
+   presentes. La entrada por stdin está acotada a 64 KiB.
+2. **Circuito de elevación**: sin `SUDO_UID` ni `PKEXEC_UID` en el
+   entorno, rechazo («el ayudante solo actúa elevado por el
+   circuito, nunca invocado a mano»). Ni siquiera root a mano lo
+   hace correr.
+3. **Revalidación completa** contra su propia copia del registro
+   y la lista del dueño releída: acción existe, parámetros
+   exactos, dominios cumplidos.
+4. **Huella recalculada**: si la huella de la petición no coincide
+   con la de sus parámetros, rechazo («petición manipulada»).
+5. **La orden** (§3.5): existe, es de esta cuenta, no caducó; se
+   consume.
+6. **Su propio ritmo** (§3.7), calculado desde su propio log.
+7. **Ejecución** del argv exacto con `subprocess`: `shell=False`,
+   stdin cerrado (`DEVNULL`), **entorno mínimo construido desde
+   cero** (`PATH` fijo de sistema, `LANG`/`LC_ALL` C.UTF-8,
+   `HOME=/root`), `cwd=/`, grupo de procesos propio. Al vencer el
+   timeout del registro, mata **el grupo entero** (`SIGKILL`) y
+   responde rc 124. La salida se trunca a 64 KiB.
 
-### 3.4 Los lanzadores: sudoers preferente, polkit como alternativa
+La respuesta (`{ok, rc, salida, motivo, duracion_s}`) es el
+resultado: cuando el ayudante llegó a pronunciarse, la app no lo
+reinterpreta. La app lo invoca con `sudo -n -- <ayudante>
+ejecutar` (vía sudoers) o `pkexec --disable-internal-agent
+<ayudante> ejecutar` (vía pkexec), con un timeout propio de
+timeout del registro + 30 s.
 
-El despachador es el mismo binario en las dos vías; lo que cambia es
-quién lo eleva y cómo comprueba el despachador que la elevación es
-la prevista.
+**La carpeta base del ayudante** se deriva como hace la app pero
+desde el usuario que elevó: el `pw_dir` del `SUDO_UID`/
+`PKEXEC_UID` (no el hogar de root), con `XDG_DATA_HOME` si está, y
+`GrowiBridge` — porque sudo recorta el entorno y una base que
+viniera del llamante sería movible por él. Existe además una
+costura de entorno, `GROWI_RAIZ_BASE`, que el propio código
+reconoce antes que esa derivación. Límite conocido y declarado
+(§8.2): con un `XDG_DATA_HOME` no estándar, la app y el ayudante
+podrían mirar carpetas distintas y una unidad parecería «fuera de
+la lista»; en una instalación estándar (XDG por defecto)
+coinciden.
 
-**Vía sudoers (preferente).** El instalador escribe
-`/etc/sudoers.d/growi-bridge` (0440, validado con `visudo -cf` antes
-de darlo por bueno) con una sola regla:
+### 3.7 Ritmo: dos topes independientes
 
-```
-<usuario> ALL=(root) NOPASSWD: /usr/local/libexec/growi-rootbroker.py
-```
+Las acciones de sistema tienen tope de ritmo en las dos capas,
+con los mismos números:
 
-La regla fija el **binario exacto** y nada más: la granularidad por
-acción vive en el despachador y su catálogo (ambos propiedad de
-root), que es donde puede expresarse con dominios de verdad. sudoers
-no puede expresar «uno de estos cinco paquetes» sin comodines, y un
-comodín en sudoers sobre argumentos es una puerta conocida
-(`apt-get install *` permitiría flags extra). Por eso el diseño
-elige conscientemente: sudoers acota el *programa*, el despachador
-acota los *argumentos*, y las dos capas son propiedad de root. La
-app invoca `sudo -n -- /usr/local/libexec/growi-rootbroker.py` con
-la petición por stdin; `-n` garantiza que sudo nunca pedirá una
-contraseña por la app (si la regla falta, falla al instante: eso es
-la sonda, §6.3).
+- **La app** (`raiz.comprobar_ritmo`, desde `raiz-estado.json`):
+  **10 por hora por cuenta** y **30 por hora en total**. Superarlo
+  es un `ErrorRaiz` previo a cualquier invocación.
+- **El ayudante**, desde su propio log (solo cuenta las entradas
+  que ejecutaron): los mismos 10/30 por hora. Su tope no depende
+  de que la app lleve bien sus cuentas.
 
-El despachador, al arrancar, verifica su llamante: exige que
-`SUDO_UID` exista y coincida con el uid del dueño fijado en
-`intermediario.json`, y que su proceso se esté ejecutando como
-root. Sin `SUDO_UID` (ni `PKEXEC_UID` en la otra vía) no hay
-ejecución: alguien lo lanzó «a mano» como root y eso no es el
-circuito (el dueño no necesita al despachador para nada: tiene su
-terminal).
+Detalle fiel del orden de §3.6: la orden se consume (paso 5)
+**antes** del chequeo de ritmo del ayudante (paso 6). Si el tope
+del ayudante rechaza, la orden ya está quemada y hay que volver a
+aprobar. Es deliberado en un sentido: la orden nunca sobrevive a
+una invocación del ayudante, ni siquiera a una rechazada.
 
-Y el factor humano de esta vía, declarado sin maquillaje (§12,
-B2): `NOPASSWD` significa que cualquier proceso del uid del dueño
-puede *invocar* al despachador sin nadie delante. Lo que lo separa
-de «root para cualquier proceso» es el vale: sin un vale sellado
-(§3.5), la invocación no ejecuta nada. El factor humano de las
-acciones R1/R2 por esta vía es el circuito de aprobaciones — la
-decisión del dueño en la app o su canal permitido, tras la cual la
-máquina ejecuta sin él delante —, exactamente el mismo modelo que
-el resto de Growi (una aprobación R2 por tipo dura 24 h y las
-tareas corren desatendidas). Lo que esta vía **no** vale es para
-R3: una acción R3 nunca se ejecuta solo con sudoers+vale; exige
-además el acto del dueño en su terminal o la vía polkit con
-`auth_admin` (§3.5).
+### 3.8 Auditoría: dos asientos con la misma huella
 
-**Vía root-local.** Si la propia app corre con euid 0 — la VM de
-Lu, un contenedor del propio Growi, una instalación deliberada
-como root — sudo no aporta nada: `sudo -n` tiene éxito sin regla
-alguna y `SUDO_UID` sería 0. En ese caso la vía es `root-local`
-(§12, B12): el runner invoca al despachador directamente, sin
-sudo, y el despachador exige euid 0 y que `intermediario.json`
-declare `uid_dueno: 0`. La sonda sudoers solo se da por válida si
-la respuesta trae `uid_origen != 0` (si trae 0, lo que hay es
-root-local, no una regla). La vía queda anotada en cada resultado:
-nadie debe creer que hay una regla de sudoers donde lo que hay es
-«la app ya era root».
+- **La de la cuenta** (la app): `raiz.ejecutar` recibe un
+  `auditar` que el monolito conecta con
+  `permission-layer.registrar_sistema()` → entra en el
+  audit-log **de la cuenta Muse** que pidió la acción, con
+  herramienta `raiz` y acción `sistema:<accion>:<huella>`, su
+  resultado y su motivo. Es código de la capa, no una tool del
+  agente: ningún motor puede llamarla. Los fallos previos a que el
+  ayudante se pronuncie (validación, ritmo o sin vía en
+  `raiz.ejecutar`) se asientan como `bloqueado`. El log es el de
+  la Fase 1: append-only, encadenado por hashes y con su ancla en
+  `audit-indice.json`.
+- **La del ayudante**: `raiz-ayudante.jsonl`, en la carpeta
+  compartida, una línea por petición **pronunciada** (ejecutada o
+  rechazada): ts, resultado, si ejecutó, acción, cuenta, huella,
+  rc, motivo y el uid que elevó. Encadenada por hashes
+  (`prev_hash`/`hash` sobre el JSON canónico);
+  `verificar_cadena()` comprueba su integridad.
 
-**Vía polkit.** Para las acciones cuyo `lanzador` sea `polkit` (o
-cuando el dueño prefiera que ciertas acciones pidan su contraseña
-estando delante), el instalador deja además
-`/usr/share/polkit-1/actions/org.growi.bridge.policy` con **una
-acción por id del catálogo** (`org.growi.bridge.<id>`). La
-anotación de polkit se asocia al programa que pkexec ejecuta, así
-que para tener una acción polkit **por acción del catálogo** el
-instalador genera un envoltorio por acción
-(`/usr/local/libexec/growi-broker-<id>`, root, 0755) y cada
-`.policy` apunta a su envoltorio con
-`org.freedesktop.policykit.exec.path`. La invocación es directa:
-la app ejecuta `pkexec /usr/local/libexec/growi-broker-<id>` con
-la petición por stdin (§12, B6: la primera versión metía un
-ayudante genérico que lanzaba pkexec contra el despachador, y
-entonces `--accion-fija` lo elegía el llamante y no polkit — una
-contradicción). El envoltorio lleva el id **literal dentro**,
-ignora cualquier argumento del llamante (no acepta ninguno) y hace
-`exec` del despachador con `--accion-fija <id>`; el despachador
-con `--accion-fija` solo acepta peticiones de esa acción y exige
-`PKEXEC_UID` = uid del dueño. polkit se
-configura en el `.policy` con `auth_admin` (el dueño teclea SU
-contraseña en el diálogo del sistema, delante de la PC) para las de
-nivel R3 y `auth_admin_keep` para R2, según fije el dueño al
-instalar; el diseño no esconde el coste: **la vía polkit exige
-presencia física en el momento de ejecutar**, así que no sirve para
-el relevo desde el teléfono — sirve como endurecimiento local para
-las acciones que el dueño marque «solo estando yo delante». En ese
-caso la confirmación en la app sigue existiendo (la puerta de
-aprobaciones manda), y polkit es la segunda llave, no un sustituto.
-Si no hay agente de autenticación ni sesión gráfica, pkexec falla y
-la acción queda no disponible por esa vía: declarado, no reintentado
-en silencio.
+Cruzarlas es comparar huella y hora: lo que la cuenta pidió, lo
+que el ayudante hizo. Si un asiento existe en una y no en la
+otra, eso ya es el hallazgo.
 
-**Sin ninguna vía**: no hay tercera opción automática. En particular
-la app **nunca** ejecuta `sudo` a secas esperando que el dueño haya
-dejado `NOPASSWD: ALL` ni nada parecido: si la sonda no responde,
-no hay intermediario (§6.3).
+===
 
-### 3.5 La confirmación: puerta de aprobaciones + vale firmado
+## 4. Contenedores por proyecto
 
-Dos piezas existentes, articuladas sin crear un circuito nuevo:
-
-1. **La puerta** (la de siempre): la tarea `sistema` se clasifica
-   con su nivel (§3.2) y pasa por la puerta de aprobaciones del
-   monolito como cualquier tarea con acciones declaradas: R1 según
-   la política del dueño (puede no preguntar si su ajuste lo dice
-   para ese tipo), R2 por acción exacta, R3 **solo en la app**
-   (un pedido R3 por canal remoto se deniega al instante, como ya
-   hace el circuito). Sin aprobación vigente, el runner ni siquiera
-   construye la petición.
-2. **La solicitud firmada** (lo que la puerta deja): cuando una
-   aprobación de una tarea `sistema` queda aprobada — por la app, la
-   consola o un canal permitido, siempre a través de
-   `decidir_aprobacion`, que es la única entrada de decisiones — el
-   monolito crea en `permission-layer.py` un registro de confirmación
-   ya aprobado por cada acción de la tarea, con:
-   - `tool = "rootbroker"`,
-   - `accion = "sistema:<id>:<huella>"`, donde `<huella>` son los
-     primeros 16 hex del SHA-256 de un JSON canónico (claves
-     ordenadas, separadores `(",", ":")`, UTF-8) que cubre **la
-     huella del archivo de catálogo, el id, el nivel, el argv ya
-     resuelto y los parámetros validados**. La primera versión
-     hasheaba solo los parámetros; la revisión (§12, B3) demostró
-     el TOCTOU: la app clasifica con su lectura del catálogo y el
-     despachador ejecutaría con la suya, y una edición intermedia
-     del dueño cambiaría el argv o el nivel bajo una aprobación ya
-     dada. Con la huella completa, cualquier divergencia se detecta
-     (§3.5, paso de sellado) y nada se ejecuta.
-   - `sesion` = la sesión del runner que procesa la tarea,
-   - firmado con la HMAC de siempre (`_firma` de
-     `permission-layer.py`), con un campo extra `via` que anota por
-     dónde se aprobó (`app`, `consola`, el canal…). `via` es
-     **informativo**: queda fuera del payload que firma `_firma` en
-     el código actual, así que ninguna regla de seguridad descansa
-     sobre él (§12, I7) — la política de canales la impone
-     `decidir_aprobacion`, que es quien crea la solicitud, y la de
-     R3 la impone el acto en terminal del paso 4.
-
-   Para esto `permission-layer.py` gana UNA función nueva,
-   `registrar_vale_sistema(sesion, accion_id, huella, via)`, que es
-   código del monolito/de la capa — **no una tool del agente**: el
-   harness no la ve, ningún motor puede llamarla, y solo se invoca
-   desde el camino que sigue a una decisión humana ya registrada en
-   el circuito de aprobaciones. `resolver_confirmacion` sigue siendo
-   la única vía para las confirmaciones que nacen en el harness, y
-   su regla (origen `app-humano`/`consola-humano`) no se toca. La
-   solicitud no sustituye a la puerta: es el recibo firmado que la
-   puerta deja. Y — esto es lo que cambió la revisión — **la
-   solicitud no es el vale**: vive en el dominio del usuario, y un
-   token de ejecución de root no puede vivir ahí (§12, B1).
-
-3. **El sello** (el vale de verdad, en el dominio de root): al
-   recoger la tarea ya aprobada, el runner invoca al despachador
-   con `--sellar` (por la vía de la acción) pasándole por stdin el
-   id de la solicitud, el `tarea_id` y el `approval_id`. El
-   despachador, ya como root:
-   1. verifica el llamante (§3.4) y que la acción existe;
-   2. lee el `confirmaciones.json` fijado por su configuración y
-      exige el registro exacto (`tool="rootbroker"`, la `accion`
-      con la huella completa), en estado `aprobada`, con la **firma
-      HMAC válida** (la clave es `permission-secret.key`, cuya ruta
-      fija su configuración: la lee root, nunca viaja en la
-      petición) y dentro de la vigencia de la capa (8 h);
-   3. **recalcula la huella con su propio catálogo**: si la huella
-      de la solicitud no coincide con la que sale de su catálogo y
-      los parámetros de la petición, responde `catalogo_divergente`
-      y no sella nada (§8) — así una edición del catálogo entre la
-      aprobación y la ejecución invalida lo aprobado en vez de
-      ejecutarlo cambiado;
-   4. acuña el vale: un fichero
-      `/var/lib/growi-bridge/vales/<nonce>.json` (0600) firmado con
-      **su propia clave** (`vale.key`, 0400, que no sale de root)
-      con `{accion, huella, argv_resuelto, tarea_id, approval_id,
-      uid_dueno, sellado_wall, sellado_mono, boot_id,
-      ventana_s}`. La ventana por nivel — R1: 60 min, R2: 15 min,
-      R3: 5 min; el dueño puede acortarlas en `intermediario.json`,
-      nunca alargarlas más allá de los topes 120/30/10 — **cuenta
-      desde el sello** (§12, I5): como el sello se pide al recoger
-      la tarea, la ventana cubre el paso de ejecutar, no la espera
-      en la cola ni un `aplazar` del dueño, que era la colisión de
-      la primera versión.
-   5. devuelve el `nonce`. La solicitud de `permission-layer` queda
-      como estaba (es el registro auditable de la decisión); el
-      vale es un token aparte, efímero y de root.
-
-4. **La autorización R3**: para acciones R3, el vale no basta. El
-   despachador exige además una autorización en su dominio creada
-   por el subcomando `autorizar`, que el dueño ejecuta **en su
-   terminal**: `sudo /usr/local/libexec/growi-rootbroker.py
-   autorizar <huella>` (sudo interactivo, con su contraseña, sin
-   `-n`: es un acto deliberado delante de la máquina). El
-   subcomando anota `/var/lib/growi-bridge/autorizaciones/<huella>`
-   con la hora; vale 5 minutos y se consume con el vale. La vía
-   polkit con `auth_admin` sustituye a este acto (pkexec ya pidió
-   la contraseña delante de la PC). Así R3 tiene dos factores
-   reales: la aprobación en la app y un acto local que ningún
-   proceso del uid puede fabricar.
-
-El despachador verifica al **ejecutar**, en este orden (de barato a
-caro, todo fail-closed):
-
-1. La petición está bien formada y la acción existe en el catálogo.
-2. Los parámetros validan contra el dominio y el argv resuelto
-   coincide con el del vale.
-3. El llamante es el previsto (`SUDO_UID`/`PKEXEC_UID` = el uid del
-   dueño, §3.4; o euid 0 en root-local).
-4. El vale existe en su directorio, su MAC (clave propia) verifica,
-   liga esta acción, esta huella, esta tarea y esta aprobación, y
-   el llamante es el uid del vale.
-5. **Frescura con doble reloj** (§12, I20): el transcurrido se
-   calcula por reloj de pared y por `CLOCK_MONOTONIC`+`boot_id`
-   guardados al sellar, y manda el **mayor**; un salto de pared
-   hacia atrás no resucita vales. Si venció, no se ejecuta: la
-   tarea vuelve a `esperando_aprobacion` con el motivo
-   `vale_caducado` y hace falta una aprobación nueva (que sellará
-   un vale nuevo). No hay reapertura silenciosa ni reintentos del
-   paso privilegiado: cada aprobación sella exactamente un vale por
-   acción.
-6. Si la acción es R3, la autorización del paso 4 existe, es
-   fresca y liga la misma huella.
-7. Toma el lock global del despachador (`flock` sobre
-   `/run/growi-rootbroker.lock`, espera máxima 10 s): si otro
-   despacho está en curso, responde `ocupado` y la tarea vuelve a
-   espera **con el vale intacto** (§12, I17).
-8. **Consumo en la invocación**: ya con el lock, el vale se mueve
-   atómicamente a `vales/consumidos/` (rename dentro del mismo
-   directorio de root) **antes** de ejecutar. Un `rc != 0` del
-   comando consume igual (§12, I17): el vale ampara un intento, no
-   un éxito. Una segunda ejecución con el mismo nonce no encuentra
-   el vale: rechazada. Como el nonce es por aprobación, dos
-   aprobaciones legítimas de la misma acción con los mismos
-   parámetros sellan dos vales distintos y ambos funcionan — el
-   un-solo-uso ata la aprobación, no la huella, que era el defecto
-   simétrico de la primera versión. Acto seguido asienta la
-   **intención** en su log (§3.7: si no puede asentar, no ejecuta)
-   y ejecuta (§3.6).
-
-### 3.6 Ejecución: timeouts, salida y señales
-
-- El comando se ejecuta bajo una **unidad transitoria de
-  systemd**: `systemd-run --quiet --property=RuntimeMaxSec=<timeout_s>
-  --property=KillMode=control-group -- <argv>` con stdin `DEVNULL`,
-  entorno mínimo fijo y cwd `/` (§12, I8: un `killpg` sobre el grupo
-  de procesos deja vivos a los hijos que hacen `setsid` o se
-  demonizan; el cgroup no). El instalador sondea `systemd-run` de
-  verdad al instalar (el precedente es `sonda_systemd()` de la
-  Fase 4); en un sistema sin systemd el despachador cae a
-  `start_new_session=True` + matar el grupo y lo **declara** en el
-  resultado (`ejecutor: "grupo"`, más débil, frente a
-  `ejecutor: "cgroup"`).
-- La salida (stdout+stderr por separado) se devuelve truncada a
-  64 KB por flujo, con la marca `…[truncada]`; el código de salida
-  se devuelve tal cual. Un `rc != 0` no es un error del
-  intermediario: es el resultado de la acción, y la tarea lo recibe
-  como tal (fallida con el motivo del comando, como cualquier tarea
-  cuyo motor falla).
-- El despachador tiene su propio tope global: ninguna acción puede
-  declarar más de 600 s, y el despachador muere por su cuenta a los
-  660 s (un `alarm` interno) para no quedarse colgado como root.
-- Un timeout sobre `instalar-paquete` merece una línea propia:
-  matar a apt a mitad puede dejar el sistema de paquetes a mitad de
-  transacción (el lock de dpkg se libera al morir el proceso, pero
-  el paquete puede quedar por configurar). El resultado de ese
-  timeout incluye el aviso «revisa el estado de paquetes antes de
-  reintentar» y la tarea no se reintenta sola: reinstalar es otra
-  aprobación.
-- Nada de lo que el comando imprima puede contener la clave HMAC ni
-  el contenido del registro de confirmaciones: el despachador nunca
-  los pasa al entorno ni a los argumentos (la verificación ocurre en
-  su memoria).
-
-### 3.7 Auditoría del despachador
-
-`/var/log/growi-bridge/rootbroker.jsonl`: una línea JSON por evento
-(`peticion_recibida` con el resultado de cada validación,
-`intencion` antes de ejecutar, `ejecutada`, `rechazada` con el
-motivo, `vale_sellado`, `vale_consumido`, `autorizada_r3`), con
-`prev_hash`/`hash` encadenados con el mismo esquema que
-`permission-layer.py` (SHA-256 sobre el JSON canónico) y estos
-campos: hora (de pared y monotónica, §3.5), `sudo_user`, acción,
-huella (los parámetros van en claro: son datos del dueño y el log
-es 0600 de root; lo que nunca va es ningún secreto), rc y duración.
-
-Tres reglas que la revisión exigió (§12, I6):
-
-- **Concurrencia**: el despachador no es un demonio y dos
-  invocaciones podrían bifurcar la cadena; por eso leer-la-cola y
-  añadir va bajo el mismo `flock` global de §3.5, y la rotación
-  **no** la hace `logrotate` (rompería la cadena entre la lectura y
-  el append): la hace el propio despachador, bajo el flock, al
-  pasar de 10 MB — renombra a `.1` y abre el fichero nuevo con una
-  primera línea que anota la cabeza y el conteo del anterior. El
-  ancla vive en `/var/lib/growi-bridge/rootbroker-ancla.json`
-  (root), actualizada en cada rotación, y `--verificar-log`
-  verifica la cadena interna y la contrasta con el ancla.
-- **Si no se puede auditar, no se ejecuta** (la regla de la Fase 1,
-  también de este lado): si el asiento de `intencion` falla (disco
-  lleno, permisos), el despachador responde `auditoria_no_disponible`
-  y no ejecuta nada. La app hace lo simétrico: asienta su intención
-  en el log de la cuenta **antes** de invocar al despachador.
-
-La app, por su parte, asienta en el audit-log **de la cuenta** que
-pidió la acción (Fase 1): la petición (`accion="sistema:<id>"`,
-resultado `ok`/`bloqueado` con el motivo del despachador) — con lo
-que la cadena de la cuenta y la del despachador se pueden cruzar por
-hora y huella. La aceptación del plan («la cadena de auditoría se
-verifica íntegra tras un reinicio») se cumple verificando las dos:
-la de la app con su `--verificar-log` de siempre y la del
-despachador con el suyo, tras reiniciar la app y tras reiniciar la
-PC (el log del despachador no depende de la app para nada).
-
-### 3.8 Degradación: qué pasa sin intermediario
-
-`privilegios.disponible()` (§6.3) devuelve la vía y el catálogo
-visible, o «ninguna». Con «ninguna»:
-
-- La UI muestra «Intermediario de root: no instalado» con el botón
-  «Ver cómo se instala» (abre las instrucciones y la ruta del
-  instalador: **la app no lo instala ni pide contraseñas jamás**).
-- Una tarea `sistema` no se ejecuta ni se marca fallida: queda en
-  espera de decisión con el motivo «intermediario no instalado», y
-  si el dueño lo instala después, la misma tarea puede seguir su
-  curso (la aprobación y el vale se gestionan entonces).
-- La misma espera, con su motivo propio (§8), cubre los demás
-  «ahora no» del circuito: `catalogo_divergente` (el catálogo
-  cambió tras la aprobación), `vale_caducado` (toca reaprobar),
-  `ocupado` (otro despacho en curso) y `reloj` (salto de reloj
-  detectado). En ninguno se gasta la aprobación salvo en
-  `vale_caducado`, que por definición la consume.
-- Ninguna otra cosa del programa cambia: sin acciones de sistema,
-  esta mitad de la fase es invisible.
-
-### 3.9 Último recurso: sin clave en la bóveda (solo especificado)
-
-La primera versión de esta sección especificaba guardar la
-contraseña del usuario en la bóveda (`sistema:sudo`) para que un
-despachador residente la usara con `sudo -S`. La revisión (§12, B8)
-demostró que era **inviable y engañoso a la vez**: un servicio que
-ya corre como root no eleva nada con sudo (sudo no le pide
-contraseña), y la contraseña guardada sería legible por cualquier
-proceso del mismo uid vía `_sec_get` — que la Fase 1 declaró que no
-es una frontera —, así que el «último recurso» no resolvía el caso
-que decía resolver y sí creaba un secreto con poder total durmiendo
-en el almacén. **La variante de la clave queda tachada**: en este
-diseño no hay ninguna contraseña en la bóveda para el intermediario,
-nunca.
-
-Lo que queda especificado, **no implementado**, como último recurso
-para una máquina donde ni sudoers ni polkit sirvan:
-
-- Un **servicio de sistema** instalado por el dueño (unit de
-  systemd, socket-activado, root) que ejecuta el mismo despachador
-  y el mismo catálogo, recibiendo las peticiones por un socket Unix
-  en `/run/growi-bridge/broker.sock` (directorio 0750 root:grupo
-  del dueño). El llamante se verifica por `SO_PEERCRED` (uid del
-  extremo, lo pone el kernel: no es un campo del JSON ni una
-  variable de entorno), y el sello y el vale son los de §3.5 sin
-  cambios — el servicio no necesita ninguna contraseña porque ya
-  es root, que era el punto que la variante tachada no entendía.
-- Por qué sigue siendo el último recurso: introduce el único
-  proceso privilegiado **residente** del diseño (superficie
-  permanente, hay que mantenerlo y vigilarlo), cuando las vías de
-  §3.4 no guardan ningún secreto ni dejan nada corriendo.
-- Mientras el dueño no lo pida, esta variante no existe en el
-  código: ni el servicio ni el socket. La alternativa mientras
-  tanto es la de siempre: el dueño ejecuta a mano en su terminal el
-  comando que la tarea necesitaba (la tarea deja el motivo exacto
-  en su resultado).
-
-## 4. (Reservado)
-
-*Sección intencionadamente breve: la numeración sigue con los
-contenedores en el §5, como en el resto del documento.*
-
-## 5. Contenedores por proyecto
-
-### 5.1 Qué se decidió ya y qué decide este diseño
+### 4.1 Qué se decidió ya y qué decide este diseño
 
 La Fase 3 (su §9) registró la decisión: **un contenedor por
 proyecto, con los dos worktrees dentro**, y `"contenedores":
 "por_cuenta"` en `proyectos.json` como opt-in para código no
-confiable. Este diseño la implementa sin reabrirla, y decide lo
+confiable. Esta fase la implementa sin reabrirla, y decide lo
 demás: runtime, montajes, red, ciclo de vida e integración con la
 preparación de la Fase 3.
 
-### 5.2 Runtime: Podman preferente, Docker si es lo que hay
+### 4.2 Runtime: Podman preferente, Docker si es lo que hay
 
 `contenedores.detectar_runtime()` sondea en este orden:
 
@@ -783,34 +520,22 @@ preparación de la Fase 3.
    contenedor corre como el propio usuario, que es exactamente la
    frontera que queremos (dentro parece root; fuera es el dueño).
 2. **Docker** (`docker` + `docker info`): si el demonio responde y
-   el usuario puede usarlo (grupo `docker` o rootless). Se declara
-   el matiz conocido: acceso al socket de Docker equivale en la
-   práctica a root en el anfitrión; por eso el diseño lo acepta
-   como runtime pero la UI lo dice al mostrar la vía («Docker: el
-   socket da acceso de root al anfitrión; Podman rootless no»).
-3. Ninguno → no disponible, y la fase degrada (§5.7).
+   el usuario puede usarlo. La detección devuelve el matiz
+   declarado: «Docker: el socket da acceso de root al anfitrión;
+   Podman rootless no», y la UI lo muestra junto a la vía.
+3. Ninguno → no disponible, y cada proyecto degrada según su modo
+   (§4.7).
 
 La sonda es real (ejecuta `info`), como la sonda de `systemd-run`
 de `recursos.py` en la Fase 4: estar en el PATH no basta. El
-resultado se cachea por proceso y se re-sondea si una operación
-falla con «runtime caído».
+resultado se cachea 60 s; el botón «Probar sonda» de la UI limpia
+la caché y re-sondea.
 
-Un matiz que la revisión obligó a declarar (§12, I9): la premisa
-«rootless» solo vale si la app corre como un usuario normal. Si el
-euid es 0 (la VM de Lu, una instalación como root), Podman no corre
-rootless — corre como root, y «dentro parece root, fuera es el
-dueño» se convierte en root sobre root: el contenedor sigue
-aislando sistema de archivos, procesos y red, pero **no** hay
-frontera de usuario. `detectar_runtime()` lo detecta y lo devuelve
-(`rootful: true`), la UI lo muestra junto a la vía, y la aceptación
-de §9 lo trata como lo que es: en la PC del dueño (usuario normal)
-la promesa rootless es la real; en la VM solo se verifica la
-mecánica.
+### 4.3 Campos en `proyectos.json`
 
-### 5.3 Campos nuevos en `proyectos.json`
-
-Sobre el esquema de la Fase 3 (que ya trae `contenedores:
-"proyecto"|"por_cuenta"`), esta fase añade:
+Sobre el esquema de la Fase 3 (que ya trae
+`contenedores: "proyecto"|"por_cuenta"`), esta fase añade cuatro
+campos, validados en `git_trabajo.guardar_proyecto()`:
 
 ```json
 "contenedor_modo": "no",
@@ -819,1016 +544,613 @@ Sobre el esquema de la Fase 3 (que ya trae `contenedores:
 "contenedor": null
 ```
 
-- `contenedor_modo`: `"no"` (defecto: el proyecto corre como en la
-  Fase 3, el contenedor ni se menciona), `"opcional"` (se usa si
-  hay runtime; si no hay, la tarea corre fuera **con aviso** en su
-  resultado y en el log) o `"requerido"` (sin contenedor no hay
-  tarea: §5.7). El defecto `"no"` es el opt-in que pide el encargo:
-  nada cambia para los proyectos que no lo activen.
-- `contenedor_comando`: el comando que mantiene vivo el contenedor
-  si no es `sleep infinity` (§5.6). Estaba citado en el ciclo de
-  vida y no en el esquema; la revisión (§12, I14) lo trajo aquí.
+- `contenedor_modo`: `"no"` (defecto: el proyecto corre como en
+  la Fase 3, el contenedor ni se menciona), `"opcional"` (se usa
+  si se puede; si no, la tarea corre fuera **con aviso**) o
+  `"requerido"` (sin contenedor no hay tarea: §4.7). El defecto
+  `"no"` es el opt-in que pide el encargo: nada cambia para los
+  proyectos que no lo activen. Un valor desconocido se trata como
+  `"no"`.
 - `contenedor_imagen`: la imagen a usar (p. ej.
   `docker.io/library/python:3.12-slim` o la imagen propia del
   proyecto con sus dependencias). **Sin imagen declarada no hay
   contenedor**: el diseño no inventa una imagen por el dueño,
   porque la imagen ES el entorno de su proyecto (su juego pedirá
   Godot, otro proyecto pedirá Node). La UI la pide al activar el
-  modo. La primera creación hace el `pull` (puede tardar: se hace
-  en la preparación, **antes de tomar los alquileres** y por
-  digest, con su propio timeout generoso de 600 s y queda
-  asentado; si el pull falla, es un fallo de preparación, no de
-  la tarea: §5.8).
+  modo.
 - `contenedor_red`: `"saliente"` (la red normal del usuario; los
   motores necesitan hablar con sus APIs) o `"ninguna"`
-  (`--network none`). El defecto depende del modo de contenedores
-  de la Fase 3 (§12, I15): en `proyecto`, `"saliente"`; en
-  `por_cuenta` — la caja para código no confiable —, `"ninguna"`,
-  y consta lo que eso implica: con red ninguna, los motores de
-  nube no operan dentro (ni APIs ni, por §5.8, credenciales), así
-  que `por_cuenta` sirve para motores locales y trabajo sin red.
-  Una salida por lista blanca de dominios (proxy) queda como
-  trabajo futuro nombrado, no prometido. No hay opción de puertos
-  publicados: **nunca** se pasa `-p`/`--publish`; el contenedor no
-  escucha nada hacia fuera.
-- `contenedor_pasar_credenciales`: `false` siempre por defecto.
-  Solo en modo `proyecto` y puesto a `true` a mano por el dueño
-  deja pasar las variables de credencial del motor (§5.8). En
-  `por_cuenta` el campo no existe como opción: es `false` y no se
-  puede cambiar.
+  (`--network none`). En modo `por_cuenta` — la caja para código
+  no confiable — conviene pensar el defecto con cuidado: con red
+  ninguna, los motores de nube no operan dentro (ni APIs ni
+  credenciales, por §4.5), así que `por_cuenta` sirve para motores
+  locales y trabajo sin red. No hay opción de puertos publicados:
+  **nunca** se pasa `-p`/`--publish`; el contenedor no escucha
+  nada hacia fuera.
 - `contenedor`: el estado vivo que escribe `contenedores.py` (no
-  lo edita el dueño): `{runtime, nombre, huella, creado,
-  estado}` o `null`.
+  lo edita el dueño): `{runtime, nombre, huella, creado, estado}`
+  o `null`.
 
-### 5.4 Montajes: los worktrees y el `.git`, nada más del HOME
+### 4.4 Montajes: las áreas de worktrees y el `.git`, nada más
 
-El contenedor ve exactamente dos cosas del anfitrión, montadas en
-**sus mismas rutas absolutas** (montaje espejo, para que los
-punteros `.git` de los worktrees — que contienen la ruta absoluta
-del almacén principal — resuelvan dentro sin traducción):
+El contenedor ve del anfitrión solo esto, montado en **sus mismas
+rutas absolutas** (montaje espejo, para que los punteros `.git` de
+los worktrees — que contienen la ruta absoluta del almacén
+principal — resuelvan dentro sin traducción):
 
 | Montaje | Modo | Porqué |
 |---|---|---|
-| `<repo>.worktrees/` | lectura-escritura | los worktrees de las dos cuentas (modo `proyecto`) o solo `<repo>.worktrees/<cuenta>/` (modo `por_cuenta`). Dentro vive también `.growi-home/`, el `HOME` que se fija dentro del contenedor (§5.8) |
-| `<repo>/.git/` | lectura-escritura en modo `proyecto`; **solo lectura** en `por_cuenta` | sin el almacén, git no funciona en un worktree; la diferencia de modo es deliberada y se explica abajo |
+| Las áreas de worktrees del proyecto | lectura-escritura | el área hermana `<repo>.worktrees/` (el diseño de la Fase 3) y, si existe, el área de reserva bajo la carpeta compartida (`worktrees/<repo_id>`). En modo `por_cuenta` el montaje se estrecha a `<área>/<cuenta>/` |
+| `<repo>/.git/` | lectura-escritura en modo `proyecto`; **solo lectura** en `por_cuenta` | sin el almacén, git no funciona en un worktree |
 
 Y **no** se monta: el directorio raíz del repo (el checkout de
 trabajo del dueño no existe para el contenedor: solo ve el almacén
 y los worktrees), el HOME, `~/.ssh`, la carpeta de la app (con la
-bóveda, `permission-secret.key` y los audit-logs), la carpeta
-compartida de Growi (tablero, cuentas) ni ningún otro proyecto.
+bóveda y los audit-logs), la carpeta compartida de Growi (tablero,
+cuentas) ni ningún otro proyecto.
 
-El contenedor se crea además con el endurecimiento por defecto de
-esta fase: `--cap-drop=ALL`, `--security-opt no-new-privileges`,
-`--pids-limit 1024` y `--tmpfs /tmp` (los motores necesitan un
-`/tmp` escribible, pero efímero y suyo).
+Más decisiones de la construcción (`argv_crear`), todas por
+construcción y no por disciplina:
+
+- Nombre determinista: `growi-<repo_id>` en modo proyecto,
+  `growi-<repo_id>-<cuenta>` en `por_cuenta`; etiquetas
+  `growi.proyecto=<repo_id>` y `growi.modo=...`.
+- El comando que mantiene vivo el contenedor es `sleep infinity`.
+- El usuario dentro es el del dueño: `--user <uid>:<gid>` cuando
+  el runtime es Docker; en Podman rootless el mapeo por defecto
+  ya hace que los archivos creados sean del dueño. Así los
+  archivos del worktree siguen siendo suyos y git no protesta por
+  la propiedad.
+- La función que construye el argv **no tiene forma de emitir**
+  `--publish`, `--privileged` ni `--device`: no son opciones
+  rechazadas, son imposibles.
+- El directorio de trabajo de cada ejecución es el worktree de la
+  tarea (su ruta espejo es la misma dentro y fuera).
 
 Dos consecuencias, dichas en claro como manda el proyecto:
 
-- **Las credenciales de git no entran.** El entorno del motor ya va
-  sin credenciales desde la Fase 3 (`aplicar_entorno_sin_credenciales`
-  en `git_trabajo.py` y el entorno del monolito), y dentro del
-  contenedor no hay `~/.ssh` ni almacén de credenciales que leer.
-  Antes de crear el contenedor se comprueba que `<repo>/.git/config`
-  no contenga credenciales embebidas en la URL del remoto (un
-  `https://token@github.com/…`): si las hay, **no se crea** y la UI
-  dice por qué y cómo limpiarlo (la URL con token es un secreto
-  durmiendo en un archivo que el contenedor leería). La subida
-  sigue haciéndose desde el anfitrión con `git_trabajo.subir()` y
-  su escaneo de secretos, con el entorno de push que solo existe en
-  ese momento.
-- **El `.git` en lectura-escritura es un arma de doble filo, y se
-  trata como tal** (§12, B9). Con el almacén montado rw, el código
-  de dentro puede reescribir `.git/config` (`core.hooksPath`, la
-  URL del remoto, `core.sshCommand`…) y el **anfitrión** ejecutaría
-  eso después en la mezcla o en `subir()` — justo cuando existe el
-  entorno de push: token exfiltrado y código arbitrario en el
-  anfitrión. Por eso el modo `proyecto` (código del propio dueño,
-  que de todos modos corre en su máquina al probarlo) solo se
-  ofrece con un endurecimiento obligatorio en `git_trabajo.py`:
-  **toda** invocación git del anfitrión sobre un repo con
-  contenedor (y, por higiene, en general) pasa
-  `-c core.hooksPath=/dev/null -c core.fsmonitor=false
-  -c core.sshCommand= -c credential.helper=` y
-  `protocol.ext.allow=never` por línea de comandos (que manda
-  sobre el archivo de config), y `subir()`/`mezclar()` verifican
-  además que la URL del remoto coincide con la **huella de URL**
-  registrada al dar de alta el proyecto, antes de tocar la red. En
-  modo `por_cuenta` no hay esta discusión: el `.git` va en solo
-  lectura, dentro no se comitea nada, y el commit del worktree lo
-  hace el anfitrión al cerrar la tarea (§5.8).
-- **La frontera es la declarada en la Fase 3, con dos precisiones
-  nuevas** (§12, I10): el almacén de objetos es **compartido** —
-  cada cuenta puede leer los commits de la otra, porque son
-  worktrees del mismo repo; son las dos cuentas del mismo dueño y
-  la UI lo dice al activar el modo, en vez de prometer un
-  aislamiento que no existe — y en `por_cuenta`, con el `.git` en
-  solo lectura, el índice y el HEAD de cada worktree viven también
-  en el almacén (`<repo>/.git/worktrees/<id>/`), así que dentro
-  git es de lectura (`status`, `diff`, `log` con
-  `GIT_OPTIONAL_LOCKS=0`) y puede trabajar sobre un índice no
-  refrescado: se declara, y los commits de ese flujo los hace el
-  anfitrión al cerrar. Quien comprometa el contenedor no puede
-  subir nada (sin credenciales y con la puerta de subida fuera),
-  no ve otros proyectos ni el sistema de archivos del dueño, y
-  los alquileres, la mezcla y las propuestas siguen gobernados
-  desde el anfitrión.
+- **El almacén de objetos es compartido.** Cada cuenta puede leer
+  los commits de la otra, porque son worktrees del mismo repo;
+  son las dos cuentas del mismo dueño y la UI lo dice al activar
+  el modo, en vez de prometer un aislamiento que no existe.
+- **En `por_cuenta`, dentro git es de lectura.** Con el `.git` en
+  solo lectura, los archivos del worktree se pueden tocar y el
+  código se puede ejecutar, pero git no puede escribir su
+  metadata (índice, HEAD: viven en el almacén). `argv_exec` fija
+  `GIT_OPTIONAL_LOCKS=0` en ese modo para que `status`/`diff`/
+  `log` no intenten ni el lock optimista. Es el modo de
+  inspeccionar y correr código no confiable, no el de comitear
+  desde dentro; los commits de ese flujo se hacen desde el
+  anfitrión, como todo lo demás de git en este sistema.
 
-El usuario dentro del contenedor es el del dueño
-(`--user <uid>:<gid>` en Docker; en Podman rootless el mapeo por
-defecto ya hace que los archivos creados sean del dueño), para que
-los archivos del worktree sigan siendo suyos y git no proteste por
-la propiedad. El directorio de trabajo de cada ejecución es el
-worktree de la tarea (su ruta espejo).
+### 4.5 Las credenciales no entran
 
-### 5.5 Recursos: el % de la Fase 4 manda también aquí
+- **El entorno del exec va filtrado** (`filtrar_entorno`): parte
+  del entorno del motor ya sin credenciales de git (Fase 3,
+  `aplicar_entorno_sin_credenciales`) y quita **toda** variable
+  cuyo nombre tenga pinta de credencial — la regex cubre `KEY`,
+  `TOKEN`, `SECRET`, `PASSW`, `CREDENCIAL`, `BEARER`, `COOKIE`,
+  `SSH`, `GH_`, `GITHUB`, `AWS_`, `PRIVATE`, sin distinción de
+  mayúsculas. La regla es por nombre, que es lo comprobable, y
+  **no tiene excepción**: no hay ningún campo que deje pasar
+  credenciales «a propósito» en esta versión. Se añaden solo dos
+  marcas: `GROWI_EN_CONTENEDOR=1` y, en `por_cuenta`,
+  `GIT_OPTIONAL_LOCKS=0`.
+- **Antes de crear**, se comprueba que `<repo>/.git/config` no
+  esconda credenciales en la URL del remoto (un
+  `https://token@github.com/…`): ese archivo lo leería el
+  contenedor, así que si las hay **no se crea nada** y el motivo
+  dice cómo limpiarlo (la subida usa la puerta de la Fase 3, no
+  esa URL).
+- La subida sigue haciéndose desde el anfitrión con
+  `git_trabajo.subir()` y su escaneo de secretos, con el entorno
+  de push que solo existe en ese momento. Quien comprometa el
+  contenedor no puede subir nada (sin credenciales y con la
+  puerta fuera), no ve otros proyectos ni el sistema de archivos
+  del dueño, y los alquileres, la mezcla y las propuestas siguen
+  gobernados desde el anfitrión.
 
-Al crear el contenedor se le fijan los límites del proyecto con el
-presupuesto vigente: `contenedores.py` reutiliza
-`recursos.limites()` con la asignación del modo de presencia actual
-y el número de tareas del proyecto, y traduce a `--cpus` y
-`--memory` (Podman y Docker comparten esas banderas). Los límites
-forman parte de la huella de configuración (§5.6): si el modo de
-presencia cambia con el contenedor vivo, el barrido de supervisión
-(Fase 4) compara y aplica `podman/docker update` cuando difieren —
-y si el runtime no acepta el update en vivo, el cambio de límites
-queda como diferencia de huella para la próxima recreación, no
-como sorpresa silenciosa.
-Con contenedor activo **no** se envuelve además con `systemd-run`:
-los límites se aplican una sola vez, en el contenedor, y
-`recursos-estado.json` lo declara (mecanismo «contenedor» en vez de
-«systemd-run») para no prometer dos topes distintos.
+### 4.6 Ciclo de vida (`asegurar`)
 
-### 5.6 Ciclo de vida
+`contenedores.asegurar()` deja el contenedor listo o explica qué
+pasa, y devuelve uno de estos estados: `sin_contenedor`,
+`listo`, `degradado` (modo `opcional`) o `esperar` (modo
+`requerido`).
 
-- **Crear**: perezosamente, en la preparación de la primera tarea
-  del proyecto que lo necesite (§5.8), o a mano desde la UI
-  («Crear contenedor» en el editor del proyecto). Nombre
-  determinista: `growi-<repo_id>` en modo proyecto,
-  `growi-<repo_id>-<cuenta>` en modo `por_cuenta`. Etiquetas
-  `growi.proyecto=<repo_id>` y `growi.modo=...` para poder
-  encontrarlo sin depender del estado guardado.
-- **Huella de configuración**: SHA-256 de (runtime, imagen por
-  digest, montajes con su origen y su modo, red, usuario, comando
-  de espera **y los límites de recursos vigentes**), guardada en
-  `proyectos.json` y en la etiqueta `growi.huella` del contenedor
-  (§12, I11). El comando que mantiene vivo el contenedor es
-  `sleep infinity` por defecto; a la creación se **sondea**: si el
-  contenedor muere al instante con ese comando, se prueba
-  `tail -f /dev/null`, y si ninguno vale, la creación falla con el
-  motivo «la imagen no tiene comando de espera válido: declara
-  `contenedor_comando`» (hay imágenes mínimas sin ninguno de los
-  dos; §12, I14).
-- **Reutilizar**: solo si un `inspect` confirma que el contenedor
-  con ese nombre lleva las etiquetas del proyecto **y**
-  `growi.huella` = la huella calculada (un nombre determinista sin
-  verificar permitiría adoptar un contenedor ajeno o desfasado).
-  Si está parado, se arranca. Si la huella difiere (el dueño
-  cambió la imagen, la red o los límites), **recrear es destruir y
-  crear**: pasa por la misma confirmación R2 que destruir, con el
-  texto normalizado de la confirmación nombrando el contenedor y
-  las dos huellas (vieja y nueva) — un «recrear» sin confirmación
-  aprobando «lo que sea» era un agujero (§12, I12) — y solo cuando
-  el proyecto no tiene tareas en curso (los alquileres lo saben);
-  con tareas dentro, se pospone y queda anotado.
-- **Cuarentena**: si una tarea muere por timeout dentro del
-  contenedor, el contenedor queda **en cuarentena**: matar el
-  `exec` no garantiza matar el proceso de dentro (§12, B10), así
-  que no se reutiliza; se destruye y se recrea con la **misma**
-  huella antes de la siguiente tarea del proyecto (esta recreación
-  no es un cambio de configuración: no pide confirmación, pero se
-  audita y se avisa). Si dentro había otra tarea de la otra cuenta
-  (modo `proyecto`), su `exec` muere con el contenedor: esa tarea
-  falla con el motivo `contenedor_cuarentena` y puede reintentarse
-  — su worktree está intacto en el anfitrión.
-- **Destruir**: a mano desde la UI, con confirmación (es una acción
-  destructiva: pasa por el circuito de confirmaciones como
-  cualquier borrado, con nombre y huella en el texto), o al
-  desregistrar el proyecto. Nunca automáticamente por inactividad
-  en esta fase: un contenedor parado no cuesta casi nada y
-  destruir por sorpresa rompería la reutilización. Destruir no
-  toca los worktrees ni el `.git` (son montajes, no volúmenes del
-  contenedor). Crear, recrear, cuarentena y destruir dejan asiento
-  en la auditoría encadenada de la cuenta que actúa (la mezcladora
-  del proyecto si actúa el sistema).
-- **Si el contenedor muere a mitad de tarea**: el `exec` devuelve
-  error, la tarea falla con el motivo «el contenedor se detuvo
-  durante la ejecución» y el estado en `proyectos.json` se marca
-  para recrear en la siguiente preparación. No hay reintento
-  silencioso fuera del contenedor (§5.7).
+- **Modo `no`**: devuelve `sin_contenedor` **sin tocar nada** —
+  ni una sonda. El flujo de la Fase 3 queda exactamente como
+  estaba.
+- **Comprobaciones previas**, en orden: hay runtime (§4.2); el
+  proyecto declara imagen; `.git/config` no esconde un token
+  (§4.5). Cada fallo sale por `degradado`/`esperar` según el modo,
+  con su motivo.
+- **Huella de configuración**: SHA-256 (16 hex) de (runtime,
+  imagen, montajes con su modo, red, usuario), guardada en el
+  campo `contenedor` de `proyectos.json`. Es la identidad viva
+  del contenedor: lo que la UI muestra y contra lo que se decide
+  reutilizar o recrear.
+- **Reutilizar**: si un `inspect` confirma que el contenedor con
+  ese nombre existe **y** la huella guardada coincide con la
+  calculada, se reutiliza (se arranca si estaba parado).
+- **Recrear**: si existe pero la huella difiere (el dueño cambió
+  la imagen, la red o los montajes), se destruye (`rm -f`) y se
+  crea de nuevo. `asegurar` admite un callable `en_curso` que, si
+  informa de tareas dentro, pospone la recreación y sigue con el
+  contenedor viejo avisándolo en el resultado
+  (`recreacion_pospuesta`); el cableado actual del monolito no lo
+  pasa, así que en la práctica la recreación ocurre en la
+  preparación de la siguiente tarea tras el cambio.
+- **Crear**: si la imagen no está (`image inspect` falla), se
+  baja con `pull` (timeout de 600 s); crear tiene 120 s y arrancar
+  60 s. Al crear bien, el estado `{runtime, nombre, huella,
+  creado, estado: "en_marcha"}` se guarda en `proyectos.json`.
+- **Destruir** (`destruir`): `rm -f` y el campo `contenedor`
+  vuelve a `null`. Los worktrees y el `.git` no se tocan (son
+  montajes, no volúmenes). La confirmación la pone quien llama:
+  la UI pide un sí explícito en un diálogo antes de llamar.
+  Destruir nunca es automático por inactividad en esta fase: un
+  contenedor parado no cuesta casi nada y destruir por sorpresa
+  rompería la reutilización.
 
-### 5.7 Sin runtime o sin contenedor: la degradación por modo
+### 4.7 Sin runtime o sin contenedor: la degradación por modo
 
-| Modo del proyecto | Sin runtime / creación imposible | Contenedor muere a mitad |
+| Modo del proyecto | Sin runtime / sin imagen / creación imposible | Contenedor muere a mitad de tarea |
 |---|---|---|
 | `no` | ni se intenta | — |
-| `opcional` | la tarea corre fuera, con aviso en su resultado y en el log («sin contenedor: no hay runtime disponible») | la tarea falla; la siguiente preparación reintenta crear y, si sigue sin poder, corre fuera con el mismo aviso |
-| `requerido` | la tarea **no corre**: queda en espera con el motivo, como con un alquiler ocupado, y el latido reintenta la creación (aviso al dueño si pasan 30 min, por el canal de avisos de la Fase 4) | la tarea falla con el motivo; nunca se reejecuta fuera |
+| `opcional` | la tarea corre fuera, con aviso en su resultado (`contenedor_aviso`) y en el log | el `exec` devuelve error y la tarea falla con ese error; la siguiente preparación vuelve a asegurar |
+| `requerido` | la tarea **no corre**: el gancho suelta los alquileres y la tarea espera (~60 s) con el motivo, como con un alquiler ocupado, y cada reintento vuelve a asegurar | la tarea falla con el error del `exec`; nunca se reejecuta fuera en silencio |
 
 La asimetría es deliberada: `requerido` existe para código que el
 dueño no quiere ejecutar en su sistema ni una vez; degradarlo en
 silencio sería exactamente el fallo que el modo promete evitar.
 
-### 5.8 Integración con la preparación de la Fase 3
+### 4.8 Recursos: el % de la Fase 4 manda también aquí
 
-El gancho es el de siempre y no cambia el flujo cuando el modo es
-`no`:
+Los límites se fijan **al crear**, desde el presupuesto de la
+Fase 4: el gancho del monolito calcula
+`recursos.limites(specs, asignación del modo de presencia actual,
+1)` y `asegurar` lo traduce a `--cpus` (de `nucleos_equiv`) y
+`--memory` (de `bytes_por_tarea`). Con contenedor activo **no**
+se envuelve además con `systemd-run`: el tope se aplica una sola
+vez, en el contenedor (§6).
 
-1. En `_f3_preparar` (monolito), el orden importa (§12, I13): si
-   el proyecto tiene `contenedor_modo != "no"`, primero
-   `contenedores.asegurar(base, proyecto, prep)` — que incluye el
-   `pull` de la imagen, por digest, **deduplicado entre carriles**
-   con un lock y un estado «pull en curso» en la carpeta compartida
-   (la otra carril espera el estado, no relanza su propio pull) —
-   y **después** `preparar_worktree` y los alquileres: un pull de
-   600 s con los alquileres tomados bloquearía el proyecto entero
-   para la otra cuenta. `asegurar` devuelve el contenedor listo
-   (creado, arrancado o reutilizado) o un motivo de espera/fallo
-   según §5.7; en modo `requerido`, la espera del latido espera al
-   estado del pull, no reintenta pulls. La `prep` gana
-   `prep["contenedor"] = {runtime, nombre}` y el `cwd_efectivo`
-   sigue siendo el worktree (la ruta espejo es la misma dentro y
-   fuera: por eso el resto del runner no nota la diferencia).
-2. En el lanzamiento del motor (el `Popen` que hoy usa
-   `_engine_env`): si la `prep` trae contenedor, el argv del motor
-   se envuelve con `contenedores.argv_exec(runtime, nombre,
-   cwd_efectivo, env_motor, argv)`, que produce
-   `[runtime, "exec", "-w", <cwd>, "-e", K=V, …, nombre, *argv]`.
-   El entorno que entra **no** es «el que el motor recibiría
-   fuera» (§12, B11): `contenedores.py` aplica su propia lista —
-   pasan las variables inocuas (`LANG`, `TERM`, las `GROWI_*` sin
-   secretos) y se fijan `PATH` y `HOME` **de la imagen**
-   (`HOME=<repo>.worktrees/.growi-home`, una ruta montada y
-   escribible; el `PATH`/`HOME` del anfitrión no existen dentro) —
-   y las variables con forma de credencial (`*KEY*`, `*TOKEN*`,
-   `*SECRET*`, `*PASSWORD*` y las que `engines.json` marque como
-   credencial) **no pasan**, salvo en modo `proyecto` con
-   `contenedor_pasar_credenciales: true` (§5.3). Se añaden
-   `GROWI_EN_CONTENEDOR=1` y, en modo `por_cuenta`,
-   `GIT_OPTIONAL_LOCKS=0`. Consecuencia declarada: un motor cuyo
-   acceso sea por **login en archivos** (la CLI de claude con su
-   OAuth en `~/.claude`, que no se monta) no puede autenticarse
-   dentro en esta versión; `engines.json` lo marca
-   (`login_archivo: true`) y la preparación de un proyecto con
-   contenedor y ese motor falla con ese motivo en vez de lanzar un
-   motor que no puede trabajar. El proxy que inyectaría la clave
-   sin exponerla queda como trabajo futuro nombrado. El timeout y
-   la captura de salida siguen siendo los del runner; la muerte,
-   no: si hay timeout, el contenedor entra en cuarentena (§5.6) —
-   matar el `exec` no basta y el diseño ya no finge que sí.
-3. Al cerrar la tarea (`_f3_tras_process_one`): se anota
-   `contenedor` (nombre y runtime) en el resultado, junto al
-   worktree y la rama que ya se anotan. En modo `por_cuenta`, el
-   anfitrión hace aquí el commit del worktree (dentro no se pudo:
-   el `.git` es de solo lectura, §5.4) con el mensaje de la tarea,
-   antes de soltar los alquileres. Los alquileres se sueltan como
-   siempre; el contenedor queda vivo para la siguiente tarea
-   (salvo cuarentena).
+Declarado como límite de esta versión: los límites **no** forman
+parte de la huella (§4.6) y el barrido de supervisión no los
+actualiza en vivo — `contenedores.argv_update_limites()` construye
+el argv de `update`, pero nadie lo llama. Si el dueño cambia su
+% con el contenedor vivo, el contenedor conserva los límites de
+su creación hasta que se recree por otro cambio de configuración.
 
-El harness (subagentes de la Fase 4) hereda el mismo tratamiento:
-sus procesos nacen del mismo lanzamiento de motor, así que entran
-en el contenedor del proyecto de su tarea sin código nuevo.
+===
 
-## 6. Instalación y detección
+## 5. Instalación y detección
 
-### 6.1 Lo que el dueño hace una vez (intermediario)
+### 5.1 Lo que el dueño hace una vez (intermediario)
 
-El instalador es `intermediario/instalar-intermediario.sh` y lo
-ejecuta **el dueño, en su terminal**, nunca la app. Su contrato:
+Instalar el intermediario es un acto del dueño en su terminal,
+para siempre. La app no instala nada, no ejecuta sudo y no ve
+ninguna contraseña en ningún paso.
 
-1. Imprime, antes de tocar nada, el contenido **completo** de cada
-   archivo que va a escribir, con su ruta: el despachador, la
-   configuración, el catálogo de ejemplo (con los dominios de
-   ejemplo marcados como tales), la regla de sudoers y, si elige la
-   vía polkit, el `.policy` y los envoltorios.
-2. Pide confirmación tecleada (`SI`) tras mostrarlo todo.
-3. Eleva **una vez** con `sudo` en esa terminal (la contraseña la
-   teclea el dueño ante sudo, en su terminal: la app no está ni
-   delante ni detrás de este paso) y escribe los archivos con los
-   dueños y permisos de §3.1/§3.3. El orden es el que la revisión
-   exigió (§12, B13), porque «escribir sudoers y validar después»
-   puede dejar sudo roto en la máquina del dueño: cada archivo se
-   escribe primero en un **temporal**, se valida ahí (`visudo -cf`
-   sobre el temporal de sudoers; el catálogo, con el propio
-   despachador `--validar-catalogo`) y solo entonces se **mueve**
-   a su sitio. El instalador lleva un **diario de pasos** en
-   `/var/lib/growi-bridge/instalador.jsonl` y un `trap` de
-   ERR/EXIT que, si muere a mitad, revierte en orden inverso lo
-   ya movido. Es idempotente (re-ejecutarlo deja el mismo
-   contenido) y toma un lock para no correr dos veces a la vez.
-4. Deja la sonda probada **desde la cuenta del dueño**: si el
-   instalador corre como root (corre con sudo), prueba con
-   `runuser -u "$SUDO_USER" -- sudo -n …/growi-rootbroker.py
-   sonda` — probar «desde la cuenta del dueño» siendo ya root no
-   probaría nada (§12, B12) — y muestra su salida: la instalación
-   no se da por buena si la sonda no responde con
-   `uid_origen != 0` (o si la vía declarada es root-local, con su
-   sonda propia).
-5. `--desinstalar` simétrico y completo: quita la regla de
-   sudoers, el despachador, la configuración, el catálogo, **el
-   `.policy` y los envoltorios polkit** y el diario (el log del
-   despachador y los vales consumidos se conservan salvo
-   `--desinstalar --con-logs`).
+1. **Escribir su lista** en `raiz-config.json` (carpeta
+   compartida): las unidades que el intermediario podrá tocar
+   (§3.3). Sin lista, solo habrá acciones de paquetes.
+2. **Ejecutar `instalar-raiz.py`** desde la carpeta del programa,
+   en su terminal:
+   - **Sin TTY se niega** (ni stdin ni stdout de terminal → rc 2
+     y un mensaje claro): este guion lo ejecuta el dueño a mano;
+     no es una tubería para que otro programa lo conduzca.
+   - Lee la lista y compone la regla con
+     `raiz.componer_sudoers()`, que **valida antes de componer
+     nada**: si el nombre de usuario no tiene forma válida, si la
+     config está degradada o si alguna unidad trae un nombre
+     inválido, lanza el error y **no se compone ni una línea**
+     (rc 1, no se escribió nada).
+   - Verifica el texto con `visudo -cf` si visudo está: si lo
+     rechaza, rc 1 y no se escribió nada; si no está, avisa y el
+     texto queda para revisión a ojo.
+   - Escribe el texto en `growi-bridge.sudoers`, junto al propio
+     script (un archivo normal, sin privilegios), **lo muestra
+     entero** y termina.
+3. **Pegar los comandos exactos** que el guion imprime (salen de
+   `raiz.comandos_instalacion()`), en esa misma terminal, con su
+   contraseña:
 
-La app detecta la instalación (§6.3), pero **instalar, desinstalar
-y editar el catálogo son actos del dueño en su terminal**, fuera
-de la app, para siempre. La UI como mucho muestra el texto de
-ayuda y la ruta del instalador.
+   ```text
+   sudo install -m 0755 -o root -g root growi-ayudante.py /usr/local/libexec/growi-ayudante.py
+   sudo install -m 0440 -o root -g root growi-bridge.sudoers /etc/sudoers.d/growi-bridge
+   sudo visudo -cf /etc/sudoers.d/growi-bridge
+   ```
 
-### 6.2 Lo que el dueño hace una vez (contenedores)
+La regla compuesta es una sola línea:
 
-Nada como root desde Growi: el runtime lo instala el dueño con el
-gestor de paquetes de su distribución si no lo tiene (la UI lo
-dice con esas palabras y detecta el resultado). Podman rootless no
-necesita más; Docker necesita que su usuario pueda hablar con el
-demonio, y eso también lo deja hecho el dueño fuera de la app.
+```text
+<usuario> ALL=(root) NOPASSWD: /usr/local/libexec/growi-ayudante.py
+```
 
-### 6.3 Detección en la app: qué vía hay, de verdad
+Sin comodines: sudoers acota **el programa**; qué acciones
+existen y con qué argumentos lo acotan el registro cerrado y la
+doble validación (sudoers no puede expresar «uno de estos
+paquetes» sin comodines, y un comodín sobre argumentos es una
+puerta conocida). Que la regla sea `NOPASSWD` no deja las
+acciones «sin humano»: el factor humano es el circuito de
+aprobaciones (§3.5) — sin aprobación viva no hay orden, y sin
+orden el ayudante no ejecuta, aunque cualquier proceso del uid
+pueda *invocarlo*.
 
-`privilegios.disponible()` devuelve
-`{via: "sudoers"|"polkit"|"root-local"|"ninguna",
-acciones: [ids…], huella_catalogo, motivo, detalle}` y
-`contenedores.detectar_runtime()` el suyo. Reglas:
+La misma ventana de reglas está en la UI («Ver reglas a
+instalar», §6) para quien quiera componerla sin pasar por el
+guion; la app se limita a mostrarla.
 
-- **Catálogo**: se lee de `/etc/growi-bridge/acciones.json` si
-  existe y valida (la app valida con el mismo esquema; si el
-  archivo del dueño está roto, la app lo dice y trata el catálogo
-  como vacío — nunca «interpreta» un catálogo dudoso). Se relee
-  por (mtime, tamaño), como el registro de cuentas de la Fase 1,
-  y su huella (SHA-256 del archivo) viaja en la sonda y en el
-  barrido (§7): un cambio de catálogo no pasa desapercibido.
-- **Vía sudoers**: sonda real al arrancar (y bajo demanda desde la
-  UI): `sudo -n /usr/local/libexec/growi-rootbroker.py sonda`
-  debe responder el JSON de sonda con la versión, la huella del
-  catálogo **del despachador** y el `uid_origen`; si la huella
-  difiere de la del catálogo leído por la app, la UI lo anota
-  («el catálogo cambió: relee») y ninguna tarea se clasifica
-  contra un catálogo que el despachador no tiene (la huella
-  completa del vale lo garantiza en el sello, §3.5). Si
-  `uid_origen` es 0, no hay vía sudoers: hay root-local (§3.4).
-  La sonda se cachea 60 s **solo para la UI**: `ejecutar` no usa
-  la caché — invoca y, si el despachador no responde, la tarea
-  espera sin gastar la aprobación (§12, I19).
-- **Motivos enumerados** (§12, I18): `ninguna` nunca va sola. El
-  `motivo` es uno de `sin_sudo`, `sin_despachador`, `sin_regla`
-  (la sonda devolvió error), `sin_catalogo`, `catalogo_invalido`,
-  `sin_python`, `plataforma_no_soportada` o `no_instalado`, y el
-  `detalle` trae el comando exacto que falló y su código: la UI
-  dice qué arreglar, no solo que algo falta.
-- **Vía polkit**: se detecta por presencia (pkexec en el PATH, el
-  `.policy` instalado, al menos un envoltorio), **sin sonda en
-  segundo plano**: sondear por pkexec abriría un diálogo de
-  contraseña, y una ventana sorpresa viola el modo presente de la
-  Fase 4. La vía polkit se marca «presente, sin verificar» hasta
-  que el dueño ejecuta delante de la pantalla una acción que la
-  use; su resultado verifica o desmiente.
-- **Sin trampas**: la app nunca prueba `sudo -n true`, ni busca
-  reglas anchas, ni usa un sudo que funcione «por otro motivo»
-  (que el dueño tenga NOPASSWD para otra cosa no habilita nada:
-  la sonda es al binario exacto del despachador).
+### 5.2 Lo que el dueño hace una vez (contenedores)
 
-## 7. Cableado en el monolito (fino) y UI
+Nada por parte de Growi: si quiere contenedores, instala Podman
+o Docker con los medios de su distribución. Sin runtime, los
+proyectos degradan según su modo (§4.7) y la UI lo dice.
 
-1. **Runner**: la clasificación de tareas aprende el tipo
-   declarado `sistema` (§3.2); el procesamiento de una tarea
-   `sistema` es un camino corto en el runner (sin motor): puerta de
-   aprobaciones → al recoger, por cada acción, sellar su vale y
-   `privilegios.ejecutar(...)` → resultado con el detalle por
-   acción. Una tarea con varias acciones usa **un vale por
-   acción** y se detiene en el primer fallo; las acciones ya
-   ejecutadas **no se deshacen** (no hay transacción posible sobre
-   el sistema: el resultado lo dice, acción por acción). Si el
-   intermediario no está disponible, la tarea queda en espera de
-   decisión (§3.8) antes de gastar ninguna aprobación.
-2. **`privilegios.py`**: `disponible()`, `catalogo()`,
-   `describir(accion, params)` (la frase de la confirmación),
-   `huella(accion, params, huella_catalogo)` (la canonicalización
-   completa de §3.5, compartida en especificación con el
-   despachador), `sellar(...)` y `ejecutar(base, cuenta, raiz,
-   accion, params, vale)` — construye la petición, la pasa por
-   stdin al lanzador, parsea la respuesta y asienta en la
-   auditoría de la cuenta (su intención, antes de invocar: §3.7).
-   Todo con el ejecutor inyectable para las pruebas, como el resto
-   de módulos del proyecto.
-3. **`permission-layer.py`**: gana `registrar_vale_sistema(...)`
-   (§3.5) y nada más; su CLI gana `--vales` para listar las
-   solicitudes vivas (sesión, acción, huella, caducidad) — el
-   dueño puede ver qué está autorizado ahora mismo; los vales
-   sellados y consumidos se ven en el log del despachador, que es
-   su dominio.
-4. **UI**: en la página Cuentas, junto a «Proyectos y respaldo»
-   (Fase 3), dos bloques:
-   - **Privilegios (Linux)**: vía detectada, sonda, la tabla del
-     catálogo (id, descripción, nivel, lanzador) tal como la ve el
-     despachador, y el texto de ayuda de instalación. Sin botones
-     que instalen ni campos que editen el catálogo.
-   - **Contenedores por proyecto**: en el editor de cada proyecto,
-     los campos `contenedor_modo`, `contenedor_imagen` y
-     `contenedor_red`, el estado del contenedor y los botones
-     «Crear» y «Destruir» (destruir, con su confirmación). El
-     runtime detectado se muestra con su matiz (§5.2).
-5. **Vigilancia**: el barrido de supervisión (Fase 4) gana tres
-   chequeos baratos: la sonda del intermediario cada 10 min (si
-   ayer había vía y hoy no, aviso «el intermediario dejó de
-   responder»), la **huella del catálogo** en esa misma sonda (si
-   cambia sin que el dueño lo anuncie, aviso «el catálogo de
-   acciones cambió»: es su archivo y su acto, pero el cambio
-   queda visto y asentado) y la reconciliación de límites de
-   contenedores al cambiar el modo de presencia (§5.5).
+### 5.3 Detección: qué vía hay, de verdad
 
-## 8. Modelo de fallos
+`raiz.detectar_via()` responde `{via, verificada, motivo,
+ayudante, acciones}`, con la sonda cacheada 60 s (no se lanza
+sudo en cada latido):
 
-| Fallo | Comportamiento |
+1. **Si existe `/etc/sudoers.d/growi-bridge`**, se sondea:
+   `sudo -n -- <ayudante> sonda`, y la última línea de la salida
+   debe ser el JSON del ayudante con `ok`. Si responde: vía
+   **sudoers, verificada**. Si el archivo existe pero la sonda
+   no responde: vía **ninguna** con el motivo honesto («hay un
+   archivo de reglas pero la sonda al ayudante no respondió: la
+   instalación está incompleta o la regla no autoriza a este
+   usuario»).
+2. **Si no hay regla pero `pkexec` está en el PATH**: vía
+   **pkexec, sin verificar** — sondearlo abriría un diálogo de
+   contraseña; se verifica al ejecutar la primera acción delante
+   de la PC, y el motivo lo dice así.
+3. **Si no**: vía **ninguna**, «intermediario no instalado».
+
+La ruta del ayudante que se sondea e invoca es la instalada
+(`/usr/local/libexec/growi-ayudante.py`) si existe; si no, la
+copia junto a `raiz.py` (sin la regla no habrá vía igualmente, y
+la sonda lo dirá). La app nunca prueba un `sudo` genérico ni
+busca reglas anchas: o está **esta** regla o no hay vía.
+
+En Windows la detección no aplica: la UI declara «solo Linux; en
+Windows las acciones de sistema no están disponibles» y las
+tareas esperan con ese motivo.
+
+## 6. Cableado en el monolito y UI
+
+Todo el cableado es fino y vive tras dos condiciones que, en
+falso, dejan el sistema exactamente como estaba: el tipo de tarea
+(`sistema`) y el modo del proyecto (`contenedor_modo != "no"`).
+
+**Las tareas `sistema`** (detallado en §3.4):
+
+- En el bucle de candidatas del runner, tras la puerta del
+  tablero, `tipo == "sistema"` se despacha a
+  `_f6_procesar_sistema()` y la ronda termina: no pasa por
+  `process_one` ni por ningún motor.
+- `_f4_dual_aplica()` las exime de la puerta dual, como a
+  `consulta` y `encargo`: se procesan en local siempre.
+- La auditoría entra por `_f6_registrar()`, que carga
+  `permission-layer.py` una vez y llama a `registrar_sistema()`
+  sin dejar que una excepción de auditoría tumbe la ejecución.
+- Los avisos al dueño salen por el canal de avisos de la Fase 4:
+  `sistema_sin_intermediario`, `sistema_pendiente`,
+  `sistema_ejecutada`, `sistema_fallida`.
+
+**El contenedor** (detallado en §4.6–§4.8):
+
+- En `_f3_preparar()`, **después** de registrar el proyecto, tomar
+  los alquileres y preparar el worktree — y solo si hay worktree,
+  no es Windows y el proyecto pide contenedor — se llama a
+  `_f6_asegurar_contenedor()`. Si devuelve «esperar», el propio
+  gancho ya soltó los alquileres y la tarea queda aparcada ~60 s
+  con el motivo; si el contenedor degradó (modo `opcional`), el
+  aviso queda en `prep["contenedor_aviso"]` y la tarea sigue
+  fuera.
+- Al lanzar el motor, `_f4_envolver_cmd()` mira la preparación:
+  si trae contenedor, el argv se envuelve con
+  `contenedores.argv_exec(runtime, nombre, cwd, entorno del
+  motor, argv, por_cuenta=…)` **en lugar de** `systemd-run`. El
+  harness de la Fase 4 hereda el tratamiento sin código nuevo:
+  sus procesos nacen del mismo lanzamiento.
+- Al cerrar (`_f3_tras_process_one()`), el resultado anota
+  `contenedor`, `contenedor_runtime` y `contenedor_aviso` si lo
+  hubo, y el historial de la cola gana la entrada
+  `{"fase6": {…}}`, junto a la anotación de worktree y rama de la
+  Fase 3.
+
+**La UI: «Seguridad avanzada» en la página Cuentas.**
+
+- El estado del intermediario: vía detectada (con «verificada»
+  si lo está), su motivo y las unidades autorizadas por el
+  dueño. En Windows, el aviso de no disponible.
+- El registro entero, legible: id · nivel · clase · descripción
+  de cada acción. Es lo único que se puede pedir, dicho en la
+  propia pantalla.
+- Botones: **«Probar sonda»** (limpia las cachés de vía y de
+  runtime y vuelve a sondear), **«Ver reglas a instalar»**
+  (ventana con la regla compuesta desde el registro y los
+  comandos exactos; el texto deja claro que la app no lo instala)
+  y **«Actualizar»**.
+- El editor de contenedor por proyecto: selector de proyecto,
+  modo (`no`/`opcional`/`requerido`), red
+  (`saliente`/`ninguna`), campo de imagen y el estado vivo del
+  contenedor (nombre, runtime, huella); botones **«Guardar
+  contenedor»** (vía `guardar_proyecto`, con su validación),
+  **«Crear contenedor»** (llama a `asegurar` y dice el estado
+  resultante) y **«Destruir contenedor»** (con diálogo de
+  confirmación que recuerda que los worktrees y el `.git` no se
+  tocan). La línea de runtime muestra la detección y su matiz
+  (§4.2).
+
+## 7. Modelo de fallos
+
+| Fallo | Qué pasa, exactamente |
 |---|---|
-| Catálogo de `/etc` corrupto o con una acción inválida | El despachador no ejecuta **nada** (ni las acciones buenas) y responde `catalogo_invalido`; la app lo muestra. Un catálogo roto nunca abre media puerta |
-| Petición con acción desconocida o parámetro fuera de dominio | Rechazo antes de mirar el vale, con el motivo exacto, asentado en los dos logs (el intento queda registrado: es la prueba en rojo del plan) |
-| Parámetros manipulados (`../`, `;`, `$(...)`, espacios, NUL) | Los dominios los rechazan (enum/regex/prefijo canonicalizado) o el valor viaja como **un** elemento de argv literal sin shell que lo interprete: `systemctl restart "x; rm -rf /"` es un nombre de unidad inválido, no un comando |
-| Vale ausente, de otra acción, con otra huella, caducado o ya consumido | Rechazo con su motivo; la tarea vuelve a espera de decisión («confirma de nuevo») sin ejecutar nada |
-| El catálogo cambió entre la aprobación y el sello | `catalogo_divergente`: el despachador no sella ni ejecuta; la tarea espera con el motivo y el dueño decide si reaprobar contra el catálogo nuevo (§3.5) |
-| El dueño aprueba pero la tarea espera en la cola o se aplaza | Nada caduca: la ventana corre desde el **sello**, que se pide al recoger (§3.5). Lo que sí puede caducar es un vale ya sellado si la ejecución se atasca tras sellar: `vale_caducado`, no se renueva solo, toca reaprobar |
-| Otro despacho en curso al ir a ejecutar | Lock con espera de 10 s → `ocupado`: la tarea vuelve a espera con el vale intacto |
-| Salto de reloj (NTP o manual) hacia atrás | La frescura manda por el mayor de los dos relojes (pared y monotónico con `boot_id`, §3.5): un salto no resucita vales; el salto queda asentado en el log del despachador |
-| El log del despachador no se puede escribir (disco lleno, permisos) | `auditoria_no_disponible`: no se ejecuta nada (la regla «sin auditoría no hay acción» vale también de este lado, §3.7) |
-| Despachador borrado o regla de sudoers retirada a mitad de fase | La sonda lo detecta; las tareas `sistema` esperan con el motivo (§3.8); nada privilegiado se ejecuta por otra vía |
-| El comando de la acción se cuelga | Timeout del catálogo: se mata el árbol, `rc` de timeout, asentado; el despachador muere a los 660 s en el peor caso |
-| Runtime de contenedores caído entre tareas | La sonda de la siguiente preparación lo ve: modo `opcional` degrada con aviso, modo `requerido` espera (§5.7) |
-| Contenedor comprometido intenta leer el HOME o la bóveda | No están montados: el intento ve un sistema de archivos vacío en esas rutas; queda como evidencia en la salida de la tarea |
-| `.git/config` con token en la URL | La creación del contenedor se niega hasta limpiarlo (§5.4) |
-| Dos carriles piden la misma acción a la vez | Cada petición sella su propio vale (de un solo uso, ligado a su aprobación) y su asiento; el despachador serializa por su lock en `/run/growi-rootbroker.lock` — dos ejecuciones idénticas exigen dos aprobaciones |
-| Una tarea muere por timeout dentro del contenedor | El contenedor entra en **cuarentena** (§5.6): no se reutiliza; se destruye y recrea con la misma huella antes de la siguiente tarea. Si dentro iba otra tarea de la otra cuenta, falla con `contenedor_cuarentena` y puede reintentarse |
-| El `pull` de una imagen tarda o lo está haciendo la otra carril | El pull va antes de los alquileres y deduplicado (§5.8): la tarea espera el estado «pull en curso», no lanza otro ni bloquea el proyecto |
-| La PC se reinicia con vales vivos | Un vale sellado antes del reinicio lleva otro `boot_id`: se rechaza como no válido (la frescura monotónica no es comparable entre arranques) y toca reaprobar; la cadena de auditoría de ambos lados se verifica (§3.7); los contenedores se redescubren por nombre/etiqueta, no por memoria |
+| Tarea `sistema` con forma inválida | Se cierra `necesita_decision` sin ejecutar nada (§3.4.1) |
+| Acción desconocida o parámetros inválidos | Se cierra `necesita_decision` con el motivo de validación; nunca queda colgada (con vía) |
+| Sin intermediario (vía ninguna) | La tarea espera (reintento 120 s) **sin gastar aprobación**, con aviso; si el dueño lo instala, sigue su curso |
+| Regla presente pero sonda muda | Vía ninguna con motivo «instalación incompleta»; la UI lo muestra tal cual |
+| Ritmo de la app superado | `ErrorRaiz` antes de invocar; la acción se asienta como `bloqueado` |
+| El ayudante rechaza (sin elevación, sin orden, orden caducada o de otra cuenta, huella distinta, su ritmo) | Su motivo **es** el resultado de la acción; la tarea lo recoge tal cual |
+| La acción sale con rc ≠ 0 | Resultado error con rc y salida (truncada); en una tarea de varias acciones, se para en el primer fallo |
+| La acción supera su timeout | El ayudante mata el grupo entero y responde rc 124; la app tiene su propio timeout (el del registro + 30 s) por si el ayudante no responde |
+| Una acción de varias falla a mitad | Las anteriores quedaron ejecutadas y asentadas; las siguientes no se intentan; la tarea queda `fallida` con el reporte por acción |
+| Sin runtime / sin imagen / token en `.git/config` / `pull` o `create` fallan | Según el modo del proyecto: `degradado` con aviso (opcional) o `esperar` (requerido) (§4.7) |
+| El contenedor muere a mitad de tarea | El `exec` devuelve error y la tarea falla; no hay reintento silencioso fuera |
+| La auditoría de la app no puede escribir | `_f6_registrar` traga la excepción: la ejecución no se tumba por auditar, y el asiento del ayudante sigue existiendo |
+| Divergencia entre las dos auditorías | Es en sí misma el hallazgo: se cruzan por huella y hora (§3.8) |
 
-## 9. Aceptación de la fase
+Y la regla que resume la tabla: ningún fallo de esta fase
+convierte una negativa en una ejecución, ni una espera en un
+salto silencioso de la puerta.
 
-Pruebas unitarias (módulos puros, ejecutores falsos inyectados,
-reloj falso donde toque):
+## 8. Aceptación de la fase
 
-- `test_privilegios.py` (el lado de la app): lectura del catálogo
-  (válido, ausente, roto → vacío con motivo); clasificación de la
-  tarea `sistema` (nivel = máximo entre catálogo y tabla; acción
-  desconocida → **rechazo en validación** con `accion_desconocida`;
-  lista `sistema` vacía o elemento sin `accion` → rechazo); la
-  huella completa (estable ante reordenación de claves de los
-  parámetros; distinta al cambiar un valor, el argv resuelto o la
-  huella del catálogo); descripción para el dueño construida desde
-  el catálogo con los controles escapados; respuesta del
-  despachador parseada (ok, rc≠0, JSON roto → motivo, timeout del
-  lanzador); `disponible()` con motivos enumerados (§6.3).
-- `test_rootbroker.py` (el despachador, con un ejecutor falso y
-  directorios temporales **inyectados como parámetros** de la
-  lógica — nunca por entorno, §3.1 — que hacen de `/etc`, de
-  `/var/lib` y de la carpeta de la app): la validación del catálogo
-  (plantilla con shell metido → catálogo inválido entero; hueco sin
-  dominio; dominio sin hueco; **huecos pegados `{a}{b}`** y
-  **hueco en `argv[0]`** → inválido); la validación de parámetros
-  (enum cerrado, ruta que se escapa del prefijo con `..` y con un
-  enlace simbólico en un componente, **entero no canónico**
-  (`+1`, `007`, dígitos Unicode) rechazado, nombre con espacios o
-  `;`, `dispositivo` con etiqueta inválida o destino resuelto
-  fuera del patrón de dispositivos); el **sello** (solicitud con
-  firma buena/mala, solicitud caducada, **catálogo divergente → no
-  sella**); el **vale de root** (MAC buena/mala, acción, huella,
-  tarea o aprobación distintas, caducado por nivel con reloj
-  inyectable, `boot_id` distinto → rechazado, **segundo uso →
-  rechazado**, R3 sin autorización del dueño → rechazado, llamante
-  distinto del uid fijado → rechazado, sin `SUDO_UID` → rechazado,
-  vía root-local solo con euid 0 y `uid_dueno: 0`); la ejecución
-  con el ejecutor falso (el argv final es exactamente la plantilla
-  con los parámetros como elementos, lanzado por la unidad
-  transitoria con su `RuntimeMaxSec`; el entorno es el mínimo; un
-  parámetro con `$(rm -rf /)` llega como un literal o no llega,
-  nunca interpretado); salida truncada a 64 KB; su cadena de log
-  verifica tras escribir N entradas bajo concurrencia simulada y
-  detecta una línea manipulada; si el log no se puede escribir, no
-  se ejecuta.
-- `test_contenedores.py` (con ejecutor falso): detección (podman
-  que responde, podman que está pero no responde → docker, ninguno
-  → no disponible, euid 0 → `rootful: true` declarado);
-  construcción del argv de creación (montajes espejo exactos y
-  solo esos dos, `--user`, red según política y modo, banderas de
-  endurecimiento `--cap-drop=ALL`/`no-new-privileges`/
-  `--pids-limit`/`--tmpfs`, **sin** `--publish` jamás, límites
-  desde `recursos.limites`); modo `por_cuenta` (dos nombres,
-  montaje por cuenta, `.git` en solo lectura,
-  `GIT_OPTIONAL_LOCKS=0` en el exec, commit del anfitrión al
-  cerrar); la huella (cambia al cambiar la imagen, la red o los
-  límites; no cambia por el estado); reutilizar exige `inspect`
-  con las etiquetas y la huella; recreación por cambio de
-  configuración pospuesta con tareas en curso y con su
-  confirmación; **cuarentena tras un timeout** (no se reutiliza:
-  se destruye y recrea con la misma huella); el orden de la
-  preparación (el pull se registra **antes** que la toma de
-  alquileres en el ejecutor falso compartido); el filtro del
-  entorno del exec (una variable canario de credencial en el
-  entorno del motor **no** aparece en el argv ni en el entorno
-  construido; con `proyecto` + opt-in del dueño, sí); la negativa
-  a crear con token en la URL del remoto.
-- Regresión: todas las pruebas de las fases 0–5 siguen en verde;
-  el monolito compila con su CRLF intacto; un secreto canario
-  pasado por todos los caminos nuevos (petición, vale, argv del
-  contenedor) no aparece en ningún log (grep final, como el
-  centinela de la Fase 1).
+### 8.1 Pruebas unitarias
 
-Pruebas físicas en el entorno de Lu (esta VM), con lo que la VM
-tiene de verdad — verificado el 2026-11-16: corre como **root**
-(uid 0), hay `sudo` y `systemd` 255 con `systemd-run`, **no** hay
-`pkexec` ni `polkitd` operativos, y **no** hay ni Podman ni Docker
-instalados:
+**64 pruebas nuevas** (`test_raiz.py`, `test_ayudante.py`,
+`test_contenedores.py`), con la suite completa en **409 en
+verde**. Cubren, entre otras:
 
-1. **El circuito completo del intermediario, con privilegio
-   simulado de forma honesta**: se instala el despachador en la VM
-   (somos root: la instalación es real, con sus archivos en `/etc`
-   y `/usr/local/libexec`) con un catálogo de prueba que trae una
-   acción inocua pero que solo root puede hacer (crear un
-   directorio bajo `/var/lib/growi-prueba/`). La vía que se ejerce
-   en la VM es **root-local** (§3.4): la app corre como root y la
-   sonda sudoers no se da por válida (su `uid_origen` sería 0), y
-   el resultado lo dice. Desde la app real: una tarea `sistema`
-   con esa acción pasa la puerta, el dueño (la consola de pruebas)
-   aprueba, el despachador sella el vale en su dominio, ejecuta y
-   el directorio aparece; los dos logs lo asientan y las dos
-   cadenas verifican.
-2. **Prueba en rojo** (la aceptación del plan): la misma tarea con
-   la acción cambiada a una inexistente, con un parámetro fuera
-   del enum, con un parámetro `../`, y reutilizando el vale de la
-   prueba 1: las cuatro se rechazan con su motivo y **no se
-   ejecuta nada** (el directorio de la acción manipulada no
-   aparece). Y la quinta, el vale caducado, **sin tocar el
-   despachador instalado** (§12, I16): se sella un vale con el
-   reloj falso de la costura de pruebas del entorno
-   (`GROWI_PRUEBAS=1`, del lado de la app, como las costuras de la
-   Fase 4) de modo que al ejecutar ya nació vencido → el
-   despachador rechaza por `vale_caducado`. Ninguna constante del
-   binario instalado es configurable para pruebas.
-3. **Intermediario caído, tres causas** (§12, I18): se renombra el
-   despachador instalado (`sin_despachador`), se retira el
-   catálogo (`sin_catalogo`) y se rompe su JSON
-   (`catalogo_invalido`): la sonda pasa a «ninguna» con el motivo
-   enumerado correcto en cada caso, una tarea `sistema` nueva
-   queda en espera y nada se ejecuta; y con el despachador caído
-   más de 60 s (la caché de la UI ya vencida), `ejecutar` tampoco
-   gasta la aprobación. Se restaura todo.
-4. **Detección honesta de lo que no hay**: la app en la VM muestra
-   la vía polkit como no disponible (no hay pkexec) y los
-   contenedores como no disponibles (no hay runtime), sin errores
-   ni reintentos en bucle.
-5. **El despachador sin atajos**: con una segunda instalación de
-   prueba cuyo `intermediario.json` fija un `uid_dueno` distinto
-   de 0, la invocación directa como root (sin lanzador, sin
-   `SUDO_UID` válido) rechaza ejecutar: no hay «modo manual». Y
-   con `GROWI_BROKER_ETC` apuntando a un catálogo falso en el
-   entorno, la sonda responde con el catálogo real: el binario
-   instalado no lee entorno (§12, B14).
+- Registro y validación: argv manipulados y nombres con
+  metacaracteres rechazados, parámetros sobrantes o faltantes,
+  clases no registradas (`accion_desconocida`), la subida de
+  nivel por unidad y la huella estable.
+- **Acuerdo entre las dos copias del registro**: la app y el
+  ayudante coinciden en ids, argv para los casos válidos y
+  timeouts (la doble validación no sirve si las copias divergen).
+- Ritmos de las dos capas (por cuenta y global).
+- El generador de reglas: con un nombre inválido en la lista
+  **no compone nada**; la regla sale solo con nombres válidos y
+  pasa `visudo` cuando está.
+- El ayudante: acepta lo válido y rechaza sin elevación, sin
+  orden, con la orden caducada, de otra cuenta o reutilizada;
+  huella manipulada; su cadena de log detecta la manipulación.
+- **El cruce real app↔ayudante sin mocks entre ellos**: sin orden
+  → rechazado; con orden → ejecuta el argv exacto; repetir →
+  rechazado; log íntegro.
+- Contenedores con ejecutor falso: montajes exactos por modo, el
+  **canario de credencial** (una variable con nombre de
+  credencial en el entorno del motor) no cruza al `exec`, la
+  imposibilidad de emitir `--publish`/`--privileged`/`--device`,
+  y el modo `no` que no toca ni el ejecutor.
 
-Y lo que **solo se puede probar en la PC del dueño**, declarado
-desde ya como lista preparada (como el checklist de la Fase 0):
+### 8.2 Pruebas físicas (2026-11-16)
 
-- La regla de sudoers con su usuario real (en la VM somos root y
-  sudo no demuestra nada: la sonda y la ejecución con un usuario
-  sin privilegios es la prueba de verdad), incluida la negativa:
-  su usuario no puede ejecutar el despachador con argumentos
-  libres fuera del circuito… (puede invocarlo, pero sin vale no
-  ejecuta: eso también se comprueba allí).
-- La vía polkit con su sesión gráfica (diálogo de contraseña,
-  acción R3 con `auth_admin`, sin agente → no disponible).
-- Los contenedores con Podman o Docker reales: crear el de un
-  proyecto de juguete, ejecutar una tarea dentro (el motor edita
-  en el worktree; desde fuera se comprueba que el HOME no es
-  visible dentro con un `ls` de la tarea y que el `pwd` del `exec`
-  coincide con el `cwd_efectivo` espejo del anfitrión), la subida
-  posterior por la puerta de la Fase 3, y la **medición del
-  coste** que pide el plan: tiempo de creación, latencia de un
-  `exec` frente a la ejecución directa de un comando equivalente,
-  y memoria base del contenedor en reposo, anotados en el
-  resultado de la prueba.
-- Un intento de escape de juguete desde dentro: leer
-  `~/.ssh` y la carpeta de la app (no montadas: no existen dentro)
-  y escribir fuera del worktree (no hay ruta montada).
+Con la app real (los dos carriles) y la regla instalada **de
+verdad** en la máquina de pruebas — regla compuesta desde el
+registro, `visudo` OK, ayudante instalado en
+`/usr/local/libexec` —:
 
-Límites honestos que se declaran desde ya: en la VM de Lu el
-intermediario se prueba con el privilegio «prestado» de ser root
-en una VM desechable — el circuito (validación, vale, auditoría,
-rechazos) se prueba entero, pero la frontera sudoers con un
-usuario normal solo existe en la PC del dueño; y los contenedores
-quedan probados en unitario y en su detección, con la física real
-preparada para su PC.
+- La sonda verifica la vía «sudoers». Antes de instalar el
+  ayudante, la detección dijo con honestidad «instalación
+  incompleta», que es su trabajo.
+- Una acción R1 (`servicio-estado`) aprobada **por el canal de
+  Telegram** recorrió todo el circuito: el pedido salió por el
+  canal, el dueño simulado respondió «aprobar», el permiso se
+  consumió al recoger, la orden se creó y se consumió, el
+  ayudante ejecutó el argv exacto y el resultado (código 4: la
+  máquina de pruebas no corre systemd) quedó asentado **dos
+  veces**, en la auditoría de la cuenta y en el log encadenado
+  del ayudante, con la misma huella.
+- La acción desconocida se rechazó sin colgarse y el parámetro
+  manipulado (`ssh; touch …`) se rechazó sin ejecutar nada (el
+  archivo del intento no existió nunca).
+- `instalar-raiz.py` sin TTY se niega (rc 2).
+- Sin Podman ni Docker en la máquina, la detección de
+  contenedores dice «ninguna».
 
-## 10. Fuera de alcance (explícito)
+Dos defectos reales cazados en estas pruebas y corregidos:
 
-- Windows y macOS: el intermediario es de Linux y los contenedores
-  se diseñan contra Podman/Docker en Linux. En Windows, las tareas
-  `sistema` quedan «no disponibles» con su motivo.
-- Editar el catálogo, instalar o desinstalar el intermediario
-  desde la app. Nunca. La app solo detecta y muestra.
-- Acciones interactivas (que pidan entrada durante la ejecución),
-  acciones con salida en vivo, y cualquier forma de terminal
-  privilegiada o «sudo libre» para agentes o para el dueño desde
-  la app.
-- La variante de servicio root con socket y `SO_PEERCRED`
-  (§3.9): especificada, no implementada. La variante anterior —
-  la contraseña del usuario en la bóveda — quedó **tachada** por
-  la revisión (§12, B8): no se implementará ni aunque se pida en
-  esos términos; lo que se puede pedir es el servicio con socket.
+1. **La puerta dual se tragaba las tareas `sistema`.** Con la
+   cuenta en modo «ambas» y el vigía en «servidor», la tarea se
+   enviaba a la sesión remota y quedaba `por_confirmar` para
+   siempre: las acciones de root son de ESTA máquina. Corrección:
+   `sistema` se suma a `consulta` y `encargo` en las exenciones
+   de `_f4_dual_aplica` (§3.4).
+2. **La base del ayudante sale del hogar del uid, no del
+   entorno** (§3.6). Con el HOME aislado del entorno de pruebas,
+   la app y el ayudante miraban carpetas distintas hasta
+   alinearlas; en una instalación estándar coinciden. Queda
+   declarado como límite conocido.
+
+### 8.3 Lo que queda para la PC del dueño
+
+Como la lista de la Fase 0, hay cosas que esta máquina no puede
+demostrar y no se fingen hechas:
+
+- La regla sudoers con **su usuario real**: en la VM de
+  desarrollo todo corre como root, así que la sonda pasa pero la
+  frontera de usuario (que sudo pida la contraseña al instalar y
+  que `sudo -n` solo alcance al ayudante) solo se prueba en su
+  PC.
+- Un **contenedor real** con Podman o Docker (en la VM no hay
+  ninguno instalado): creación, reutilización, recreación por
+  cambio de huella y un motor trabajando dentro.
+- La vía **pkexec** con sesión gráfica, si la usa: aquí no hay
+  `pkexec` ni `polkitd`.
+
+## 9. Fuera de alcance (explícito)
+
+- Windows y macOS: el intermediario es de Linux y el cableado de
+  contenedores del monolito solo se activa en POSIX. En Windows,
+  las tareas `sistema` quedan «no disponibles» con su motivo.
+- Editar el registro o la lista del dueño desde la app, e
+  instalar o desinstalar el intermediario desde la app. Nunca.
+  La app solo detecta, muestra y compone el texto de la regla.
+- Acciones interactivas (que pidan entrada durante la
+  ejecución), acciones con salida en vivo, y cualquier forma de
+  terminal privilegiada o «sudo libre», para agentes o para el
+  dueño desde la app.
+- Guardar la clave de root o la contraseña de sudo en la bóveda,
+  en cualquier forma: la revisión lo descartó por inviable
+  (Anexo A, B8) y esta arquitectura no la necesita — no hay
+  ningún secreto que guardar.
 - Contenedores para tareas sin proyecto (consultas, encargos sin
   repo): el contenedor es por proyecto y entra por la preparación
   de la Fase 3; lo demás corre como siempre.
 - Red entrante en los contenedores, puertos publicados,
-  contenedores privilegiados (`--privileged` está prohibido en la
-  construcción del argv: la función que lo construye no tiene
-  forma de emitirlo) y dispositivos del anfitrión (`--device`)
-  salvo que una fase futura lo diseñe para un caso concreto.
+  contenedores privilegiados y dispositivos del anfitrión: el
+  argv de creación no puede emitirlos (§4.4).
+- La actualización en vivo de los límites de un contenedor
+  desde el barrido de supervisión (`argv_update_limites` existe
+  sin cablear, §4.8) y el `pull` deduplicado entre carriles:
+  trabajo futuro nombrado, no prometido.
 - Cambiar `resolver_confirmacion`, la tabla de riesgos o los
-  vencimientos: el intermediario se adapta a los circuitos, nunca
-  al revés (misma regla que la Fase 5 con las aprobaciones).
+  vencimientos: el intermediario se adapta a los circuitos,
+  nunca al revés (misma regla que la Fase 5 con las
+  aprobaciones).
 
-## 11. Reversión
+## 10. Reversión
 
-- Intermediario: `instalar-intermediario.sh --desinstalar` (del
-  dueño, en su terminal). La app vuelve a «no instalado» sola, por
-  la sonda. Las tareas `sistema` que quedaran en espera siguen en
-  espera con su motivo; ninguna se ejecuta por la reversión.
-- Contenedores: poner `contenedor_modo: "no"` en el proyecto (o
-  destruir el contenedor desde la UI) devuelve el proyecto al
-  flujo exacto de la Fase 3. Los campos nuevos de `proyectos.json`
-  son ignorados por el código anterior.
-- Vales y solicitudes: borrar `confirmaciones.json` invalida las
-  solicitudes pendientes como en cualquier otra reversión de la
-  capa de permisos; los vales ya sellados viven en el dominio de
-  root, caducan solos por su ventana (≤ 60 min) y, sin
-  despachador instalado, no los puede consumir nadie.
+- **Intermediario**: el dueño borra, en su terminal, lo que los
+  comandos de instalación pusieron (`/etc/sudoers.d/growi-bridge`
+  y `/usr/local/libexec/growi-ayudante.py`). La app vuelve a «no
+  instalado» sola, por la sonda; las tareas `sistema` que
+  quedaran en espera siguen en espera con su motivo — ninguna se
+  ejecuta por la reversión. Las órdenes pendientes en
+  `raiz-ordenes/` caducan solas en 15 minutos y, sin ayudante
+  instalado, nadie puede consumirlas; borrar la carpeta es
+  seguro en cualquier momento.
+- **Contenedores**: poner `contenedor_modo: "no"` en el proyecto
+  (o destruir el contenedor desde la UI) devuelve el proyecto al
+  flujo exacto de la Fase 3. Los campos nuevos de
+  `proyectos.json` son ignorados por el código anterior.
+- **Código**: los módulos de la fase son aditivos; el cableado
+  del monolito solo se activa con tareas `sistema` o con
+  proyectos que pidan contenedor, así que revertir la fase no
+  toca el comportamiento del resto del sistema.
 
-## 12. Diseño tal como se implementó (2026-11-16) y por qué difiere del cuerpo
+===
 
-Registro honesto de lo que pasó con este documento. El cuerpo (§1–§11)
-describe la primera arquitectura: un despachador residente como root
-(`growi-rootbroker.py` en `/usr/local/libexec`), catálogo en `/etc` y
-vales firmados con HMAC. La revisión de Opus 5.5 se hizo en cuatro
-pasadas por secciones (guardadas en el historial del proyecto) y sus
-bloqueantes tumbaron esa arquitectura:
+## Anexo A — Historial: la primera arquitectura y la revisión de Opus 5.5
 
-- El vale vive en el dominio del atacante: la clave HMAC y
-  `confirmaciones.json` son del mismo uid que los motores, así que
-  una HMAC que el solicitante puede calcular no autentica nada, y
-  convertir ese material en llave de root empeora la frontera.
-- `NOPASSWD` acota el programa, no al humano: cualquier proceso del
-  uid ejecutaría el despachador sin nadie delante, contra el
-  principio de confirmación humana previa.
-- TOCTOU de catálogo entre lo que la app clasifica y lo que root
-  ejecuta; «acción desconocida» en espera de decisión sería un
-  fail-hang, no un fail-closed; las plantillas de argv dejaban huecos
-  (hueco en `argv[0]`, huecos pegados, caracteres no prohibidos).
+Este anexo es el registro honesto de cómo se llegó a la
+arquitectura del cuerpo. No describe comportamiento del sistema:
+describe un diseño descartado y por qué.
 
-La consolidación de la revisión llegó tarde y está en el §13 de
-este mismo documento: documenta los hallazgos contra la primera
-arquitectura y unas correcciones que apuntaban a un despachador
-que sella vales como root. Esa tampoco es la arquitectura final:
-la implementación tomó una ruta más simple que responde a los
-mismos bloqueantes sin ningún componente residente como root (no
-hay vale que forjar porque no hay vales; el ayudante no tiene
-privilegios; el factor humano es el circuito de aprobaciones más
-la orden de un solo uso). Cuando el §13 y este §12 difieran, **el
-§12 manda**: es lo que el código hace.
+### A.1 La primera arquitectura
 
-### 12.1 La arquitectura implementada
+El diseño original de esta fase proponía:
 
-- **`raiz.py`** — el registro cerrado de acciones vive EN CÓDIGO (no
-  en un archivo editable): `systemctl status|start|stop|restart`
-  solo sobre la lista de unidades del dueño (regex estricta +
-  pertenencia a la lista), `apt-get update`, `apt-get install -y`
-  con nombre de paquete validado por la regex de Debian. Sin shell,
-  sin plantillas: cada argv se construye desde el registro. Una
-  acción desconocida se RECHAZA en validación con motivo
-  `accion_desconocida` (nunca queda colgada). La huella canónica de
-  los parámetros liga lo aprobado con lo ejecutado.
-- **`growi-ayudante.py`** — ejecutable SIN privilegios al que una
-  regla sudoers autoriza por argv exacto (lo instala el dueño con
-  `instalar-raiz.py`, §12.3). Espejo independiente del registro:
-  revalida todo por su cuenta, exige `SUDO_UID`/`PKEXEC_UID` (ni
-  siquiera root invocándolo a mano lo hace correr), impone su propio
-  ritmo desde su log encadenado por hashes y ejecuta con
-  `shell=False`, entorno mínimo y timeout con muerte del grupo.
-- **La orden de un solo uso** — tras la aprobación humana en el
-  circuito existente, el runner deja una orden breve y de un solo
-  uso en `raiz-ordenes/`; el ayudante la exige y la consume
-  (`O_EXCL`). Sin orden viva no ejecuta nada, venga la petición de
-  donde venga. La orden NO es una credencial criptográfica: vive en
-  el dominio del usuario y su valor es de consumo y auditoría (liga
-  cada ejecución a UNA aprobación concreta y la quema), no de
-  autenticación entre procesos del mismo uid — ese límite se declara,
-  no se disimula: el control real es el circuito de aprobación con
-  orígenes humanos de la capa de permisos.
-- **Sin clave de root en ningún sitio**: no hay daemon residente, no
-  hay secreto que guardar; la elevación la concede la regla sudoers
-  que el dueño instala, y solo para el ayudante y sus argv exactos.
-- **Contenedores**: implementados tal como dice el §5 (uno por
-  proyecto con los dos worktrees, Podman sin root preferente,
-  credenciales de git fuera, red por política, opt-in por proyecto).
-- **Detección y degradación**: la vía se detecta y se declara
-  (sudoers verificado por sonda / pkexec presente sin verificar /
-  ninguna); sin vía, las acciones privilegiadas simplemente no están
-  disponibles y la app lo dice.
+- Un **despachador residente como root**,
+  `growi-rootbroker.py`, instalado en `/usr/local/libexec`, que
+  ejecutaba las acciones.
+- Un **catálogo en `/etc/growi-bridge/acciones.json`** con
+  plantillas de argv y dominios, leído por la app para clasificar
+  y por el despachador para ejecutar.
+- **Vales firmados con HMAC**: la decisión humana se materializaba
+  en un registro firmado de `permission-layer.py` y el
+  despachador ejecutaba contra ese vale.
+- Como «último recurso» para lo que sudoers/polkit no expresaran,
+  una variante con la contraseña del usuario guardada en la
+  bóveda.
 
-### 12.2 Pruebas de esta arquitectura
+### A.2 La revisión
 
-64 pruebas nuevas (409 en total con las anteriores): argv
-manipulados y metacaracteres rechazados, clases no registradas,
-huella coincidente entre app y ayudante, ritmos, el generador que no
-compone nada con nombres inválidos, el ayudante que rechaza sin
-elevación, sin orden, con orden caducada o reutilizada, y el cruce
-real app↔ayudante sin mocks entre ellos. Las pruebas físicas con una
-regla sudoers de un usuario real y con un contenedor real quedan
-para la PC del dueño (en la VM de desarrollo se corre como root, lo
-que no demuestra la vía, y no hay Podman ni Docker instalados).
+La revisión se pidió a `claude-opus-5-5` vía MWAPI con un anexo
+de hechos verificados del código. El gateway cortó las
+generaciones largas una y otra vez, así que se hizo en **cuatro
+pasadas por secciones** — A: §1–§3.3; B: §3.4–§3.9; C: §5
+(contenedores); D: §6–§11 — cuyas salidas completas quedan
+guardadas en `~/workspace/revision-fase6/opus-{A,B,C,D}.txt`.
+Resultado: **14 bloqueantes y 20 importantes**, más menores.
 
-## 13. Revisión de Opus 5.5 y correcciones aplicadas (§ bis)
+Los bloqueantes clave, en una línea cada uno:
 
-La revisión se pidió a `claude-opus-5-5` vía MWAPI con un anexo de
-hechos verificados del código (el circuito de `permission-layer.py`,
-las aprobaciones del monolito, `_f3_preparar`, `git_trabajo.py` y el
-entorno real de la VM). El gateway cortó las peticiones largas una y
-otra vez (desconexiones de stream a mitad de generación), así que la
-revisión se hizo en **cuatro pasadas por secciones** — A: §1–§3.3;
-B: §3.4–§3.9; C: §5; D: §6–§11 — con salidas acotadas; las cuatro
-salidas completas quedan guardadas en el historial del proyecto
-(`~/workspace/revision-fase6/opus-{A,B,C,D}.txt`). La numeración de
-esta sección es continua; cada hallazgo cita su pasada. Todas las
-correcciones están aplicadas en el cuerpo, en la sección que se
-indica.
+- **B1. El vale vivía en el dominio del atacante.** La clave HMAC
+  y `confirmaciones.json` son del mismo uid que los motores: una
+  firma que el solicitante puede calcular no autentica nada, y al
+  abrir acciones de root esa clave se convierte en material
+  root-equivalente. Sin nonce ni liga a tarea, el vale además era
+  reutilizable durante toda su ventana.
+- **B2. `NOPASSWD` acota el programa, no al humano.** Cualquier
+  proceso del uid invocaría el despachador sin nadie delante,
+  contra el principio de confirmación humana previa.
+- **B3. TOCTOU de catálogo.** La app clasificaba con su lectura y
+  root ejecutaría con la suya; una edición intermedia cambiaba
+  el argv o el nivel bajo una aprobación ya dada.
+- **B4. Acción desconocida = fail-hang.** Sin entrada en el
+  catálogo no hay nivel, luego ni clasificación ni puerta: la
+  tarea colgaría para siempre en vez de rechazarse.
+- **B5. Plantillas de argv con huecos.** Nada prohibía `{a}{b}`
+  (hueco pegado a hueco), un hueco en `argv[0]` (una ruta ahí
+  apuntaría a `/bin/sh`) ni caracteres `{`/`}` en los literales.
+- **B8. El «último recurso» era inviable.** Un servicio root
+  lanzando `sudo -S` no eleva nada (siendo root, sudo no pide
+  contraseña), y la contraseña en la bóveda la obtiene cualquier
+  proceso del mismo uid: no es una frontera.
+- **B9. El `.git` en lectura-escritura anulaba la frontera de
+  los contenedores.** Con el almacén montado rw, el código de
+  dentro podía reescribir `.git/config` y el anfitrión lo
+  ejecutaría después, justo cuando existe el entorno de push.
+- **B10. Matar el `exec` no mata el proceso de dentro.** Un
+  timeout del runner no garantizaba que el proceso del
+  contenedor hubiera muerto.
+- **B11. Las credenciales del motor entrarían al contenedor**
+  si el entorno del `exec` no se filtraba por nombre.
 
-### Bloqueantes
+La corrección que la propia revisión aplicó sobre el papel
+intentaba salvar la arquitectura con más maquinaria del lado de
+root: que el despachador **sellara** los vales en su propio
+dominio (clave propia, nonce por aprobación, consumo atómico),
+que R3 exigiera además un acto del dueño en su terminal, y un
+servicio con socket y `SO_PEERCRED` en lugar de la contraseña en
+la bóveda.
 
-- **B1 (A-B1, B-B1, B-I2, A-I4). El vale vivía en el dominio del
-  atacante.** `permission-secret.key` y `confirmaciones.json` son
-  del mismo uid que los motores: una HMAC que el solicitante puede
-  calcular no autentica nada, y al abrir acciones de root esa clave
-  se convierte en material root-equivalente — «no empeora la
-  frontera» era falso. Sin nonce ni liga a tarea, además, el vale
-  era reutilizable durante toda su ventana. **Corrección
-  aplicada**: el registro de `permission-layer` pasa a ser la
-  *solicitud*; el vale lo **sella el despachador como root**
-  (`--sellar`), con clave propia, nonce por aprobación, liga a
-  tarea y aprobación, y consumo atómico en su dominio (§1.4, §1.8,
-  §3.5).
-- **B2 (B-B2, parte de A-B1). `NOPASSWD` acota el programa, no al
-  humano.** Cualquier proceso del uid invocaría el despachador sin
-  nadie delante, contra «cada acción con confirmación humana
-  previa». **Corrección aplicada**: el factor humano se declara
-  como lo que es — el circuito de aprobaciones, como en el resto
-  de Growi — y **R3 nunca se ejecuta solo con sudoers+vale**:
-  exige el acto `autorizar` del dueño en su terminal o la vía
-  polkit con `auth_admin` (§3.4, §3.5).
-- **B3 (A-B3, D-B5). TOCTOU y divergencia de catálogo.** La app
-  clasifica con su lectura y root ejecutaría con la suya; una
-  edición intermedia cambiaba el argv o el nivel bajo una
-  aprobación ya dada, y la divergencia solo «se anotaba».
-  **Corrección aplicada**: la huella cubre huella del catálogo +
-  id + nivel + argv resuelto + parámetros; el despachador la
-  recalcula al sellar y, si difiere, `catalogo_divergente` sin
-  ejecutar (§3.3, §3.5, §8).
-- **B4 (A-B4). Acción desconocida = fail-hang.** En espera de
-  decisión no hay nivel ni puerta que la decida: la tarea colgaría
-  para siempre. **Corrección aplicada**: rechazo en validación
-  con `accion_desconocida`, y también para `sistema` vacío o sin
-  `accion` (§3.2).
-- **B5 (A-B5). Plantillas de argv con huecos.** Nada prohibía
-  `{a}{b}`, un hueco en `argv[0]` (un `ruta` ahí apuntaría a
-  `/bin/sh`) ni `{`/`}` en los literales. **Corrección aplicada**:
-  plantilla parseada una vez; cada elemento es un literal limpio
-  o exactamente un hueco declarado; `argv[0]` literal, absoluto,
-  de root y no escribible por otros (§3.3).
-- **B6 (B-B3). Polkit contradictorio.** El diseño mezclaba un
-  ayudante que lanzaba pkexec contra el despachador (una sola
-  identidad de acción, y `--accion-fija` elegido por el llamante)
-  con los envoltorios por acción. **Corrección aplicada**: la app
-  invoca `pkexec /usr/local/libexec/growi-broker-<id>`
-  directamente; el envoltorio lleva el id literal, ignora
-  argumentos y hace `exec` del despachador (§3.4).
-- **B7 (B-B4). Los dominios acotan argv, no el contenido.** Una
-  acción que opere sobre rutas escribibles por el usuario es
-  ejecución de código como root por contenido o por symlink.
-  **Corrección aplicada**: invariante de catálogo (nada interpreta
-  contenido del usuario como código/config; rutas fuera de árboles
-  del usuario; rechazo si un componente del camino es symlink)
-  (§3.3).
-- **B8 (B-B5). El §3.9 era inviable.** Un servicio root lanzando
-  `sudo -S` no eleva nada, y la contraseña en la bóveda la lee
-  cualquier proceso del uid con `_sec_get`. **Corrección
-  aplicada**: la variante de la clave queda **tachada**; el último
-  recurso especificado es un servicio root con socket Unix y
-  `SO_PEERCRED`, sin ningún secreto (§3.9, §10).
-- **B9 (C-B1). El `.git` rw anula la frontera por la puerta de
-  atrás.** Desde dentro se reescribe `core.hooksPath` o la URL
-  del remoto y el anfitrión lo ejecuta en la mezcla o en
-  `subir()`, con el entorno de push presente. **Corrección
-  aplicada**: en `por_cuenta`, `.git` en solo lectura y commits
-  del anfitrión; en `proyecto`, rw solo con el endurecimiento
-  obligatorio en `git_trabajo.py` (config neutralizada por `-c` en
-  toda invocación y huella de la URL del remoto verificada antes
-  de empujar) (§5.4).
-- **B10 (C-B4). Matar el `exec` no mata el proceso de dentro.**
-  El runner soltaría alquileres y lanzaría otra tarea sobre el
-  mismo worktree con el proceso anterior aún escribiendo.
-  **Corrección aplicada**: cuarentena — tras un timeout el
-  contenedor no se reutiliza; se destruye y recrea con la misma
-  huella, auditado y avisado; la otra tarea que compartía
-  contenedor falla con `contenedor_cuarentena` y puede
-  reintentarse (§5.6, §5.8, §8).
-- **B11 (C-B5). Las credenciales del motor entrarían al
-  contenedor.** Filtrar «lo que el motor ya recibiría» incluye la
-  clave del modelo, y el `PATH`/`HOME` del anfitrión no existen
-  dentro. **Corrección aplicada**: lista de entorno propia de
-  `contenedores.py` (las credenciales no pasan salvo opt-in
-  explícito en modo `proyecto`; en `por_cuenta`, nunca), `HOME`
-  dentro del montaje, y declarado que los motores con login por
-  archivo no se autentican dentro en esta versión (§5.3, §5.8).
-- **B12 (D-B1). Con euid 0, la sonda miente en los dos sentidos.**
-  `sudo -n` como root no consulta sudoers (falso positivo de vía)
-  y el despachador rechazaría por `SUDO_UID` (falso negativo); y
-  el instalador no puede probar «desde la cuenta del dueño»
-  siendo ya root. **Corrección aplicada**: vía `root-local` con
-  euid 0, sonda sudoers válida solo con `uid_origen != 0`, e
-  instalador que prueba con `runuser -u "$SUDO_USER"` (§3.4,
-  §6.1, §9.2).
-- **B13 (D-B3). El instalador podía dejar sudo roto.** Escribir
-  `/etc/sudoers.d` y validar después, sin diario ni orden de
-  deshacer; y `--desinstalar` no quitaba lo de polkit.
-  **Corrección aplicada**: temporal + validación + mover, diario
-  de pasos con `trap` que revierte en orden inverso, idempotencia
-  con lock, y desinstalación completa (§6.1).
-- **B14 (D-B4). La inyección de rutas para pruebas sería una
-  puerta trasera.** Si el binario instalado leyera su raíz de una
-  variable de entorno, la lista blanca dejaría de existir.
-  **Corrección aplicada**: el despachador instalado no lee
-  entorno para configurarse; las rutas se inyectan como parámetros
-  solo en la lógica que prueban las unitarias, y una prueba física
-  verifica que `GROWI_BROKER_ETC=…` no cambia nada (§3.1, §9.1,
-  §9.2).
+### A.3 Por qué se descartó, y qué se implementó en su lugar
 
-### Importantes
+Al consolidar la revisión se vio el patrón: cada bloqueante se
+«arreglaba» añadiendo una pieza más del lado de root para
+defender un vale que solo existía porque el diseño lo había
+creado. La implementación tomó el camino contrario: **quitar el
+vale y el componente residente**, y responder a los mismos
+bloqueantes por otra vía. El mapeo, destilado de la nota de
+divergencia que cerró la revisión:
 
-- **I1 (A-I1).** `entero` sin forma canónica: `int()` acepta
-  `+1`, `007` y dígitos Unicode; lo ejecutado podía no ser lo
-  hasheado. Forma `^[0-9]{1,9}$` y `str(int(v))` para hash y argv
-  (§3.3).
-- **I2 (A-I2).** `ruta`+`realpath` rompía el catálogo inicial
-  (`/dev/disk/by-label/X` resuelve fuera del prefijo: `montar` no
-  validaría nunca) y admitía controles que acaban en la
-  descripción del dueño. Tipo `dispositivo` nuevo, rechazo de
-  controles y escapado en descripciones (§3.3).
-- **I3 (A-I3).** No se decía quién emite la prueba con origen
-  humano. Queda escrito sin ambigüedad: la emite la puerta al
-  decidir (la solicitud), y el despachador solo ejecuta vales
-  sellados por él (§3.5).
-- **I4 (A-I5).** `lanzador: "ambos"` sin orden ni política de
-  fallo, y polkit inviable en el entorno verificado. Fuera del
-  esquema v1: una acción, una vía (§3.3).
-- **I5 (B-I1).** La ventana contaba desde la aprobación y chocaba
-  con la cola, `aplazar` y la suspensión, sin estado de reapertura
-  definido. La ventana cuenta **desde el sello**, el sello se pide
-  al recoger, y `vale_caducado` vuelve a `esperando_aprobacion`
-  exigiendo aprobación nueva (§3.5).
-- **I6 (B-I3, D-I1).** El log del despachador bifurcaba con dos
-  invocaciones y `logrotate` lo rompía; y faltaba el bloqueo si
-  no se puede auditar. `flock` para leer-y-añadir, rotación
-  propia con ancla en `/var/lib`, asiento de intención antes de
-  ejecutar en los dos lados y bloqueo si falla (§3.7).
-- **I7 (B-I4).** `via` queda fuera del payload que firma `_firma`:
-  era falsificable y R3 no puede descansar sobre él. `via` es
-  informativo; la política de canales vive en
-  `decidir_aprobacion` y la de R3 en el acto en terminal (§3.5).
-- **I8 (B-I5).** El timeout con `alarm`+`killpg` deja vivos a los
-  hijos que hacen `setsid`. Ejecución bajo unidad transitoria de
-  systemd con `KillMode=control-group`, sondeada al instalar;
-  fallback declarado más débil (§3.6).
-- **I9 (C-B3).** La premisa rootless es falsa con euid 0. La
-  detección lo devuelve (`rootful: true`), la UI lo declara y la
-  aceptación lo trata como mecánica, no como frontera (§5.2).
-- **I10 (C-B2).** El almacén compartido deja leer los commits de
-  la otra cuenta y el índice ro puede ir desfasado. Declarado en
-  §5.4 y en la UI en vez de prometido al revés; la alternativa
-  (clones por cuenta) se rechazó porque rompe el modelo de
-  worktrees de la Fase 3 para aislar a dos cuentas del mismo
-  dueño entre sí, que no es la amenaza.
-- **I11 (C-I1).** La huella ignoraba límites y orígenes, y
-  reutilizar por nombre permitía adoptar un contenedor ajeno.
-  Huella con límites y montajes, y reutilización solo tras
-  `inspect` con etiquetas y huella coincidentes (§5.5, §5.6).
-- **I12 (C-I2).** Recrear destruía sin la confirmación que
-  destruir sí exige. Recrear por cambio de configuración pasa por
-  la misma confirmación R2, con nombre y ambas huellas en el
-  texto normalizado (§5.6).
-- **I13 (C-I3).** El `pull` de 600 s con los alquileres tomados
-  bloqueaba el proyecto y en `requerido` se reintentaba cada
-  latido. Pull antes de los alquileres, por digest y deduplicado
-  entre carriles (§5.3, §5.8).
-- **I14 (C-I4).** `contenedor_comando` no estaba en el esquema y
-  hay imágenes sin `sleep`. Campo añadido y sonda de comando de
-  espera a la creación con su motivo exacto (§5.3, §5.6).
-- **I15 (C-I5).** Red `saliente` por defecto en `por_cuenta`
-  contradecía la caja de arena. Defecto por modo: `proyecto` →
-  `saliente`, `por_cuenta` → `ninguna`, con lo que eso implica
-  declarado (§5.3).
-- **I16 (D-B2).** La prueba del vale caducado («ventana de 5 s»)
-  contradecía §10 y las ventanas fijas. Caducidad con reloj
-  inyectable en unitarias y, en físico, con un sello de reloj
-  falso desde la costura de pruebas de la app — nunca una
-  constante del despachador instalado (§9.1, §9.2).
-- **I17 (D-I2).** No se decía si un `rc != 0` consume el vale ni
-  qué pasa con el lock ocupado 660 s. Consumo en la invocación
-  (un intento, no un éxito) y lock con espera de 10 s → `ocupado`
-  con el vale intacto (§3.5, §8).
-- **I18 (D-I3).** `via: "ninguna"` mezclaba causas y la UI no
-  podía decir qué arreglar. Motivos enumerados con el comando
-  exacto que falló, y la prueba física cubre tres causas (§6.3,
-  §9.2).
-- **I19 (D-I4).** La caché de la sonda (60 s) no puede autorizar
-  ejecuciones. Caché solo para la UI; `ejecutar` invoca y, si no
-  hay respuesta, la tarea espera sin gastar la aprobación (§6.3).
-- **I20 (D-I5).** Un salto de reloj resucitaría vales y dejaría
-  asientos incoherentes. Frescura por el mayor de reloj de pared
-  y monotónico con `boot_id` (un reinicio invalida los vales
-  sellados antes), y salto asentado (§3.5, §8).
+| Bloqueante | Respuesta de la arquitectura implementada |
+|---|---|
+| B1 (vale en el dominio del uid) | No hay vales. La **orden** es un token de consumo declarado no criptográfico (§3.5): liga y quema la aprobación; el control es el circuito de aprobaciones, y el límite mismo-uid se declara en vez de disimularse con una firma |
+| B2 (NOPASSWD sin humano) | El factor humano se declara como lo que es en todo Growi — el circuito de aprobaciones — y la orden ata cada ejecución a **una** aprobación concreta y viva; sin orden, el ayudante no ejecuta aunque lo invoquen |
+| B3 (TOCTOU de catálogo) | No hay catálogo editable: el registro es **código idéntico** en la app y el ayudante (una prueba verifica que coinciden) y la **huella** de parámetros liga lo aprobado con lo ejecutado; la lista del dueño solo puede estrechar |
+| B4 (fail-hang) | Igual en ambas arquitecturas: rechazo en validación con `accion_desconocida`; la tarea se cierra `necesita_decision`, nunca cuelga (§3.4) |
+| B5 (huecos de plantillas) | Sin plantillas editables: los argv viven en código, con huecos que ocupan elementos enteros y dominios cerrados por regex + pertenencia (§3.2) |
+| B8 (último recurso inviable) | Tachado sin sustituto: no hay contraseña guardada en ningún sitio porque la arquitectura no la necesita (§9) |
+| B9 (.git rw) | En `por_cuenta` el `.git` va en **solo lectura** y los commits de ese flujo los hace el anfitrión; en `proyecto` (código del propio dueño) se declara el riesgo en vez de prometer lo que no hay (§4.4) |
+| B10 (matar el exec) | Queda como **límite declarado**: el timeout del runner mata el `exec`; esta versión no pone el contenedor en cuarentena ni finge que el proceso de dentro haya muerto (§9) |
+| B11 (credenciales al contenedor) | El entorno del `exec` se filtra **por nombre** con una regex de credenciales, sin excepciones, y `.git/config` se inspecciona antes de crear (§4.5) |
 
-### Menores (los «resto» de las cuatro pasadas)
+Los contenedores fueron la parte donde el diseño original y lo
+implementado **sí coincidieron** en las decisiones (uno por
+proyecto con los dos worktrees, `por_cuenta` para código no
+confiable, opt-in por proyecto); las diferencias finales son de
+detalle contra el código y están recogidas en el §4 de este
+documento, que es el que manda.
 
-Vales por acción y sin deshacer en tareas multi-acción (§7.1); el
-timeout de `instalar-paquete` avisa del estado de dpkg (§3.6); los
-scripts de paquete como root, declarados en la fila del catálogo
-(§3.3); las tareas `sistema` no toman alquileres ni worktrees
-(§3.2); `intermediario.json` a 0600 y sus rutas de dominio root
-validadas (§3.1); asientos de crear/recrear/cuarentena/destruir en
-la auditoría de la cuenta y banderas de endurecimiento del
-contenedor (§5.4, §5.6); el `pwd` espejo se verifica en la prueba
-física de contenedores (§9.2); `plataforma_no_soportada` como
-motivo (§6.3); instalador idempotente con lock (§6.1); y el
-barrido vigila la huella del catálogo (§7.5).
-
-### Lo que la revisión no cambió
-
-El despachador no residente invocado por acción, la petición JSON
-por stdin, el entorno construido desde cero, el catálogo fuera del
-alcance de la app, la doble auditoría, que sudoers fije el binario
-exacto con la granularidad en el catálogo de root, montar solo los
-worktrees y el `.git` en sus rutas absolutas (los punteros
-resuelven sin traducción), la sonda real de runtime, el nombre
-determinista de contenedor con etiquetas, la asimetría de
-degradación de §5.7, que la app nunca instale nada como root, la
-detección polkit por presencia sin diálogos sorpresa y la simetría
-de la reversión.
-
-### Nota de divergencia con §12
-
-El §12 de este documento registra que la implementación se hizo
-sobre una arquitectura corregida distinta de la del cuerpo
-(`raiz.py` con el registro en código, `growi-ayudante.py` sin
-privilegios autorizado por sudoers con argv exactos, y una *orden*
-de un solo uso en el dominio del usuario, declarada no
-criptográfica). Esta sección y los ajustes del cuerpo llegaron
-después de ese registro: el cuerpo (§1–§11) ya incorpora las
-correcciones de la revisión, pero su arquitectura — despachador
-root en `/usr/local/libexec`, catálogo en `/etc`, vale sellado en
-el dominio de root — **no es la implementada**. Las dos resuelven
-varios bloqueantes por caminos distintos: B1, aquí con el sello
-root y allí con la orden consumible y su límite declarado; B5,
-aquí con plantillas parseadas y allí sin plantillas (argv
-construidos desde el registro en código); B4, igual en ambas
-(rechazo con `accion_desconocida`); los contenedores (§5) sí
-coinciden. Cuál de las dos arquitecturas manda — y si el cuerpo o
-el código es el que debe moverse — es una decisión del dueño y del
-agente principal, no de esta revisión; queda registrada aquí para
-que nadie lea el cuerpo como descripción del código actual.
-
-### 12.3 Pruebas físicas (2026-11-16) y dos defectos más
-
-Con la app real y la regla instalada de verdad en la máquina de
-pruebas (regla compuesta desde el registro, `visudo` OK, ayudante
-instalado en `/usr/local/libexec`): la sonda verifica la vía
-«sudoers»; antes de instalar el ayudante, la detección dijo con
-honestidad «instalación incompleta», que es su trabajo. Una acción
-R1 (`servicio-estado`) aprobada por el canal recorrió todo el
-circuito: permiso consumido al recoger, orden creada y consumida,
-el ayudante ejecutó el argv exacto y el resultado (código 4: la
-máquina de pruebas no corre systemd) quedó asentado dos veces, en
-la auditoría de la cuenta y en el log encadenado del ayudante, con
-la misma huella. La acción desconocida se rechazó sin colgarse y el
-parámetro manipulado (`ssh; touch …`) se rechazó sin ejecutar nada.
-`instalar-raiz.py` sin TTY se niega (rc 2). Sin Podman ni Docker en
-la máquina, la detección de contenedores dice «ninguna».
-
-Dos defectos cazados en estas pruebas:
-
-1. **La puerta dual se tragaba las tareas `sistema`.** Con la cuenta
-   en modo «ambas» y el vigía en «servidor», la tarea se enviaba a
-   la sesión remota y quedaba `por_confirmar` para siempre: las
-   acciones de root son de ESTA máquina. Corrección: `sistema` se
-   suma a `consulta` y `encargo` en las exenciones de
-   `_f4_dual_aplica` (se procesan en local siempre).
-2. **La base del ayudante sale del hogar del uid, no del entorno.**
-   El ayudante deriva su carpeta de datos del `pw_dir` del
-   `SUDO_UID` a propósito (sudo recorta el entorno; una base que
-   viniera del llamante sería movible por él). Consecuencia: con un
-   `XDG_DATA_HOME` no estándar, la app y el ayudante mirarían
-   carpetas distintas y la unidad parecería «fuera de la lista». En
-   una instalación estándar (XDG por defecto) coinciden; queda
-   declarado aquí como límite conocido.
+Queda registrado también el punto que la revisión dejó abierto
+y este documento cierra: entre el cuerpo original corregido
+(despachador + vales sellados) y el código, **manda el código** —
+es la arquitectura probada (§8) — y este documento, reescrito,
+es su descripción.
