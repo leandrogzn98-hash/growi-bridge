@@ -4239,8 +4239,14 @@ def _lane_b_prohibidos():
     return files, dirs
 
 
-def _lane_guard(data):
-    """None si el task puede correr en este carril; si no, el motivo exacto."""
+def _lane_guard(data, f3=None):
+    """None si el task puede correr en este carril; si no, el motivo exacto.
+
+    Con f3 (la preparación de la Fase 3 de esta tarea en el runner),
+    el worktree preparado cuenta como carpeta propia del carril: los
+    archivos relativos se resuelven contra él y el cwd válido es el
+    efectivo. Sin f3 (puente y demás caminos), la regla de siempre:
+    todo dentro de APP_DIR."""
     lane = str(data.get("lane") or "").strip().lower()
     if LANE == "a":
         if lane in ("", "a"):
@@ -4260,23 +4266,24 @@ def _lane_guard(data):
             or not all(isinstance(a, str) and a.strip() for a in archivos)):
         return ('carril B: rechazado sin ejecutar: falta la lista "archivos" (los archivos que '
                 'la tarea va a tocar), o está vacía o no es una lista de rutas')
+    wt = (f3 or {}).get("worktree") if isinstance(f3, dict) else None
     files, dirs = _lane_b_prohibidos()
     prohib = {_lane_norm(f) for f in files}
     for a in archivos:
-        an = _lane_norm(a.strip())
+        an = _lane_norm(a.strip(), base=wt) if wt else _lane_norm(a.strip())
         if an in prohib or any(_lane_inside(an, d) for d in dirs):
             return (f"carril B: rechazado sin ejecutar: declara {a} en \"archivos\", que está en "
                     "la lista prohibida (growi-bridge.py, runner.py, engines.json, settings.json "
                     "y share\\inbox\\growi-bridge-app del carril A, y el código del propio carril B)")
-        if not _lane_inside(an, APP_DIR):
+        if not _lane_inside(an, APP_DIR) and not (wt and _lane_inside(an, wt)):
             return (f"carril B: rechazado sin ejecutar: declara {a} en \"archivos\", que está "
                     f"fuera de la carpeta del carril B ({APP_DIR})")
     lee = data.get("lee")
     if lee is not None and (not isinstance(lee, list)
                             or not all(isinstance(x, str) and x.strip() for x in lee)):
         return 'carril B: rechazado sin ejecutar: "lee" debe ser una lista de rutas'
-    cwd = _lane_norm(data.get("cwd") or APP_DIR)
-    if not _lane_inside(cwd, APP_DIR):
+    cwd = _lane_norm((f3 or {}).get("cwd_efectivo") or data.get("cwd") or APP_DIR)
+    if not _lane_inside(cwd, APP_DIR) and not (wt and _lane_inside(cwd, wt)):
         return (f"carril B: rechazado sin ejecutar: cwd {data.get('cwd')} está fuera de la "
                 f"carpeta del carril B ({APP_DIR})")
     return None
@@ -4354,13 +4361,13 @@ def _lane_snapshot():
     return snap
 
 
-def validate_task(data):
+def validate_task(data, f3=None):
     if not isinstance(data, dict):
         return None, "el task.json no es un objeto JSON"
     task_id = data.get("id")
     if not _safe_id(task_id):
         return None, "id invalido o ausente (solo letras, numeros, - _ .)"
-    lane_err = _lane_guard(data)
+    lane_err = _lane_guard(data, f3=f3)
     if lane_err:
         return None, lane_err
     if "ollama_action" in data:
@@ -5668,6 +5675,15 @@ def _engine_env(eng):
         key, _b, _m = resolver_credencial(eng["credencial_ref"])
         if key:
             env[str(como["entorno"])] = key
+    # Fase 3 (§6.2 paso 0): el entorno de TODO motor sale sin credenciales
+    # de escritura git (ni agente SSH ni token de GitHub): la capa que de
+    # verdad impide que una Muse suba por su cuenta no es el hook, es
+    # que no tiene con qué autenticarse.
+    try:
+        import git_trabajo as _gt
+        env = _gt.aplicar_entorno_sin_credenciales(env)
+    except Exception:
+        pass
     return _ensure_no_proxy(env)
 
 
@@ -12822,6 +12838,15 @@ def cola_recuperar():
     cola_init()
     recuperadas, avisos = [], []
     for r in _cola("SELECT * FROM tareas WHERE estado IN ('en_cola', 'en_curso')", fetch=True):
+        # Fase 3 (B2): una tarea con marcador de traspaso vivo NO se
+        # recupera en el origen: la tiene su destino (o el dueño).
+        try:
+            import traspaso as _tr
+            if _tr.marcador_vivo_de(_base_tablero(), r["id"]):
+                log(f"cola: la tarea {r['id']} tiene un traspaso vivo; no se recupera en el origen")
+                continue
+        except Exception:
+            pass
         tid, name = r["id"], Path(r["archivo"] or f"{r['id']}.task.json").name
         if tid in _cola_corriendo:  # runner apagado y encendido con la tarea aun corriendo
             continue
@@ -13586,8 +13611,8 @@ def _process_one_impl(task_file):
         _write_result(_error_result(task_file.stem, f"JSON invalido: {e}"))
         return True
     cid = cola_registrar(task_file, data)
-    task, error = validate_task(data)
     task_id = data.get("id") if isinstance(data.get("id"), str) else task_file.stem
+    task, error = validate_task(data, f3=_F3_PREP.get(task_id))
     if not error:
         error = _lane_b_espera_a(task)
     if error:
@@ -13608,6 +13633,12 @@ def _process_one_impl(task_file):
                  motivo=f"definitivo, sin reintentos: {error}"[:300])
         _write_result(res)
         return True
+    # Fase 3: si la preparación apartó un worktree para esta tarea, corre
+    # DENTRO de él (la ruta deriva mecánicamente del cwd ya validado; no
+    # pasa por la lista de carpetas permitidas).
+    _f3p = _F3_PREP.get(task_id)
+    if _f3p and _f3p.get("cwd_efectivo"):
+        task["cwd"] = _f3p["cwd_efectivo"]
     is_model = bool(task.get("ollama_action"))
     if not is_model:
         need = _approval_needed(task)
@@ -13766,6 +13797,26 @@ def _process_one_impl(task_file):
                 _RUN.update(proc=None, conn=None, id=None, ck=None)
                 _cola_corriendo.discard(cid)
             return True
+    if not is_model and (cola_get(cid) or {}).get("estado") == "traspasando":
+        # Fase 3 (B1): la tarea se traspasó mientras corría y este
+        # resultado tardío se DESCARTA: la fila queda «traspasando» (no
+        # «terminada») y la tarea la continúa la otra cuenta, una vez.
+        log(f"runner [{task['id']}]: resultado tardío descartado: la tarea se traspasó a otra cuenta")
+        try:
+            live_finish("traspasada a otra cuenta")
+        except Exception:
+            pass
+        state["current"] = None
+        state["paso"] = None
+        state["current_motor"] = state["current_modelo"] = None
+        _RUN.update(proc=None, conn=None, id=None, ck=None)
+        try:
+            shutil.move(str(processing_path), str(DONE / task_file.name))
+            cola_set(cid, archivo=str(DONE / task_file.name))
+        except OSError:
+            pass
+        _cola_corriendo.discard(cid)
+        return True
     hist = _cola_hist(row)
     result["intentos"] = (row.get("intentos") or 0) + 1
     result["reintentos"] = row.get("reintentos") or 0
@@ -13950,6 +14001,10 @@ def runner_loop(stop_event):
             + (f"; la próxima vence el {hora_caracas_txt(pend[0]['vence_ts'])} (Caracas)" if pend else ""))
     except Exception as e:
         log(f"aprobaciones ERROR al arrancar (el runner sigue): {type(e).__name__}: {e}")
+    try:
+        _f3_arranque()
+    except Exception as e:
+        log(f"Fase 3 ERROR al arrancar (el runner sigue): {type(e).__name__}: {e}")
     _eng, _err = load_engines()
     log("motores: " + ", ".join(f"{k} {'sí' if v['disponible'] else 'no'}"
                                 for k, v in engines_summary().items())
@@ -13989,9 +14044,14 @@ def runner_loop(stop_event):
                 for _cand in candidates:
                     _p = _puerta_tablero(_cand)
                     if _p == "ok":
+                        # Fase 3: alquileres + worktree antes de correr.
+                        _f3v, _f3prep = _f3_preparar(_cand)
+                        if _f3v != "ok":
+                            continue
                         if process_one(_cand):
                             runner_heartbeat()
                             last_heartbeat = time.time()
+                        _f3_tras_process_one(_cand, _f3prep)
                         break
                     if _p == "esperar":
                         break
@@ -14477,6 +14537,7 @@ def _tablero_latido(cur):
         if nuevo != _TABLERO["estado"]:
             log(f"tablero: la cuenta «{cuenta}» pasa a {nuevo} según el tablero")
             _TABLERO["estado"] = nuevo
+        _f3_latido(cuenta, nuevo)
     except Exception as e:
         log(f"tablero: latido con error ({type(e).__name__}: {e}); el runner sigue")
 
@@ -14550,6 +14611,13 @@ def _puerta_tablero(task_file):
     if not isinstance(data, dict) or data.get("ronda"):
         return "ok"
     cuenta = _cuenta_de_este_carril()
+    if isinstance(data.get("traspaso"), dict):
+        # Fase 3 (§8.4): una tarea traspasada se RECLAMA antes de correr;
+        # la reclamación es el único punto de activación (una sola vez
+        # entre los dos carriles). Sin margen ni siquiera se reclama.
+        if cuenta and _TABLERO["estado"] in ("restringida", "cuarentena"):
+            return "esperar"
+        return _traspaso_puerta(task_file, data)
     if data.get("tipo") == "consulta":
         import consulta as _con
         if _con.caducada(data):
@@ -14618,6 +14686,582 @@ def _consulta_devolver(result, path):
                     "instalado; el resultado se queda en este carril")
     except Exception as e:
         log(f"consulta: no se pudo devolver el resultado ({type(e).__name__}: {e})")
+
+
+# ---------------------------------------------------------------- Fase 3
+# GitHub con worktrees, alquileres por archivo, respaldo triple y
+# traspaso en cuarentena. La lógica vive en git_trabajo.py,
+# alquileres.py, secretos.py, respaldo.py y traspaso.py; aquí solo
+# está el cableado fino (§10 del diseño).
+_F3_PREP = {}
+_F3_TRASPASO_HILO = {"activo": False}
+_F3_ULT_RESPALDO = [0.0]
+_F3_ULT_LIMPIEZA = [0.0]
+_F3_PL = [None]
+
+
+def _f3_registrar(tool, prompt, resultado, cuenta=None, accion=None):
+    """Auditoría por cuenta para los eventos de la Fase 3 (nunca lanza)."""
+    try:
+        if _F3_PL[0] is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "permission_layer", str(APP_DIR / "permission-layer.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _F3_PL[0] = mod
+        _F3_PL[0].registrar(tool, prompt, resultado, accion=accion, cuenta=cuenta)
+    except Exception:
+        pass
+
+
+def _f3_auditar_traspaso(tool=None, prompt="", resultado="ok", cuenta=None,
+                         accion=None, **_kw):
+    """El callable `auditar` que reciben los módulos de la Fase 3."""
+    _f3_registrar(tool or "git", prompt, resultado, cuenta=cuenta, accion=accion)
+
+
+def _f3_leer_tarea(task_file):
+    try:
+        d = json.loads(Path(task_file).read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else None
+    except Exception:
+        return None
+
+
+def _f3_cerrar_sin_correr(task_file, data, motivo):
+    """Cierra una tarea sin ejecutarla (como _consulta_cerrar_sin_correr):
+    resultado de error y archivo a DONE."""
+    cid = cola_registrar(task_file, data)
+    DONE.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(task_file), str(DONE / task_file.name))
+    except OSError:
+        pass
+    tid = data.get("id") if isinstance(data.get("id"), str) else task_file.stem
+    cola_set(cid, estado="fallida", archivo=str(DONE / task_file.name),
+             motivo=motivo[:300])
+    _write_result(_error_result(tid, motivo))
+    log(f"runner [{tid}]: cerrada sin correr (Fase 3): {motivo}")
+    return "cerrada"
+
+
+def _f3_rutas_relativas(datos_archivos, raiz):
+    """Los «archivos» declarados por una tarea, relativos a la raíz del
+    repo: los absolutos de fuera se descartan, nunca se alquila fuera."""
+    rutas = []
+    for a in datos_archivos or []:
+        if not isinstance(a, str) or not a.strip():
+            continue
+        p = Path(a)
+        if p.is_absolute():
+            try:
+                rutas.append(str(p.resolve().relative_to(raiz)))
+            except (ValueError, OSError):
+                continue
+        else:
+            rutas.append(a)
+    return rutas
+
+
+def _f3_preparar(task_file, data=None):
+    """Antes de recoger una tarea: repo, alquileres y worktree (§10.2).
+
+    Devuelve ("ok", prep|None) | ("esperar", None) | ("cerrada", None).
+    Sin cuenta en este carril, sin cwd o sin repo no hay nada que
+    preparar y la tarea corre como siempre. Nunca lanza: degrada con
+    aviso, salvo que la tarea declare git requerido (fail-closed)."""
+    try:
+        data = data if isinstance(data, dict) else _f3_leer_tarea(task_file)
+        if not data or data.get("ronda") or "ollama_action" in data:
+            return "ok", None
+        if data.get("tipo") == "revision":
+            # Revisión (§5.1): no toma alquileres, pero si su cwd ya es
+            # un worktree preparado (p. ej. separado sobre el sha a
+            # revisar), la preparación se registra para que la guardia
+            # del carril B lo acepte como carpeta propia y el resultado
+            # anote el worktree.
+            cuenta_r = _cuenta_de_este_carril()
+            cwd_r = data.get("cwd")
+            if (cuenta_r and cwd_r and any(
+                    p.endswith(".worktrees") for p in Path(str(cwd_r)).parts)):
+                try:
+                    import git_trabajo as _gt_r
+                    raiz_r = _gt_r.raiz_repo(cwd_r)
+                    if raiz_r is not None:
+                        tid_r = (data.get("id") if isinstance(data.get("id"), str)
+                                 else Path(task_file).stem)
+                        prep_r = {"repo": _gt_r.repo_id_de(raiz_r),
+                                  "repo_ruta": str(raiz_r), "cuenta": cuenta_r,
+                                  "tid": tid_r, "rutas": [],
+                                  "worktree": str(cwd_r), "rama": None,
+                                  "cwd_efectivo": str(cwd_r)}
+                        _F3_PREP[tid_r] = prep_r
+                        return "ok", prep_r
+                except Exception:
+                    pass
+            return "ok", None
+        cuenta = _cuenta_de_este_carril()
+        if not cuenta:
+            return "ok", None
+        tid = data.get("id") if isinstance(data.get("id"), str) else Path(task_file).stem
+        cwd = data.get("cwd")
+        if not cwd:
+            return "ok", None
+        import alquileres as _alq
+        import git_trabajo as _gt
+        base = _base_tablero()
+        git_d = data.get("git")
+        requerido = git_d == "requerido" or (
+            isinstance(git_d, dict) and bool(git_d.get("requerido")))
+        raiz = _gt.raiz_repo(cwd)
+        if raiz is None:
+            if requerido:
+                _f3_cerrar_sin_correr(task_file, data,
+                                      "la tarea exige git y su cwd no está en un repositorio")
+                return "cerrada", None
+            return "ok", None
+        try:
+            ent = _gt.registrar_proyecto(base, raiz)
+        except Exception as e:
+            if requerido:
+                _f3_cerrar_sin_correr(task_file, data,
+                                      f"no se pudo registrar el proyecto: {e}")
+                return "cerrada", None
+            log(f"runner [{tid}]: Fase 3 degradada (registro del proyecto): {e}")
+            return "ok", None
+        repo_id = ent["repo_id"]
+        rutas = _f3_rutas_relativas(data.get("archivos"), raiz) or ["*"]
+        toma = _alq.tomar(base, repo_id, rutas, cuenta, tid,
+                          minusculas=bool(ent.get("ignorecase")))
+        if not toma.get("ok"):
+            conf = (toma.get("conflictos") or [{}])[0]
+            try:
+                cid = cola_registrar(task_file, data)
+                cola_set(cid, proximo_intento=(conf.get("expira_ts") or time.time()) + 5,
+                         motivo=f"esperando alquiler de {conf.get('ruta')} "
+                                f"(cuenta {conf.get('cuenta')})")
+            except Exception:
+                pass
+            log(f"runner [{tid}]: esperando alquiler de {conf.get('ruta')} "
+                f"(lo tiene la cuenta {conf.get('cuenta')})")
+            return "esperar", None
+        for rob in toma.get("robados") or []:
+            _f3_registrar("git", f"alquiler robado tras caducar: {rob.get('ruta')} "
+                          f"era de {rob.get('cuenta_anterior')} "
+                          f"(tarea {rob.get('tarea_anterior')})",
+                          "ok", cuenta=cuenta, accion="alquiler_robado")
+        rama_cont = None
+        if isinstance(data.get("traspaso"), dict):
+            rama_cont = data["traspaso"].get("rama")
+        if not rama_cont and isinstance(git_d, dict):
+            rama_cont = git_d.get("rama")
+        prep = {"repo": repo_id, "repo_ruta": str(raiz), "cuenta": cuenta,
+                "tid": tid, "rutas": rutas, "worktree": None,
+                "rama": _gt.nombre_rama(cuenta, tid), "cwd_efectivo": None}
+        try:
+            wt = _gt.preparar_worktree(base, raiz, cuenta, tid,
+                                       ent.get("rama_base") or "main",
+                                       rama=rama_cont)
+            prep["worktree"] = str(wt)
+            prep["rama"] = _gt.estado_worktree(wt)["rama"] or prep["rama"]
+            try:
+                sub = Path(cwd).resolve().relative_to(raiz)
+            except (ValueError, OSError):
+                sub = Path(".")
+            destino = wt / sub
+            try:
+                destino.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
+            prep["cwd_efectivo"] = str(destino)
+        except Exception as e:
+            if requerido:
+                _alq.soltar(base, cuenta, tid)
+                _f3_cerrar_sin_correr(task_file, data,
+                                      f"no se pudo preparar el worktree: {e}")
+                return "cerrada", None
+            log(f"runner [{tid}]: Fase 3 degradada (worktree): {e}; corre en "
+                "su cwd con los alquileres ya tomados")
+        _F3_PREP[tid] = prep
+        return "ok", prep
+    except Exception as e:
+        log(f"runner: preparación Fase 3 con error ({type(e).__name__}: {e}); "
+            "la tarea sigue como siempre")
+        return "ok", None
+
+
+def _f3_tras_process_one(task_file, prep):
+    """Tras correr una tarea preparada: suelta sus alquileres y anota el
+    worktree y la rama en el resultado y en el historial (§10.2)."""
+    if not prep:
+        return
+    try:
+        import alquileres as _alq
+        _alq.soltar(_base_tablero(), prep["cuenta"], prep["tid"])
+    except Exception:
+        pass
+    _F3_PREP.pop(prep["tid"], None)
+    if not prep.get("worktree"):
+        return
+    try:
+        row = cola_get(prep["tid"]) or {}
+        if row.get("estado") not in ("terminada", "fallida", "necesita_decision"):
+            return
+        rp = RESULTS / f"{prep['tid']}.result.json"
+        try:
+            res = json.loads(rp.read_text(encoding="utf-8"))
+            res["worktree"] = prep["worktree"]
+            res["rama"] = prep["rama"]
+            tmp = rp.with_suffix(".tmp")
+            tmp.write_text(json.dumps(res, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+            os.replace(tmp, rp)
+        except (OSError, ValueError):
+            pass
+        hist = _cola_hist(row)
+        hist.append({"fase3": {"worktree": prep["worktree"],
+                               "rama": prep["rama"], "repo": prep["repo"]}})
+        cola_set(prep["tid"], historial=hist)
+    except Exception as e:
+        log(f"runner [{prep['tid']}]: no se pudo anotar la Fase 3 en el "
+            f"resultado ({e})")
+
+
+def _traspaso_puerta(task_file, data):
+    """La puerta de una tarea traspasada (§8.4/§10.3): reclamar es el
+    único punto de activación. Sin cuenta en este carril: fail-closed."""
+    cuenta = _cuenta_de_este_carril()
+    if not cuenta:
+        return _f3_cerrar_sin_correr(
+            task_file, data,
+            "tarea traspasada en un carril sin cuenta: no se puede reclamar")
+    import traspaso as _tr
+    base = _base_tablero()
+    info = data.get("traspaso") or {}
+    mid = info.get("marcador")
+    m = _tr.obtener(base, mid) if mid else None
+    if not m or m.get("tarea") != info.get("tarea"):
+        return _f3_cerrar_sin_correr(
+            task_file, data,
+            "el marcador del traspaso no existe o no coincide: no corre")
+    r = _tr.reclamar(base, mid, cuenta, carril=LANE,
+                     instancia=f"{LANE}:{APP_DIR.name}")
+    res = r.get("resultado")
+    if res == "esperar":
+        return "esperar"
+    if res in ("duplicado", "no_valido"):
+        return _f3_cerrar_sin_correr(
+            task_file, data,
+            f"traspaso no activado ({res}): "
+            f"{r.get('motivo') or 'la tarea ya la tiene otra cuenta'}")
+    if res in ("aceptado", "reanudar"):
+        if res == "aceptado" and data.get("tipo") == "consulta":
+            # I8: la consulta cambia de dueña: se libera la reserva del
+            # origen en el libro y se reserva a nombre de esta cuenta.
+            try:
+                import consulta as _con
+                _con.cerrar_consulta(base, {"id": info.get("tarea"),
+                                            "raiz": data.get("raiz")})
+                if _con.reservar_gasto(data, _quota_tracker(),
+                                       base_dir=base) is None:
+                    return _f3_cerrar_sin_correr(
+                        task_file, data,
+                        "consulta traspasada sin presupuesto disponible")
+                cons = dict(data.get("consulta") or {})
+                cons["_reserva_v1"] = True
+                data["consulta"] = cons
+                tmp = task_file.with_suffix(".tmp")
+                tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2),
+                               encoding="utf-8")
+                os.replace(tmp, task_file)
+            except Exception as e:
+                log(f"runner: traspaso de consulta con error "
+                    f"({type(e).__name__}: {e})")
+        return "ok"
+    return "esperar"
+
+
+def _f3_reintentar_alquileres(cuenta):
+    """Las tareas que esperan un alquiler lo reintentan con el latido:
+    si ya se puede tomar, se les levanta la espera (la preparación de
+    antes de correr lo tomará de verdad)."""
+    try:
+        import alquileres as _alq
+        import git_trabajo as _gt
+        base = _base_tablero()
+        filas = _cola("SELECT * FROM tareas WHERE estado='en_cola'",
+                      fetch=True) or []
+        for f in filas:
+            if not str(f.get("motivo") or "").startswith("esperando alquiler"):
+                continue
+            tid = f["id"]
+            nombre = Path(f["archivo"] or f"{tid}.task.json").name
+            data = None
+            for d in (TASKS, PROCESSING, DONE):
+                p = d / nombre
+                if p.exists():
+                    data = _f3_leer_tarea(p)
+                    break
+            if not data or not data.get("cwd"):
+                continue
+            raiz = _gt.raiz_repo(data["cwd"])
+            if raiz is None:
+                continue
+            ent = _gt.proyecto(base, _gt.repo_id_de(raiz))
+            rutas = _f3_rutas_relativas(data.get("archivos"), raiz) or ["*"]
+            toma = _alq.tomar(base, _gt.repo_id_de(raiz), rutas, cuenta, tid,
+                              minusculas=bool(ent and ent.get("ignorecase")))
+            if toma.get("ok"):
+                _alq.soltar(base, cuenta, tid)
+                cola_set(tid, proximo_intento=None, motivo=None)
+                log(f"runner [{tid}]: el alquiler ya está libre; vuelve a la cola")
+    except Exception:
+        pass
+
+
+def _f3_barrido_traspasos(cuenta):
+    """El barrido de traspasos de este proceso (§8.4): caduca ofertas y
+    entregas, apunta «traspasada» la tarea propia ya confirmada y
+    devuelve a la cola lo devuelto si esta cuenta salió de cuarentena.
+    También reanuda protocolos propios que quedaron a medias."""
+    try:
+        import tablero as _t
+        import traspaso as _tr
+        base = _base_tablero()
+        tab = _t.cargar(base)
+        ahora = time.time()
+
+        def sin_latido(c):
+            e = (tab.get("cuentas") or {}).get(c) or {}
+            ult = e.get("latido_ts")
+            return not ult or ahora - ult > 600
+
+        _tr.barrido(base, destino_sin_latido=sin_latido,
+                    auditar=_f3_auditar_traspaso)
+        for m in _tr.todos(base).values():
+            if m.get("origen") != cuenta:
+                continue
+            tid = m.get("tarea")
+            row = cola_get(tid) or {}
+            if m.get("estado") == "confirmado" and \
+                    row.get("estado") in ("traspasando", "en_curso"):
+                cola_set(tid, estado="traspasada")
+                log(f"runner [{tid}]: traspaso confirmado: la continúa "
+                    f"la cuenta {m.get('destino')}")
+            elif m.get("estado") == "devuelto" and \
+                    row.get("estado") == "traspasando":
+                if _TABLERO["estado"] == "cuarentena":
+                    continue  # retenida: sin bucle de reoferta (I9)
+                nombre = Path(row.get("archivo") or f"{tid}.task.json").name
+                for d in (PROCESSING, DONE):
+                    p = d / nombre
+                    if p.exists():
+                        try:
+                            os.replace(p, TASKS / nombre)
+                            cola_set(tid, estado="en_cola",
+                                     archivo=str(TASKS / nombre))
+                            log(f"runner [{tid}]: el traspaso se devolvió y "
+                                "la cuenta ya no está en cuarentena: vuelve a la cola")
+                        except OSError:
+                            pass
+                        break
+            elif m.get("estado") in ("ofrecido", "sin_destino"):
+                destino_cta = None
+                try:
+                    destino_cta = _t.elegir_cuenta(_tablero_vista(), {},
+                                                   _cuentas_reg())
+                except Exception:
+                    pass
+                if destino_cta and destino_cta != cuenta:
+                    _f3_ejecutar_protocolo(m["id"], destino_cta)
+    except Exception:
+        pass
+
+
+def _f3_ejecutar_protocolo(mid, destino=None):
+    """Corre los pasos 1-3 del traspaso en un hilo (la parada del origen
+    puede tardar hasta 120 s: nunca en el latido ni en el loop)."""
+    if _F3_TRASPASO_HILO["activo"]:
+        return
+    _F3_TRASPASO_HILO["activo"] = True
+
+    def trabajo():
+        try:
+            import cuentas as _c
+            import traspaso as _tr
+            base = _base_tablero()
+            m = _tr.obtener(base, mid)
+            if not m:
+                return
+            destino_ef = destino or m.get("destino")
+            reg = _cuentas_reg()
+            cta_d = _c.cuenta(reg, destino_ef) if reg and destino_ef else None
+            carril_d = (cta_d or {}).get("carril") or LANE
+
+            def detener(t):
+                if state.get("current") != t:
+                    return True
+                try:
+                    cola_set(t, estado="traspasando")
+                except Exception:
+                    pass
+                stop_current_task()
+                for _ in range(240):
+                    if state.get("current") != t:
+                        return True
+                    time.sleep(0.5)
+                return state.get("current") != t
+
+            def dict_tarea(t):
+                nombre = f"{t}.task.json"
+                for d in (PROCESSING, TASKS, DONE):
+                    p = d / nombre
+                    if p.exists():
+                        dd = _f3_leer_tarea(p)
+                        if dd:
+                            return dd
+                return None
+
+            ganchos = {"detener": detener, "dict_tarea": dict_tarea,
+                       "dir_tareas": _dir_carril(carril_d, "share", "inbox",
+                                                 "runner-tasks"),
+                       "carril_destino": carril_d, "destino": destino_ef,
+                       "ejecutor": f"{LANE}:{APP_DIR.name}"}
+            r = _tr.ejecutar_origen(base, mid, ganchos,
+                                    auditar=_f3_auditar_traspaso)
+            log(f"traspaso {mid}: el protocolo del origen termina en "
+                f"«{r.get('estado')}»")
+        except Exception as e:
+            log(f"traspaso {mid}: error en el protocolo "
+                f"({type(e).__name__}: {e})")
+        finally:
+            _F3_TRASPASO_HILO["activo"] = False
+
+    threading.Thread(target=trabajo, daemon=True).start()
+
+
+def _f3_disparar_traspaso(cuenta, tid):
+    """Esta cuenta entró en cuarentena con una tarea en curso: se crea
+    el marcador (paso 0, antes de cualquier efecto) y el protocolo
+    corre en su hilo (§8.3)."""
+    if _F3_TRASPASO_HILO["activo"]:
+        return
+    try:
+        import tablero as _t
+        import traspaso as _tr
+        base = _base_tablero()
+        if _tr.marcador_vivo_de(base, tid):
+            return
+        destino = None
+        try:
+            destino = _t.elegir_cuenta(_tablero_vista(), {}, _cuentas_reg())
+        except Exception:
+            pass
+        if destino == cuenta:
+            destino = None
+        prep = _F3_PREP.get(tid) or {}
+        m, _creado = _tr.crear(base, tid, cuenta, destino,
+                               repo_id=prep.get("repo"), rama=prep.get("rama"),
+                               auditar=_f3_auditar_traspaso)
+        if m:
+            _f3_ejecutar_protocolo(m["id"], destino or m.get("destino"))
+    except Exception as e:
+        log(f"traspaso: no se pudo disparar para {tid} "
+            f"({type(e).__name__}: {e})")
+
+
+def _f3_mantenimiento(cuenta):
+    """Respaldo horario y limpieza diaria, en hilos con guarda (§7/§3.2)."""
+    ahora = time.time()
+    if ahora - _F3_ULT_RESPALDO[0] >= 3600:
+        _F3_ULT_RESPALDO[0] = ahora
+
+        def respaldo_hilo():
+            try:
+                import respaldo as _r
+                base = _base_tablero()
+                carriles = {}
+                for c in ("a", "b"):
+                    d = _dir_carril(c)
+                    if d.is_dir():
+                        carriles[c] = d
+                _r.crear_instantanea(base, carriles,
+                                     auditar=_f3_auditar_traspaso,
+                                     cuenta=cuenta)
+                _r.copiar_a_espacio(base, _dir_carril(LANE),
+                                    auditar=_f3_auditar_traspaso, cuenta=cuenta)
+            except Exception as e:
+                log(f"respaldo: ciclo con error ({type(e).__name__}: {e})")
+
+        threading.Thread(target=respaldo_hilo, daemon=True).start()
+    if ahora - _F3_ULT_LIMPIEZA[0] >= 86400:
+        _F3_ULT_LIMPIEZA[0] = ahora
+
+        def limpieza_hilo():
+            try:
+                import git_trabajo as _gt
+                base = _base_tablero()
+                for p in _gt.proyectos(base):
+                    _gt.limpieza(base, p["repo_id"],
+                                 auditar=_f3_auditar_traspaso)
+            except Exception as e:
+                log(f"limpieza: ciclo con error ({type(e).__name__}: {e})")
+
+        threading.Thread(target=limpieza_hilo, daemon=True).start()
+
+
+def _f3_latido(cuenta, estado_propio):
+    """Con cada latido del tablero: renueva los alquileres propios (B5:
+    nunca los de una tarea con traspaso vivo), reintenta los que
+    esperan, barre los traspasos, mantiene el respaldo y dispara el
+    traspaso de la tarea en curso si esta cuenta entró en cuarentena."""
+    try:
+        import alquileres as _alq
+        import traspaso as _tr
+        base = _base_tablero()
+        # Solo se renuevan los alquileres de las tareas que ESTE proceso
+        # está ejecutando (la actual y las preparadas): renovar todos los
+        # de la cuenta mantendría vivo el alquiler de una tarea muerta
+        # cuyo proceso sigue abierto, y nunca caducaría.
+        activas = set(_F3_PREP)
+        if state.get("current"):
+            activas.add(state["current"])
+        tareas = {e.get("tarea") for e in _alq.vigentes(base)
+                  if e.get("cuenta") == cuenta and e.get("tarea") in activas}
+        for t in tareas:
+            if _tr.marcador_vivo_de(base, t):
+                continue
+            r = _alq.renovar(base, cuenta, t)
+            if not r.get("ok"):
+                log(f"tablero: la cuenta perdió los alquileres de la tarea "
+                    f"{t} (caducaron y los tomó otra, o ya no son suyos)")
+        _f3_reintentar_alquileres(cuenta)
+        _f3_barrido_traspasos(cuenta)
+        _f3_mantenimiento(cuenta)
+        if estado_propio == "cuarentena" and state.get("current"):
+            _f3_disparar_traspaso(cuenta, state["current"])
+    except Exception as e:
+        log(f"tablero: mantenimiento Fase 3 con error "
+            f"({type(e).__name__}: {e}); el runner sigue")
+
+
+def _f3_arranque():
+    """Al arrancar el runner: la copia del espacio al día y un barrido
+    de traspasos (§10.6). Con red: un fallo aquí nunca frena el arranque."""
+    try:
+        import respaldo as _r
+        _r.copiar_a_espacio(_base_tablero(), _dir_carril(LANE),
+                            auditar=_f3_auditar_traspaso)
+    except Exception as e:
+        log(f"respaldo: copia del espacio al arrancar con error "
+            f"({type(e).__name__}: {e})")
+    try:
+        cuenta = _cuenta_de_este_carril()
+        if cuenta:
+            _f3_barrido_traspasos(cuenta)
+    except Exception:
+        pass
 
 
 def gateway_token(crear=True):
@@ -31997,6 +32641,10 @@ def _build_cuentas(tab):
             _refrescar_tablero()
         except Exception:
             pass
+        try:
+            _refrescar_proyectos()
+        except Exception:
+            pass
 
     def _al_elegir(_e=None):
         sel = lista.curselection()
@@ -32191,6 +32839,113 @@ def _build_cuentas(tab):
         log(f"tablero: umbral de cuarentena guardado en {umb}%")
         _refrescar_tablero()
         _decir(f"Umbral de cuarentena: {umb}%. Los estados ya se recalcularon.")
+
+    # -- Proyectos y respaldo (Fase 3) -------------------------------------
+    tk.Label(tab, text="Proyectos y respaldo", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(4, 2))
+    tk.Label(tab, text="Los repos registrados (con su hook anti-secretos), sus "
+                       "propuestas de mezcla pendientes y la última instantánea "
+                       "del estado: la pata de la PC y la copia en el espacio de "
+                       "este carril.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    proy_lista = tk.Listbox(tab, font=(FONT, 11), height=5, activestyle="none",
+                            bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                            highlightthickness=0)
+    proy_lista.pack(fill="x", padx=28, pady=(0, 8))
+    proy_form = tk.Frame(tab, bg=THEME["bg"])
+    proy_form.pack(fill="x", padx=28, pady=(0, 20))
+    tk.Button(proy_form, text="Hacer respaldo ahora", font=(FONT, 11),
+              command=lambda: _respaldo_ahora(),
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=8, pady=2).pack(side="left", padx=(0, 14))
+    tk.Button(proy_form, text="Verificar respaldo", font=(FONT, 11),
+              command=lambda: _verificar_respaldo(),
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=8, pady=2).pack(side="left")
+
+    def _refrescar_proyectos():
+        import git_trabajo as _gt
+        import respaldo as _r
+        base = _base_tablero()
+        proy_lista.delete(0, "end")
+        try:
+            proyectos = _gt.proyectos(base)
+        except Exception:
+            proyectos = []
+        if not proyectos:
+            proy_lista.insert("end", "Sin proyectos registrados (se registran solos "
+                                     "al correr una tarea dentro de un repo).")
+        for p in proyectos:
+            proy_lista.insert("end", f"{p.get('nombre')}  ·  base {p.get('rama_base')}  ·  "
+                                     f"mezcladora: {p.get('mezcladora') or 'sin asignar'}  ·  "
+                                     f"hook: {p.get('hook') or '—'}  ·  {p.get('ruta')}")
+            try:
+                props = _gt.propuestas(base, repo=p["repo_id"])
+            except Exception:
+                props = []
+            for prop in props:
+                if prop.get("estado") == "mezclada":
+                    continue
+                proy_lista.insert("end", f"    propuesta {prop['id']}: {prop.get('rama')} → "
+                                         f"{prop.get('base')}  ·  {prop.get('estado')}")
+        try:
+            ult = _r.ultima_instantanea(base)
+        except Exception:
+            ult = None
+        if ult is None:
+            proy_lista.insert("end", "Respaldo: todavía no hay instantáneas.")
+        else:
+            copia = _dir_carril(LANE) / "respaldo-estado" / "manifiesto.json"
+            if not copia.is_file():
+                estado_copia = "sin copia en este espacio"
+            else:
+                try:
+                    estado_copia = ("copia del espacio al día"
+                                    if copia.read_bytes() == (ult / "manifiesto.json").read_bytes()
+                                    else "copia del espacio desactualizada")
+                except OSError:
+                    estado_copia = "copia del espacio ilegible"
+            proy_lista.insert("end", f"Respaldo: última instantánea {ult.name}  ·  {estado_copia}")
+
+    def _respaldo_ahora():
+        def trabajo():
+            try:
+                import respaldo as _r
+                base = _base_tablero()
+                carriles = {}
+                for c in ("a", "b"):
+                    d = _dir_carril(c)
+                    if d.is_dir():
+                        carriles[c] = d
+                r = _r.crear_instantanea(base, carriles, forzar=True,
+                                         auditar=_f3_auditar_traspaso,
+                                         cuenta=_cuenta_de_este_carril())
+                _r.copiar_a_espacio(base, _dir_carril(LANE),
+                                    auditar=_f3_auditar_traspaso)
+                nombre = r["carpeta"].name if r.get("carpeta") else "—"
+                texto = (f"Respaldo {'creado' if r.get('creada') else 'sin cambios'}: "
+                         f"{nombre} ({r.get('archivos', 0)} archivos).")
+                _ui_call(lambda texto=texto: (_refrescar_proyectos(), _decir(texto)))
+            except Exception as e:
+                _ui_call(lambda e=e: _decir(f"No se pudo hacer el respaldo: {e}"))
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def _verificar_respaldo():
+        try:
+            import respaldo as _r
+            ult = _r.ultima_instantanea(_base_tablero())
+            if ult is None:
+                _decir("Todavía no hay instantáneas que verificar.")
+                return
+            v = _r.verificar(ult)
+            if v["ok"]:
+                _decir(f"La instantánea {ult.name} verifica: todos los hashes coinciden.")
+            else:
+                _decir(f"La instantánea {ult.name} NO verifica: "
+                       f"dañados={v['danados']} ausentes={v['ausentes']}")
+        except Exception as e:
+            _decir(f"No se pudo verificar: {e}")
 
     _refrescar()
     if cred_via() == "dpapi":
