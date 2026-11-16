@@ -8480,6 +8480,10 @@ def _write_result(result):
     if isinstance(result, dict):
         _consulta_devolver(result, path)
         _f4_resultado_a_buzon(result)
+        try:
+            _f5_resultado_necesita_decision(result)
+        except Exception:
+            pass
     return path
 
 
@@ -9084,6 +9088,10 @@ def _park_for_approval(task_file, task, need):
         log(f"runner [{task['id']}]: espera tu aprobación ({need['nivel']}: {need['motivo'][:160]}); "
             f"pedido {row['approval_id']}, vence el {hora_caracas_txt(row['vence_ts'])} (Caracas); "
             "no se ejecuta sola")
+        try:
+            _f5_ofrecer_pedido(row)
+        except Exception:
+            pass
         return "esperando_aprobacion", dest
 
 
@@ -9195,6 +9203,10 @@ def aprobaciones_adoptar():
                        aprobacion=_apr_info(row), tarea=task["id"])
         cola_set(task["id"], estado="esperando_aprobacion", archivo=str(p))
         n += 1
+        try:
+            _f5_ofrecer_pedido(row)
+        except Exception:
+            pass
     if n:
         log(f"aprobaciones: {n} tarea(s) que ya esperaban reciben su pedido con vencimiento")
     return n
@@ -14935,6 +14947,461 @@ def _f4_iniciar_presencia():
             time.sleep(30)
     threading.Thread(target=_hilo, daemon=True, name="presencia").start()
 
+# ------------------------------------------------------------- canales (F5)
+# Fase 5: el dueño manda y aprueba desde fuera. La lógica vive en
+# canales.py (capa común) y canal_telegram.py (el transporte real);
+# aquí solo está el cableado fino. Los adaptadores de WhatsApp quedan
+# como diseño: no hay código suyo. El servicio corre en un hilo propio
+# y el LÍDER único (con época, en canales.py) es el único que habla
+# con el transporte; este canal NO pasa por _f4_ventana_ok(): la
+# presencia gobierna las ventanas del PC, no el teléfono del dueño.
+
+_F5 = {"hilo": None, "adaptador": None, "huella_token": None}
+
+
+def _f5_base():
+    return _base_tablero()
+
+
+def _f5_config():
+    import canales as _cn5
+    return _cn5.cargar_config(_f5_base())
+
+
+def _f5_adaptador():
+    """El adaptador del transporte activo (hoy solo telegram). Se crea
+    una vez y se reutiliza; el token NO vive en él: el adaptador lo lee
+    de la bóveda en cada llamada, así rotarlo surte efecto sin
+    reiniciar."""
+    if _F5["adaptador"] is None:
+        import canal_telegram as _ct5
+        import canales as _cn5
+
+        def _destino():
+            return _cn5.identidad_de(_cn5.cargar_config(_f5_base()),
+                                     "telegram")
+
+        # Costura de pruebas (como la sonda dual y las specs de la
+        # Fase 4): solo con GROWI_PRUEBAS=1, la base de la API de
+        # Telegram puede apuntar a un servidor falso local.
+        _base_api = None
+        if os.environ.get("GROWI_PRUEBAS") == "1":
+            _base_api = os.environ.get("GROWI_TELEGRAM_API") or None
+        _F5["adaptador"] = _ct5.AdaptadorTelegram(
+            lambda nombre: _sec_get(nombre), _destino,
+            base_url=_base_api)
+    return _F5["adaptador"]
+
+
+def _f5_ctx():
+    cuentas = []
+    try:
+        reg = _cuentas_reg() or {}
+        for c in reg.get("cuentas") or []:
+            if isinstance(c, dict) and c.get("habilitada", True) \
+                    and c.get("carril") in ("a", "b"):
+                cuentas.append({"id": c.get("id"),
+                                "carril": c.get("carril")})
+    except Exception:
+        pass
+    return {"cuentas": cuentas, "carril_propio": LANE,
+            "dir_carril_b": str(_dir_carril("b"))}
+
+
+def _f5_efectos():
+    """Los efectos que canales.procesar necesita del monolito: crear
+    la tarea en el inbox del carril destino, aplicar decisiones (con
+    orden entre carriles si el pedido es del otro) y responder por la
+    bandeja compartida (guardar antes que enviar)."""
+    import canales as _cn5
+    base = _f5_base()
+
+    def _crear(tarea, carril):
+        try:
+            destino = _dir_carril(carril or LANE, "share", "inbox",
+                                  "runner-tasks")
+            _cn5.escribir_tarea(destino, tarea)
+            return True, None
+        except Exception as e:
+            return False, _cn5.resumen_error(e)
+
+    def _aplicar(approval_id, decision, minutos, canal):
+        datos = _cn5.cargar_pedidos(base)
+        entrada = (datos.get("pedidos") or {}).get(approval_id) or {}
+        dueno = entrada.get("carril") or LANE
+        if dueno == LANE:
+            hecho, mensaje = decidir_aprobacion(
+                approval_id, decision, canal=canal, minutos=minutos)
+            return {"modo": "directa", "hecho": hecho,
+                    "mensaje": mensaje, "carril": dueno}
+        orden, creada = _cn5.crear_orden(base, approval_id, decision,
+                                         minutos, canal)
+        previo = _cn5.resultado_orden(base, orden["id"])
+        if previo is not None:
+            return {"modo": "directa", "hecho": previo.get("hecho"),
+                    "mensaje": previo.get("mensaje"), "carril": dueno}
+        if creada:
+            texto = (f"Recibido: está en manos del carril "
+                     f"{str(dueno).upper()}; te confirmo aquí en "
+                     f"cuanto lo aplique.")
+        else:
+            texto = ("Esa decisión ya está en curso en el otro "
+                     "carril; te confirmo en cuanto se aplique.")
+        return {"modo": "orden", "hecho": None, "mensaje": texto,
+                "carril": dueno}
+
+    def _responder(texto, meta=None):
+        _cn5.encolar_saliente(base, "respuesta", texto, meta=meta)
+
+    def _existe(tid, carril):
+        carriles = [carril] if carril in ("a", "b") else ["a", "b"]
+        for c in carriles:
+            raiz = _dir_carril(c, "share", "inbox", "runner-tasks")
+            for sub in ("", "processing", "done"):
+                if (raiz / sub / f"{tid}.task.json").exists():
+                    return True
+        return False
+
+    return {"crear_tarea": _crear, "aplicar_decision": _aplicar,
+            "responder": _responder, "tarea_existe": _existe}
+
+
+def _f5_drenar_salientes(epoca):
+    """Transmite la bandeja en orden de creación. Antes de CADA
+    transmisión se relee la época (B3): un líder depuesto se detiene
+    en el acto. Un pedido ya vencido se retira sin enviar (§7.5)."""
+    import canales as _cn5
+    base = _f5_base()
+    cfg = _f5_config()
+    activo = cfg.get("activo")
+    if activo != "telegram" or not _cn5.emparejado(cfg, activo):
+        return
+    if not _sec_get("canal:telegram"):
+        return
+    adaptador = _f5_adaptador()
+    ahora = time.time()
+    for ruta, datos in _cn5.salientes_pendientes(base):
+        if not _cn5.soy_lider(base, LANE, epoca):
+            return
+        meta = datos.get("meta") or {}
+        vence = meta.get("vence_ts")
+        if datos.get("tipo") == "pedido" \
+                and isinstance(vence, (int, float)) and ahora > vence:
+            _cn5.retirar_saliente(ruta)
+            _cn5.anotar(base, "saliente_retirado", transporte=activo,
+                        motivo="pedido_vencido",
+                        saliente=datos.get("id"))
+            continue
+        try:
+            res = adaptador.transmitir(datos.get("texto") or "", meta)
+        except Exception as e:
+            _cn5.registrar_intento_saliente(base, ruta)
+            log("canales: envío fallido: " + _cn5.resumen_error(e))
+            continue
+        if meta.get("approval_id"):
+            try:
+                _cn5.marcar_transmitido(base, meta["approval_id"],
+                                        res.get("mensaje_id"))
+            except Exception:
+                pass
+        _cn5.retirar_saliente(ruta)
+        _cn5.anotar(base, "saliente", transporte=activo,
+                    tipo=datos.get("tipo"), saliente=datos.get("id"))
+
+
+def _f5_ciclo():
+    """Un ciclo del servicio de canales. Nunca lanza hacia fuera: un
+    canal caído jamás tumba el runner, y todo error se loguea ya
+    saneado por canales.resumen_error (sin el token)."""
+    import canales as _cn5
+    base = _f5_base()
+    # 1) Reconciliar MIS pedidos contra MI cola (B2): lo decidido en
+    #    la app deja de ser objetivo en canal-pedidos.json.
+    try:
+        _cn5.reconciliar_pedidos(
+            base, LANE,
+            lambda aid: (apr_get(aid) or {}).get("estado"))
+    except Exception:
+        pass
+    # 2) Consumir las órdenes de decisión de MI carril (§6.4): el
+    #    circuito local decide; su contrato de tardía hace segura la
+    #    reaplicación tras una muerte (B1).
+    try:
+        datos_p = _cn5.cargar_pedidos(base)
+        for _ruta, orden in _cn5.ordenes_pendientes(base):
+            entrada = (datos_p.get("pedidos") or {}).get(
+                orden["approval_id"]) or {}
+            if entrada.get("carril") != LANE:
+                continue
+            _cn5.aplicar_orden_local(
+                base, orden,
+                lambda aid, dec, canal, mins: decidir_aprobacion(
+                    aid, dec, canal=canal, minutos=mins))
+    except Exception as e:
+        log("canales: aplicando órdenes: " + _cn5.resumen_error(e))
+    # 3) Liderazgo con época: solo el líder habla con el transporte.
+    es_lider, epoca = _cn5.paso_liderazgo(base, LANE, os.getpid())
+    if not es_lider:
+        return
+    cfg = _f5_config()
+    activo = cfg.get("activo")
+    if activo != "telegram":
+        return
+    # Sin emparejar solo se escucha durante la ventana de un código
+    # vigente: es cuando llega el código que empareja. Sin esta
+    # excepción, el ciclo nunca recibiría el código y emparejar
+    # sería imposible.
+    if not _cn5.emparejado(cfg, activo) \
+            and not _cn5.codigo_vigente(cfg, activo):
+        return
+    if not _sec_get("canal:telegram"):
+        return
+    adaptador = _f5_adaptador()
+    # 4) Vigilar el bot (I3): si el token pegado es de OTRO bot, sus
+    #    update_id no significan nada: cursor y dedup se reinician y
+    #    el emparejamiento se invalida. Solo se mira al cambiar el
+    #    token (huella), no en cada ciclo.
+    token = _sec_get("canal:telegram")
+    huella = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12] \
+        if token else None
+    if huella != _F5.get("huella_token"):
+        _F5["huella_token"] = huella
+        try:
+            info = adaptador.bot_info()
+        except Exception as e:
+            log("canales: " + _cn5.resumen_error(e))
+            return
+        est = _cn5.cargar_estado(base)
+        te = _cn5.transporte_estado(est, activo)
+        if te.get("bot_id") is not None \
+                and str(te["bot_id"]) != str(info["id"]):
+            _cn5.invalidar_por_cambio_bot(base, activo)
+            te["bot_id"] = info["id"]
+            te["cursor"] = {}
+            te["vistos"] = []
+            te["en_proceso"] = {}
+            _cn5.guardar_estado(base, est)
+            log("canales: el token es de otro bot; emparejamiento "
+                "invalidado, hay que emparejar de nuevo")
+            return
+        if te.get("bot_id") is None:
+            te["bot_id"] = info["id"]
+            _cn5.guardar_estado(base, est)
+    # 5) Confirmaciones asíncronas de órdenes ya aplicadas (B3): el
+    #    dueño recibe la confirmación real en el ciclo en que el
+    #    resultado aparece en canal-decisiones/hechas/.
+    try:
+        datos_p = _cn5.cargar_pedidos(base)
+        for res in _cn5.ordenes_para_confirmar(base):
+            entrada = (datos_p.get("pedidos") or {}).get(
+                res.get("approval_id")) or {}
+            if entrada:
+                desc = (f"{entrada.get('codigo') or '····'} "
+                        f"({entrada.get('nivel')}: "
+                        f"{str(entrada.get('motivo') or '')[:60]})")
+            else:
+                desc = str(res.get("approval_id"))
+            _cn5.encolar_saliente(
+                base, "respuesta",
+                f"Confirmado: el pedido {desc} — "
+                f"{res.get('mensaje') or ''}")
+            _cn5.marcar_confirmada(base, res.get("id"))
+    except Exception:
+        pass
+    # 6) Primero sale lo que ya esperaba en la bandeja.
+    _f5_drenar_salientes(epoca)
+    # 7) Recepción: un long poll acotado y proceso mensaje a mensaje.
+    #    El cursor (offset) avanza SOLO tras procesar y anotar ese
+    #    mensaje (principio 5); «sin_registro» no avanza.
+    try:
+        est = _cn5.cargar_estado(base)
+        te = _cn5.transporte_estado(est, activo)
+        mensajes, _nuevo = adaptador.recibir(dict(te.get("cursor") or {}))
+    except Exception as e:
+        log("canales: recepción: " + _cn5.resumen_error(e))
+        return
+    efectos = _f5_efectos()
+    ctx = _f5_ctx()
+    for msg in mensajes:
+        if not _cn5.soy_lider(base, LANE, epoca):
+            break
+        try:
+            res = _cn5.procesar(base, msg, efectos, ctx)
+            if res.get("resultado") == "emparejado":
+                _f4_aviso("canal_emparejado",
+                          f"Canal {activo} emparejado con "
+                          f"{_cn5.enmascarar(res.get('identidad'))}.",
+                          None, None, None, "accion")
+        except Exception as e:
+            log("canales: procesar: " + _cn5.resumen_error(e))
+            res = {"resultado": "error"}
+        if res.get("resultado") != "sin_registro" \
+                and msg.get("_offset_siguiente") is not None:
+            est = _cn5.cargar_estado(base)
+            te = _cn5.transporte_estado(est, activo)
+            te["cursor"] = {"offset": msg["_offset_siguiente"]}
+            _cn5.guardar_estado(base, est)
+    # 8) Lo respondido en este ciclo sale en este mismo ciclo.
+    _f5_drenar_salientes(epoca)
+
+
+def _f5_servicio():
+    while True:
+        try:
+            _f5_ciclo()
+        except Exception as e:
+            try:
+                import canales as _cn5
+                log("canales: ciclo: " + _cn5.resumen_error(e))
+            except Exception:
+                pass
+        time.sleep(3)
+
+
+def _f5_iniciar_canales():
+    """Arranque de la Fase 5: registra el destino «canal» en avisos.py
+    (la config gana el destino sin perder lo que hubiera) y lanza el
+    hilo del servicio. El hilo corre siempre y duerme cuando no hay
+    transporte activo: cambiar el transporte o el token en la UI
+    surte efecto en el ciclo siguiente, sin reiniciar (I12)."""
+    try:
+        import avisos as _av5
+        import canales as _cn5
+        base = _f5_base()
+        _av5.registrar_canal("canal", lambda: _cn5.DestinoCanal(base))
+        ruta_cfg = base / "avisos-config.json"
+        cfg_av = {}
+        try:
+            if ruta_cfg.exists():
+                leido = json.loads(ruta_cfg.read_text(encoding="utf-8"))
+                if isinstance(leido, dict):
+                    cfg_av = leido
+        except Exception:
+            cfg_av = {}
+        destinos = cfg_av.get("destinos")
+        if not isinstance(destinos, list):
+            destinos = ["registro", "local"]
+        if "canal" not in destinos:
+            destinos = destinos + ["canal"]
+        cfg_av["destinos"] = destinos
+        cfg_av.setdefault("canal", "canal")
+        # El tmp lleva el pid: los dos carriles arrancan a la vez y
+        # con el mismo nombre se pisaban (FileNotFoundError al
+        # reemplazar en uno de ellos, cazado en las pruebas físicas).
+        tmp = ruta_cfg.with_name(
+            ruta_cfg.name + f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(cfg_av, ensure_ascii=False, indent=1),
+                       encoding="utf-8")
+        os.replace(tmp, ruta_cfg)
+    except Exception as e:
+        try:
+            log("canales: arranque del destino: "
+                + str(type(e).__name__))
+        except Exception:
+            pass
+    if _F5["hilo"] is None:
+        hilo = threading.Thread(target=_f5_servicio, daemon=True,
+                                name="canales")
+        _F5["hilo"] = hilo
+        hilo.start()
+
+
+def _f5_ofrecer_pedido(row):
+    """Un pedido recién nacido (o adoptado) se anota en
+    canal-pedidos.json y, si el canal está vivo, se ofrece (R1/R2 con
+    código corto) o se notifica (R3, jamás decidible por el canal).
+    Idempotente por approval_id (B2): re-ofrecer no duplica el
+    mensaje ni cambia el código."""
+    import canales as _cn5
+    base = _f5_base()
+    entrada, creada = _cn5.ofrecer_pedido(base, row, LANE)
+    if not creada:
+        return entrada
+    cfg = _f5_config()
+    activo = cfg.get("activo")
+    if not activo or not _cn5.emparejado(cfg, activo):
+        return entrada
+    nivel = row.get("nivel")
+    if nivel in ("R1", "R2"):
+        texto = texto_pedido(row, _nivel_nombre(nivel))
+        texto += (f"\n\nResponde: aprobar {entrada['codigo']} · "
+                  f"rechazar {entrada['codigo']} · "
+                  f"espera 30 {entrada['codigo']}")
+        _cn5.encolar_saliente(
+            base, "pedido", texto,
+            meta={"approval_id": row["approval_id"],
+                  "vence_ts": row.get("vence_ts")}, nivel="accion")
+    elif nivel == "R3":
+        texto = ("Hay un pedido R3 esperando en la app: "
+                 f"{row.get('motivo') or ''} "
+                 "Solo se aprueba con el PC delante.")
+        _cn5.encolar_saliente(
+            base, "pedido", texto,
+            meta={"approval_id": row["approval_id"],
+                  "vence_ts": row.get("vence_ts"), "r3": True},
+            nivel="accion")
+    return entrada
+
+
+def _f5_resultado_a_canal(raiz, resultado):
+    """El resumen de cierre del encargo vuelve por el canal por el que
+    se pidió (B9; gancho dentro de _f4_escribir_resumen): solo si ese
+    canal es el transporte hoy activo y sigue emparejado. Al encolar
+    se marca, y el aviso «encargo_terminado» no lo duplica (§7.2).
+    Nunca lanza."""
+    try:
+        import canales as _cn5
+        import relevo as _rl5
+        base = _f5_base()
+        ent = _rl5.obtener(base, raiz)
+        if not ent:
+            return False
+        origen = ent.get("canal")
+        cfg = _f5_config()
+        if origen not in _cn5.TRANSPORTES \
+                or cfg.get("activo") != origen \
+                or not _cn5.emparejado(cfg, origen):
+            return False
+        texto = str(resultado.get("output")
+                    or resultado.get("error") or "").strip()
+        if not texto:
+            texto = f"Encargo {raiz} cerrado: {resultado.get('status')}"
+        _cn5.encolar_saliente(base, "resumen", texto[:1000],
+                              meta={"raiz": raiz}, nivel="accion")
+        _cn5.marcar_resumen_encolado(base, raiz)
+        return True
+    except Exception:
+        return False
+
+
+def _f5_resultado_necesita_decision(result):
+    """§7.4: si una tarea que entró por el canal muere sin ejecutarse
+    por una decisión (denegada o vencida), el dueño se entera por el
+    mismo canal, con el motivo. Las subtareas de un encargo no pasan
+    por aquí: su cierre lo cuenta el resumen del encargo. Nunca
+    lanza."""
+    try:
+        import canales as _cn5
+        if result.get("estado") != "necesita_decision":
+            return
+        if str(result.get("raiz") or "").startswith("enc-"):
+            return
+        apr = result.get("aprobacion") or {}
+        origen = apr.get("canal") or result.get("canal")
+        cfg = _f5_config()
+        if origen not in _cn5.TRANSPORTES \
+                or cfg.get("activo") != origen \
+                or not _cn5.emparejado(cfg, origen):
+            return
+        motivo = str(result.get("reporte") or result.get("error")
+                     or "sin motivo")[:400]
+        _cn5.encolar_saliente(
+            _f5_base(), "respuesta",
+            f"La tarea {result.get('id')} no se ejecutó: {motivo}",
+            meta={"tarea": result.get("id")}, nivel="accion")
+    except Exception:
+        pass
+
 
 # ------------------------------------------------------------- dual ↔ cola
 
@@ -15964,6 +16431,7 @@ def _f4_escribir_resumen(raiz, resultado):
         carril = (cta or {}).get("carril") or LANE
         if carril == LANE:
             _write_result(resultado)
+            _f5_resultado_a_canal(raiz, resultado)
             return True
         dest = _dir_carril(carril, "share", "outbox", "runner-results")
         if not dest.is_dir():
@@ -15973,6 +16441,7 @@ def _f4_escribir_resumen(raiz, resultado):
         tmp.write_text(json.dumps(resultado, ensure_ascii=False,
                                   indent=2), encoding="utf-8")
         os.replace(tmp, p)
+        _f5_resultado_a_canal(raiz, resultado)
         return True
     except Exception:
         return False
@@ -34495,6 +34964,199 @@ def _build_cuentas(tab):
                                                         padx=(8, 0))
     ttk.Button(fila_f4, text="Actualizar encargos",
                command=_refrescar_f4).pack(side="right")
+    # -- Canales (Fase 5) -------------------------------------------------
+    tk.Label(tab, text="Canales", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28,
+                                                    pady=(12, 2))
+    tk.Label(tab, text="El canal por el que mandas encargos y decides "
+                       "pedidos desde fuera. El transporte real es "
+                       "Telegram con un bot: pega su token (lo creas "
+                       "con @BotFather), genera un código y envíaselo "
+                       "al bot desde tu Telegram para emparejar. El "
+                       "resumen de cada encargo vuelve por el mismo "
+                       "canal por el que se pidió.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+             justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    canal_estado = tk.StringVar(value="")
+    canal_codigo = tk.StringVar(value="")
+    canal_guard = {"refrescando": False}
+    tk.Label(tab, textvariable=canal_estado, font=(FONT, 11),
+             bg=THEME["bg"], fg=THEME["text"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 4))
+    fila_canal = tk.Frame(tab, bg=THEME["bg"])
+    fila_canal.pack(fill="x", padx=28, pady=(2, 2))
+    tk.Label(fila_canal, text="Transporte:", font=(FONT, 11),
+             bg=THEME["bg"], fg=THEME["text"]).pack(side="left")
+    canal_sel = tk.StringVar(value="ninguno")
+    ttk.Combobox(fila_canal, textvariable=canal_sel, state="readonly",
+                 width=22,
+                 values=("ninguno", "telegram")).pack(side="left",
+                                                      padx=(8, 0))
+    tk.Label(fila_canal, text="WhatsApp (oficial y no oficial): solo "
+                              "diseño en esta fase.",
+             font=(FONT, 10), bg=THEME["bg"],
+             fg=THEME["muted"]).pack(side="left", padx=(12, 0))
+    fila_token = tk.Frame(tab, bg=THEME["bg"])
+    fila_token.pack(fill="x", padx=28, pady=(2, 2))
+    tk.Label(fila_token, text="Token del bot:", font=(FONT, 11),
+             bg=THEME["bg"], fg=THEME["text"]).pack(side="left")
+    canal_token = tk.StringVar(value="")
+    tk.Entry(fila_token, textvariable=canal_token, show="•", width=44,
+             font=(FONT, 11)).pack(side="left", padx=(8, 0))
+    fila_canal2 = tk.Frame(tab, bg=THEME["bg"])
+    fila_canal2.pack(fill="x", padx=28, pady=(4, 2))
+    tk.Label(tab, textvariable=canal_codigo, font=(FONT, 13, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28,
+                                                    pady=(2, 2))
+    tk.Label(tab, text="Avisos informativos que también salen por el "
+                       "canal (los de acción salen siempre):",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+             justify="left").pack(anchor="w", padx=28, pady=(6, 2))
+    fila_canal_info = tk.Frame(tab, bg=THEME["bg"])
+    fila_canal_info.pack(fill="x", padx=28, pady=(0, 6))
+    canal_info_vars = {}
+
+    def _canal_guardar_cfg(fn):
+        import canales as _cn5u
+        base = _base_tablero()
+        cfg = _cn5u.cargar_config(base)
+        fn(cfg)
+        try:
+            _cn5u.guardar_config(base, cfg)
+            return True
+        except Exception as e:
+            _decir("Canales: no se guardó ("
+                   + _cn5u.resumen_error(e) + ").")
+            return False
+
+    def _refrescar_canal():
+        import canales as _cn5u
+        base = _base_tablero()
+        cfg = _cn5u.cargar_config(base)
+        activo = cfg.get("activo")
+        canal_guard["refrescando"] = True
+        try:
+            canal_sel.set(activo or "ninguno")
+        finally:
+            canal_guard["refrescando"] = False
+        if not activo:
+            canal_estado.set("Sin canal activo: elige Telegram y "
+                             "pega el token del bot.")
+        else:
+            tcfg = (cfg.get("transportes") or {}).get(activo) or {}
+            if not _sec_get("canal:telegram"):
+                canal_estado.set(
+                    "Telegram elegido. Falta el token del bot: "
+                    "créalo con @BotFather y pégalo aquí abajo.")
+            elif not tcfg.get("identidad"):
+                canal_estado.set(
+                    "Telegram listo. Pulsa «Emparejar» y envía el "
+                    "código al bot desde tu Telegram.")
+            else:
+                lider = _cn5u.lider_actual(base) or {}
+                habla = lider.get("carril")
+                canal_estado.set(
+                    "Telegram emparejado con "
+                    + _cn5u.enmascarar(tcfg["identidad"]) + "."
+                    + (f" Habla con Telegram el carril "
+                       f"{str(habla).upper()}." if habla else ""))
+        suscritos = set(cfg.get("avisos_info") or [])
+        for tipo, var in canal_info_vars.items():
+            var.set(tipo in suscritos)
+
+    def _canal_cambio_transporte(*_args):
+        if canal_guard["refrescando"]:
+            return
+        valor = canal_sel.get()
+
+        def _poner(cfg):
+            cfg["activo"] = "telegram" if valor == "telegram" else None
+
+        if _canal_guardar_cfg(_poner):
+            _decir("Transporte activo: "
+                   + ("Telegram." if valor == "telegram"
+                      else "ninguno."))
+            _refrescar_canal()
+
+    canal_sel.trace_add("write", _canal_cambio_transporte)
+
+    def _canal_guardar_token():
+        valor = canal_token.get().strip()
+        if not valor:
+            _decir("Pega primero el token del bot.")
+            return
+        _sec_set("canal:telegram", valor)
+        canal_token.set("")
+        _decir("Token guardado en la bóveda. El canal lo usa en el "
+               "ciclo siguiente, sin reiniciar.")
+        _refrescar_canal()
+
+    ttk.Button(fila_token, text="Guardar token",
+               command=_canal_guardar_token).pack(side="left",
+                                                  padx=(8, 0))
+
+    def _canal_emparejar():
+        import canales as _cn5u
+        codigo = _cn5u.generar_codigo(_base_tablero(), "telegram")
+        canal_codigo.set(f"Código: {codigo}   (válido 10 minutos: "
+                         "envíaselo al bot tal cual, sin nada más)")
+        _decir("Código generado: envíaselo a tu bot desde tu "
+               "Telegram antes de que caduque.")
+
+    def _canal_revocar():
+        from tkinter import messagebox as _mb5
+        if not _mb5.askyesno(
+                "Canales",
+                "¿Revocar el emparejamiento? El canal dejará de "
+                "aceptar mensajes hasta emparejar de nuevo."):
+            return
+        import canales as _cn5u
+        _cn5u.revocar(_base_tablero(), "telegram")
+        canal_codigo.set("")
+        _decir("Emparejamiento revocado.")
+        _refrescar_canal()
+
+    def _canal_probar():
+        _f4_aviso("canal_prueba",
+                  "Aviso de prueba del canal: si lees esto en "
+                  "Telegram, el canal funciona.",
+                  None, None, None, "info")
+        _decir("Aviso de prueba emitido: saldrá por el canal si "
+               "está emparejado.")
+
+    ttk.Button(fila_canal2, text="Emparejar",
+               command=_canal_emparejar).pack(side="left")
+    ttk.Button(fila_canal2, text="Revocar emparejamiento",
+               command=_canal_revocar).pack(side="left", padx=(8, 0))
+    ttk.Button(fila_canal2, text="Enviar aviso de prueba",
+               command=_canal_probar).pack(side="left", padx=(8, 0))
+    ttk.Button(fila_canal2, text="Actualizar",
+               command=_refrescar_canal).pack(side="right")
+
+    def _canal_info_cambio():
+        elegidos = [t for t, v in canal_info_vars.items() if v.get()]
+
+        def _poner(cfg):
+            cfg["avisos_info"] = elegidos
+
+        _canal_guardar_cfg(_poner)
+
+    for _tipo_info, _etiqueta in (
+            ("division_hecha", "división de encargo"),
+            ("encargo_terminado", "encargo terminado"),
+            ("subtarea_fallida", "subtarea fallida"),
+            ("prueba_fisica_inicio", "inicio de prueba física"),
+            ("canal_prueba", "aviso de prueba")):
+        _var_info = tk.BooleanVar(value=True)
+        canal_info_vars[_tipo_info] = _var_info
+        tk.Checkbutton(fila_canal_info, text=_etiqueta,
+                       variable=_var_info, command=_canal_info_cambio,
+                       font=(FONT, 10), bg=THEME["bg"],
+                       fg=THEME["text"], activebackground=THEME["bg"],
+                       selectcolor=THEME["card"]).pack(side="left",
+                                                        padx=(0, 10))
+    _refrescar_canal()
     _refrescar()
     if cred_via() == "dpapi":
         _decir("Aviso: esta PC no ofrece almacén del sistema ahora mismo; los "
@@ -35584,6 +36246,7 @@ def main():
             log(f"cuentas: {_mig['motivo']} (almacén: {cred_via()})")
     _iniciar_vigia_dual()
     _f4_iniciar_presencia()
+    _f5_iniciar_canales()
 
     def _uncaught(exc_type, exc_value, exc_tb):
         # Red de seguridad: si algo falla fuera del arranque (por ejemplo, en
