@@ -1,0 +1,17 @@
+[Unit]
+# Vigilante de Growi Bridge (Fase 4): vigila el runner-status.json de
+# cada carril y relanza el que muera, con tope de 3 relanzamientos por
+# hora y carril. Nunca mata un proceso vivo. Lo genera
+# instalar-vigilante.sh sustituyendo @RAIZ@ y @PYTHON@.
+Description=Vigilante de Growi Bridge (relanza carriles caídos)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=@PYTHON@ @RAIZ@/vigilante.py
+WorkingDirectory=@RAIZ@
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

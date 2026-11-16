@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import time
 import unicodedata
 from datetime import datetime
 
@@ -26,8 +27,14 @@ from smolagents import ChatMessage, CodeAgent, MessageRole, Model
 from smolagents.memory import ActionStep
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-STATE_PATH = os.path.join(AQUI, "harness-state.json")
+# Fase 4: el estado puede ser por ejecución (GROWI_HARNESS_ESTADO lo fija
+# quien lanza: harness-state-<raíz>.json para encargos, harness-state-
+# <tarea>.json para lanzamientos sueltos). Sin la variable, la ruta de
+# siempre. Escribir el propio estado es la contabilidad del harness: NO
+# pasa por la capa de permisos (exención I12 de la Fase 4).
+STATE_PATH = os.environ.get("GROWI_HARNESS_ESTADO") or os.path.join(AQUI, "harness-state.json")
 MAX_STEPS = 10
+MAX_STEPS_PLAN = 6  # el planificador no necesita más: divide y termina
 MAX_PROMPT = 24000  # limite de linea de comandos de Windows ~32k
 PODA_DESPUES = 2  # observaciones con mas de N pasos de antiguedad -> marcador
 
@@ -56,7 +63,8 @@ def _cargar_permisos():
         mod = importlib.util.module_from_spec(spec)
         sys.modules["permission_layer"] = mod
         spec.loader.exec_module(mod)
-        return mod, mod.nueva_capa(os.environ.get("GROWI_SESION"))
+        return mod, mod.nueva_capa(os.environ.get("GROWI_SESION"),
+                                   cuenta=os.environ.get("GROWI_CUENTA_ID") or None)
     except Exception as e:  # noqa: BLE001
         return None, "%s: %s" % (type(e).__name__, e)
 
@@ -67,9 +75,19 @@ MSG_FAIL_CLOSED = "BLOQUEADO: la capa de permisos no se pudo cargar (%s); el har
     CAPA if not PERMISOS_OK else "")
 
 quota_tracker = _cargar_quota()
-# Fase 2: si el proceso nace con GROWI_CUENTA_ID, la cuota se anota por
-# (motor, cuenta); sin la variable, el comportamiento es el de siempre.
+# Fase 2/4: si el proceso nace con GROWI_CUENTA_ID, la cuota se anota por
+# (motor, cuenta) y la capa de permisos clasifica y audita por cuenta.
+# La variable solo la fijan el monolito y el relevo; main() la valida
+# contra el registro antes de ejecutar nada (salida 4 si no cuadra).
+# Sin la variable, el comportamiento es el de siempre.
 CUENTA_HARNESS = os.environ.get("GROWI_CUENTA_ID") or None
+RAIZ_HARNESS = os.environ.get("GROWI_RAIZ") or None
+TAREA_HARNESS = os.environ.get("GROWI_TAREA_ID") or None
+try:
+    TIEMPO_MAX_S = float(os.environ.get("GROWI_TIEMPO_MAX_S") or 0) or None
+except ValueError:
+    TIEMPO_MAX_S = None
+INICIO_HARNESS = time.time()
 _H1 = _cargar_tools()
 TOOLS = list(_H1.HARNESS_MOTOR_TOOLS)
 TOOL_POR_NOMBRE = {t.name: t for t in TOOLS}
@@ -109,7 +127,7 @@ def clasificar(tarea):
         return "complejo"
     if PERMISOS_OK:  # H3: lo que exige confirmacion humana solo existe en claude/codex -> cadena compleja
         try:
-            clases, _ = permission_layer.clasificar_tarea(tarea)
+            clases, _ = permission_layer.clasificar_tarea(tarea, cuenta=CUENTA_HARNESS)
             if any(c in permission_layer.ACCIONES_ESCRITURA for c in clases):
                 return "complejo"
         except Exception:  # noqa: BLE001
@@ -136,7 +154,19 @@ class Estado:
             "max_steps": MAX_STEPS,
             "status": "working",
             "last_output": "",
+            # Fase 4: identidad de la ejecución y marcas por paso, para
+            # que la supervisión distinga «trabajando» de «colgado».
+            "cuenta": CUENTA_HARNESS,
+            "raiz": RAIZ_HARNESS,
+            "tarea_id": TAREA_HARNESS,
+            "pasos": [],
         }
+
+    def anotar_paso(self, n, motor, ok):
+        pasos = self.datos.setdefault("pasos", [])
+        pasos.append({"n": n, "ts": time.time(), "motor": motor,
+                      "ok": bool(ok)})
+        del pasos[:-50]
 
     def escribir(self, **cambios):
         self.datos.update(cambios)
@@ -186,6 +216,9 @@ class RouterModel(Model):
         return prompt
 
     def generate(self, messages, stop_sequences=None, response_format=None, tools_to_call_from=None, **kwargs):
+        if TIEMPO_MAX_S and time.time() - INICIO_HARNESS > TIEMPO_MAX_S:
+            raise RuntimeError("tiempo máximo de la tarea alcanzado "
+                               "(%d s)" % TIEMPO_MAX_S)
         prompt = self._aplanar(messages)
         ultimo_error = "sin motores"
         for nombre in CADENAS[self.clase]:
@@ -251,6 +284,8 @@ def construir_agente(tarea, clase=None):
         salida = memory_step.observations or ""
         if getattr(memory_step, "action_output", None) is not None:
             salida = str(memory_step.action_output)
+        estado.anotar_paso(memory_step.step_number, modelo.motor_activo,
+                           getattr(memory_step, "error", None) is None)
         estado.escribir(step=memory_step.step_number, last_output=salida.strip(), status="working")
         if agent is not None:
             _podar(memory_step, agent)
@@ -267,6 +302,108 @@ def construir_agente(tarea, clase=None):
         verbosity_level=0,
     )
     return agente, modelo, estado
+
+
+# ------------------------------------------- Fase 4: cuenta y planificador
+def _cargar_cuentas():
+    ruta = os.path.join(AQUI, "cuentas.py")
+    spec = importlib.util.spec_from_file_location("cuentas", ruta)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def validar_cuenta_entorno():
+    """La GROWI_CUENTA_ID que fijó el monolito/relevo tiene que cuadrar
+    con el registro: la cuenta existe, está habilitada y es del carril de
+    este proceso. Devuelve None si todo cuadra (o si no hay variable:
+    comportamiento histórico) y el texto del error en caso contrario."""
+    if not CUENTA_HARNESS:
+        return None
+    try:
+        mod = _cargar_cuentas()
+        reg = mod.cargar(AQUI)
+    except Exception as e:  # noqa: BLE001
+        return "no se pudo leer el registro de cuentas (%s: %s)" % (
+            type(e).__name__, e)
+    cta = mod.cuenta(reg, CUENTA_HARNESS)
+    if cta is None:
+        return "la cuenta «%s» no existe en el registro" % CUENTA_HARNESS
+    if not cta.get("habilitada", True):
+        return "la cuenta «%s» está deshabilitada" % CUENTA_HARNESS
+    carril = os.environ.get("GROWI_BRIDGE_LANE") or "a"
+    if cta.get("carril") != carril:
+        return ("la cuenta «%s» es del carril %s y este harness corre en "
+                "el carril %s" % (CUENTA_HARNESS, cta.get("carril"),
+                                  carril))
+    return None
+
+
+PROMPT_PLANIFICADOR = """Eres el planificador de Growi Bridge. Tu único trabajo es DIVIDIR un encargo del dueño en subtareas claras; no ejecutas nada.
+Responde con final_answer y SOLO el JSON del plan, sin texto antes ni después. Formato:
+{"subtareas": [{"prompt": "qué hay que hacer, completo y autocontenido", "motor": null, "archivos": [], "git": null, "timeout_min": 30, "depende_de": [], "prueba_fisica": null}]}
+Reglas: entre 1 y 12 subtareas; cada prompt debe entenderse sin leer las demás; "depende_de" lleva las posiciones (1..N) que deben terminar antes; "motor" solo si un motor concreto es imprescindible (si no, null); si una parte exige medir el rendimiento de toda la PC o abrir el proyecto/el juego para probarlo, márcala con "prueba_fisica": {"clase": "medicion"|"ejecutar_proyecto"|"abrir_programa", "detalle": "...", "duracion_est_min": 15, "impacto": "..."}.
+"""
+
+
+def _plantillas_plan():
+    base = _plantillas()
+    base["system_prompt"] = PROMPT_PLANIFICADOR
+    return base
+
+
+def ejecutar_plan(tarea):
+    """Modo --planificar: el mismo loop con el prompt de planificación,
+    sin herramientas (no ejecuta nada: las herramientas de escritura
+    están denegadas por la capa y aquí ni siquiera se ofrecen) y con
+    MAX_STEPS_PLAN pasos. La única salida válida es el final_answer con
+    el JSON del plan; quien llama lo valida entero."""
+    estado = Estado(tarea)
+    if not PERMISOS_OK:  # fail closed, como ejecutar()
+        estado.escribir(status="error", last_output=MSG_FAIL_CLOSED)
+        return MSG_FAIL_CLOSED, RouterModel(clasificar(tarea), estado)
+    modelo = RouterModel(clasificar(tarea), estado)
+
+    def cb_estado(memory_step, agent=None):
+        salida = memory_step.observations or ""
+        if getattr(memory_step, "action_output", None) is not None:
+            salida = str(memory_step.action_output)
+        estado.anotar_paso(memory_step.step_number, modelo.motor_activo,
+                           getattr(memory_step, "error", None) is None)
+        estado.escribir(step=memory_step.step_number,
+                        last_output=salida.strip(), status="working")
+
+    agente = CodeAgent(
+        tools=[],
+        model=modelo,
+        add_base_tools=False,
+        max_steps=MAX_STEPS_PLAN,
+        executor_type="local",
+        additional_authorized_imports=[],
+        prompt_templates=_plantillas_plan(),
+        step_callbacks=[cb_estado],
+        verbosity_level=0,
+    )
+    estado.escribir(status="working", last_output="planificando")
+    try:
+        resultado = agente.run(str(tarea))
+        texto = str(resultado)
+        malo = texto.startswith("ERROR")
+        estado.escribir(status="error" if malo else "done",
+                        step=max(estado.datos["step"], 1),
+                        last_output=texto)
+        if PERMISOS_OK:
+            try:  # la planificación también queda auditada por cuenta
+                permission_layer.registrar(
+                    "harness", tarea, "error" if malo else "ok", None, 0.0,
+                    "planificar", cuenta=CUENTA_HARNESS)
+            except Exception:  # noqa: BLE001
+                pass
+        return texto, modelo
+    except Exception as e:  # noqa: BLE001
+        texto = "ERROR: %s: %s" % (type(e).__name__, e)
+        estado.escribir(status="error", last_output=texto)
+        return texto, modelo
 
 
 def ejecutar(tarea):
@@ -294,20 +431,37 @@ def ejecutar(tarea):
 
 
 def main(argv):
-    if len(argv) < 2 or not " ".join(argv[1:]).strip() or (argv[1] == "--sesion" and len(argv) < 4):
-        print('Uso: python harness.py "tu tarea en lenguaje natural"')
-        return 2
     args = list(argv[1:])
+    planificar = False
+    if "--planificar" in args:
+        planificar = True
+        args = [a for a in args if a != "--planificar"]
+    if not args or not " ".join(args).strip() or (args[0] == "--sesion" and len(args) < 3):
+        print('Uso: python harness.py [--sesion ID] [--planificar] "tu tarea en lenguaje natural"')
+        return 2
     if len(args) >= 2 and args[0] == "--sesion":  # misma sesion = una sola confirmacion humana
         os.environ["GROWI_SESION"] = args[1]
         if PERMISOS_OK:
-            permission_layer.nueva_capa(args[1])
+            permission_layer.nueva_capa(args[1], cuenta=CUENTA_HARNESS)
             globals()["CAPA"] = permission_layer._DEFECTO
         args = args[2:]
     tarea = " ".join(args)
-    texto, modelo = ejecutar(tarea)
-    print("[clase=%s motores=%s]" % (modelo.clase, ",".join("%s:%s" % (m, "ok" if o else "fallo") for m, o in modelo.historial)))
-    print(texto)
+    error_cuenta = validar_cuenta_entorno()
+    if error_cuenta:  # Fase 4: cuenta que no cuadra -> salida 4 sin ejecutar
+        texto = "BLOQUEADO: GROWI_CUENTA_ID no válida: %s" % error_cuenta
+        try:
+            Estado(tarea).escribir(status="error", last_output=texto)
+        except Exception:  # noqa: BLE001
+            pass
+        print(texto)
+        return 4
+    if planificar:
+        texto, modelo = ejecutar_plan(tarea)
+        print(texto)
+    else:
+        texto, modelo = ejecutar(tarea)
+        print("[clase=%s motores=%s]" % (modelo.clase, ",".join("%s:%s" % (m, "ok" if o else "fallo") for m, o in modelo.historial)))
+        print(texto)
     if texto.startswith("BLOQUEADO"):
         return 4
     return 1 if texto.startswith("ERROR") else 0

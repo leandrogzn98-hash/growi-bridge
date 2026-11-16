@@ -4388,7 +4388,25 @@ def validate_task(data, f3=None):
     if not cwd.is_dir():
         return None, f"cwd no existe o no es carpeta: {cwd}"
     if not _inside_any(cwd, load_folders()):
-        return None, f"cwd fuera de las carpetas permitidas: {cwd}"
+        # Entregas derivadas por el propio programa (la consulta de la
+        # Fase 2 y la subtarea del relevo de la Fase 4 en el carril B):
+        # el cwd es la carpeta del carril y los archivos viven en sus
+        # subcarpetas encargos/ o consultas/. Es la carpeta de trabajo
+        # interna del programa, derivada mecánicamente al entregar; no
+        # puede depender de que el dueño la haya añadido a mano a sus
+        # carpetas permitidas.
+        _derivada = False
+        if LANE == "b" and cwd == Path(APP_DIR).resolve():
+            _archs = data.get("archivos")
+            if isinstance(_archs, list) and _archs and all(
+                    isinstance(a, str) and a.strip() for a in _archs):
+                _base = Path(APP_DIR).resolve()
+                _subs = [str(_base / "encargos"), str(_base / "consultas")]
+                _derivada = all(
+                    _inside_any(Path(a).expanduser().resolve(), _subs)
+                    for a in _archs)
+        if not _derivada:
+            return None, f"cwd fuera de las carpetas permitidas: {cwd}"
     if asis is not None and not _inside_any(cwd, asis_raices(asis)):
         return None, asis_fuera_txt(asis, cwd)  # las carpetas que ve el asistente
     # Motor: el campo "motor" (engines.json). Sin el, como antes: model
@@ -5684,6 +5702,11 @@ def _engine_env(eng):
         env = _gt.aplicar_entorno_sin_credenciales(env)
     except Exception:
         pass
+    # Fase 4 (§12.4): el entorno de la tarea en curso, compuesto por
+    # process_one SOLO desde su fila de la cola (cuenta, raíz, tiempo
+    # máximo, estado del harness por ejecución). Nada viene del payload.
+    if _ENV_TAREA:
+        env.update(_ENV_TAREA)
     return _ensure_no_proxy(env)
 
 
@@ -7332,6 +7355,7 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
     timeout_s = task["timeout_min"] * 60
     st = {"final": None, "events": 0, "uso": False, "model_of": {}, "last_text": "",
           "raw": deque(maxlen=60)}
+    cmd = _f4_envolver_cmd(cmd, task)
     with tempfile.TemporaryFile() as err:
         try:
             proc = subprocess.Popen(
@@ -7346,6 +7370,7 @@ def _run_cli_stream(task, motor_id, eng, result, prompt, cmd, rol):
             log(f"runner [{task['id']}]: {result['error']}; no se reintenta con ventana visible")
             return True
         _RUN["proc"] = proc
+        _f4_registrar_pid(task["id"], proc)
         result["lanzamiento"] = _lanzamiento(proc)
         log(f"runner [{task['id']}]: {motor_id} lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
         _track_launch(proc, f"runner: tarea {task['id']}, motor {MOTOR_CORTO.get(motor_id, motor_id)}")
@@ -7429,6 +7454,7 @@ def _run_cli_plain(task, motor_id, eng, result, prompt, cmd, rol="tarea"):
     import tempfile
     stdin_mode = eng.get("prompt_por") == "stdin"
     timeout_s = task["timeout_min"] * 60
+    cmd = _f4_envolver_cmd(cmd, task)
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
             proc = subprocess.Popen(
@@ -7443,6 +7469,7 @@ def _run_cli_plain(task, motor_id, eng, result, prompt, cmd, rol="tarea"):
             log(f"runner [{task['id']}]: {result['error']}; no se reintenta con ventana visible")
             return
         _RUN["proc"] = proc
+        _f4_registrar_pid(task["id"], proc)
         result["lanzamiento"] = _lanzamiento(proc)
         log(f"runner [{task['id']}]: {motor_id} lanzado oculto ({OCULTO_TXT}), pid {proc.pid}")
         _track_launch(proc, f"runner: tarea {task['id']}, motor {MOTOR_CORTO.get(motor_id, motor_id)}")
@@ -8452,6 +8479,7 @@ def _write_result(result):
         json.dump(result, f, ensure_ascii=False, indent=2)
     if isinstance(result, dict):
         _consulta_devolver(result, path)
+        _f4_resultado_a_buzon(result)
     return path
 
 
@@ -8971,13 +8999,17 @@ def texto_pedido(row, nivel_nombre=""):
                if r3 else f"Código del pedido: {row.get('approval_id')}"))
 
 
-def _apr_pedido_archivo(row, nivel_nombre=""):
+def _apr_pedido_archivo(row, nivel_nombre="", prueba=None):
     try:
         APR_PEDIDOS.mkdir(parents=True, exist_ok=True)
         d = dict(_apr_info(row), tarea=row.get("tarea"), raiz=row.get("raiz"), pedido=row.get("pedido"),
                  acciones=json.loads(row.get("acciones") or "[]"), nivel_nombre=nivel_nombre,
                  se_puede_por_whatsapp=row.get("nivel") != "R3", texto_whatsapp=texto_pedido(row, nivel_nombre),
                  actualizado=hora_caracas(time.time()))
+        if prueba is not None:
+            # Fase 4 (§9.2): el pedido de una prueba física lleva su
+            # bloque completo (clase, detalle, duración, impacto).
+            d["prueba"] = prueba
         p = APR_PEDIDOS / f"{row['approval_id']}.pedido.json"
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -9006,7 +9038,7 @@ def _apr_nuevo(task, need, archivo, creado_ts=None, nota=None):
            "prueba": 1 if prueba else 0, "estado": "pendiente", "resultado": None, "tardias": "[]"}
     _cola(f"INSERT INTO aprobaciones ({', '.join(row)}) VALUES ({', '.join('?' * len(row))})",
           tuple(row.values()))
-    _apr_pedido_archivo(row, _nivel_nombre(row["nivel"]))
+    _apr_pedido_archivo(row, _nivel_nombre(row["nivel"]), prueba=need.get("prueba"))
     _apr_evento("pedido", row, espera=_dur_txt(secs), prueba=bool(prueba), nota=nota)
     return row
 
@@ -9184,7 +9216,7 @@ def _apr_tardia(row, decision, canal):
         "tardía, descartada; no se ejecuta nada")
 
 
-def decidir_aprobacion(approval_id=None, decision="aprobar", canal="app", raiz=None):
+def decidir_aprobacion(approval_id=None, decision="aprobar", canal="app", raiz=None, minutos=None):
     """La UNICA entrada para aprobar o rechazar un pedido (app o, mas adelante,
     un canal remoto). (hecho, mensaje). Comprueba el vencimiento ANTES de
     nada: lo que llega tarde se apunta y se descarta."""
@@ -9210,6 +9242,37 @@ def decidir_aprobacion(approval_id=None, decision="aprobar", canal="app", raiz=N
         src = WAITING / name
         if not name or not src.is_file():
             return False, "esa tarea ya no está esperando"
+        if decision == "aplazar":
+            # Fase 4 (§9.3): una aprobación PROGRAMADA, no una pregunta
+            # nueva. La fila queda «aprobada» con su resultado; la tarea
+            # vuelve a la cola con proximo_intento futuro (cola_en_espera
+            # la retiene hasta entonces, ni un segundo antes) y el
+            # permiso se consume al recogerla (B7), sin volver a
+            # preguntar. No se añade pase en memoria: el permiso vive en
+            # la fila. aprobaciones_vencer solo vence «pendiente», así
+            # que una aprobada-aplazada nunca vence por el barrido (I6).
+            try:
+                minutos = int(minutos)
+            except (TypeError, ValueError):
+                return False, "aplazar necesita los minutos (1..1440)"
+            if not 1 <= minutos <= 1440:
+                return False, "aplazar necesita los minutos (1..1440)"
+            dest = TASKS / src.name
+            shutil.move(str(src), str(dest))
+            t = time.time() - 5
+            os.utime(dest, (t, t))
+            cid = cola_registrar(dest)
+            cola_set(cid, proximo_intento=ahora + minutos * 60)
+            _apr_set(row["approval_id"], estado="aprobada",
+                     resultado=f"aprobada, aplazada {minutos} min: arranca a las {hora_caracas_txt(ahora + minutos * 60)}",
+                     resuelto_en=hora_caracas(ahora), resuelto_por=canal)
+            row = apr_get(row["approval_id"]) or row
+            _family_update(row["raiz"], estado="pendiente", archivo_espera=None, aprobada_por_usuario=_now_iso(),
+                           aprobacion=_apr_info(row))
+            _apr_pedido_archivo(row, _nivel_nombre(row["nivel"]))
+            _apr_evento("aplazada", row, canal=canal)
+            log(f"tareas: aplazaste {row['raiz']} ({row['approval_id']}) {minutos} min")
+            return True, f"aplazada {minutos} min; arranca a las {hora_caracas_txt(ahora + minutos * 60)}"
         if decision == "aprobar":
             try:
                 acc = json.loads(row.get("acciones") or "[]")
@@ -12646,6 +12709,17 @@ def _cola_migrar_v1():
             "se sigue sin cuenta/tipo")
 
 
+def _cola_migrar_f4():
+    """Fase 4: columna bloqueo_admision_ts en tareas (la admisión de
+    recursos anota su propio campo; jamás toca proximo_intento, B6)."""
+    try:
+        cols = {r["name"] for r in _cola("PRAGMA table_info(tareas)", fetch=True)}
+        if cols and "bloqueo_admision_ts" not in cols:
+            _cola("ALTER TABLE tareas ADD COLUMN bloqueo_admision_ts REAL")
+    except Exception:
+        pass
+
+
 def cola_init():
     _cola("""CREATE TABLE IF NOT EXISTS tareas (
         id TEXT PRIMARY KEY, archivo TEXT, estado TEXT NOT NULL,
@@ -12656,6 +12730,10 @@ def cola_init():
         proximo_intento REAL, motivo TEXT, historial TEXT)""")
     _cola("CREATE INDEX IF NOT EXISTS tareas_estado ON tareas(estado)")
     _cola_migrar_v1()
+    _cola("""CREATE TABLE IF NOT EXISTS dual_en_vuelo (
+        tarea TEXT PRIMARY KEY, cuenta TEXT, estado TEXT NOT NULL,
+        enviada_ts REAL, resuelta_ts REAL, intentos INTEGER NOT NULL DEFAULT 0)""")
+    _cola_migrar_f4()
     aprobaciones_init()
     checkpoint_init()
     calibracion_init()
@@ -12702,6 +12780,10 @@ def cola_registrar(task_file, data=None):
     row = cola_get(tid)
     if row is not None and row["estado"] == "en_cola" and row["archivo"] == str(task_file):
         return tid
+    if row is not None and row["estado"] in ("enviada_servidor", "resuelta_dueno"):
+        # Fase 4 (B4): el protocolo dual manda sobre la fila; volver a
+        # registrarla no la devuelve a la cola local.
+        return tid
     now = _now_iso()
     try:
         ronda = int(data.get("ronda") or 0)
@@ -12713,7 +12795,10 @@ def cola_registrar(task_file, data=None):
     if _COLA_TIENE_CUENTA[0]:
         # Fase 2: de qué cuenta es la tarea y de qué tipo (consulta, ...).
         info["tipo"] = data.get("tipo")
-        info["cuenta"] = data.get("cuenta") or _cuenta_de_este_carril()
+        # Fase 4 (B2): la fila anota SIEMPRE la cuenta del carril que
+        # la recoge; el «cuenta» del payload solo vale si este carril no
+        # tiene cuenta propia (compatibilidad).
+        info["cuenta"] = _cuenta_de_este_carril() or data.get("cuenta")
     if row is None:
         _cols = "id, archivo, estado, motor, ronda, tarea_padre, raiz, fase"
         if _COLA_TIENE_CUENTA[0]:
@@ -12844,6 +12929,15 @@ def cola_recuperar():
             import traspaso as _tr
             if _tr.marcador_vivo_de(_base_tablero(), r["id"]):
                 log(f"cola: la tarea {r['id']} tiene un traspaso vivo; no se recupera en el origen")
+                continue
+        except Exception:
+            pass
+        # Fase 4 (B4): una tarea en el protocolo dual (por_confirmar o
+        # resuelta_dueno) NO se recupera como trabajo local.
+        try:
+            _df = _dual_fila(r["id"])
+            if _df is not None and _df.get("estado") in ("por_confirmar", "resuelta_dueno"):
+                log(f"cola: la tarea {r['id']} está en el protocolo dual ({_df.get('estado')}); no se recupera en local")
                 continue
         except Exception:
             pass
@@ -13597,6 +13691,7 @@ def process_one(task_file):
         return _process_one_impl(task_file)
     finally:
         _CFG_LOCAL.snap = None
+        _ENV_TAREA.clear()
 
 
 def _process_one_impl(task_file):
@@ -13653,6 +13748,8 @@ def _process_one_impl(task_file):
     # Primero se apunta en_curso y despues se mueve: si se va la luz entre
     # medias, al volver cola_recuperar() la encuentra igual.
     cola_set(cid, estado="en_curso", archivo=str(processing_path), proximo_intento=None)
+    _f4_anotar_inicio(cid)
+    _f4_fijar_entorno_tarea(row, task)
     try:
         shutil.move(str(task_file), str(processing_path))
     except OSError as e:
@@ -14043,7 +14140,38 @@ def runner_loop(stop_event):
                 # caducada o sin presupuesto se cierra sin correr).
                 for _cand in candidates:
                     _p = _puerta_tablero(_cand)
+                    if _p == "saltar":
+                        # Fase 4: la tarea queda en manos del protocolo
+                        # dual (por_confirmar / resuelta_dueno): se salta
+                        # sin bloquear a las demás candidatas.
+                        continue
                     if _p == "ok":
+                        _datos4 = _f3_leer_tarea(_cand) or {}
+                        if _datos4.get("tipo") == "encargo":
+                            # Fase 4: el encargo se divide y se reparte
+                            # entre las cuentas; no pasa por process_one.
+                            _f4_procesar_encargo(_cand, _datos4)
+                            break
+                        _prueba4 = None
+                        if _datos4.get("tipo") != "consulta" and not isinstance(_datos4.get("traspaso"), dict):
+                            _prueba4 = _f4_prueba_de(_datos4)
+                        if _prueba4 is not None:
+                            if _datos4.get("tipo") != "prueba_fisica":
+                                try:
+                                    _cid4 = cola_registrar(_cand, _datos4)
+                                    _cola_hist_add(_cid4, {"prueba_marcada_clasificador": time.time(),
+                                                           "clase": _prueba4["clase"]})
+                                except Exception:
+                                    pass
+                            if _f4_prueba_puerta(_cand, _datos4, _prueba4) != "correr":
+                                break
+                        _adm4 = _f4_admision_bloqueo(_datos4)
+                        if _adm4:
+                            # Admisión de recursos (B6): jamás toca
+                            # proximo_intento; anota su propio campo.
+                            _cid4 = cola_registrar(_cand, _datos4)
+                            cola_set(_cid4, bloqueo_admision_ts=now, motivo=_adm4[:300])
+                            continue
                         # Fase 3: alquileres + worktree antes de correr.
                         _f3v, _f3prep = _f3_preparar(_cand)
                         if _f3v != "ok":
@@ -14408,6 +14536,15 @@ def _sonda_servidor():
 
     Un fallo de la sonda NO es una tarea fallida: solo alimenta la
     histéresis del vigía (dual.py)."""
+    # Costura de pruebas (I11): solo con GROWI_PRUEBAS=1 en el entorno
+    # del proceso padre, un archivo en la carpeta compartida fuerza el
+    # fallo de la sonda (probar el modo dual sin cortar la red de verdad).
+    try:
+        if os.environ.get("GROWI_PRUEBAS") == "1" and \
+                (_token_dir() / "dual-forzar-fallo").exists():
+            return False
+    except Exception:
+        pass
     try:
         import urllib.request
         req = urllib.request.Request("https://ipinfo.io/json",
@@ -14538,6 +14675,7 @@ def _tablero_latido(cur):
             log(f"tablero: la cuenta «{cuenta}» pasa a {nuevo} según el tablero")
             _TABLERO["estado"] = nuevo
         _f3_latido(cuenta, nuevo)
+        _f4_latido(cuenta)
     except Exception as e:
         log(f"tablero: latido con error ({type(e).__name__}: {e}); el runner sigue")
 
@@ -14618,6 +14756,9 @@ def _puerta_tablero(task_file):
         if cuenta and _TABLERO["estado"] in ("restringida", "cuarentena"):
             return "esperar"
         return _traspaso_puerta(task_file, data)
+    _pd4 = _f4_puerta_dual(task_file, data)
+    if _pd4 is not None:
+        return _pd4
     if data.get("tipo") == "consulta":
         import consulta as _con
         if _con.caducada(data):
@@ -14650,6 +14791,12 @@ def _puerta_tablero(task_file):
             except OSError as e:
                 log(f"runner: no se pudo persistir la reserva de la consulta ({e})")
         return "ok"
+    if cuenta and data.get("cuenta") not in (None, cuenta) \
+            and data.get("tipo") != "encargo":
+        # Fase 4 (B2): una tarea cuya cuenta no es la de este carril se
+        # cierra sin correr, con motivo_cierre en el resultado. Los
+        # encargos se exceptúan: el receptor los registra a su nombre.
+        return _f4_cerrar_cuenta_distinta(task_file, data)
     if cuenta and _TABLERO["estado"] in ("restringida", "cuarentena"):
         return "esperar"
     return "ok"
@@ -14686,6 +14833,1323 @@ def _consulta_devolver(result, path):
                     "instalado; el resultado se queda en este carril")
     except Exception as e:
         log(f"consulta: no se pudo devolver el resultado ({type(e).__name__}: {e})")
+
+
+# ---------------------------------------------------------------- Fase 4
+# Harness multiagente y relevo telefónico, recursos por % con modos de
+# presencia, pruebas físicas con aviso previo y el vigilante externo. La
+# lógica vive en relevo.py, supervision.py, recursos.py, presencia.py,
+# avisos.py y vigilante.py; aquí solo está el cableado fino (§12 del
+# diseño). Las cuentas son cuentas Muse; «claude» es solo un motor.
+_F4 = {"specs": None, "sonda_systemd": None, "procs": {},
+       "muestras_cpu": 0, "muestras_ram": 0, "prioridad": None,
+       "ciclo": {"activo": False, "pedido": False}, "jobs": {}}
+_F4_ENCARGOS_EN_CURSO = set()
+_F4_PRUEBAS_AUSENTE = {}
+_F4_PIDS = {}
+_ENV_TAREA = {}
+
+
+def _f4_id_de(task_file, data):
+    tid = data.get("id") if isinstance(data.get("id"), str) else None
+    return tid or Path(task_file).name.split(".task.json")[0]
+
+
+def _cola_hist_add(tid, entrada):
+    row = cola_get(tid)
+    if row:
+        cola_set(tid, historial=_cola_hist(row) + [entrada])
+
+
+def _f4_modo():
+    try:
+        import presencia as _pr4
+        return _pr4.modo_efectivo(_base_tablero())
+    except Exception:
+        return "presente"
+
+
+def _f4_ventana_ok(gesto=False):
+    """El punto único por el que pasa toda acción que levanta ventana o
+    avisa en primer plano (§8.5): en modo presente solo pasan los gestos
+    del dueño; en ausente, todo. Las llamadas que ya son un gesto (clic
+    en la bandeja, atajo, clic en la ventana) pasan gesto=True o ni
+    siquiera consultan: son el dueño actuando."""
+    if gesto:
+        return True
+    return _f4_modo() != "presente"
+
+
+def _f4_aviso_local(aviso):
+    """El destino «local» de los avisos: si molesta o no lo decide
+    presencia (en presente, contador silencioso; en ausente, toast)."""
+    try:
+        if _f4_modo() == "presente":
+            state["avisos_silenciosos"] = state.get("avisos_silenciosos", 0) + 1
+            return True
+        texto = str(aviso.get("texto") or "")
+        _ui_call(lambda t=texto: toast(t, ctx=("tareas",)))
+        return True
+    except Exception:
+        return False
+
+
+def _f4_aviso(tipo, texto, cuenta=None, raiz=None, tarea=None, nivel="info"):
+    try:
+        import avisos as _av4
+        _av4.fijar_destino_local(_f4_aviso_local)
+        return _av4.emitir(_base_tablero(), tipo, texto, cuenta=cuenta,
+                           raiz=raiz, tarea=tarea, nivel=nivel,
+                           log=lambda m: log(m))
+    except Exception:
+        return None
+
+
+def _f4_pids_propios():
+    pids = {os.getpid()}
+    for info in _F4_PIDS.values():
+        if info.get("pid"):
+            pids.add(info["pid"])
+    proc = _RUN.get("proc")
+    if proc is not None:
+        try:
+            pids.add(proc.pid)
+        except Exception:
+            pass
+    return pids
+
+
+def _f4_iniciar_presencia():
+    """La presencia corre en su propio hilo (~30 s): el latido del
+    tablero solo lee el modo ya calculado."""
+    def _hilo():
+        while True:
+            try:
+                import presencia as _pr4
+                base = _base_tablero()
+                senales = _pr4.recoger_senales(
+                    base, pids_propios=_f4_pids_propios())
+                _pr4.tick(base, senales)
+            except Exception:
+                pass
+            time.sleep(30)
+    threading.Thread(target=_hilo, daemon=True, name="presencia").start()
+
+
+# ------------------------------------------------------------- dual ↔ cola
+
+def _dual_fila(tarea):
+    try:
+        rows = _cola("SELECT * FROM dual_en_vuelo WHERE tarea=?",
+                     (tarea,), fetch=True)
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
+def _f4_dual_asegurar():
+    """Reconstruye el por_confirmar del vigía desde dual_en_vuelo: un
+    reinicio a mitad del protocolo no pierde ningún marcador."""
+    v = _VIGIA_DUAL.get("vigia")
+    if v is None:
+        return
+    try:
+        for r in _cola("SELECT tarea FROM dual_en_vuelo "
+                       "WHERE estado='por_confirmar'", fetch=True):
+            v.registrar_en_vuelo(r["tarea"])
+    except Exception:
+        pass
+
+
+def _f4_dual_aplica(data):
+    if data.get("tipo") in ("consulta", "encargo"):
+        return False  # tareas de control: se procesan en local siempre
+    cuenta = _cuenta_de_este_carril()
+    if not cuenta or data.get("cuenta") not in (None, cuenta):
+        return False
+    reg = _cuentas_reg()
+    cta = next((c for c in (reg or {}).get("cuentas", [])
+                if c.get("id") == cuenta), None)
+    if not cta or cta.get("conexion") != "ambas":
+        return False
+    v = _VIGIA_DUAL.get("vigia")
+    if v is None:
+        return False
+    import dual as _d4
+    return v.estado == _d4.SERVIDOR
+
+
+def _f4_puerta_dual(task_file, data):
+    """La puerta dual (§6.1): «saltar» si la tarea queda en manos del
+    protocolo por_confirmar; None si sigue el flujo normal.
+
+    B3: el puente NO entrega a la sesión remota con cuentas duales: el
+    runner inserta el marcador por_confirmar en dual_en_vuelo y apunta la
+    fila como enviada_servidor ANTES de que la tarea quede visible para
+    la sesión remota (que la recoge por la caja de archivos y cuyo
+    recogido exige el marcador). Si el insert falla, no hay envío."""
+    tid = _f4_id_de(task_file, data)
+    if _dual_fila(tid) is not None:
+        return "saltar"  # por_confirmar o resuelta_dueno: nunca process_one
+    if not _f4_dual_aplica(data):
+        return None
+    row = cola_get(tid)
+    if row and any(isinstance(e, dict) and e.get("dual_resuelta_local")
+                   for e in _cola_hist(row)):
+        return None  # ya se decidió ejecutarla aquí: no se reenvía
+    _cola("INSERT OR IGNORE INTO dual_en_vuelo "
+          "(tarea, cuenta, estado, enviada_ts, intentos) "
+          "VALUES (?, ?, 'por_confirmar', ?, 0)",
+          (tid, _cuenta_de_este_carril(), time.time()))
+    # _cola traga los errores SQL sin lanzar: el marcador se verifica
+    # por relectura. Si no quedó escrito, NO hay envío (B3).
+    _fila_dual = _dual_fila(tid)
+    if _fila_dual is None or _fila_dual.get("estado") != "por_confirmar":
+        log(f"dual: el marcador de {tid} no quedó escrito; "
+            "la tarea NO se envía")
+        return "saltar"
+    v = _VIGIA_DUAL.get("vigia")
+    if v is not None:
+        v.registrar_en_vuelo(tid)
+    cid = cola_registrar(task_file, data)
+    cola_set(cid, estado="enviada_servidor",
+             motivo="enviada a la sesión del servidor (modo dual); "
+                    "a la espera de confirmación")
+    log(f"dual: la tarea {tid} quedó por_confirmar y visible para la "
+        "sesión del servidor")
+    return "saltar"
+
+
+def _dual_resolver_dueno(tarea, hecha):
+    """La decisión del dueño sobre una tarea dual sin resolver: «se hizo
+    en el servidor» la cierra sin ejecutar nada aquí; «ejecutarla aquí»
+    la devuelve a la cola local con la marca que impide reenviarla."""
+    v = _VIGIA_DUAL.get("vigia")
+    if hecha and v is not None:
+        try:
+            v.confirmar_hecha_en_servidor(tarea)
+        except Exception:
+            pass
+    if v is not None:
+        v.por_confirmar.pop(tarea, None)
+    try:
+        _cola("DELETE FROM dual_en_vuelo WHERE tarea=?", (tarea,))
+    except Exception:
+        pass
+    if hecha:
+        if cola_get(tarea):
+            cola_set(tarea, estado="terminada",
+                     motivo="el dueño confirmó: se hizo en el servidor")
+        p = TASKS / f"{tarea}.task.json"
+        if p.exists():
+            try:
+                shutil.move(str(p), str(DONE / p.name))
+            except OSError:
+                pass
+        log(f"dual: el dueño confirmó que {tarea} se hizo en el servidor")
+    else:
+        row = cola_get(tarea)
+        if row:
+            hist = _cola_hist(row) + [{"dual_resuelta_local": time.time(),
+                                       "por_dueno": True}]
+            cola_set(tarea, estado="en_cola", historial=hist,
+                     motivo="el dueño decidió: ejecutarla aquí")
+        log(f"dual: el dueño decidió ejecutar {tarea} aquí")
+
+
+def _f4_ctx_dual():
+    v = _VIGIA_DUAL.get("vigia")
+    if v is None:
+        return None
+    _f4_dual_asegurar()
+    try:
+        filas = _cola("SELECT * FROM dual_en_vuelo "
+                      "WHERE estado='por_confirmar'", fetch=True)
+    except Exception:
+        filas = []
+
+    def _resolver(tarea):
+        p = RESULTS / f"{tarea}.result.json"
+        if not p.exists():
+            return False
+        try:
+            json.loads(p.read_text(encoding="utf-8"))
+            return True
+        except Exception:
+            return None  # hay algo pero no se puede leer: indeterminado
+
+    def _hecha(tarea):
+        try:
+            v.confirmar_hecha_en_servidor(tarea)
+        except Exception:
+            pass
+        try:
+            _cola("DELETE FROM dual_en_vuelo WHERE tarea=?", (tarea,))
+        except Exception:
+            pass
+        if cola_get(tarea):
+            cola_set(tarea, estado="terminada",
+                     motivo="hecha en el servidor (confirmada por su "
+                            "resultado); no se ejecutó en local")
+        p = TASKS / f"{tarea}.task.json"
+        if p.exists():
+            try:
+                shutil.move(str(p), str(DONE / p.name))
+            except OSError:
+                pass
+
+    def _ejecutar(tarea):
+        # La reconciliación ya decidió (sin resultado tras la gracia):
+        # la tarea sale del protocolo y se ejecuta en local exactamente
+        # una vez; la marca dual_resuelta_local de su fila impide
+        # reenviarla si el vigía vuelve a SERVIDOR.
+        v.por_confirmar.pop(tarea, None)
+        try:
+            _cola("DELETE FROM dual_en_vuelo WHERE tarea=?", (tarea,))
+        except Exception:
+            pass
+        row = cola_get(tarea)
+        if row:
+            hist = _cola_hist(row) + [{"dual_resuelta_local": time.time()}]
+            cola_set(tarea, estado="en_cola", historial=hist,
+                     motivo="la reconciliación dual la devuelve a local: "
+                            "se ejecuta aquí, una sola vez")
+
+    def _indeterminado(tarea):
+        try:
+            _cola("UPDATE dual_en_vuelo SET intentos=intentos+1 "
+                  "WHERE tarea=?", (tarea,))
+            fila = _dual_fila(tarea)
+            return int((fila or {}).get("intentos") or 0)
+        except Exception:
+            return 0
+
+    def _resuelta(tarea):
+        try:
+            _cola("UPDATE dual_en_vuelo SET estado='resuelta_dueno' "
+                  "WHERE tarea=?", (tarea,))
+        except Exception:
+            pass
+        if cola_get(tarea):
+            cola_set(tarea, estado="resuelta_dueno",
+                     motivo="dual sin resolver: la decide el dueño "
+                            "(no se ejecuta con duda)")
+
+    return {"estado": v.estado, "filas": [dict(f) for f in filas],
+            "resolver": _resolver, "hecha": _hecha, "ejecutar": _ejecutar,
+            "indeterminado": _indeterminado, "resuelta_dueno": _resuelta}
+
+
+def _f4_cerrar_cuenta_distinta(task_file, data):
+    """Una tarea cuya cuenta no es la de este carril se cierra sin correr
+    (B2): el resultado lleva motivo_cierre para que el buzón del relevo
+    la dé por fallida, no por hecha."""
+    cid = cola_registrar(task_file, data)
+    tid = _f4_id_de(task_file, data)
+    motivo = (f"la tarea es de la cuenta «{data.get('cuenta')}» y este "
+              f"carril es de «{_cuenta_de_este_carril()}»: se cierra "
+              "sin correr")
+    DONE.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(task_file), str(DONE / task_file.name))
+    except OSError:
+        pass
+    cola_set(cid, estado="fallida", archivo=str(DONE / task_file.name),
+             motivo=motivo[:300])
+    res = _error_result(tid, motivo)
+    res["motivo_cierre"] = "cuenta_distinta"
+    res["raiz"] = data.get("raiz") or tid
+    _write_result(res)
+    log(f"runner [{tid}]: cerrada sin correr (Fase 4): {motivo}")
+    return "cerrada"
+
+
+# ----------------------------------------------------------------- relevo
+
+def _f4_activas_por_cuenta():
+    activas = {}
+    for carril in ("a", "b"):
+        for fila in _f4_filas_carril(carril):
+            if fila.get("estado") == "en_curso" and fila.get("cuenta"):
+                activas[fila["cuenta"]] = activas.get(fila["cuenta"], 0) + 1
+    return activas
+
+
+def _f4_planificar(task, receptora, raiz, motores):
+    """El planificador del harness (subproceso con --planificar), con un
+    reintento. Devuelve el plan validado o None (→ plan de reserva)."""
+    import relevo as _rl4
+    for intento in range(2):
+        try:
+            env = dict(os.environ)
+            env["GROWI_CUENTA_ID"] = receptora or ""
+            env["GROWI_RAIZ"] = raiz
+            env["GROWI_BRIDGE_LANE"] = LANE
+            env["GROWI_HARNESS_ESTADO"] = str(
+                APP_DIR / f"harness-state-{raiz}.json")
+            timeout = max(60, min(int(task.get("timeout_min") or 10),
+                                  120) * 60)
+            p = subprocess.run(
+                [sys.executable, str(APP_DIR / "harness.py"),
+                 "--planificar", str(task.get("prompt") or "")],
+                cwd=str(APP_DIR), env=env, capture_output=True, text=True,
+                timeout=timeout)
+            if p.returncode != 0:
+                log(f"relevo [{raiz}]: el planificador salió con "
+                    f"{p.returncode} (intento {intento + 1})")
+                continue
+            return _rl4.validar_plan(p.stdout, motores, raiz=raiz,
+                                     max_prompt=MAX_PROMPT_CHARS)
+        except Exception as e:
+            log(f"relevo [{raiz}]: planificación fallida "
+                f"(intento {intento + 1}): {type(e).__name__}: {e}")
+    return None
+
+
+def _f4_procesar_encargo(task_file, data):
+    tid = _f4_id_de(task_file, data)
+    if tid in _F4_ENCARGOS_EN_CURSO:
+        return
+    _F4_ENCARGOS_EN_CURSO.add(tid)
+    cid = cola_registrar(task_file, data)
+    threading.Thread(target=_f4_encargo_hilo, args=(task_file, data, cid),
+                     daemon=True, name=f"encargo-{tid}").start()
+
+
+def _f4_encargo_hilo(task_file, data, cid):
+    tid = _f4_id_de(task_file, data)
+    try:
+        import relevo as _rl4
+        base = _base_tablero()
+        receptora = _cuenta_de_este_carril()
+        task, err = validate_task(data)
+        if err:
+            task = {"id": tid, "prompt": data.get("prompt") or "",
+                    "cwd": data.get("cwd"), "canal": data.get("canal"),
+                    "raiz": tid,
+                    "timeout_min": data.get("timeout_min") or 10}
+        # La raíz de correlación la genera el código receptor, nunca el
+        # payload (§3.1).
+        raiz = _rl4.registrar_encargo(base, task, receptora)
+        cola_set(cid, raiz=raiz)
+        _f4_aviso("encargo_recibido",
+                  f"Encargo recibido ({raiz}): "
+                  f"{str(task.get('prompt') or '')[:120]}",
+                  cuenta=receptora, raiz=raiz, tarea=tid)
+        motores = set(((load_engines()[0] or {}).get("motores") or {}).keys())
+        plan, tipo_plan = None, None
+        if isinstance(data.get("subtareas"), list) and data["subtareas"]:
+            try:
+                plan = _rl4.validar_plan(
+                    {"subtareas": data["subtareas"]}, motores, raiz=raiz,
+                    max_prompt=MAX_PROMPT_CHARS)
+                tipo_plan = "declarado"
+            except _rl4.ErrorRelevo as e:
+                log(f"relevo [{raiz}]: el plan declarado no valida "
+                    f"({e}); se intenta planificar")
+        if plan is None:
+            plan = _f4_planificar(task, receptora, raiz, motores)
+            if plan is not None:
+                tipo_plan = "harness"
+        if plan is None:
+            plan = _rl4.plan_reserva(task.get("prompt") or "")
+            tipo_plan = "reserva"
+        # La asignación queda escrita ANTES de entregar nada (§3.4).
+        _rl4.asignar(base, raiz, plan, _tablero_vista(), _cuentas_reg(),
+                     _f4_activas_por_cuenta(), plan_tipo=tipo_plan)
+        _f4_aviso("division_hecha",
+                  f"Encargo {raiz} dividido en {len(plan)} subtarea(s) "
+                  f"(plan {tipo_plan})",
+                  cuenta=receptora, raiz=raiz, tarea=tid)
+        ent = _rl4.obtener(base, raiz) or {}
+        for sid, sub in (ent.get("subtareas") or {}).items():
+            if sub.get("estado") == "asignada" and not \
+                    (sub.get("spec") or {}).get("depende_de"):
+                _rl4.entregar(
+                    base, raiz, sid,
+                    _dir_carril(sub.get("carril"), "share", "inbox",
+                                "runner-tasks"),
+                    _dir_carril(sub.get("carril")))
+        res = {"id": tid, "raiz": raiz, "status": "ok",
+               "output": f"Encargo dividido en {len(plan)} subtarea(s) "
+                         f"(plan {tipo_plan}); el resumen del cierre "
+                         f"llegará como {raiz} cuando terminen",
+               "started_at": _now_iso(), "finished_at": _now_iso()}
+        _write_result(res)
+        DONE.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.move(str(task_file), str(DONE / task_file.name))
+        except OSError:
+            pass
+        cola_set(cid, estado="terminada",
+                 archivo=str(DONE / task_file.name),
+                 motivo=f"dividido en {len(plan)} subtareas ({tipo_plan})")
+    except Exception as e:
+        log(f"relevo: el encargo {tid} falló al procesarse "
+            f"({type(e).__name__}: {e})")
+        try:
+            cola_set(cid, estado="fallida",
+                     motivo=f"encargo no procesado: {e}"[:300])
+            _write_result(_error_result(
+                tid, f"no se pudo procesar el encargo: {e}"))
+        except Exception:
+            pass
+    finally:
+        _F4_ENCARGOS_EN_CURSO.discard(tid)
+
+
+def _f4_resultado_a_buzon(result):
+    """Al escribir un resultado: si es de una subtarea de encargo, va
+    también al buzón compartido del relevo (la autoridad del cierre);
+    si es de una prueba física corrida en ausente, lleva la foto de
+    recursos del periodo."""
+    try:
+        if not isinstance(result, dict):
+            return
+        tid = result.get("id")
+        if tid in _F4_PRUEBAS_AUSENTE:
+            _F4_PRUEBAS_AUSENTE.pop(tid, None)
+            try:
+                import recursos as _rc4
+                result["recursos_periodo"] = _rc4.agregado(
+                    _rc4.leer_estado(_base_tablero()))
+            except Exception:
+                pass
+        raiz = result.get("raiz")
+        if not raiz and tid:
+            row = cola_get(tid)
+            raiz = (row or {}).get("raiz")
+        if raiz and tid and str(raiz).startswith("enc-"):
+            import relevo as _rl4
+            _rl4.escribir_en_buzon(_base_tablero(),
+                                   dict(result, raiz=raiz))
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------- pruebas físicas
+
+_PRUEBA_PATRONES = (
+    ("medicion", re.compile(
+        r"benchmark|medir\b[^.]{0,40}(rendimiento|consumo|temperatura)|"
+        r"(rendimiento|consumo)\s+de(l)?\s+(todo\s+el\s+)?"
+        r"(equipo|pc|ordenador|computador)|prueba\s+de\s+"
+        r"(rendimiento|estr[eé]s)|test\s+de\s+estr[eé]s", re.I)),
+    ("ejecutar_proyecto", re.compile(
+        r"(abrir|abre|ejecutar|ejecuta|probar|prueba|probando)\s+"
+        r"(el|la)\s+(juego|proyecto)\b", re.I)),
+    ("abrir_programa", re.compile(
+        r"(abrir|abre|ejecutar|ejecuta)\s+(el|la)\s+"
+        r"(programa|aplicaci[oó]n)\b", re.I)),
+)
+
+
+def _f4_clasificar_prueba(prompt):
+    """La red de seguridad: una tarea que por su texto es una prueba
+    física aunque nadie la haya marcado (fallar hacia preguntar)."""
+    texto = str(prompt or "")
+    for clase, patron in _PRUEBA_PATRONES:
+        if patron.search(texto):
+            return {"clase": clase, "detalle": texto.strip()[:160],
+                    "duracion_est_min": 15,
+                    "impacto": "puede abrir ventanas y cargar la PC "
+                               "(prueba en el equipo)"}
+    return None
+
+
+def _f4_prueba_de(data):
+    """El bloque de prueba física de una tarea: el declarado si valida;
+    si no, el del clasificador; None si no es una prueba física."""
+    bloque = data.get("prueba") if isinstance(data.get("prueba"),
+                                              dict) else None
+    if data.get("tipo") == "prueba_fisica":
+        if bloque and bloque.get("clase") in (
+                "medicion", "ejecutar_proyecto", "abrir_programa"):
+            dur = bloque.get("duracion_est_min")
+            return {"clase": bloque["clase"],
+                    "detalle": str(bloque.get("detalle")
+                                   or data.get("prompt") or "")[:300],
+                    "duracion_est_min": dur if isinstance(dur, int)
+                    and not isinstance(dur, bool) and dur > 0 else 15,
+                    "impacto": str(bloque.get("impacto")
+                                   or "sin describir")}
+        return _f4_clasificar_prueba(data.get("prompt")) or {
+            "clase": "ejecutar_proyecto",
+            "detalle": str(data.get("prompt") or "")[:160],
+            "duracion_est_min": 15, "impacto": "sin describir"}
+    return _f4_clasificar_prueba(data.get("prompt"))
+
+
+def _f4_prueba_puerta(task_file, data, prueba):
+    """La puerta de las pruebas físicas (§9.3): «correr» o «aparcada».
+
+    En presente va al circuito de aprobaciones (R2) y solo corre con un
+    permiso aprobado que se consume al recogerla, ANTES de process_one
+    (B7: un solo uso; la versión aplazada no vuelve a preguntar). Sin
+    respuesta, el vencimiento de siempre la cierra sin ejecutar. En
+    ausente corre sin aprobación, avisando antes."""
+    tid = _f4_id_de(task_file, data)
+    try:
+        rows = _cola("SELECT * FROM aprobaciones WHERE tarea=? "
+                     "AND estado='aprobada'", (tid,), fetch=True)
+    except Exception:
+        rows = []
+    for r in rows:
+        if "prueba_fisica" in (r.get("acciones") or ""):
+            _apr_set(r["approval_id"], estado="consumida",
+                     resultado=((r.get("resultado") or "")
+                                + "; permiso consumido al recoger "
+                                  "la tarea").strip("; "))
+            log(f"pruebas físicas: {tid} corre con el permiso ya "
+                f"aprobado ({r['approval_id']}), consumido al recoger")
+            return "correr"
+    if _f4_modo() == "ausente":
+        _f4_aviso("prueba_fisica_inicio",
+                  f"Prueba física en marcha ({prueba['clase']}): "
+                  f"{prueba['detalle']}",
+                  cuenta=_cuenta_de_este_carril(), tarea=tid)
+        _F4_PRUEBAS_AUSENTE[tid] = time.time()
+        return "correr"
+    task, err = validate_task(data)
+    if err:
+        task = {"id": tid, "raiz": data.get("raiz") or tid,
+                "prompt": data.get("prompt") or "",
+                "cwd": data.get("cwd") or str(APP_DIR),
+                "motor": data.get("motor") or "claude",
+                "canal": data.get("canal")}
+    need = {"nivel": "R2",
+            "acciones": [{"tipo": "prueba_fisica", "nivel": "R2",
+                          "nombre": f"Prueba física: {prueba['clase']}",
+                          "origen": "runner",
+                          "palabras": ["prueba_fisica"]}],
+            "motivo": f"PRUEBA FÍSICA — {prueba['detalle']}. "
+                      f"Duración estimada: "
+                      f"{prueba['duracion_est_min']} min. "
+                      f"Impacto: {prueba['impacto']}",
+            "prueba": prueba}
+    est, dest = _park_for_approval(task_file, task, need)
+    cid = cola_registrar(task_file, data)
+    cola_set(cid, estado=est, archivo=str(dest))
+    _f4_aviso("prueba_fisica_pendiente",
+              f"Prueba física esperando tu decisión: {prueba['detalle']}",
+              cuenta=_cuenta_de_este_carril(), tarea=tid, nivel="accion")
+    log(f"pruebas físicas: {tid} espera aprobación (modo presente)")
+    return "aparcada"
+
+
+# --------------------------------------------------------------- gobernador
+
+def _f4_specs():
+    if _F4["specs"] is None:
+        import recursos as _rc4
+        iny = None
+        # Costura de pruebas (I11): solo del entorno del proceso padre.
+        if os.environ.get("GROWI_PRUEBAS") == "1" and \
+                os.environ.get("GROWI_RECURSOS_SPECS"):
+            try:
+                iny = json.loads(Path(
+                    os.environ["GROWI_RECURSOS_SPECS"]).read_text(
+                        encoding="utf-8"))
+            except Exception:
+                iny = None
+        try:
+            _F4["specs"] = _rc4.asegurar(_base_tablero(),
+                                         ruta_trabajo=str(APP_DIR),
+                                         inyectadas=iny)
+        except Exception as e:
+            log(f"Fase 4: no se pudo detectar el hardware ({e}); "
+                "se sigue sin gobierno fino")
+            _F4["specs"] = _rc4.detectar(str(APP_DIR), inyectadas=iny)
+    return _F4["specs"]
+
+
+def _f4_sonda_systemd():
+    if _F4["sonda_systemd"] is None:
+        try:
+            import recursos as _rc4
+            _F4["sonda_systemd"] = _rc4.sonda_systemd()
+        except Exception:
+            _F4["sonda_systemd"] = False
+    return _F4["sonda_systemd"]
+
+
+def _f4_vram_de(pids):
+    exe = shutil.which("nvidia-smi")
+    if not exe or not pids:
+        return 0.0
+    try:
+        salida = subprocess.run(
+            [exe, "--query-compute-apps=pid,used_memory",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=8)
+        total = 0.0
+        for linea in salida.stdout.splitlines():
+            partes = [p.strip() for p in linea.split(",")]
+            if len(partes) == 2 and partes[0].isdigit() \
+                    and int(partes[0]) in pids:
+                total += float(partes[1])
+        return total
+    except Exception:
+        return 0.0
+
+
+def _f4_medir_arbol(pid):
+    try:
+        import psutil
+        proc = _F4["procs"].get(pid)
+        if proc is None or not proc.is_running():
+            proc = psutil.Process(pid)
+            _F4["procs"][pid] = proc
+        arbol = [proc] + proc.children(recursive=True)
+        cpu, rss, pids = 0.0, 0, set()
+        for q in arbol:
+            pids.add(q.pid)
+            try:
+                cpu += q.cpu_percent(interval=None)
+            except Exception:
+                pass
+            try:
+                rss += q.memory_info().rss
+            except Exception:
+                pass
+        return {"cpu_pct": cpu / max(1, os.cpu_count() or 1), "rss": rss,
+                "vram_mib": _f4_vram_de(pids)}
+    except Exception:
+        return None
+
+
+def _f4_aplicar_prioridad(pid, modo):
+    clave = (pid, modo)
+    if _F4["prioridad"] == clave:
+        return
+    _F4["prioridad"] = clave
+    try:
+        import psutil
+        proc = psutil.Process(pid)
+        if os.name == "nt":
+            proc.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS
+                      if modo == "presente"
+                      else psutil.NORMAL_PRIORITY_CLASS)
+        else:
+            proc.nice(10 if modo == "presente" else 0)
+    except Exception:
+        pass
+
+
+def _f4_job_aplicar(pid, cpu_rate, mem_bytes):
+    """Windows: Job Object con CpuRate y límite de memoria por proceso.
+    Si algo falla, False y el estado declara «prioridad + medición»."""
+    if pid in _F4["jobs"]:
+        return True
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64),
+                        ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", wintypes.DWORD),
+                        ("SchedulingClass", wintypes.DWORD)]
+
+        class _Io(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_uint64) for n in (
+                "ReadOperationCount", "WriteOperationCount",
+                "OtherOperationCount", "ReadTransferCount",
+                "WriteTransferCount", "OtherTransferCount")]
+
+        class _Ext(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", _Basic),
+                        ("IoInfo", _Io),
+                        ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        class _CpuRate(ctypes.Structure):
+            _fields_ = [("ControlFlags", wintypes.DWORD),
+                        ("CpuRate", wintypes.DWORD)]
+
+        k32 = ctypes.windll.kernel32
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            return False
+        ext = _Ext()
+        ext.BasicLimitInformation.LimitFlags = 0x00000200  # JOB_MEMORY
+        if mem_bytes:
+            ext.JobMemoryLimit = int(mem_bytes)
+        if not k32.SetInformationJobObject(job, 9, ctypes.byref(ext),
+                                           ctypes.sizeof(ext)):
+            return False
+        rate = _CpuRate()
+        rate.ControlFlags = 0x1 | 0x4  # ENABLE | HARD_CAP
+        rate.CpuRate = max(1, int(cpu_rate))
+        if not k32.SetInformationJobObject(job, 7, ctypes.byref(rate),
+                                           ctypes.sizeof(rate)):
+            return False
+        handle = k32.OpenProcess(0x0100, False, int(pid))  # ASSIGN|SET_QUOTA... 0x0100=SET_QUOTA? se usa PROCESS_ALL para asignar
+        if not handle:
+            return False
+        try:
+            if not k32.AssignProcessToJobObject(job, handle):
+                return False
+        finally:
+            k32.CloseHandle(handle)
+        _F4["jobs"][pid] = job
+        return True
+    except Exception:
+        return False
+
+
+def _f4_envolver_cmd(cmd, task):
+    """Linux con sonda verde: el lanzamiento nace envuelto en un scope
+    de systemd con CPUQuota/MemoryMax del presupuesto vigente. Sin
+    sonda, el comando va tal cual (nice + medición lo gobiernan)."""
+    try:
+        if os.name == "nt" or not _f4_sonda_systemd():
+            return cmd
+        import recursos as _rc4
+        specs = _f4_specs()
+        asig = _rc4.asignacion_de(_base_tablero())
+        am = asig.get(_f4_modo()) or asig["ausente"]
+        lim = _rc4.limites(specs, am, 1)
+        props = ["-p", f"CPUQuota={lim['cpu']['cpuquota_pct']}%"]
+        if lim["ram"]["bytes_por_tarea"]:
+            props += ["-p", f"MemoryMax={lim['ram']['bytes_por_tarea']}"]
+        return ["systemd-run", "--user", "--scope"] + props + ["--"] \
+            + list(cmd)
+    except Exception:
+        return cmd
+
+
+def _f4_hojas_motor(pid_raiz):
+    """Las hojas del árbol de la tarea (los procesos motor): el ciclo de
+    trabajo solo las toca a ellas, nunca al runner ni a quien tenga un
+    lock. Si el árbol no se puede distinguir, lista vacía (B11)."""
+    try:
+        import psutil
+        raiz = psutil.Process(pid_raiz)
+        arbol = [raiz] + raiz.children(recursive=True)
+        con_hijos = set()
+        for q in arbol:
+            try:
+                for h in q.children():
+                    con_hijos.add(h.pid)
+            except Exception:
+                pass
+        return [q.pid for q in arbol if q.pid not in con_hijos]
+    except Exception:
+        return []
+
+
+def _f4_ciclo_trabajo(pid_raiz):
+    """Ciclo de trabajo SIGSTOP/SIGCONT (100 ms) sobre las hojas motor
+    mientras el gobernador lo pida. Nunca sobre el propio puente."""
+    if _F4["ciclo"]["activo"]:
+        return
+    _F4["ciclo"]["activo"] = True
+
+    def _hilo():
+        import signal as _sig
+        try:
+            while _F4["ciclo"].get("pedido"):
+                hojas = [p for p in _f4_hojas_motor(pid_raiz)
+                         if p != os.getpid()]
+                if not hojas:
+                    break
+                for pid in hojas:
+                    try:
+                        os.kill(pid, _sig.SIGSTOP)
+                    except OSError:
+                        pass
+                time.sleep(0.1)
+                for pid in hojas:
+                    try:
+                        os.kill(pid, _sig.SIGCONT)
+                    except OSError:
+                        pass
+                time.sleep(0.1)
+        finally:
+            _F4["ciclo"]["activo"] = False
+
+    threading.Thread(target=_hilo, daemon=True, name="f4-ciclo").start()
+
+
+def _f4_gobernador_tick(cuenta):
+    """Mide el árbol de la tarea viva de este carril, escribe su sección
+    del estado compartido y aplica el gobierno del modo vigente."""
+    import recursos as _rc4
+    base = _base_tablero()
+    specs = _f4_specs()
+    asig = _rc4.asignacion_de(base)
+    modo = _f4_modo()
+    am = asig.get(modo) or asig["ausente"]
+    tareas = {}
+    cur = state.get("current")
+    info_pid = _F4_PIDS.get(cur) if cur else None
+    if cur and info_pid and info_pid.get("pid"):
+        med = _f4_medir_arbol(info_pid["pid"])
+        if med:
+            row = cola_get(cur) or {}
+            tareas[cur] = {"cuenta": row.get("cuenta") or cuenta,
+                           "cpu_pct": med["cpu_pct"], "rss": med["rss"],
+                           "vram_mib": med["vram_mib"],
+                           "pid": info_pid["pid"]}
+    estado_prev = _rc4.leer_estado(base)
+    n_otros = sum(len((s or {}).get("tareas") or {})
+                  for c, s in (estado_prev.get("carriles") or {}).items()
+                  if c != LANE and isinstance(s, dict))
+    lim = _rc4.limites(specs, am, n_otros + max(1, len(tareas)))
+    job_ok = False
+    if os.name == "nt" and cur and info_pid:
+        job_ok = _f4_job_aplicar(info_pid["pid"], lim["cpu"]["cpu_rate_job"],
+                                 lim["ram"]["bytes_por_tarea"])
+    if os.name == "nt":
+        mecanismos = {
+            "cpu": "Job Objects (CpuRate) + prioridad" if job_ok
+                   else "prioridad de proceso + medición",
+            "ram": "Job Objects (límite por proceso)" if job_ok
+                   else "medición (sin tope por proceso)",
+            "gpu": "admisión por VRAM comprometida"}
+    elif _f4_sonda_systemd():
+        mecanismos = {
+            "cpu": "systemd-run --scope (CPUQuota) al lanzar + medición",
+            "ram": "systemd-run --scope (MemoryMax) al lanzar",
+            "gpu": "admisión por VRAM comprometida"}
+    else:
+        mecanismos = {
+            "cpu": "nice + medición" + (" + ciclo de trabajo sobre las "
+                   "hojas motor" if _F4["ciclo"]["activo"] else ""),
+            "ram": "medición (al superar el presupuesto no arrancan "
+                   "tareas nuevas)",
+            "gpu": "admisión por VRAM comprometida"}
+    _rc4.escribir_seccion_estado(base, LANE, {
+        "ts": time.time(), "modo": modo, "tareas": tareas,
+        "mecanismos": mecanismos, "presupuesto": am, "limites": lim,
+        "sonda_systemd": _f4_sonda_systemd() if os.name != "nt" else False})
+    agreg = _rc4.agregado(_rc4.leer_estado(base))
+    sobre = _rc4.sobre_presupuesto(agreg, specs, am)
+    _F4["muestras_cpu"] = _F4["muestras_cpu"] + 1 if sobre["cpu"] else 0
+    _F4["muestras_ram"] = _F4["muestras_ram"] + 1 if sobre["ram"] else 0
+    if cur and info_pid and info_pid.get("pid"):
+        _f4_aplicar_prioridad(info_pid["pid"], modo)
+        if _F4["muestras_cpu"] >= 3 and os.name != "nt" \
+                and not _f4_sonda_systemd():
+            _F4["ciclo"]["pedido"] = True
+            _f4_ciclo_trabajo(info_pid["pid"])
+        else:
+            _F4["ciclo"]["pedido"] = False
+    else:
+        _F4["ciclo"]["pedido"] = False
+
+
+def _f4_admision_bloqueo(data):
+    """Motivo de bloqueo de admisión o None (§7.4): RAM sostenida sobre
+    el presupuesto → no arranca nada nuevo; GPU de modelo local → solo
+    si cabe. NUNCA escribe proximo_intento (B6)."""
+    try:
+        import recursos as _rc4
+        base = _base_tablero()
+        specs = _f4_specs()
+        asig = _rc4.asignacion_de(base)
+        am = asig.get(_f4_modo()) or asig["ausente"]
+        agreg = _rc4.agregado(_rc4.leer_estado(base))
+        sobre = _rc4.sobre_presupuesto(agreg, specs, am)
+        if _F4["muestras_ram"] >= 3 and sobre["ram"]:
+            return ("admisión: la RAM del programa supera el "
+                    "presupuesto del modo; se espera a que baje")
+        motor = data.get("motor")
+        eng = get_engine(motor) if motor else None
+        if eng and (eng.get("local") or "local" in str(motor)):
+            nec = data.get("vram_necesaria_mib") or data.get("vram_mib")
+            margen = _rc4.hay_margen_gpu(specs, am,
+                                         agreg.get("vram_mib") or 0, nec)
+            if not margen["ok"]:
+                return "admisión GPU: " + margen["motivo"]
+    except Exception:
+        return None
+    return None
+
+
+def _f4_registrar_pid(task_id, proc):
+    """El runner registra el pid raíz de la tarea al lanzarla, con su
+    create_time: la supervisión solo mata verificando esa identidad."""
+    try:
+        creado = None
+        try:
+            import psutil
+            creado = psutil.Process(proc.pid).create_time()
+        except Exception:
+            creado = None
+        _F4_PIDS[task_id] = {"pid": proc.pid, "create_time": creado}
+        row = cola_get(task_id)
+        if row:
+            _cola_hist_add(task_id, {"pid": proc.pid,
+                                     "create_time": creado,
+                                     "ts": time.time()})
+    except Exception:
+        pass
+
+
+def _f4_anotar_inicio(cid):
+    """El inicio real de la ejecución (I3), para la duración máxima."""
+    try:
+        _cola_hist_add(cid, {"inicio_ts": time.time()})
+    except Exception:
+        pass
+
+
+def _f4_fijar_entorno_tarea(row, task):
+    """Compone el entorno de la tarea SOLO desde su fila de la cola
+    (§12.4): cuenta, raíz, tarea, carril, tiempo máximo y la ruta del
+    estado del harness por ejecución. Nada viene del payload."""
+    _ENV_TAREA.clear()
+    cuenta = (row or {}).get("cuenta") or _cuenta_de_este_carril()
+    if cuenta:
+        _ENV_TAREA["GROWI_CUENTA_ID"] = cuenta
+    raiz = (row or {}).get("raiz") or task.get("raiz") or task["id"]
+    _ENV_TAREA["GROWI_RAIZ"] = str(raiz)
+    _ENV_TAREA["GROWI_TAREA_ID"] = task["id"]
+    _ENV_TAREA["GROWI_BRIDGE_LANE"] = LANE
+    try:
+        tmax = min(int(task.get("timeout_min") or 120), 120)
+    except (TypeError, ValueError):
+        tmax = 120
+    _ENV_TAREA["GROWI_TIEMPO_MAX_S"] = str(tmax * 60)
+    nombre = raiz if str(raiz).startswith("enc-") else task["id"]
+    _ENV_TAREA["GROWI_HARNESS_ESTADO"] = str(
+        APP_DIR / f"harness-state-{nombre}.json")
+
+
+# --------------------------------------------------------------- supervisión
+
+def _f4_status_carril(carril):
+    try:
+        datos = json.loads((_dir_carril(carril) / "runner-status.json")
+                           .read_text(encoding="utf-8"))
+        ts = None
+        ultimo = datos.get("last_poll")
+        if isinstance(ultimo, str):
+            try:
+                ts = datetime.fromisoformat(ultimo).timestamp()
+            except ValueError:
+                ts = None
+        return {"pid": datos.get("pid"), "last_poll_ts": ts,
+                "current": datos.get("current")}
+    except Exception:
+        return None
+
+
+def _f4_filas_carril(carril):
+    try:
+        if carril == LANE:
+            rows = _cola("SELECT * FROM tareas", fetch=True)
+        else:
+            import sqlite3
+            db = _dir_carril(carril) / COLA_DB.name
+            if not db.exists():
+                return []
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            con.row_factory = sqlite3.Row
+            rows = [dict(r) for r in con.execute("SELECT * FROM tareas")]
+            con.close()
+        salida = []
+        for r in rows:
+            d = dict(r)
+            d["historial"] = _cola_hist(d)
+            d["carril"] = carril
+            salida.append(d)
+        return salida
+    except Exception:
+        return []
+
+
+def _f4_estado_harness(fila):
+    carril = fila.get("carril") or LANE
+    for nombre in (f"harness-state-{fila.get('raiz')}.json",
+                   f"harness-state-{fila.get('id')}.json",
+                   "harness-state.json"):
+        p = _dir_carril(carril) / nombre
+        try:
+            datos = json.loads(p.read_text(encoding="utf-8"))
+            if datos.get("tarea_id") and fila.get("id") \
+                    and datos["tarea_id"] != fila["id"]:
+                continue
+            datos["_mtime_ts"] = p.stat().st_mtime
+            return datos
+        except Exception:
+            continue
+    return None
+
+
+def _f4_pid_vivo(pid):
+    try:
+        import psutil
+        return psutil.pid_exists(int(pid))
+    except Exception:
+        try:
+            os.kill(int(pid), 0)
+            return True
+        except OSError:
+            return False
+        except Exception:
+            return False
+
+
+def _f4_matar(pid, create_time):
+    """Mata un árbol SOLO si el pid sigue siendo el mismo proceso que se
+    anotó al recoger la tarea (B9). Pid reciclado o identidad no
+    verificable → no se mata."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False, "pid no válido"
+    if pid == os.getpid():
+        return False, "es el propio proceso del puente: no se mata"
+    if create_time is not None:
+        try:
+            import psutil
+            actual = psutil.Process(pid).create_time()
+            if abs(actual - float(create_time)) > 1.0:
+                return False, "pid reciclado, no se mata"
+        except Exception:
+            return False, ("no se pudo verificar la identidad del pid; "
+                           "no se mata")
+    _matar_arbol(pid)
+    return True, "árbol detenido"
+
+
+def _f4_anotar(fila, entrada):
+    try:
+        if (fila.get("carril") or LANE) == LANE:
+            _cola_hist_add(fila["id"], entrada)
+            return
+        import sqlite3
+        db = _dir_carril(fila["carril"]) / COLA_DB.name
+        con = sqlite3.connect(str(db))
+        try:
+            r = con.execute("SELECT historial FROM tareas WHERE id=?",
+                            (fila["id"],)).fetchone()
+            if r:
+                try:
+                    hist = json.loads(r[0] or "[]")
+                except ValueError:
+                    hist = []
+                hist.append(entrada)
+                con.execute("UPDATE tareas SET historial=? WHERE id=?",
+                            (json.dumps(hist, ensure_ascii=False),
+                             fila["id"]))
+                con.commit()
+        finally:
+            con.close()
+    except Exception:
+        pass
+
+
+def _f4_escribir_resumen(raiz, resultado):
+    """El resumen del cierre va a los runner-results del carril de la
+    cuenta que RECIBIÓ el encargo."""
+    try:
+        import relevo as _rl4
+        ent = _rl4.obtener(_base_tablero(), raiz) or {}
+        reg = _cuentas_reg()
+        cta = None
+        if reg and ent.get("receptora"):
+            import cuentas as _c4
+            cta = _c4.cuenta(reg, ent["receptora"])
+        carril = (cta or {}).get("carril") or LANE
+        if carril == LANE:
+            _write_result(resultado)
+            return True
+        dest = _dir_carril(carril, "share", "outbox", "runner-results")
+        if not dest.is_dir():
+            return False
+        p = dest / f"{raiz}.result.json"
+        tmp = dest / f"{raiz}.result.json.tmp"
+        tmp.write_text(json.dumps(resultado, ensure_ascii=False,
+                                  indent=2), encoding="utf-8")
+        os.replace(tmp, p)
+        return True
+    except Exception:
+        return False
+
+
+def _f4_barrido(cuenta):
+    import supervision as _sv4
+    reg = _cuentas_reg()
+    cuentas_ctx = [{"id": c["id"], "carril": c.get("carril"),
+                    "habilitada": c.get("habilitada", True)}
+                   for c in (reg or {}).get("cuentas", [])]
+    ctx = {
+        "base_dir": _base_tablero(),
+        "ahora": time.time(),
+        "carril_propio": LANE,
+        "carriles": ("a", "b"),
+        "cuentas": cuentas_ctx,
+        "vista": _tablero_vista(),
+        "registro": reg,
+        "activas": _f4_activas_por_cuenta(),
+        "leer_status": _f4_status_carril,
+        "pid_vivo": _f4_pid_vivo,
+        "filas": _f4_filas_carril,
+        "estado_harness": _f4_estado_harness,
+        "matar": _f4_matar,
+        "anotar": _f4_anotar,
+        "dir_tareas": lambda carril: _dir_carril(
+            carril, "share", "inbox", "runner-tasks"),
+        "base_carril": lambda carril: _dir_carril(carril),
+        "archivo_en_tareas": lambda carril, sid: any(
+            (_dir_carril(carril, "share", "inbox", "runner-tasks", suf)
+             / f"{sid}.task.json").exists()
+            for suf in ("", "processing", "done")),
+        "escribir_resumen": _f4_escribir_resumen,
+        "dual": _f4_ctx_dual(),
+        "log": lambda m: log(m),
+    }
+    return _sv4.barrer(ctx)
+
+
+def _f4_latido(cuenta):
+    """El latido de la Fase 4, tras el de la Fase 3 en _tablero_latido:
+    gobernador de recursos + barrido de supervisión. La presencia NO va
+    aquí: corre en su propio hilo de 30 s y aquí solo se lee su modo."""
+    try:
+        _f4_gobernador_tick(cuenta)
+    except Exception as e:
+        log(f"Fase 4: gobernador con error ({type(e).__name__}: {e}); "
+            "el runner sigue")
+    try:
+        _f4_dual_asegurar()
+        _f4_barrido(cuenta)
+    except Exception as e:
+        log(f"Fase 4: barrido con error ({type(e).__name__}: {e}); "
+            "el runner sigue")
+
+
+# ------------------------------------------------------------ interfaz (UI)
+
+def _build_multimuse_section(tab):
+    """Sección «Multi-Muse» de la página Recursos (§12.6): presencia con
+    sus señales, porcentajes por modo, presupuesto vigente frente a lo
+    medido, mecanismo por recurso y los avisos recientes."""
+    bg, cbg = THEME["bg"], THEME["card"]
+    card = tk.Frame(tab, bg=cbg)
+    card.pack(fill="x", padx=20, pady=8)
+    tk.Label(card, text="Multi-Muse: presencia y recursos",
+             font=SECTION_FONT, bg=cbg, fg=THEME["text"]).pack(
+                 anchor="w", padx=16, pady=(12, 2))
+    info = tk.Label(card, text="", font=(FONT, 10), bg=cbg,
+                    fg=THEME["text"], anchor="w", justify="left",
+                    wraplength=S(640))
+    info.pack(fill="x", padx=16)
+    vars_pct = {}
+    for modo in ("ausente", "presente"):
+        fila = tk.Frame(card, bg=cbg)
+        fila.pack(fill="x", padx=16, pady=2)
+        tk.Label(fila, text=f"{modo.capitalize()}:", font=(FONT, 10),
+                 bg=cbg, fg=THEME["text"], width=10, anchor="w").pack(
+                     side="left")
+        for clave in ("cpu", "ram", "gpu"):
+            tk.Label(fila, text=clave.upper(), font=(FONT, 9), bg=cbg,
+                     fg=THEME["muted"]).pack(side="left", padx=(8, 2))
+            v = tk.StringVar()
+            vars_pct[(modo, clave)] = v
+            tk.Entry(fila, textvariable=v, width=4,
+                     font=(FONT, 10)).pack(side="left")
+            tk.Label(fila, text="%", font=(FONT, 9), bg=cbg,
+                     fg=THEME["muted"]).pack(side="left")
+
+    def _refrescar_mm():
+        try:
+            import presencia as _pr4
+            import recursos as _rc4
+            import avisos as _av4
+            base = _base_tablero()
+            est = _pr4.leer_estado(base)
+            asig = _rc4.asignacion_de(base)
+            for modo in ("ausente", "presente"):
+                for clave in ("cpu", "ram", "gpu"):
+                    vars_pct[(modo, clave)].set(str(asig[modo][clave]))
+            agreg = _rc4.agregado(_rc4.leer_estado(base))
+            ult = est.get("ultima") or {}
+            senales = ", ".join(
+                f"{k}={v}" for k, v in (ult.get("senales") or {}).items()
+                if v is not None) or "sin señales conocidas"
+            mec = ""
+            try:
+                propia = (_rc4.leer_estado(base).get("carriles") or {}).get(
+                    LANE) or {}
+                mec = "; ".join(f"{k}: {v}" for k, v in
+                                (propia.get("mecanismos") or {}).items())
+            except Exception:
+                mec = ""
+            info.config(text=(
+                f"Presencia: {est.get('modo', 'presente')}"
+                + (f" (override del dueño: {est['override']})"
+                   if est.get("override") else "")
+                + f" · Señales que decidieron: {senales}\n"
+                + f"Uso del programa (ambos carriles): "
+                  f"{agreg['n_tareas']} tarea(s), CPU "
+                  f"{agreg['cpu_pct']:.0f} %, RAM "
+                  f"{agreg['rss'] / 1048576:.0f} MB, VRAM "
+                  f"{agreg['vram_mib']:.0f} MiB"
+                + (f"\nMecanismo: {mec}" if mec else "")))
+            avisos_lb.delete(0, "end")
+            for a in _av4.leer_recientes(base, 12):
+                avisos_lb.insert(
+                    "end", f"{a.get('tipo')}: {a.get('texto')}")
+        except Exception:
+            pass
+
+    def _guardar():
+        try:
+            import recursos as _rc4
+            asig = {modo: {clave: int(vars_pct[(modo, clave)].get())
+                           for clave in ("cpu", "ram", "gpu")}
+                    for modo in ("ausente", "presente")}
+            _rc4.guardar_asignacion(_base_tablero(), asig)
+            _refrescar_mm()
+            info.config(text="Porcentajes guardados. Aplican a las "
+                             "tareas siguientes, no a las vivas.")
+        except Exception as e:
+            info.config(text=f"No se pudo guardar: {e}")
+
+    def _override(modo):
+        try:
+            import presencia as _pr4
+            _pr4.poner_override(_base_tablero(), modo)
+            _refrescar_mm()
+        except Exception as e:
+            info.config(text=f"No se pudo cambiar la presencia: {e}")
+
+    botones = tk.Frame(card, bg=cbg)
+    botones.pack(fill="x", padx=16, pady=(4, 2))
+    ttk.Button(botones, text="Guardar porcentajes",
+               command=_guardar).pack(side="left")
+    ttk.Button(botones, text="Presencia automática",
+               command=lambda: _override(None)).pack(side="left",
+                                                     padx=(12, 0))
+    ttk.Button(botones, text="Forzar presente",
+               command=lambda: _override("presente")).pack(side="left",
+                                                           padx=(6, 0))
+    ttk.Button(botones, text="Forzar ausente",
+               command=lambda: _override("ausente")).pack(side="left",
+                                                          padx=(6, 0))
+    ttk.Button(botones, text="Actualizar",
+               command=_refrescar_mm).pack(side="right")
+    tk.Label(card, text="Avisos recientes", font=(FONT, 10, "bold"),
+             bg=cbg, fg=THEME["text"]).pack(anchor="w", padx=16,
+                                            pady=(8, 2))
+    avisos_lb = tk.Listbox(card, font=(FONT, 9), height=6, bg="#FFFFFF",
+                           relief="flat", highlightthickness=S(1),
+                           highlightbackground="#D2D2D7")
+    avisos_lb.pack(fill="x", padx=16, pady=(0, 12))
+    _widgets["mm_refrescar"] = _refrescar_mm
+    _refrescar_mm()
 
 
 # ---------------------------------------------------------------- Fase 3
@@ -18177,6 +19641,11 @@ def toast(text, ctx=None):
     if len(text) > 49:
         text = text[:48].rstrip() + "…"
     _TOAST["ctx"] = ctx
+    if not _f4_ventana_ok():
+        # Fase 4 (§8.5): en modo presente el toast no se muestra; el
+        # aviso queda en el registro de avisos y en este contador.
+        state["toasts_silenciados"] = state.get("toasts_silenciados", 0) + 1
+        return
     try:
         if _tray_icon is not None:
             _tray_icon.notify(text, "Growi Bridge")
@@ -28127,6 +29596,7 @@ def _build_resources_page(tab):
                                     anchor="w", justify="left", wraplength=S(640))
     _widgets["res_tool"].pack(fill="x", padx=20, pady=(0, 16))
     _res_update_actions()
+    _build_multimuse_section(tab)
 
 
 def _res_sort(col):
@@ -32645,6 +34115,10 @@ def _build_cuentas(tab):
             _refrescar_proyectos()
         except Exception:
             pass
+        try:
+            _refrescar_f4()
+        except Exception:
+            pass
 
     def _al_elegir(_e=None):
         sel = lista.curselection()
@@ -32947,6 +34421,80 @@ def _build_cuentas(tab):
         except Exception as e:
             _decir(f"No se pudo verificar: {e}")
 
+    # -- Encargos y modo dual (Fase 4) --------------------------------------
+    tk.Label(tab, text="Encargos y modo dual", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20,
+                                                    pady=(14, 2))
+    tk.Label(tab, text="Los encargos del teléfono con su división y el "
+                       "estado de cada subtarea. Si una tarea dual quedó "
+                       "sin resolver, la decides tú: no se ejecuta con "
+                       "duda.", font=(FONT, 10), bg=THEME["bg"],
+             fg=THEME["muted"], wraplength=S(640), justify="left").pack(
+                 anchor="w", padx=20, pady=(0, 6))
+    lb_f4 = tk.Listbox(tab, font=(FONT, 10), height=7, bg="#FFFFFF",
+                       relief="flat", highlightthickness=S(1),
+                       highlightbackground="#D2D2D7")
+    lb_f4.pack(fill="x", padx=20)
+    estado["f4_lineas"] = []
+
+    def _refrescar_f4():
+        lb_f4.delete(0, "end")
+        estado["f4_lineas"] = []
+        try:
+            import relevo as _rl4
+            for raiz, ent in sorted(
+                    (_rl4.listar(_base_tablero()) or {}).items()):
+                subs = ent.get("subtareas") or {}
+                hechas = sum(1 for s in subs.values()
+                             if s.get("estado") in ("terminada", "fallida"))
+                detalle = ", ".join(
+                    f"{sid.split('-')[-1]}:{s.get('estado')}"
+                    f"@{s.get('cuenta') or '—'}"
+                    for sid, s in sorted(
+                        subs.items(),
+                        key=lambda par: par[1].get("n") or 0))
+                lb_f4.insert(
+                    "end", f"Encargo {raiz} · {ent.get('estado')} · "
+                           f"{hechas}/{len(subs)} subtareas · receptora "
+                           f"{ent.get('receptora')}"
+                           + (f" · {detalle}" if detalle else ""))
+                estado["f4_lineas"].append(("encargo", raiz))
+        except Exception:
+            pass
+        try:
+            for r in _cola("SELECT * FROM dual_en_vuelo "
+                           "WHERE estado='resuelta_dueno'", fetch=True):
+                lb_f4.insert("end", f"Dual sin resolver: {r['tarea']} "
+                                    "(la decides tú abajo)")
+                estado["f4_lineas"].append(("dual", r["tarea"]))
+        except Exception:
+            pass
+
+    def _dual_dueno(hecha):
+        sel = lb_f4.curselection()
+        if not sel or sel[0] >= len(estado.get("f4_lineas") or []):
+            _decir("Elige primero una línea «Dual sin resolver».")
+            return
+        tipo, clave = estado["f4_lineas"][sel[0]]
+        if tipo != "dual":
+            _decir("Esa línea es un encargo; los botones son para la "
+                   "línea «Dual sin resolver».")
+            return
+        _dual_resolver_dueno(clave, hecha)
+        _decir(f"Tarea {clave}: "
+               + ("confirmada como hecha en el servidor."
+                  if hecha else "vuelve a la cola para ejecutarla aquí."))
+        _refrescar_f4()
+
+    fila_f4 = tk.Frame(tab, bg=THEME["bg"])
+    fila_f4.pack(fill="x", padx=20, pady=(6, 2))
+    ttk.Button(fila_f4, text="Se hizo en el servidor",
+               command=lambda: _dual_dueno(True)).pack(side="left")
+    ttk.Button(fila_f4, text="Ejecutarla aquí",
+               command=lambda: _dual_dueno(False)).pack(side="left",
+                                                        padx=(8, 0))
+    ttk.Button(fila_f4, text="Actualizar encargos",
+               command=_refrescar_f4).pack(side="right")
     _refrescar()
     if cred_via() == "dpapi":
         _decir("Aviso: esta PC no ofrece almacén del sistema ahora mismo; los "
@@ -34035,6 +35583,7 @@ def main():
         if _mig.get("migrado"):
             log(f"cuentas: {_mig['motivo']} (almacén: {cred_via()})")
     _iniciar_vigia_dual()
+    _f4_iniciar_presencia()
 
     def _uncaught(exc_type, exc_value, exc_tb):
         # Red de seguridad: si algo falla fuera del arranque (por ejemplo, en

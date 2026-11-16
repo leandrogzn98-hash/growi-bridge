@@ -619,8 +619,13 @@ def _alternativa(clases, tool=None):
 
 
 class CapaPermisos:
-    def __init__(self, sesion=None):
+    def __init__(self, sesion=None, cuenta=None):
         self.sesion = sesion or os.environ.get("GROWI_SESION") or "s%d-%d" % (os.getpid(), int(time.time()))
+        # Fase 4: la cuenta Muse dueña de la ejecución. Con cuenta, la
+        # clasificación aplica sus clases extra denegadas y la auditoría
+        # cae en su audit-log-<cuenta>.json. Sin cuenta (None), el
+        # comportamiento histórico de la Fase 1.
+        self.cuenta = cuenta
         self._tarea_ok = False
         self._tarea_resumen = ""
 
@@ -668,7 +673,7 @@ class CapaPermisos:
                 return Decision("bloquear", "la peticion del usuario no fue autorizada antes de llamar al motor",
                                 "pasa primero por verificar_permiso con la peticion")
             return self._chequear(tool, ["consulta_motor"], prompt)
-        clases, error = clasificar_tarea(prompt)
+        clases, error = clasificar_tarea(prompt, cuenta=self.cuenta)
         if error:
             return Decision("bloquear", error, _alternativa([]))
         d = self._chequear(tool, clases, prompt)
@@ -695,7 +700,8 @@ class CapaPermisos:
         visible = ("[%s] %s" % (accion, self._tarea_resumen)) if (accion == "consulta_motor" and self._tarea_resumen) else prompt
         if not d.permitido:
             try:
-                registrar(tool, visible, "bloqueado", d.motivo, 0.0, accion)
+                registrar(tool, visible, "bloqueado", d.motivo, 0.0, accion,
+                          cuenta=self.cuenta)
             except AuditoriaError:
                 pass
             return d.mensaje()
@@ -706,7 +712,8 @@ class CapaPermisos:
         except Exception as e:  # noqa: BLE001
             salida, resultado = "ERROR: %s: %s" % (type(e).__name__, e), "error"
         try:
-            registrar(tool, visible, resultado, None, time.time() - t0, accion)
+            registrar(tool, visible, resultado, None, time.time() - t0,
+                      accion, cuenta=self.cuenta)
         except AuditoriaError as e:
             return "BLOQUEADO: la accion no se pudo auditar (%s); se descarta el resultado" % e
         return salida
@@ -714,7 +721,8 @@ class CapaPermisos:
     def registrar_bloqueo(self, tool, prompt, decision):
         try:
             registrar(tool or "ninguna", prompt, "bloqueado", decision.motivo or "requiere confirmacion humana",
-                      0.0, ",".join(decision.clases) or None)
+                      0.0, ",".join(decision.clases) or None,
+                      cuenta=self.cuenta)
             return True
         except AuditoriaError:
             return False
@@ -728,9 +736,9 @@ def verificar_permiso(tool, prompt, accion=None):
     return _DEFECTO.verificar_permiso(tool, prompt, accion)
 
 
-def nueva_capa(sesion=None):
+def nueva_capa(sesion=None, cuenta=None):
     global _DEFECTO
-    _DEFECTO = CapaPermisos(sesion)
+    _DEFECTO = CapaPermisos(sesion, cuenta)
     return _DEFECTO
 
 
