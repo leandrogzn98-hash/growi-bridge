@@ -3013,7 +3013,35 @@ def cred_via():
             import keyring
             kr = keyring.get_keyring()
             nombre = f"{type(kr).__module__}.{type(kr).__name__}"
-            if nombre == "keyring.backends.Windows.WinVaultKeyring":
+            _degradado = (nombre in ("keyring.backends.fail.Keyring",
+                                     "keyring.backends.null.Keyring")
+                          or nombre.startswith("keyrings.alt")
+                          or (nombre.endswith("ChainerBackend")
+                              and not getattr(kr, "backends", None)))
+            if ES_POSIX and not _degradado:
+                # POSIX (Fase 1): Secret Service / KWallet / Keychain sirven
+                # tal cual. Prueba real (escribir, leer y borrar), como la de
+                # Windows; sin backend útil se cae al archivo protegido.
+                try:
+                    from importlib.metadata import version as _v
+                    ver = _v("keyring")
+                except Exception:
+                    ver = "?"
+                t = f"{CRED_SERVICE}/_prueba-almacen"
+                try:
+                    keyring.set_password(t, "_prueba-almacen", "growi-bridge-prueba")
+                    okp = keyring.get_password(t, "_prueba-almacen") == "growi-bridge-prueba"
+                    keyring.delete_password(t, "_prueba-almacen")
+                    err = None if okp else "la entrada de prueba no se leyó igual"
+                except Exception as e:
+                    err = f"{type(e).__name__}: {str(e)[:160]}"
+                if err:
+                    _CRED_VIA.update(via="dpapi", motivo=(
+                        f"keyring {ver} con backend {nombre} no pasó la prueba "
+                        f"({err}); se usa el archivo protegido"))
+                else:
+                    _CRED_VIA.update(via="keyring", motivo="", detalle=f"keyring {ver}, {nombre}")
+            elif nombre == "keyring.backends.Windows.WinVaultKeyring":
                 try:
                     from importlib.metadata import version as _v
                     ver = _v("keyring")
@@ -3045,12 +3073,17 @@ def cred_via():
                 else:
                     _CRED_VIA.update(via="keyring", motivo="", detalle=f"keyring {ver}, WinVaultKeyring")
             else:
-                _CRED_VIA.update(via="dpapi", motivo=f"keyring no trae el backend del Administrador de "
-                                                     f"credenciales (tiene {nombre})")
+                _CRED_VIA.update(via="dpapi", motivo=(
+                    f"keyring no trae un almacén del sistema utilizable (tiene {nombre}); "
+                    "se usa el archivo protegido" if ES_POSIX else
+                    f"keyring no trae el backend del Administrador de "
+                    f"credenciales (tiene {nombre})"))
         except Exception as e:
             _CRED_VIA.update(via="dpapi", motivo=f"keyring no se pudo importar ({type(e).__name__})")
     if _CRED_VIA["via"] == "dpapi":
-        _CRED_VIA["detalle"] = f"DPAPI con ctypes, archivo {CRED_DPAPI_FILE.name}"
+        _CRED_VIA["detalle"] = (f"archivo local protegido (0600), {CRED_DPAPI_FILE.name}"
+                                if ES_POSIX else
+                                f"DPAPI con ctypes, archivo {CRED_DPAPI_FILE.name}")
     log(f"claves: almacén = {_CRED_VIA['via']} ({_CRED_VIA['detalle']}"
         + (f"; motivo: {_CRED_VIA['motivo']}" if _CRED_VIA["motivo"] else "") + ")")
     return _CRED_VIA["via"]
@@ -3084,6 +3117,15 @@ def _dpapi(data, cifrar):
 
 
 def _dpapi_leer_archivo():
+    if ES_POSIX:
+        try:
+            import stat as _stat
+            _modo = _stat.S_IMODE(os.stat(CRED_DPAPI_FILE).st_mode)
+            if _modo & 0o077:
+                log(f"claves: AVISO: {CRED_DPAPI_FILE.name} tiene permisos "
+                    f"{oct(_modo)}; debería ser 0600 (contiene credenciales)")
+        except OSError:
+            pass
     try:
         d = json.loads(CRED_DPAPI_FILE.read_text(encoding="utf-8"))
         return d if isinstance(d, dict) else {}
@@ -3233,7 +3275,17 @@ def _sec_set(cuenta, clave):
     import base64
     d = _dpapi_leer_archivo()
     d[cuenta] = base64.b64encode(_dpapi(clave.encode("utf-8"), True)).decode("ascii")
+    if ES_POSIX and not CRED_DPAPI_FILE.exists():
+        try:
+            os.close(os.open(CRED_DPAPI_FILE, os.O_CREAT | os.O_WRONLY, 0o600))
+        except OSError:
+            pass
     CRED_DPAPI_FILE.write_text(json.dumps(d, indent=2), encoding="utf-8")
+    if ES_POSIX:
+        try:
+            os.chmod(CRED_DPAPI_FILE, 0o600)
+        except OSError:
+            pass
 
 
 def _sec_get_en(via, cuenta):
@@ -14153,6 +14205,145 @@ def token_file():
     return _token_dir() / f"plano-control-{LANE}.{'dpapi' if ES_WINDOWS else 'token'}"
 
 
+# ---- Fase 1 (Multi-Muse): registro de cuentas y bóveda ---------------------
+_CUENTAS_CACHE = {"clave": None, "reg": None}
+
+
+def _cuentas_reg():
+    """El registro de cuentas (accounts.json), con caché por (mtime, tamaño)
+    para recargarlo en caliente cuando la UI lo edita. Ante cualquier
+    problema devuelve None y la app sigue como siempre (compatibilidad).
+    Si la revisión cambió, se olvida la copia en memoria de los secretos de
+    cuentas: un secreto rotado en la UI vale desde ese momento."""
+    try:
+        import cuentas as _c
+        f = APP_DIR / _c.ARCHIVO
+        try:
+            st = f.stat()
+            clave = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            clave = None
+        if _CUENTAS_CACHE["reg"] is None or _CUENTAS_CACHE["clave"] != clave:
+            viejo = _CUENTAS_CACHE["reg"]
+            nuevo = _c.cargar(APP_DIR, carril=LANE)
+            if nuevo.get("compatibilidad") and clave is not None:
+                # El archivo EXISTE pero no vale: no es un arranque limpio,
+                # es un registro roto. Que no pase en silencio.
+                _det = ""
+                try:
+                    _crudo = json.loads(f.read_text(encoding="utf-8"))
+                    _errs = _c.validar(_crudo)
+                    _det = f" ({_errs[0]})" if _errs else ""
+                except Exception as e:
+                    _det = f" ({type(e).__name__})"
+                log(f"cuentas: AVISO: accounts.json existe pero no es válido"
+                    f"{_det}; se usa el modo compatibilidad de siempre")
+            if (viejo and not viejo.get("compatibilidad")
+                    and viejo.get("revision") != nuevo.get("revision")):
+                for k in [k for k in _CRED_MEM if k.startswith("muse:")]:
+                    _CRED_MEM.pop(k, None)
+            _CUENTAS_CACHE["reg"] = nuevo
+            _CUENTAS_CACHE["clave"] = clave
+        return _CUENTAS_CACHE["reg"]
+    except Exception:
+        return None
+
+
+def _cuenta_de_este_carril():
+    """El id de la cuenta asignada al carril de este proceso, o None si no
+    hay registro válido (compatibilidad) o ninguna cuenta es de este carril."""
+    reg = _cuentas_reg()
+    if not reg or reg.get("compatibilidad"):
+        return None
+    try:
+        import cuentas as _c
+        cta = _c.cuenta_de_carril(reg, LANE)
+        return cta["id"] if cta else None
+    except Exception:
+        return None
+
+
+def _cuenta_carril_deshabilitada():
+    """El id de la cuenta de este carril si existe pero está deshabilitada.
+
+    Una cuenta deshabilitada no es «sin cuenta»: su puente debe rechazar
+    las peticiones, no caer al comportamiento de siempre."""
+    reg = _cuentas_reg()
+    if not reg or reg.get("compatibilidad"):
+        return None
+    for c in reg.get("cuentas", []):
+        if c.get("carril") == LANE and not c.get("habilitada", True):
+            return c.get("id")
+    return None
+
+
+def _cuentas_migrar_arranque():
+    """Migración de arranque (Fase 1): secret.txt -> bóveda como cuenta
+    «principal» y creación de accounts.json. Idempotente y reversible
+    (secret.txt no se toca); nunca lanza."""
+    try:
+        import cuentas as _c
+        p = asis_activo()
+        return _c.migrar(APP_DIR, load_secret, _sec_get, _sec_set,
+                         carril=LANE,
+                         asistente=(p or {}).get("id") if p else None)
+    except Exception as e:
+        return {"migrado": False, "motivo": f"{type(e).__name__}: {e}"}
+
+
+_VIGIA_DUAL = {"vigia": None, "parar": None}
+
+
+def _sonda_servidor():
+    """Sonda del modo dual: ¿responde la salida que usa el modo servidor?
+
+    Un fallo de la sonda NO es una tarea fallida: solo alimenta la
+    histéresis del vigía (dual.py)."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("https://ipinfo.io/json",
+                                     headers={"User-Agent": "growi-bridge"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def _iniciar_vigia_dual():
+    """Si la cuenta de este carril es «ambas», arranca su vigía de latido.
+
+    El estado queda en state["dual"] y los cambios se registran. La
+    integración con la cola (marcar tareas en vuelo y reconciliar de
+    verdad) llega con el harness de la Fase 4; el vigía ya decide con el
+    protocolo por_confirmar de dual.py."""
+    reg = _cuentas_reg()
+    if not reg or reg.get("compatibilidad"):
+        return
+    cta_id = _cuenta_de_este_carril()
+    if not cta_id:
+        return
+    cta = next((c for c in reg.get("cuentas", []) if c.get("id") == cta_id),
+               None)
+    if not cta or cta.get("conexion") != "ambas":
+        return
+    try:
+        import dual as _d
+
+        def _cambio(nuevo, viejo):
+            state["dual"] = nuevo
+            log(f"dual[{cta_id}]: {viejo} -> {nuevo}")
+
+        v = _d.VigiaDual(_sonda_servidor, al_cambiar=_cambio)
+        parar = threading.Event()
+        _VIGIA_DUAL.update(vigia=v, parar=parar)
+        state["dual"] = v.estado
+        threading.Thread(target=v.correr, args=(parar,), daemon=True,
+                         name="vigia-dual").start()
+        log(f"dual[{cta_id}]: vigía del modo dual en marcha (latido 15 s)")
+    except Exception as e:
+        log(f"dual: no se pudo arrancar el vigía ({type(e).__name__}: {e})")
+
+
 def gateway_token(crear=True):
     """(token, origen). Vive en %LOCALAPPDATA%\\GrowiBridge\\plano-control-<carril>.dpapi,
     cifrado con DPAPI (solo este usuario de Windows lo descifra), fuera de la
@@ -14161,6 +14352,22 @@ def gateway_token(crear=True):
     el puente); si no, se genera uno nuevo (instalador: --generar-token).
     secret.txt no se borra solo: browser\\browser-server.py todavia lo lee."""
     f = token_file()
+    # Fase 1: con registro de cuentas, el token de este carril es el secreto
+    # de su cuenta en la bóveda (un secreto por cuenta, no uno global).
+    _des = _cuenta_carril_deshabilitada()
+    if _des:
+        log(f"gateway: la cuenta «{_des}» de este carril está deshabilitada; "
+            "el puente no acepta peticiones")
+        return "", f"cuenta {_des} deshabilitada"
+    _cta = _cuenta_de_este_carril()
+    if _cta:
+        try:
+            _v = _sec_get(f"muse:{_cta}")
+            if _v:
+                return _v.strip(), f"bóveda (cuenta {_cta})"
+        except Exception as e:
+            log(f"gateway: no se pudo leer el secreto de la cuenta {_cta} "
+                f"de la bóveda ({type(e).__name__}); se usa el token clásico")
     try:
         tok = _dpapi(f.read_bytes(), False).decode("utf-8").strip()
         if tok:
@@ -14196,6 +14403,11 @@ def gateway_token(crear=True):
     except Exception as e:
         log(f"gateway: no se pudo guardar el token protegido ({type(e).__name__}: {e})")
         return (tok, f"{origen}, sin guardar") if viejo else ("", f"no se pudo guardar ({e})")
+    if _cta:
+        try:
+            _sec_set(f"muse:{_cta}", tok)
+        except Exception:
+            pass  # el archivo ya guardó el token: la bóveda se repone sola
     return tok, origen
 
 
@@ -29860,7 +30072,17 @@ def asis_activo():
     if LANE == "b":
         return None  # el carril B no usa perfiles (solo motores de nube; ver ESTADO-CARRIL-B)
     ps = asis_todos()
-    want = load_settings().get("asistente_activo")
+    # Fase 1: la cuenta asignada a este carril manda sobre el valor global;
+    # asistente_activo queda como valor por defecto, no como único posible.
+    want = None
+    _cta = _cuenta_de_este_carril()
+    if _cta:
+        _c = next((c for c in (_cuentas_reg() or {}).get("cuentas", [])
+                   if c.get("id") == _cta), None)
+        if _c:
+            want = _c.get("asistente")
+    if not want:
+        want = load_settings().get("asistente_activo")
     return (next((p for p in ps if p["id"] == want), None)
             or next((p for p in ps if p["id"] == ASIS_PRINCIPAL), None) or (ps[0] if ps else None))
 
@@ -30091,6 +30313,24 @@ def asis_cambiar(aid, desde="paleta"):
     s["asistente_activo"] = p["id"]
     s["guardrail"] = p["guardrail"]
     save_settings(s)
+    # Fase 1 (revisión de diseño, I11): si este carril tiene cuenta, el
+    # selector de asistente manda sobre la cuenta: su campo asistente se
+    # actualiza a la par que el global, para que cambiarlo siga surtiendo
+    # efecto.
+    _cta = _cuenta_de_este_carril()
+    if _cta:
+        try:
+            import cuentas as _c
+            _reg = _c.cargar(APP_DIR, carril=LANE)
+            if not _reg.get("compatibilidad"):
+                _obj = _c.cuenta(_reg, _cta)
+                if _obj is not None and _obj.get("asistente") != p["id"]:
+                    _obj["asistente"] = p["id"]
+                    _c.guardar(APP_DIR, _reg)
+                    _CUENTAS_CACHE["clave"] = None
+        except Exception as e:
+            log(f"cuentas: no se pudo reflejar el asistente en la cuenta "
+                f"{_cta} ({type(e).__name__})")
     var = _widgets.get("guardrail_var")
     if var is not None:
         try:
@@ -31375,6 +31615,199 @@ def _build_ajustes_ctk(tab_aj):
     return ctk.__version__
 
 
+
+def _build_cuentas(tab):
+    """Página «Cuentas» (Fase 1, Multi-Muse): las cuentas Muse del programa.
+
+    Cada cuenta tiene su propio secreto, que vive en la bóveda (nunca en
+    accounts.json ni en esta pantalla: el campo va siempre vacío y solo se
+    usa para escribir uno nuevo). El registro se lee y se guarda con el
+    módulo `cuentas`, que valida todo antes de escribir.
+    """
+    import cuentas as _c
+
+    tk.Label(tab, text="Cuentas", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(24, 2))
+    tk.Label(tab, text="Cada cuenta es una Muse con su secreto en la bóveda, su asistente "
+                       "y su forma de conectarse (servidor, local o ambas).",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 12))
+
+    estado = {"sel": None, "reg": None}
+    lista = tk.Listbox(tab, font=(FONT, 11), height=5, activestyle="none",
+                       bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                       highlightthickness=0, selectbackground="#E8E8ED",
+                       selectforeground=THEME["text"])
+    lista.pack(fill="x", padx=28, pady=(0, 12))
+
+    form = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    form.pack(fill="x", padx=28, pady=(0, 12))
+    vars_ = {k: tk.StringVar() for k in ("id", "nombre", "asistente", "carril", "conexion")}
+    vars_["carril"].set("sin asignar")
+    vars_["conexion"].set("servidor")
+    hab = tk.BooleanVar(value=True)
+
+    def campo(fila, etiqueta, var, opciones=None, secreto=False):
+        tk.Label(form, text=etiqueta, font=(FONT, 11), bg=THEME["card"],
+                 fg=THEME["text"], width=16, anchor="w").grid(
+                     row=fila, column=0, padx=(14, 6), pady=5, sticky="w")
+        if opciones:
+            w = tk.OptionMenu(form, var, *opciones)
+            w.config(font=(FONT, 11), bg=THEME["card"], bd=1, relief="solid",
+                     highlightthickness=0, anchor="w")
+        else:
+            w = tk.Entry(form, textvariable=var, font=(FONT, 11), bd=1,
+                         relief="solid", show="•" if secreto else "")
+        w.grid(row=fila, column=1, padx=(0, 14), pady=5, sticky="ew")
+        return w
+
+    campo(0, "Nombre", vars_["nombre"])
+    e_id = campo(1, "Identificador", vars_["id"])
+    campo(2, "Asistente", vars_["asistente"])
+    campo(3, "Carril", vars_["carril"], opciones=("a", "b", "sin asignar"))
+    campo(4, "Conexión", vars_["conexion"], opciones=("servidor", "local", "ambas"))
+    e_sec = campo(5, "Secreto (nuevo)", vars_["id"] and tk.StringVar(), secreto=True)
+    var_sec = e_sec.cget("textvariable")
+    tk.Label(form, text="El secreto nunca se muestra: vive en la bóveda. Escribe uno "
+                        "solo para ponerlo o cambiarlo; vacío = dejar el que hay.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
+             anchor="w", wraplength=S(470)).grid(row=6, column=1, padx=(0, 14), pady=(0, 2), sticky="w")
+    tk.Checkbutton(form, text="Cuenta habilitada", variable=hab, font=(FONT, 11),
+                   bg=THEME["card"], fg=THEME["text"], activebackground=THEME["card"],
+                   selectcolor=THEME["card"]).grid(row=7, column=1, pady=4, sticky="w")
+    form.columnconfigure(1, weight=1)
+
+    aviso = tk.Label(tab, text="", font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+                     justify="left", wraplength=S(640))
+    aviso.pack(anchor="w", padx=28, pady=(0, 8))
+
+    def _decir(msg):
+        aviso.config(text=msg)
+
+    def _limpiar():
+        estado["sel"] = None
+        for v in vars_.values():
+            v.set("")
+        vars_["carril"].set("sin asignar")
+        vars_["conexion"].set("servidor")
+        hab.set(True)
+        # El secreto se lee de su propio StringVar (no está en vars_).
+        try:
+            e_sec.delete(0, "end")
+        except Exception:
+            pass
+        e_id.config(state="normal")
+        lista.selection_clear(0, "end")
+
+    def _refrescar():
+        try:
+            reg = _c.cargar(APP_DIR, carril=LANE)
+        except Exception as e:
+            _decir(f"No se pudo leer el registro de cuentas ({type(e).__name__}).")
+            return
+        estado["reg"] = reg
+        lista.delete(0, "end")
+        for c in reg.get("cuentas", []):
+            try:
+                tiene = bool(_sec_get(_c.nombre_secreto(c["id"])))
+            except Exception:
+                tiene = False
+            carril = f"carril {c['carril'].upper()}" if c.get("carril") else "sin carril"
+            lista.insert("end", f"{c['nombre']}  ·  {carril}  ·  {c['conexion']}  ·  "
+                                f"{'activa' if c.get('habilitada', True) else 'desactivada'}  ·  "
+                                f"secreto: {'en la bóveda' if tiene else 'SIN secreto'}")
+        _CUENTAS_CACHE["clave"] = None  # que el monolito relea el registro
+
+    def _al_elegir(_e=None):
+        sel = lista.curselection()
+        reg = estado.get("reg") or {}
+        if not sel or sel[0] >= len(reg.get("cuentas", [])):
+            return
+        c = reg["cuentas"][sel[0]]
+        estado["sel"] = c["id"]
+        vars_["id"].set(c["id"])
+        vars_["nombre"].set(c.get("nombre", ""))
+        vars_["asistente"].set(c.get("asistente") or "")
+        vars_["carril"].set(c.get("carril") or "sin asignar")
+        vars_["conexion"].set(c.get("conexion", "servidor"))
+        hab.set(bool(c.get("habilitada", True)))
+        e_sec.delete(0, "end")
+        e_id.config(state="disabled")  # el id no se cambia: es la clave de la bóveda
+
+    def _guardar():
+        reg = estado.get("reg") or _c.registro_compatibilidad(LANE)
+        cid = (estado["sel"] or vars_["id"].get()).strip()
+        nueva = {"id": cid,
+                 "nombre": vars_["nombre"].get().strip() or cid,
+                 "asistente": vars_["asistente"].get().strip() or None,
+                 "carril": None if vars_["carril"].get() == "sin asignar" else vars_["carril"].get(),
+                 "conexion": vars_["conexion"].get(),
+                 "habilitada": bool(hab.get()),
+                 "creada": datetime.now().astimezone().isoformat(timespec="seconds"),
+                 "permisos": {"modo": "hereda", "clases_extra_denegadas": []}}
+        cuentas = [dict(c) for c in reg.get("cuentas", [])]
+        for i, c in enumerate(cuentas):
+            if c.get("id") == cid:
+                nueva["creada"] = c.get("creada") or nueva["creada"]
+                nueva["permisos"] = c.get("permisos") or nueva["permisos"]
+                cuentas[i] = nueva
+                break
+        else:
+            cuentas.append(nueva)
+        salida = {"version": 1, "migrado_secret_txt": bool(reg.get("migrado_secret_txt")),
+                  "revision": reg.get("revision", 0),
+                  "borradas": reg.get("borradas", []),
+                  "cuentas": cuentas}
+        try:
+            _c.guardar(APP_DIR, salida)
+        except _c.ErrorRegistro as e:
+            _decir(f"No se guardó: {e}")
+            return
+        secreto = e_sec.get().strip()
+        if secreto:
+            try:
+                _sec_set(_c.nombre_secreto(cid), secreto)
+            except Exception as e:
+                _decir(f"Cuenta guardada, pero el secreto no entró en la bóveda ({type(e).__name__}).")
+                _refrescar()
+                return
+            e_sec.delete(0, "end")
+            if cid == "principal":
+                # browser-server.py sigue leyendo secret.txt: si el secreto
+                # de la principal rota, el archivo se actualiza a la par
+                # (atómico) para que no queden dos verdades.
+                try:
+                    _tmp = APP_DIR / "secret.txt.tmp"
+                    _tmp.write_text(secreto, encoding="utf-8")
+                    os.replace(_tmp, APP_DIR / "secret.txt")
+                    if ES_POSIX:
+                        os.chmod(APP_DIR / "secret.txt", 0o600)
+                except Exception as e:
+                    _decir(f"Cuenta guardada, pero secret.txt no se actualizó ({type(e).__name__}): "
+                           "el servidor del navegador usaría el secreto anterior.")
+                    _refrescar()
+                    return
+        estado["sel"] = cid
+        _refrescar()
+        _decir(f"Cuenta «{cid}» guardada. El puente de su carril usará su secreto de la bóveda.")
+
+    botones = tk.Frame(tab, bg=THEME["bg"])
+    botones.pack(anchor="w", padx=28, pady=(0, 20))
+    tk.Button(botones, text="Nueva cuenta", font=(FONT, 11), command=_limpiar,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
+    tk.Button(botones, text="Guardar cuenta", font=(FONT, 11, "bold"), command=_guardar,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left")
+    lista.bind("<<ListboxSelect>>", _al_elegir)
+    _widgets["cuentas_refrescar"] = _refrescar
+    _refrescar()
+    if cred_via() == "dpapi":
+        _decir("Aviso: esta PC no ofrece almacén del sistema ahora mismo; los "
+               "secretos van en un archivo local protegido (0600). Con GNOME "
+               "Keyring o KWallet en marcha se usa el almacén del sistema.")
+
+
 def build_gui():
     global _root, _PALETTE_CMDS
     try:
@@ -31498,7 +31931,7 @@ def build_gui():
         side="right", padx=12)
     _widgets["cloud_banner"] = cloud
     pages = {}
-    for name in ("estado", "carpetas", "skills", "pantalla", "apis", "modelos",
+    for name in ("estado", "carpetas", "skills", "pantalla", "apis", "cuentas", "modelos",
                  "tareas", "recursos", "ajustes", "registro"):
         holder = tk.Frame(content, bg=THEME["bg"])
         pages[name] = _scrollable(holder)
@@ -31526,6 +31959,10 @@ def build_gui():
         if name == "tareas":
             _tasks_fp[0] = None
             _refresh_tasks_ui()
+        if name == "cuentas":
+            _rc = _widgets.get("cuentas_refrescar")
+            if _rc:
+                _rc()
         # Recursos: la lectura corre solo con la pestana abierta.
         if name == "recursos":
             _res_open()
@@ -31539,7 +31976,7 @@ def build_gui():
     nav.pack(fill="x", padx=8, pady=8)
     for name, label in (("estado", "Estado"), ("carpetas", "Carpetas"),
                         ("skills", "Skills"), ("pantalla", "Pantalla"),
-                        ("apis", "APIs"), ("modelos", "Modelos"), ("tareas", "Tareas"),
+                        ("apis", "APIs"), ("cuentas", "Cuentas"), ("modelos", "Modelos"), ("tareas", "Tareas"),
                         ("recursos", "Recursos"), ("ajustes", "Ajustes"),
                         ("registro", "Registro")):
         row = tk.Frame(nav, bg=THEME["sidebar"])
@@ -31901,6 +32338,8 @@ def build_gui():
     _build_models_page(pages["modelos"])
 
     # ================= pagina Tareas
+    _build_cuentas(pages["cuentas"])
+
     tabt = pages["tareas"]
     tk.Label(tabt, text="Tareas", font=(FONT, 22, "bold"),
              bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
@@ -32442,6 +32881,14 @@ def main():
                 "hasta que lo borres en Ajustes → Claves")
     except Exception as e:
         log(f"claves: la migración de apis.json falló ({type(e).__name__}); apis.json no se tocó")
+    # Fase 1 (Multi-Muse): secret.txt -> bóveda como cuenta «principal» y
+    # accounts.json. Solo el carril A siembra el registro; es idempotente y
+    # reversible (secret.txt no se toca: browser-server.py todavía lo lee).
+    if LANE == "a":
+        _mig = _cuentas_migrar_arranque()
+        if _mig.get("migrado"):
+            log(f"cuentas: {_mig['motivo']} (almacén: {cred_via()})")
+    _iniciar_vigia_dual()
 
     def _uncaught(exc_type, exc_value, exc_tb):
         # Red de seguridad: si algo falla fuera del arranque (por ejemplo, en

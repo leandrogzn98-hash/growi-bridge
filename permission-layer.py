@@ -167,8 +167,34 @@ def _limpiar_fragmento(f):
     return f
 
 
-def clasificar_tarea(texto):
-    """-> (clases_ordenadas, motivo_error). Todos los fragmentos deben ser acciones reconocidas."""
+def _denegadas_de(cuenta):
+    """Clases extra denegadas de una cuenta (accounts.json -> permisos).
+
+    Fase 1 fija el esquema: solo deniega si la cuenta está en modo
+    «restringido». Si el registro no existe o no se puede leer, no deniega
+    nada: el comportamiento global de siempre (el endurecimiento del
+    harness llega en la Fase 4).
+    """
+    try:
+        path = os.environ.get("GROWI_ACCOUNTS_JSON") or os.path.join(AQUI, "accounts.json")
+        with open(path, encoding="utf-8") as f:
+            reg = json.load(f)
+        for c in reg.get("cuentas", []):
+            if c.get("id") == cuenta:
+                per = c.get("permisos") or {}
+                if per.get("modo") == "restringido":
+                    return [str(x) for x in per.get("clases_extra_denegadas") or []]
+                return []
+    except Exception:
+        return []
+    return []
+
+
+def clasificar_tarea(texto, cuenta=None):
+    """-> (clases_ordenadas, motivo_error). Todos los fragmentos deben ser acciones reconocidas.
+
+    Con `cuenta`, además de la lista blanca global se aplican las clases
+    extra denegadas de esa cuenta (ver _denegadas_de)."""
     texto = str(texto or "").strip()
     if not texto:
         return [], "peticion vacia"
@@ -198,6 +224,11 @@ def clasificar_tarea(texto):
         return clases, "accion no reconocida en la lista blanca: «%s»" % original.strip()[:60]
     if not clases:
         return [], "no se reconoce ninguna accion permitida"
+    if cuenta:
+        den = set(_denegadas_de(cuenta))
+        malas = [c for c in clases if c in den]
+        if malas:
+            return clases, "accion denegada para la cuenta %s: %s" % (cuenta, ", ".join(malas))
     return clases, ""
 
 
@@ -303,12 +334,28 @@ def _ultimo_hash(path):
     return h
 
 
-def auditoria_disponible():
+CUENTA_DEFECTO = "principal"
+_RX_CUENTA = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
+
+
+def audit_path_de(cuenta=None):
+    """El archivo de auditoría de una cuenta (Fase 1): la de defecto conserva
+    audit-log.json intacto; cada otra cuenta tiene el suyo, con su propia
+    cadena de hashes, en la misma carpeta."""
+    if not cuenta or cuenta == CUENTA_DEFECTO:
+        return AUDIT_PATH
+    if not _RX_CUENTA.match(str(cuenta)):
+        raise AuditoriaError("cuenta inválida para auditoría: %r" % (cuenta,))
+    return os.path.join(os.path.dirname(AUDIT_PATH), "audit-log-%s.json" % cuenta)
+
+
+def auditoria_disponible(cuenta=None):
     """Comprueba (sin escribir entradas) que el log se puede leer/escribir. -> (ok, motivo)"""
+    path = audit_path_de(cuenta)
     try:
-        with _bloqueo(AUDIT_PATH):
-            _ultimo_hash(AUDIT_PATH)
-            with open(AUDIT_PATH, "ab"):
+        with _bloqueo(path):
+            _ultimo_hash(path)
+            with open(path, "ab"):
                 pass
         return True, ""
     except (AuditoriaError, OSError) as e:
@@ -317,7 +364,8 @@ def auditoria_disponible():
 
 def _rotar_si_hace_falta(path):
     if os.path.isfile(path) and os.path.getsize(path) > AUDIT_MAX_BYTES:
-        base = os.path.join(os.path.dirname(path), "audit-log-%s.json" % datetime.now().strftime("%Y-%m"))
+        raiz = os.path.splitext(os.path.basename(path))[0]
+        base = os.path.join(os.path.dirname(path), "%s-%s.json" % (raiz, datetime.now().strftime("%Y-%m")))
         destino, n = base, 1
         while os.path.exists(destino):  # nunca se pisa un archivo
             n += 1
@@ -329,11 +377,17 @@ def resumir(prompt):
     return re.sub(r"\s+", " ", str(prompt or "")).strip()[:RESUMEN_MAX]
 
 
-def registrar(tool, prompt, resultado, motivo_bloqueo=None, duracion_s=0.0, accion=None):
-    """Anade una entrada encadenada. Lanza AuditoriaError si no se pudo escribir."""
+def registrar(tool, prompt, resultado, motivo_bloqueo=None, duracion_s=0.0, accion=None, cuenta=None):
+    """Anade una entrada encadenada. Lanza AuditoriaError si no se pudo escribir.
+
+    Con `cuenta` (Fase 1), la entrada va al audit log de esa cuenta, con su
+    propia cadena de hashes, y lleva los campos `v: 2` y `cuenta`."""
     if resultado not in ("ok", "bloqueado", "error"):
         raise AuditoriaError("resultado invalido: %r" % resultado)
+    path = audit_path_de(cuenta)
     entrada = {
+        "v": 2,
+        "cuenta": cuenta or CUENTA_DEFECTO,
         "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
         "motor": MOTOR_DE.get(tool, str(tool)),
         "tool": str(tool),
@@ -345,21 +399,83 @@ def registrar(tool, prompt, resultado, motivo_bloqueo=None, duracion_s=0.0, acci
     if accion:
         entrada["accion_clase"] = accion
     try:
-        with _bloqueo(AUDIT_PATH):
-            prev = _ultimo_hash(AUDIT_PATH)
-            _rotar_si_hace_falta(AUDIT_PATH)
+        with _bloqueo(path):
+            prev = _ultimo_hash(path)
+            _rotar_si_hace_falta(path)
             entrada["prev_hash"] = prev
             entrada["hash"] = _hash_entrada(prev, {k: v for k, v in entrada.items()})
             linea = json.dumps(entrada, ensure_ascii=False, sort_keys=False) + "\n"
-            with open(AUDIT_PATH, "ab") as f:  # append-only: nunca se reescribe
+            with open(path, "ab") as f:  # append-only: nunca se reescribe
                 f.write(linea.encode("utf-8"))
                 f.flush()
                 os.fsync(f.fileno())
+            _actualizar_ancla(path, entrada)
     except AuditoriaError:
         raise
     except OSError as e:
         raise AuditoriaError("no se pudo escribir el audit log: %s" % e)
     return entrada
+
+
+def _ruta_indice(path):
+    return os.path.join(os.path.dirname(path), "audit-indice.json")
+
+
+def _actualizar_ancla(path, entrada):
+    """Ancla externa de la cadena (Fase 1): cabeza y nº de entradas por
+    archivo, en audit-indice.json. Borrar o truncar un log entero ya no
+    pasa inadvertido: verificar_ancla() compara el archivo con su ancla."""
+    ruta = _ruta_indice(path)
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            indice = json.load(f)
+        if not isinstance(indice, dict):
+            indice = {}
+    except (OSError, ValueError):
+        indice = {}
+    nombre = os.path.basename(path)
+    datos = indice.get(nombre) or {}
+    if datos.get("cabeza") == entrada["prev_hash"]:
+        n = int(datos.get("entradas") or 0) + 1
+    else:
+        # Primera entrada, rotación o índice perdido: se cuenta el archivo.
+        try:
+            with open(path, "rb") as f:
+                n = sum(1 for linea_f in f if linea_f.strip())
+        except OSError:
+            n = 1
+    indice[nombre] = {"cabeza": entrada["hash"], "entradas": n}
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(indice, f, indent=2, sort_keys=True)
+    os.replace(tmp, ruta)
+
+
+def verificar_ancla(cuenta=None):
+    """(ok, motivo): el log de la cuenta coincide con su ancla (misma
+    cabeza y mismo nº de entradas). Sin ancla devuelve (False, motivo):
+    puede ser un log anterior a la Fase 1 o un borrado completo."""
+    path = audit_path_de(cuenta)
+    try:
+        with open(_ruta_indice(path), encoding="utf-8") as f:
+            indice = json.load(f)
+        datos = (indice or {}).get(os.path.basename(path))
+    except (OSError, ValueError):
+        datos = None
+    if not datos:
+        return False, "sin ancla registrada para %s" % os.path.basename(path)
+    try:
+        cabeza = _ultimo_hash(path)
+        with open(path, "rb") as f:
+            n = sum(1 for linea_f in f if linea_f.strip())
+    except (AuditoriaError, OSError) as e:
+        return False, "no se pudo leer el log: %s" % e
+    if cabeza != datos.get("cabeza"):
+        return False, "la cabeza del log no coincide con el ancla"
+    if n != datos.get("entradas"):
+        return False, ("el nº de entradas (%d) no coincide con el ancla (%s)"
+                       % (n, datos.get("entradas")))
+    return True, ""
 
 
 def verificar_cadena(path=None):
