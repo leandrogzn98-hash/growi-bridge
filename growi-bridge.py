@@ -14164,6 +14164,12 @@ def runner_loop(stop_event):
                             # entre las cuentas; no pasa por process_one.
                             _f4_procesar_encargo(_cand, _datos4)
                             break
+                        if _datos4.get("tipo") == "sistema":
+                            # Fase 6: acciones del intermediario de
+                            # root; no pasa por process_one (no hay
+                            # motor: hay puerta, orden y ayudante).
+                            _f6_procesar_sistema(_cand, _datos4)
+                            break
                         _prueba4 = None
                         if _datos4.get("tipo") != "consulta" and not isinstance(_datos4.get("traspaso"), dict):
                             _prueba4 = _f4_prueba_de(_datos4)
@@ -15429,8 +15435,13 @@ def _f4_dual_asegurar():
 
 
 def _f4_dual_aplica(data):
-    if data.get("tipo") in ("consulta", "encargo"):
-        return False  # tareas de control: se procesan en local siempre
+    if data.get("tipo") in ("consulta", "encargo", "sistema"):
+        # Tareas de control y de ESTA máquina: se procesan en local
+        # siempre. Las de «sistema» (Fase 6) actúan sobre el root de
+        # este PC: enviarlas a la sesión del servidor las dejaría
+        # por_confirmar para siempre (cazado en las pruebas físicas
+        # de la Fase 6).
+        return False
     cuenta = _cuenta_de_este_carril()
     if not cuenta or data.get("cuenta") not in (None, cuenta):
         return False
@@ -16076,6 +16087,22 @@ def _f4_envolver_cmd(cmd, task):
     """Linux con sonda verde: el lanzamiento nace envuelto en un scope
     de systemd con CPUQuota/MemoryMax del presupuesto vigente. Sin
     sonda, el comando va tal cual (nice + medición lo gobiernan)."""
+    # Fase 6 (§5.8): si la preparación apartó un contenedor para
+    # esta tarea, el motor entra en él con exec; los límites van
+    # en el contenedor, no en systemd-run (§5.5).
+    try:
+        _prep6 = _F3_PREP.get(task.get("id")) \
+            if isinstance(task, dict) else None
+        _cont6 = (_prep6 or {}).get("contenedor")
+        if _cont6:
+            import contenedores as _ct6
+            _eng6 = get_engine(task.get("motor") or "") or {}
+            return _ct6.argv_exec(
+                _cont6["runtime"], _cont6["nombre"], task.get("cwd"),
+                _engine_env(_eng6), cmd,
+                por_cuenta=bool(_cont6.get("por_cuenta")))
+    except Exception:
+        pass
     try:
         if os.name == "nt" or not _f4_sonda_systemd():
             return cmd
@@ -16633,6 +16660,310 @@ _F3_ULT_LIMPIEZA = [0.0]
 _F3_PL = [None]
 
 
+
+# --------------------------------------------------------------- Fase 6
+_F6_PL = [None]
+
+
+def _f6_registrar(accion_id, huella, resultado, cuenta=None, motivo=None,
+                  duracion_s=0.0):
+    """Auditoría por cuenta de las acciones del intermediario (nunca
+    lanza): la entrada va al audit-log de la cuenta Muse que pidió
+    la acción, cruzable con el log del ayudante por hora y huella."""
+    try:
+        if _F6_PL[0] is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "permission_layer", str(APP_DIR / "permission-layer.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _F6_PL[0] = mod
+        _F6_PL[0].registrar_sistema(accion_id, huella, resultado,
+                                    cuenta=cuenta, motivo=motivo,
+                                    duracion_s=duracion_s)
+    except Exception:
+        pass
+
+
+def _f6_acciones_de(data):
+    """Las acciones declaradas de una tarea `sistema`, con la forma
+    estricta: lista no vacía de {"accion": str, "params": dict} y
+    ninguna clave más (sin forma libre: no hay campo «comando»).
+    None si la forma no vale."""
+    lista = data.get("sistema")
+    if not isinstance(lista, list) or not lista:
+        return None
+    for item in lista:
+        if not isinstance(item, dict) or set(item) - {"accion", "params"}:
+            return None
+        if not isinstance(item.get("accion"), str):
+            return None
+        if not isinstance(item.get("params") or {}, dict):
+            return None
+    return lista
+
+
+def _f6_cerrar_decision(task_file, data, motivo):
+    """Cierra una tarea `sistema` sin ejecutar nada, en espera de
+    decisión del dueño (forma inválida o acción desconocida: puede
+    ser un registro recién editado que aún no se releyó, o un
+    intento de pedir lo que no existe; decide el dueño)."""
+    cid = cola_registrar(task_file, data)
+    DONE.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(task_file), str(DONE / task_file.name))
+    except OSError:
+        pass
+    tid = data.get("id") if isinstance(data.get("id"), str) \
+        else task_file.stem
+    res = _error_result(tid, motivo)
+    res.update(raiz=data.get("raiz") or tid,
+               estado="necesita_decision",
+               reporte=f"{NO_CONFIRMADO} {motivo}. No se ejecutó nada.",
+               no_ejecutado=True)
+    _write_result(res)
+    cola_set(cid, estado="necesita_decision",
+             archivo=str(DONE / task_file.name), motivo=motivo[:300])
+    log(f"runner [{tid}]: tarea de sistema cerrada sin ejecutar: "
+        f"{motivo}")
+    return "cerrada"
+
+
+def _f6_ejecutar_acciones(task_file, data, acciones, approval_id=None):
+    """Ejecuta las acciones de una tarea `sistema` ya aprobada, en
+    orden y parando en el primer fallo. La orden de un solo uso de
+    cada acción se crea justo antes de ejecutarla: sin orden viva el
+    ayudante no ejecuta nada, venga la petición de donde venga."""
+    import raiz as _rz6
+    base = _base_tablero()
+    cuenta = _cuenta_de_este_carril()
+    tid = data.get("id") if isinstance(data.get("id"), str) \
+        else task_file.stem
+    raiz_id = data.get("raiz") or tid
+    config = _rz6.cargar_config(base)
+    resultados = []
+    todo_ok = True
+    for item in acciones:
+        accion = item["accion"]
+        params = item.get("params") or {}
+        try:
+            v = _rz6.validar_peticion(accion, params, config)
+        except _rz6.ErrorRaiz as e:
+            resultados.append({"accion": accion, "ok": False,
+                               "motivo": str(e)})
+            todo_ok = False
+            break
+        _rz6.crear_orden(base, cuenta, accion, v["huella"], approval_id)
+        try:
+            r = _rz6.ejecutar(
+                base, cuenta, raiz_id, accion, params,
+                auditar=lambda a, h, res_, **kw: _f6_registrar(
+                    a, h, res_, cuenta=kw.get("cuenta"),
+                    motivo=kw.get("motivo"),
+                    duracion_s=kw.get("duracion_s", 0.0)))
+        except _rz6.ErrorRaiz as e:
+            _f6_registrar(accion, v["huella"], "bloqueado",
+                          cuenta=cuenta, motivo=str(e))
+            resultados.append({"accion": accion, "ok": False,
+                               "motivo": str(e)})
+            todo_ok = False
+            break
+        resultados.append({"accion": accion, "ok": r["ok"],
+                           "rc": r["rc"], "salida": r["salida"],
+                           "motivo": r["motivo"],
+                           "descripcion": v["descripcion"]})
+        if not r["ok"]:
+            todo_ok = False
+            break
+    lineas = []
+    for r in resultados:
+        if r["ok"]:
+            linea = f"✓ {r.get('descripcion', r['accion'])}"
+            if r.get("salida"):
+                linea += f": {r['salida'][:400]}"
+            lineas.append(linea)
+        else:
+            lineas.append(f"✗ {r['accion']}: "
+                          f"{r.get('motivo') or 'falló'}")
+    reporte = "\n".join(lineas)
+    cid = cola_registrar(task_file, data)
+    DONE.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(task_file), str(DONE / task_file.name))
+    except OSError:
+        pass
+    motivo_fin = "" if todo_ok else \
+        (resultados[-1].get("motivo") or "una acción falló")
+    res = _error_result(tid, motivo_fin)
+    if todo_ok:
+        res["status"] = "ok"
+        res["error"] = ""
+    res.update(raiz=raiz_id,
+               estado="terminada" if todo_ok else "fallida",
+               reporte=reporte, sistema=resultados)
+    _write_result(res)
+    cola_set(cid, estado="terminada" if todo_ok else "fallida",
+             archivo=str(DONE / task_file.name),
+             motivo=("acciones de sistema ejecutadas" if todo_ok
+                     else motivo_fin)[:300])
+    try:
+        _family_update(raiz_id,
+                       estado="terminada" if todo_ok else "fallida",
+                       reporte=reporte, tarea=tid,
+                       motor=data.get("motor"),
+                       solo_si_falta_encargo=str(
+                           data.get("prompt") or "")[:2000])
+    except Exception:
+        pass
+    _f4_aviso("sistema_ejecutada" if todo_ok else "sistema_fallida",
+              f"Acciones de sistema de {tid}: "
+              f"{'todas bien' if todo_ok else motivo_fin}",
+              cuenta=cuenta, raiz=raiz_id, tarea=tid,
+              nivel="info" if todo_ok else "accion")
+    log(f"runner [{tid}]: sistema {'terminada' if todo_ok else 'fallida'}: "
+        f"{reporte[:200]}")
+    return "terminada" if todo_ok else "fallida"
+
+
+def _f6_procesar_sistema(task_file, data):
+    """El camino de una tarea `sistema` (Fase 6): forma estricta →
+    ¿permiso ya aprobado? → ¿intermediario disponible? → puerta de
+    aprobaciones → ejecución por el ayudante. Sin motor: el prompt
+    no manda, manda el registro."""
+    import raiz as _rz6
+    tid = data.get("id") if isinstance(data.get("id"), str) \
+        else task_file.stem
+    acciones = _f6_acciones_de(data)
+    if acciones is None:
+        return _f6_cerrar_decision(
+            task_file, data,
+            "la tarea «sistema» no declara acciones con la forma "
+            "estricta {\"accion\", \"params\"}")
+    # ¿Un permiso ya aprobado para esta tarea? Se consume al recoger
+    # (un solo uso, como el de las pruebas físicas de la Fase 4).
+    try:
+        rows = _cola("SELECT * FROM aprobaciones WHERE tarea=? "
+                     "AND estado='aprobada'", (tid,), fetch=True)
+    except Exception:
+        rows = []
+    for r in rows or []:
+        if "sistema" in (r.get("acciones") or ""):
+            _apr_set(r["approval_id"], estado="consumida",
+                     resultado=((r.get("resultado") or "")
+                                + "; permiso consumido al recoger "
+                                  "la tarea").strip("; "))
+            log(f"sistema: {tid} corre con el permiso ya aprobado "
+                f"({r['approval_id']}), consumido al recoger")
+            return _f6_ejecutar_acciones(task_file, data, acciones,
+                                         approval_id=r["approval_id"])
+    base = _base_tablero()
+    via = _rz6.detectar_via(base)
+    if via["via"] == "ninguna":
+        # Sin intermediario no se gasta ninguna aprobación: la tarea
+        # espera con el motivo y puede seguir su curso si el dueño
+        # lo instala después.
+        try:
+            cid = cola_registrar(task_file, data)
+            cola_set(cid, proximo_intento=time.time() + 120,
+                     motivo=f"intermediario de root no instalado "
+                            f"({via['motivo']})")
+        except Exception:
+            pass
+        _f4_aviso("sistema_sin_intermediario",
+                  f"La tarea {tid} pide acciones de sistema pero el "
+                  "intermediario de root no está instalado.",
+                  cuenta=_cuenta_de_este_carril(), tarea=tid,
+                  nivel="accion")
+        log(f"runner [{tid}]: sistema en espera: intermediario no "
+            "instalado")
+        return "esperar"
+    config = _rz6.cargar_config(base)
+    nivel, detalles = _rz6.nivel_de(acciones, config)
+    if nivel is None:
+        return _f6_cerrar_decision(
+            task_file, data,
+            f"acción de sistema desconocida o inválida: {detalles}")
+    # R1 por debajo del umbral del dueño corre sin preguntar (su
+    # política, como en _approval_needed); el resto va a la puerta.
+    tabla, _err = cargar_riesgos()
+    if _rango(nivel) < _rango(_desde(tabla, guardrail_level())):
+        return _f6_ejecutar_acciones(task_file, data, acciones)
+    task, err = validate_task(data)
+    if err:
+        task = {"id": tid, "raiz": data.get("raiz") or tid,
+                "prompt": data.get("prompt") or "",
+                "cwd": data.get("cwd") or str(APP_DIR),
+                "motor": data.get("motor") or "claude",
+                "canal": data.get("canal")}
+    need = {"nivel": nivel,
+            "acciones": [{"tipo": f"sistema:{d['accion']}",
+                          "nivel": d["nivel"],
+                          "nombre": d["descripcion"],
+                          "origen": "declarada",
+                          "palabras": [d["huella"]]}
+                         for d in detalles],
+            "motivo": "; ".join(d["descripcion"] for d in detalles)}
+    est, dest = _park_for_approval(task_file, task, need)
+    cid = cola_registrar(task_file, data)
+    cola_set(cid, estado=est, archivo=str(dest))
+    _f4_aviso("sistema_pendiente",
+              f"Acciones de sistema esperando tu decisión: "
+              f"{need['motivo']}",
+              cuenta=_cuenta_de_este_carril(), tarea=tid,
+              nivel="accion")
+    log(f"sistema: {tid} espera aprobación ({nivel}: "
+        f"{need['motivo'][:120]})")
+    return "aparcada"
+
+
+def _f6_asegurar_contenedor(task_file, data, ent, prep):
+    """El gancho de contenedores de _f3_preparar (§5.8): deja
+    prep["contenedor"] si quedó listo, anota el aviso si degradó, o
+    devuelve "esperar" (modo requerido sin contenedor: la tarea
+    espera con los alquileres sueltos, como con un alquiler
+    ocupado). Nunca lanza."""
+    try:
+        import contenedores as _ct6
+        import recursos as _rc6
+        base = _base_tablero()
+        try:
+            asig = _rc6.asignacion_de(base)
+            am = asig.get(_f4_modo()) or asig["ausente"]
+            lim = _rc6.limites(_f4_specs(), am, 1)
+        except Exception:
+            lim = None
+        r = _ct6.asegurar(base, ent, cuenta=prep["cuenta"],
+                          limites_dict=lim)
+        if r["estado"] == "listo":
+            prep["contenedor"] = {
+                "runtime": r["runtime"], "nombre": r["nombre"],
+                "por_cuenta": bool(r.get("por_cuenta"))}
+            if r.get("recreacion_pospuesta"):
+                prep["contenedor_aviso"] = r.get("motivo")
+            log(f"runner [{prep['tid']}]: contenedor {r['nombre']} "
+                f"listo ({r['runtime']})")
+        elif r["estado"] == "esperar":
+            import alquileres as _alq6
+            _alq6.soltar(base, prep["cuenta"], prep["tid"])
+            try:
+                cid = cola_registrar(task_file, data)
+                cola_set(cid, proximo_intento=time.time() + 60,
+                         motivo=r["motivo"][:300])
+            except Exception:
+                pass
+            log(f"runner [{prep['tid']}]: esperando contenedor: "
+                f"{r['motivo']}")
+            return "esperar"
+        elif r["estado"] == "degradado":
+            prep["contenedor_aviso"] = r["motivo"]
+            log(f"runner [{prep['tid']}]: sin contenedor (modo "
+                f"opcional): {r['motivo']}")
+    except Exception as e:
+        log(f"runner [{prep['tid']}]: Fase 6 degradada "
+            f"(contenedor): {e}")
+    return "ok"
+
+
 def _f3_registrar(tool, prompt, resultado, cuenta=None, accion=None):
     """Auditoría por cuenta para los eventos de la Fase 3 (nunca lanza)."""
     try:
@@ -16816,6 +17147,15 @@ def _f3_preparar(task_file, data=None):
                 return "cerrada", None
             log(f"runner [{tid}]: Fase 3 degradada (worktree): {e}; corre en "
                 "su cwd con los alquileres ya tomados")
+        # Fase 6 (§5.8): contenedor por proyecto, solo con el
+        # worktree ya preparado y si el proyecto lo pide (opt-in:
+        # con modo «no» esta rama no existe y el flujo es el de
+        # la Fase 3, intacto).
+        if prep.get("worktree") and os.name != "nt" and \
+                (ent.get("contenedor_modo") or "no") != "no":
+            if _f6_asegurar_contenedor(task_file, data, ent, prep) \
+                    == "esperar":
+                return "esperar", None
         _F3_PREP[tid] = prep
         return "ok", prep
     except Exception as e:
@@ -16846,6 +17186,12 @@ def _f3_tras_process_one(task_file, prep):
             res = json.loads(rp.read_text(encoding="utf-8"))
             res["worktree"] = prep["worktree"]
             res["rama"] = prep["rama"]
+            if prep.get("contenedor"):
+                res["contenedor"] = prep["contenedor"]["nombre"]
+                res["contenedor_runtime"] = \
+                    prep["contenedor"]["runtime"]
+            if prep.get("contenedor_aviso"):
+                res["contenedor_aviso"] = prep["contenedor_aviso"]
             tmp = rp.with_suffix(".tmp")
             tmp.write_text(json.dumps(res, ensure_ascii=False, indent=2),
                            encoding="utf-8")
@@ -16855,6 +17201,10 @@ def _f3_tras_process_one(task_file, prep):
         hist = _cola_hist(row)
         hist.append({"fase3": {"worktree": prep["worktree"],
                                "rama": prep["rama"], "repo": prep["repo"]}})
+        if prep.get("contenedor"):
+            hist.append({"fase6": {
+                "contenedor": prep["contenedor"]["nombre"],
+                "runtime": prep["contenedor"]["runtime"]}})
         cola_set(prep["tid"], historial=hist)
     except Exception as e:
         log(f"runner [{prep['tid']}]: no se pudo anotar la Fase 3 en el "
@@ -35156,6 +35506,236 @@ def _build_cuentas(tab):
                        fg=THEME["text"], activebackground=THEME["bg"],
                        selectcolor=THEME["card"]).pack(side="left",
                                                         padx=(0, 10))
+
+    # -- Seguridad avanzada (Fase 6) ---------------------------------------
+    tk.Label(tab, text="Seguridad avanzada", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28,
+                                                    pady=(12, 2))
+    tk.Label(tab, text="El intermediario de root (solo Linux): ninguna "
+                       "cuenta Muse conoce la clave de root. Las "
+                       "acciones privilegiadas salen de un registro "
+                       "cerrado, las confirmas tú por el circuito de "
+                       "siempre y las ejecuta un ayudante autorizado "
+                       "por sudoers. Instalarlo es cosa tuya, en tu "
+                       "terminal: la app solo detecta y muestra. Y los "
+                       "contenedores por proyecto: una caja por "
+                       "proyecto con sus worktrees dentro, sin el "
+                       "resto de tu PC y sin credenciales de git.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+             justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    f6_estado = tk.StringVar(value="")
+    tk.Label(tab, textvariable=f6_estado, font=(FONT, 11),
+             bg=THEME["bg"], fg=THEME["text"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 4))
+    f6_lista = tk.Listbox(tab, font=(FONT, 11), height=6,
+                          activestyle="none", bg=THEME["card"],
+                          fg=THEME["text"], bd=1, relief="solid",
+                          highlightthickness=0)
+    f6_lista.pack(fill="x", padx=28, pady=(0, 8))
+    fila_f6 = tk.Frame(tab, bg=THEME["bg"])
+    fila_f6.pack(fill="x", padx=28, pady=(0, 8))
+    f6_proy_sel = tk.StringVar(value="")
+    f6_modo = tk.StringVar(value="no")
+    f6_imagen = tk.StringVar(value="")
+    f6_red = tk.StringVar(value="saliente")
+    f6_cont_estado = tk.StringVar(value="")
+    fila_f6b = tk.Frame(tab, bg=THEME["bg"])
+    fila_f6b.pack(fill="x", padx=28, pady=(0, 2))
+    tk.Label(fila_f6b, text="Contenedor del proyecto:", font=(FONT, 11),
+             bg=THEME["bg"], fg=THEME["text"]).pack(side="left")
+    f6_proy_combo = ttk.Combobox(fila_f6b, textvariable=f6_proy_sel,
+                                 state="readonly", width=24)
+    f6_proy_combo.pack(side="left", padx=(8, 0))
+    ttk.Combobox(fila_f6b, textvariable=f6_modo, state="readonly",
+                 width=11,
+                 values=("no", "opcional", "requerido")).pack(
+                     side="left", padx=(8, 0))
+    ttk.Combobox(fila_f6b, textvariable=f6_red, state="readonly",
+                 width=10,
+                 values=("saliente", "ninguna")).pack(side="left",
+                                                      padx=(8, 0))
+    fila_f6c = tk.Frame(tab, bg=THEME["bg"])
+    fila_f6c.pack(fill="x", padx=28, pady=(0, 2))
+    tk.Label(fila_f6c, text="Imagen:", font=(FONT, 11), bg=THEME["bg"],
+             fg=THEME["text"]).pack(side="left")
+    tk.Entry(fila_f6c, textvariable=f6_imagen, width=36,
+             font=(FONT, 11)).pack(side="left", padx=(8, 0))
+    tk.Label(tab, textvariable=f6_cont_estado, font=(FONT, 10),
+             bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 4))
+    f6_guard = {"proyectos": {}}
+
+    def _f6_proyecto_actual():
+        return f6_guard["proyectos"].get(f6_proy_sel.get())
+
+    def _refrescar_f6():
+        import contenedores as _ct6u
+        import raiz as _rz6u
+        base = _base_tablero()
+        if os.name == "nt":
+            f6_estado.set("Intermediario de root: solo Linux; en "
+                          "Windows las acciones de sistema no están "
+                          "disponibles.")
+        else:
+            via = _rz6u.detectar_via(base)
+            cfg = _rz6u.cargar_config(base)
+            unidades = ", ".join(sorted(cfg["unidades"])) or "ninguna"
+            f6_estado.set(
+                f"Intermediario de root: vía {via['via']}"
+                f"{' (verificada)' if via['verificada'] else ''} — "
+                f"{via['motivo']}. Unidades autorizadas por el "
+                f"dueño: {unidades}.")
+        f6_lista.delete(0, "end")
+        import raiz as _rz6u
+        for aid in _rz6u.acciones():
+            spec = _rz6u.REGISTRO[aid]
+            f6_lista.insert("end", f"{aid}  ·  {spec['nivel']}  ·  "
+                                   f"{spec['clase']}  ·  "
+                                   f"{spec['descripcion']}")
+        det = _ct6u.detectar_runtime()
+        try:
+            import git_trabajo as _gt6u
+            proyectos = _gt6u.proyectos(base)
+        except Exception:
+            proyectos = {}
+        f6_guard["proyectos"] = {p.get("nombre"): p
+                                  for p in proyectos.values()}
+        f6_proy_combo["values"] = sorted(f6_guard["proyectos"])
+        f6_cont_estado.set(
+            f"Runtime de contenedores: {det['runtime'] or 'ninguno'} "
+            f"— {det['motivo']}"
+            + (f" ({det['matiz']})" if det.get("matiz") else "")
+            + ". Elige un proyecto para ver o cambiar su contenedor "
+              "(modo, red e imagen; sin imagen no hay contenedor).")
+        _f6_cargar_proyecto()
+
+    def _f6_cargar_proyecto(*_a):
+        p = _f6_proyecto_actual()
+        if not p:
+            return
+        f6_modo.set(p.get("contenedor_modo") or "no")
+        f6_imagen.set(p.get("contenedor_imagen") or "")
+        f6_red.set(p.get("contenedor_red") or "saliente")
+        est = p.get("contenedor")
+        if est:
+            f6_cont_estado.set(
+                f"Contenedor de {p.get('nombre')}: {est.get('nombre')} "
+                f"({est.get('runtime')}, huella "
+                f"{est.get('huella')}).")
+
+    f6_proy_combo.bind("<<ComboboxSelected>>", _f6_cargar_proyecto)
+
+    def _f6_sonda():
+        import raiz as _rz6u
+        _rz6u._CACHE_VIA.update({"ts": 0.0, "valor": None})
+        import contenedores as _ct6u
+        _ct6u._CACHE.update({"ts": 0.0, "valor": None})
+        _refrescar_f6()
+        _decir("Sonda repetida: la vía y el runtime son los que "
+               "muestra «Seguridad avanzada».")
+
+    def _f6_ver_reglas():
+        import getpass
+        import raiz as _rz6u
+        base = _base_tablero()
+        cfg = _rz6u.cargar_config(base)
+        try:
+            texto_reglas = _rz6u.componer_sudoers(getpass.getuser(),
+                                                  cfg)
+        except _rz6u.ErrorRaiz as e:
+            _decir(f"No se compusieron las reglas: {e}")
+            return
+        from tkinter import scrolledtext as _st6
+        win = tk.Toplevel(tab)
+        win.title("Reglas del intermediario (instálalas tú)")
+        win.configure(bg=THEME["bg"])
+        tk.Label(win, text="Esto es TODO lo que se autoriza. La app "
+                           "no lo instala: pega los comandos en tu "
+                           "terminal, con tu contraseña, o ejecuta "
+                           "instalar-raiz.py desde la carpeta del "
+                           "programa.",
+                 font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+                 justify="left",
+                 wraplength=S(620)).pack(anchor="w", padx=16,
+                                         pady=(12, 6))
+        caja = _st6.ScrolledText(win, font=(FONT, 10), width=78,
+                                 height=16)
+        caja.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+        comandos = "\n".join(
+            "  " + c for c in _rz6u.comandos_instalacion())
+        caja.insert("end", texto_reglas + "\nComandos:\n" + comandos)
+        caja.configure(state="disabled")
+        ttk.Button(win, text="Cerrar",
+                   command=win.destroy).pack(pady=(0, 12))
+
+    def _f6_guardar_contenedor():
+        import git_trabajo as _gt6u
+        p = _f6_proyecto_actual()
+        if not p:
+            _decir("Elige primero un proyecto.")
+            return
+        try:
+            _gt6u.guardar_proyecto(
+                _base_tablero(), p["repo_id"],
+                contenedor_modo=f6_modo.get(),
+                contenedor_imagen=f6_imagen.get().strip() or None,
+                contenedor_red=f6_red.get())
+            _decir(f"Contenedor de {p.get('nombre')}: guardado "
+                   f"(modo {f6_modo.get()}).")
+        except Exception as e:
+            _decir(f"No se guardó: {e}")
+        _refrescar_f6()
+
+    def _f6_crear_contenedor():
+        import contenedores as _ct6u
+        p = _f6_proyecto_actual()
+        if not p:
+            _decir("Elige primero un proyecto.")
+            return
+        cuenta = _cuenta_de_este_carril()
+        r = _ct6u.asegurar(_base_tablero(), p, cuenta=cuenta)
+        _decir(f"Contenedor de {p.get('nombre')}: {r['estado']}"
+               + (f" — {r.get('motivo')}" if r.get("motivo") else ""))
+        _refrescar_f6()
+
+    def _f6_destruir_contenedor():
+        from tkinter import messagebox as _mb6
+        import contenedores as _ct6u
+        p = _f6_proyecto_actual()
+        if not p:
+            _decir("Elige primero un proyecto.")
+            return
+        if not _mb6.askyesno(
+                "Seguridad avanzada",
+                f"¿Destruir el contenedor de {p.get('nombre')}? "
+                "Los worktrees y el .git no se tocan (son montajes); "
+                "el contenedor se puede volver a crear."):
+            return
+        try:
+            r = _ct6u.destruir(_base_tablero(), p,
+                               cuenta=_cuenta_de_este_carril())
+            _decir(f"Contenedor {r['nombre']} destruido.")
+        except Exception as e:
+            _decir(f"No se destruyó: {e}")
+        _refrescar_f6()
+
+    ttk.Button(fila_f6, text="Probar sonda",
+               command=_f6_sonda).pack(side="left")
+    ttk.Button(fila_f6, text="Ver reglas a instalar",
+               command=_f6_ver_reglas).pack(side="left", padx=(8, 0))
+    ttk.Button(fila_f6, text="Guardar contenedor",
+               command=_f6_guardar_contenedor).pack(side="left",
+                                                    padx=(8, 0))
+    ttk.Button(fila_f6, text="Crear contenedor",
+               command=_f6_crear_contenedor).pack(side="left",
+                                                 padx=(8, 0))
+    ttk.Button(fila_f6, text="Destruir contenedor",
+               command=_f6_destruir_contenedor).pack(side="left",
+                                                     padx=(8, 0))
+    ttk.Button(fila_f6, text="Actualizar",
+               command=_refrescar_f6).pack(side="right")
+    _refrescar_f6()
     _refrescar_canal()
     _refrescar()
     if cred_via() == "dpapi":

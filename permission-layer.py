@@ -417,6 +417,24 @@ def registrar(tool, prompt, resultado, motivo_bloqueo=None, duracion_s=0.0, acci
     return entrada
 
 
+def registrar_sistema(accion_id, huella, resultado, cuenta=None,
+                      motivo=None, duracion_s=0.0):
+    """El asiento de una acción del intermediario de root (Fase 6).
+
+    Es código de la capa, NO una tool del agente: el harness no la
+    ve y ningún motor puede llamarla; la invoca el monolito desde el
+    camino que sigue a una decisión humana del circuito de
+    aprobaciones (o el ayudante queda como segunda auditoría, con su
+    propio log). La entrada va al audit-log de la cuenta Muse que
+    pidió la acción, con la acción y la huella de parámetros para
+    poder cruzarla con el log del ayudante."""
+    return registrar("raiz",
+                     "sistema:%s:%s" % (accion_id, huella),
+                     resultado, motivo_bloqueo=motivo,
+                     duracion_s=duracion_s,
+                     accion="sistema:%s" % accion_id, cuenta=cuenta)
+
+
 def _ruta_indice(path):
     return os.path.join(os.path.dirname(path), "audit-indice.json")
 

@@ -336,12 +336,26 @@ def registrar_proyecto(base_dir, ruta, correr=None, reloj=None):
 
 def guardar_proyecto(base_dir, repo_id, **cambios):
     """Ajustes del dueño sobre un proyecto (mezcladora, contenedores…)."""
-    permitidos = {"mezcladora", "contenedores", "limpieza_dias", "rama_base"}
+    permitidos = {"mezcladora", "contenedores", "limpieza_dias", "rama_base",
+                  "contenedor_modo", "contenedor_imagen", "contenedor_red",
+                  "contenedor"}
     for k in cambios:
         if k not in permitidos:
             raise ErrorGit(f"ajuste de proyecto desconocido: {k}")
     if "contenedores" in cambios and cambios["contenedores"] not in ("proyecto", "por_cuenta"):
         raise ErrorGit("contenedores debe ser «proyecto» o «por_cuenta»")
+    # Fase 6: los campos del contenedor por proyecto, validados aquí
+    # para que ningún camino escriba un modo o una red imposibles.
+    if "contenedor_modo" in cambios and cambios["contenedor_modo"] not in ("no", "opcional", "requerido"):
+        raise ErrorGit("contenedor_modo debe ser «no», «opcional» o «requerido»")
+    if "contenedor_red" in cambios and cambios["contenedor_red"] not in ("saliente", "ninguna"):
+        raise ErrorGit("contenedor_red debe ser «saliente» o «ninguna»")
+    if "contenedor_imagen" in cambios and cambios["contenedor_imagen"] is not None \
+            and not isinstance(cambios["contenedor_imagen"], str):
+        raise ErrorGit("contenedor_imagen debe ser un texto o None")
+    if "contenedor" in cambios and cambios["contenedor"] is not None \
+            and not isinstance(cambios["contenedor"], dict):
+        raise ErrorGit("contenedor debe ser un objeto o None")
     with _bloqueo(base_dir, ARCHIVO_PROYECTOS):
         d = cargar_proyectos(base_dir)
         e = d["proyectos"].get(repo_id)
