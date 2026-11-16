@@ -11,15 +11,37 @@ llamada en la unidad del motor; si no se pone, una llamada suma 1.
 Uso:
     python quota-tracker.py                      (estado de todos)
     python quota-tracker.py --registrar claude 1
+    python quota-tracker.py --registrar claude 1 --cuenta principal
+
+Fase 2 (multi-Muse): registrar_uso/obtener_estado aceptan cuenta=<id>. Sin
+cuenta, el comportamiento y el formato de quota-uso.json son los de siempre;
+con cuenta, el uso se guarda bajo la clave "<motor>@<cuenta>": cada cuenta
+lleva su contador y el limite configurado sigue siendo el del motor.
 """
 import json
 import os
+import re
 import sys
 from datetime import datetime
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DEF = os.path.join(AQUI, "config-quota.json")
 USO_DEF = os.path.join(AQUI, "quota-uso.json")
+
+
+_CUENTA_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?")
+
+
+def _clave_uso(clave, cuenta):
+    """Clave en quota-uso.json: el motor a secas (compatibilidad) o
+    '<motor>@<cuenta>' con la cuenta validada. Una cuenta invalida es un
+    error de programacion: ValueError, nunca una clave inventada."""
+    if cuenta is None:
+        return clave
+    c = str(cuenta)
+    if not _CUENTA_RE.fullmatch(c):
+        raise ValueError(f"cuenta invalida para cuota: {cuenta!r}")
+    return f"{clave}@{c}"
 
 
 def _periodo(reset, ahora):
@@ -72,12 +94,14 @@ class QuotaTracker:
         os.replace(tmp, self.uso_path)
 
     # -- escritura
-    def registrar_uso(self, motor, cantidad=1, tipo="llamada"):
+    def registrar_uso(self, motor, cantidad=1, tipo="llamada", cuenta=None):
         """Suma uso. tipo='llamada': cantidad * costo_por_llamada (default 1). tipo='unidad': cantidad tal cual
-        (p.ej. USD reales). Devuelve el estado nuevo, o None si el motor no esta en la config (no se inventa)."""
+        (p.ej. USD reales). Devuelve el estado nuevo, o None si el motor no esta en la config (no se inventa).
+        Con cuenta=<id>, el uso se anota en el contador de esa cuenta."""
         clave = self.resolver_motor(motor)
         if clave is None:
             return None
+        clave_uso = _clave_uso(clave, cuenta)
         cfg = self.motores()[clave]
         per = _periodo(cfg.get("reset"), self._reloj())
         mult = 1.0
@@ -86,22 +110,33 @@ class QuotaTracker:
                 mult = float(cfg.get("costo_por_llamada", 1))
             except (TypeError, ValueError):
                 mult = 1.0
+        suma = float(cantidad) * mult
         uso = self._uso()
-        reg = uso.get(clave) if isinstance(uso.get(clave), dict) else {}
+        reg = uso.get(clave_uso) if isinstance(uso.get(clave_uso), dict) else {}
         usado = float(reg.get("usado", 0)) if reg.get("periodo") == per else 0.0  # periodo nuevo = reset
-        usado += float(cantidad) * mult
-        uso[clave] = {"usado": round(usado, 6), "periodo": per}
+        usado += suma
+        uso[clave_uso] = {"usado": round(usado, 6), "periodo": per}
+        if cuenta is not None:
+            # Doble escritura (revision Fase 2, B2): la clave agregada de
+            # siempre tambien avanza, para que los lectores legacy (harness
+            # sin cuenta, UI) sigan viendo el total y el limite no quede
+            # fail-open. El agregado NUNCA se deriva sumando claves al leer:
+            # con historico legacy duplicaria.
+            reg_a = uso.get(clave) if isinstance(uso.get(clave), dict) else {}
+            usado_a = float(reg_a.get("usado", 0)) if reg_a.get("periodo") == per else 0.0
+            uso[clave] = {"usado": round(usado_a + suma, 6), "periodo": per}
+        uso["_v"] = 1  # marca de formato: conviven claves agregadas y por cuenta
         self._guardar(uso)
-        return self.obtener_estado(clave)
+        return self.obtener_estado(clave, cuenta=cuenta)
 
     # -- lectura
-    def obtener_estado(self, motor):
+    def obtener_estado(self, motor, cuenta=None):
         clave = self.resolver_motor(motor)
         if clave is None:
             return None
         cfg = self.motores()[clave]
         per = _periodo(cfg.get("reset"), self._reloj())
-        reg = self._uso().get(clave)
+        reg = self._uso().get(_clave_uso(clave, cuenta))
         usado = 0.0
         if isinstance(reg, dict) and reg.get("periodo") == per:  # periodo distinto = reset automatico
             try:
@@ -119,18 +154,21 @@ class QuotaTracker:
         if "usd" in str(unidad).lower() and "costo_por_llamada" not in cfg:
             # el harness suma llamadas, no dolares: no se muestra 'USD' si no hay costo por llamada configurado
             unidad = "llamadas (USD pendiente)"
-        return {"motor": clave, "nombre": cfg.get("nombre", clave), "tipo": cfg.get("tipo", ""),
-                "usado": int(usado) if usado == int(usado) else round(usado, 4),
-                "limite": limite, "unidad": unidad, "reset": cfg.get("reset", "nunca"),
-                "periodo": per, "ilimitado": ilimitado, "porcentaje": pct}
+        est = {"motor": clave, "nombre": cfg.get("nombre", clave), "tipo": cfg.get("tipo", ""),
+               "usado": int(usado) if usado == int(usado) else round(usado, 4),
+               "limite": limite, "unidad": unidad, "reset": cfg.get("reset", "nunca"),
+               "periodo": per, "ilimitado": ilimitado, "porcentaje": pct}
+        if cuenta is not None:
+            est["cuenta"] = str(cuenta)
+        return est
 
-    def obtener_todos(self):
-        return {k: self.obtener_estado(k) for k in self.motores()}
+    def obtener_todos(self, cuenta=None):
+        return {k: self.obtener_estado(k, cuenta=cuenta) for k in self.motores()}
 
-    def para_estado(self):
+    def para_estado(self, cuenta=None):
         """Seccion 'quotas' de harness-state.json."""
         out = {}
-        for k, e in self.obtener_todos().items():
+        for k, e in self.obtener_todos(cuenta=cuenta).items():
             out[k] = {"nombre": e["nombre"], "tipo": e["tipo"], "usado": e["usado"], "limite": e["limite"],
                       "unidad": e["unidad"], "porcentaje": e["porcentaje"], "ilimitado": e["ilimitado"]}
         return out
@@ -138,10 +176,16 @@ class QuotaTracker:
 
 def main(argv):
     t = QuotaTracker()
-    if len(argv) >= 4 and argv[1] == "--registrar":
-        print(json.dumps(t.registrar_uso(argv[2], float(argv[3])), ensure_ascii=False))
+    args = list(argv[1:])
+    cuenta = None
+    if "--cuenta" in args:
+        i = args.index("--cuenta")
+        cuenta = args[i + 1] if i + 1 < len(args) else None
+        del args[i:i + 2]
+    if len(args) >= 3 and args[0] == "--registrar":
+        print(json.dumps(t.registrar_uso(args[1], float(args[2]), cuenta=cuenta), ensure_ascii=False))
         return 0
-    print(json.dumps(t.obtener_todos(), ensure_ascii=False, indent=2))
+    print(json.dumps(t.obtener_todos(cuenta=cuenta), ensure_ascii=False, indent=2))
     return 0
 
 

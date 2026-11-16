@@ -67,6 +67,9 @@ MSG_FAIL_CLOSED = "BLOQUEADO: la capa de permisos no se pudo cargar (%s); el har
     CAPA if not PERMISOS_OK else "")
 
 quota_tracker = _cargar_quota()
+# Fase 2: si el proceso nace con GROWI_CUENTA_ID, la cuota se anota por
+# (motor, cuenta); sin la variable, el comportamiento es el de siempre.
+CUENTA_HARNESS = os.environ.get("GROWI_CUENTA_ID") or None
 _H1 = _cargar_tools()
 TOOLS = list(_H1.HARNESS_MOTOR_TOOLS)
 TOOL_POR_NOMBRE = {t.name: t for t in TOOLS}
@@ -140,7 +143,7 @@ class Estado:
         self.datos["timestamp"] = datetime.now().astimezone().isoformat(timespec="seconds")
         self.datos["last_output"] = str(self.datos["last_output"])[:200]
         try:  # cuotas reales (0 si no hay uso); un fallo del tracker nunca rompe el estado
-            self.datos["quotas"] = quota_tracker.para_estado()
+            self.datos["quotas"] = quota_tracker.para_estado(cuenta=CUENTA_HARNESS)
         except Exception:  # noqa: BLE001
             self.datos.setdefault("quotas", {})
         tmp = STATE_PATH + ".tmp"
@@ -190,7 +193,7 @@ class RouterModel(Model):
             self.estado.escribir(active_motor=nombre.replace("_cli", "").replace("_local", ""))
             salida = TOOL_POR_NOMBRE[nombre].forward(prompt)
             try:
-                quota_tracker.registrar_uso(nombre, 1)
+                quota_tracker.registrar_uso(nombre, 1, cuenta=CUENTA_HARNESS)
             except Exception:  # noqa: BLE001
                 pass
             ok = not str(salida).startswith(("ERROR", "BLOQUEADO"))

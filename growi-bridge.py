@@ -8434,6 +8434,8 @@ def _write_result(result):
     path = RESULTS / f"{result['id']}.result.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+    if isinstance(result, dict):
+        _consulta_devolver(result, path)
     return path
 
 
@@ -12599,6 +12601,35 @@ def _cola(sql, args=(), fetch=False):
         return [] if fetch else 0
 
 
+_COLA_TIENE_CUENTA = [False]
+
+
+def _cola_migrar_v1():
+    """Fase 2: columnas cuenta/tipo en tareas + PRAGMA user_version = 1.
+
+    A prueba de carreras (revisión I5): cada ALTER va por separado y si la
+    columna ya existe no pasa nada; al final se relee el esquema y la
+    bandera dice la verdad. Si algo falla, la bandera queda en False y
+    cola_registrar encola como siempre, sin las columnas nuevas."""
+    try:
+        cols = {r["name"] for r in _cola("PRAGMA table_info(tareas)", fetch=True)}
+        if not cols:
+            return
+        for col in ("cuenta", "tipo"):
+            if col not in cols:
+                _cola(f"ALTER TABLE tareas ADD COLUMN {col} TEXT")
+        cols = {r["name"] for r in _cola("PRAGMA table_info(tareas)", fetch=True)}
+        _COLA_TIENE_CUENTA[0] = {"cuenta", "tipo"} <= cols
+        if _COLA_TIENE_CUENTA[0]:
+            _cola("PRAGMA user_version = 1")
+        else:
+            log("cola: AVISO: la migración de la Fase 2 no dejó las columnas "
+                "cuenta/tipo; se encola sin ellas")
+    except Exception as e:
+        log(f"cola: AVISO: migración v1 con error ({type(e).__name__}: {e}); "
+            "se sigue sin cuenta/tipo")
+
+
 def cola_init():
     _cola("""CREATE TABLE IF NOT EXISTS tareas (
         id TEXT PRIMARY KEY, archivo TEXT, estado TEXT NOT NULL,
@@ -12608,6 +12639,7 @@ def cola_init():
         actualizado_en TEXT NOT NULL, actualizado_ts REAL NOT NULL,
         proximo_intento REAL, motivo TEXT, historial TEXT)""")
     _cola("CREATE INDEX IF NOT EXISTS tareas_estado ON tareas(estado)")
+    _cola_migrar_v1()
     aprobaciones_init()
     checkpoint_init()
     calibracion_init()
@@ -12662,10 +12694,17 @@ def cola_registrar(task_file, data=None):
     info = dict(motor=data.get("motor") or ("modelos" if "ollama_action" in data else None),
                 ronda=ronda, tarea_padre=data.get("tarea_padre"),
                 raiz=data.get("raiz") or tid, fase=data.get("fase"))
+    if _COLA_TIENE_CUENTA[0]:
+        # Fase 2: de qué cuenta es la tarea y de qué tipo (consulta, ...).
+        info["tipo"] = data.get("tipo")
+        info["cuenta"] = data.get("cuenta") or _cuenta_de_este_carril()
     if row is None:
-        _cola("INSERT OR IGNORE INTO tareas (id, archivo, estado, motor, ronda, tarea_padre, raiz,"
-              " fase, creado_en, actualizado_en, actualizado_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-              (tid, str(task_file), "en_cola", *info.values(), now, now, time.time()))
+        _cols = "id, archivo, estado, motor, ronda, tarea_padre, raiz, fase"
+        if _COLA_TIENE_CUENTA[0]:
+            _cols += ", tipo, cuenta"
+        _vals = (tid, str(task_file), "en_cola", *info.values(), now, now, time.time())
+        _cola(f"INSERT OR IGNORE INTO tareas ({_cols}, creado_en, actualizado_en,"
+              f" actualizado_ts) VALUES ({','.join('?' * len(_vals))})", _vals)
     elif row["estado"] in COLA_FINALES:
         cola_set(tid, archivo=str(task_file), estado="en_cola", intentos=0, reintentos=0, cortes=0,
                  proximo_intento=None, motivo="llegó otra vez con el mismo id", historial=None,
@@ -13829,6 +13868,7 @@ def runner_heartbeat():
                 "cola": cola["cuenta"], "cola_db": str(COLA_DB),
                 "vivo": LIVE_FILE.name, "supervisor": CK_SUPERVISOR_FILE.name,
             }
+            _tablero_latido(cur)
             path = OUTBOX / "runner-status.json"
             tmp = path.with_suffix(".tmp")
             tmp.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -13943,9 +13983,18 @@ def runner_loop(stop_event):
             # Las rondas de correccion van primero (son la misma tarea).
             candidates.sort(key=lambda p: (0 if _is_round_task(p) else 1, p.stat().st_mtime))
             if candidates:
-                if process_one(candidates[0]):
-                    runner_heartbeat()
-                    last_heartbeat = time.time()
+                # Fase 2: la puerta del tablero decide si se recoge (una
+                # cuenta restringida no toma tareas nuevas; una consulta
+                # caducada o sin presupuesto se cierra sin correr).
+                for _cand in candidates:
+                    _p = _puerta_tablero(_cand)
+                    if _p == "ok":
+                        if process_one(_cand):
+                            runner_heartbeat()
+                            last_heartbeat = time.time()
+                        break
+                    if _p == "esperar":
+                        break
         except Exception as e:
             log(f"runner ERROR en el loop (se sigue): {type(e).__name__}: {e}")
         stop_event.wait(POLL_SECONDS)
@@ -14342,6 +14391,233 @@ def _iniciar_vigia_dual():
         log(f"dual[{cta_id}]: vigía del modo dual en marcha (latido 15 s)")
     except Exception as e:
         log(f"dual: no se pudo arrancar el vigía ({type(e).__name__}: {e})")
+
+
+# ---------------------------------------------------------------- Fase 2
+# Tablero compartido, cuota por cuenta y consultas entre Muses. La lógica
+# vive en tablero.py y consulta.py; aquí solo está el cableado.
+_TABLERO = {"estado": "activa", "ult_pub": 0.0, "ult_sig": None}
+_QUOTA_TRACKER = [None]
+
+
+def _base_tablero():
+    """La carpeta del estado multi-Muse compartido (tablero.json y el
+    libro de consultas): la misma para los dos carriles porque es por
+    usuario (la de _token_dir), NO el APP_DIR de cada copia del programa:
+    si cada carril tuviera su tablero, no habría tablero compartido."""
+    d = _token_dir()
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    return d
+
+
+def _quota_tracker():
+    """El QuotaTracker de quota-tracker.py (el mismo que usa harness.py)."""
+    if _QUOTA_TRACKER[0] is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "quota_tracker", str(APP_DIR / "quota-tracker.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _QUOTA_TRACKER[0] = mod.QuotaTracker()
+    return _QUOTA_TRACKER[0]
+
+
+def _tablero_estimador(cuenta, motor):
+    """% libre estimado de una cuenta desde su cuota por (motor, cuenta).
+
+    Es una cota inferior si hay uso sin atribuir (revisión B2): se etiqueta
+    «estimado por uso local», nunca «tokens restantes»."""
+    try:
+        e = _quota_tracker().obtener_estado(motor or "claude", cuenta=cuenta)
+        if e and e.get("porcentaje") is not None:
+            return 100 - e["porcentaje"]
+    except Exception:
+        pass
+    return None
+
+
+def _tablero_vista():
+    import tablero as _t
+    return _t.vista(_base_tablero(), estimador=_tablero_estimador)
+
+
+def _tablero_latido(cur):
+    """Publica la entrada de esta cuenta en el tablero y recalcula estados.
+
+    Solo escribe si algo cambió o cada 30 s; el estimador se llama fuera del
+    lock del tablero; cualquier fallo se anota y se sigue: el runner nunca
+    depende del tablero para vivir."""
+    try:
+        cuenta = _cuenta_de_este_carril()
+        if not cuenta:
+            return
+        import tablero as _t
+        tarea = None
+        if cur:
+            tarea = str(cur.get("id") or "") or None
+        sig = (cuenta, tarea)
+        ahora = time.time()
+        if sig != _TABLERO["ult_sig"] or ahora - _TABLERO["ult_pub"] >= 30:
+            _t.publicar(_base_tablero(), cuenta, tarea=tarea)
+            _TABLERO["ult_sig"] = sig
+            _TABLERO["ult_pub"] = ahora
+        reg = _cuentas_reg()
+        estimaciones = {}
+        if reg:
+            tab = _t.cargar(_base_tablero())
+            for c in reg.get("cuentas", []):
+                ent = tab["cuentas"].get(c["id"]) or {}
+                estimaciones[c["id"]] = _tablero_estimador(
+                    c["id"], ent.get("motor_principal") or "claude")
+        estados = _t.recalcular(_base_tablero(), estimaciones)
+        nuevo = estados.get(cuenta, "activa")
+        if nuevo != _TABLERO["estado"]:
+            log(f"tablero: la cuenta «{cuenta}» pasa a {nuevo} según el tablero")
+            _TABLERO["estado"] = nuevo
+    except Exception as e:
+        log(f"tablero: latido con error ({type(e).__name__}: {e}); el runner sigue")
+
+
+def _dir_carril(carril, *partes):
+    """Una carpeta de un carril en la instalación estándar (entregar
+    consultas y devolver resultados entre carriles de la misma PC)."""
+    if carril == LANE:
+        base = APP_DIR
+    elif carril == "a":
+        base = LANE_A_DIR
+    else:
+        base = Path(os.environ.get("GROWI_BRIDGE_LANE_B_DIR")
+                    or (APP_DIR.parent / "growi-bridge-lane2"))
+    return base.joinpath(*partes)
+
+
+def _consulta_crear_para(destino, pregunta, tarea_padre, padre=None, presupuesto=None):
+    """Crea y entrega una consulta desde la cuenta de ESTE carril a otra.
+
+    El origen sale de la cuenta de este proceso, nunca de un payload."""
+    origen = _cuenta_de_este_carril()
+    if not origen:
+        raise ValueError("este carril no tiene cuenta en el registro")
+    import consulta as _con
+    import cuentas as _c
+    _cd = _c.cuenta(_cuentas_reg(), destino) or {}
+    task = _con.crear_consulta(_cuentas_reg(), _tablero_vista(), origen, destino,
+                                pregunta, tarea_padre, padre=padre,
+                                presupuesto=presupuesto, base_dir=_base_tablero(),
+                                cwd=str(_dir_carril(_cd.get("carril") or LANE)))
+    dest = _dir_carril(task["lane"], "share", "inbox", "runner-tasks")
+    return _con.entregar(task, dest, registro=_cuentas_reg(), vista_d=_tablero_vista())
+
+
+def _consulta_cerrar_sin_correr(task_file, data, motivo):
+    """Cierra una consulta sin ejecutarla (caducada, inválida o sin
+    presupuesto): resultado de error y archivo a DONE, como un rechazo."""
+    cid = cola_registrar(task_file, data)
+    DONE.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(task_file), str(DONE / task_file.name))
+    except OSError:
+        pass
+    tid = data.get("id") if isinstance(data.get("id"), str) else task_file.stem
+    cola_set(cid, estado="fallida", archivo=str(DONE / task_file.name),
+             motivo=motivo[:300])
+    _write_result(_error_result(tid, motivo))
+    try:
+        import consulta as _con
+        _con.cerrar_consulta(_base_tablero(), data)
+    except Exception:
+        pass
+    log(f"runner [{tid}]: consulta cerrada sin correr: {motivo}")
+    return "cerrada"
+
+
+def _puerta_tablero(task_file):
+    """La puerta del runner (Fase 2): "ok", "esperar" o "cerrada".
+
+    - Rondas de corrección: siempre "ok" (trabajo ya empezado).
+    - Cuenta restringida/cuarentena: las tareas nuevas "esperar" en la
+      cola; fail-open si el tablero no se puede leer (un JSON roto no
+      detiene la producción).
+    - Consultas: se revalidan al recoger (I7), caducan (B5) y reservan su
+      gasto ANTES de correr; la reserva queda escrita en el archivo."""
+    try:
+        data = json.loads(task_file.read_text(encoding="utf-8"))
+    except Exception:
+        return "ok"  # JSON inválido: process_one ya sabe archivarlo
+    if not isinstance(data, dict) or data.get("ronda"):
+        return "ok"
+    cuenta = _cuenta_de_este_carril()
+    if data.get("tipo") == "consulta":
+        import consulta as _con
+        if _con.caducada(data):
+            return _consulta_cerrar_sin_correr(
+                task_file, data,
+                "consulta caducada esperando: el origen recibe este resultado")
+        if cuenta and _TABLERO["estado"] in ("restringida", "cuarentena"):
+            return "esperar"  # el destino se quedó sin margen tras crearla
+        try:
+            _con._validar_task(data, registro=_cuentas_reg(), vista_d=_tablero_vista())
+        except _con.ErrorConsulta as e:
+            return _consulta_cerrar_sin_correr(
+                task_file, data, f"consulta inválida al recoger: {e}")
+        if cuenta and data.get("cuenta") not in (None, cuenta):
+            return _consulta_cerrar_sin_correr(
+                task_file, data, "consulta para otra cuenta: no corre en este carril")
+        cons = data.get("consulta") or {}
+        if not cons.get("_reserva_v1"):
+            if _con.reservar_gasto(data, _quota_tracker(), base_dir=_base_tablero()) is None:
+                return _consulta_cerrar_sin_correr(
+                    task_file, data,
+                    "consulta sin presupuesto disponible (tope de la consulta o de su raíz)")
+            cons["_reserva_v1"] = True
+            data["consulta"] = cons
+            try:
+                tmp = task_file.with_suffix(".tmp")
+                tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2),
+                               encoding="utf-8")
+                os.replace(tmp, task_file)
+            except OSError as e:
+                log(f"runner: no se pudo persistir la reserva de la consulta ({e})")
+        return "ok"
+    if cuenta and _TABLERO["estado"] in ("restringida", "cuarentena"):
+        return "esperar"
+    return "ok"
+
+
+def _consulta_devolver(result, path):
+    """Si el resultado es de una consulta: libera su reserva en el libro y
+    copia el .result.json al buzón del carril de la cuenta origen."""
+    try:
+        row = cola_get(result.get("id"))
+        if not row or row.get("tipo") != "consulta":
+            return
+        import consulta as _con
+        _con.cerrar_consulta(_base_tablero(), {"id": result["id"], "raiz": row.get("raiz")})
+        origen = None
+        for d in (PROCESSING, DONE, TASKS):
+            try:
+                datos = json.loads((d / f"{result['id']}.task.json").read_text(encoding="utf-8"))
+                origen = (datos.get("consulta") or {}).get("origen")
+                break
+            except Exception:
+                continue
+        reg = _cuentas_reg()
+        cta = None
+        if reg and origen:
+            import cuentas as _c
+            cta = _c.cuenta(reg, origen)
+        if cta and cta.get("carril") and cta["carril"] != LANE:
+            dest = _dir_carril(cta["carril"], "share", "outbox", "runner-results")
+            if dest.is_dir():
+                shutil.copyfile(path, dest / path.name)
+            else:
+                log(f"consulta: el carril de la cuenta origen «{origen}» no está "
+                    "instalado; el resultado se queda en este carril")
+    except Exception as e:
+        log(f"consulta: no se pudo devolver el resultado ({type(e).__name__}: {e})")
 
 
 def gateway_token(crear=True):
@@ -31717,6 +31993,10 @@ def _build_cuentas(tab):
                                 f"{'activa' if c.get('habilitada', True) else 'desactivada'}  ·  "
                                 f"secreto: {'en la bóveda' if tiene else 'SIN secreto'}")
         _CUENTAS_CACHE["clave"] = None  # que el monolito relea el registro
+        try:
+            _refrescar_tablero()
+        except Exception:
+            pass
 
     def _al_elegir(_e=None):
         sel = lista.curselection()
@@ -31801,6 +32081,117 @@ def _build_cuentas(tab):
               cursor="hand2", padx=10, pady=3).pack(side="left")
     lista.bind("<<ListboxSelect>>", _al_elegir)
     _widgets["cuentas_refrescar"] = _refrescar
+    # -- Tablero compartido (Fase 2) --------------------------------------
+    import tablero as _tab
+
+    tk.Label(tab, text="Tablero", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(4, 2))
+    tk.Label(tab, text="Lo que cada Muse publica: su tarea y su % de tokens. El % manda "
+                       "si es declarado; si no, se estima por el uso local (una cota "
+                       "inferior si hay uso sin atribuir); y si no hay dato se dice "
+                       "«sin dato»: nunca se inventa.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    tab_lista = tk.Listbox(tab, font=(FONT, 11), height=4, activestyle="none",
+                           bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                           highlightthickness=0)
+    tab_lista.pack(fill="x", padx=28, pady=(0, 8))
+    tab_form = tk.Frame(tab, bg=THEME["bg"])
+    tab_form.pack(fill="x", padx=28, pady=(0, 20))
+    var_pct = tk.StringVar()
+    var_umb = tk.StringVar()
+    tk.Label(tab_form, text="% declarado", font=(FONT, 11), bg=THEME["bg"],
+             fg=THEME["text"]).pack(side="left")
+    tk.Entry(tab_form, textvariable=var_pct, font=(FONT, 11), width=6, bd=1,
+             relief="solid").pack(side="left", padx=(4, 6))
+    tk.Button(tab_form, text="Declarar %", font=(FONT, 11), command=lambda: _declarar_pct(),
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=8, pady=2).pack(side="left", padx=(0, 14))
+    tk.Button(tab_form, text="Liberar cuenta", font=(FONT, 11), command=lambda: _liberar_cuenta(),
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=8, pady=2).pack(side="left", padx=(0, 14))
+    tk.Label(tab_form, text="Umbral de cuarentena %", font=(FONT, 11), bg=THEME["bg"],
+             fg=THEME["text"]).pack(side="left")
+    tk.Entry(tab_form, textvariable=var_umb, font=(FONT, 11), width=5, bd=1,
+             relief="solid").pack(side="left", padx=(4, 6))
+    tk.Button(tab_form, text="Guardar umbral", font=(FONT, 11), command=lambda: _guardar_umbral(),
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=8, pady=2).pack(side="left")
+
+    def _refrescar_tablero():
+        reg = estado.get("reg") or {}
+        try:
+            vista = _tab.vista(_base_tablero(), estimador=_tablero_estimador)
+            var_umb.set(str(_tab.cargar(_base_tablero())["config"].get("umbral_cuarentena", 10)))
+        except Exception:
+            vista = {}
+        tab_lista.delete(0, "end")
+        for c in reg.get("cuentas", []):
+            v = vista.get(c["id"]) or {}
+            tarea = v.get("tarea") or "sin tarea"
+            fuente = v.get("pct_fuente", "sin_dato")
+            if fuente == "declarado":
+                pct_txt = f"{v.get('pct_efectivo')}% declarado"
+            elif fuente == "estimado":
+                pct_txt = f"≈{v.get('pct_efectivo')}% estimado por uso local"
+            elif fuente == "declarado_caducado":
+                pct_txt = f"declaró {v.get('pct_declarado')}% (caducado)"
+            else:
+                pct_txt = "sin dato"
+            extra = ""
+            if (v.get("pct_declarado") is not None and v.get("pct_estimado") is not None
+                    and abs(v["pct_declarado"] - v["pct_estimado"]) > 25):
+                extra = "  ·  ⚠ el declarado y el estimado difieren mucho"
+            if v.get("sin_latido"):
+                extra += "  ·  sin latido"
+            tab_lista.insert("end", f"{c['nombre']}  ·  {tarea}  ·  {pct_txt}  ·  "
+                                    f"{v.get('estado', 'activa')}{extra}")
+
+    def _declarar_pct():
+        sel = estado.get("sel")
+        if not sel:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        try:
+            pct = float(var_pct.get().replace(",", "."))
+            _tab.declarar_pct(_base_tablero(), sel, pct)
+        except Exception as e:
+            _decir(f"No se pudo declarar el %: {e}")
+            return
+        log(f"tablero: el dueño declaró {pct:g}% para la cuenta «{sel}»")
+        var_pct.set("")
+        _refrescar_tablero()
+        _decir(f"% declarado para «{sel}»: el tablero y la puerta del runner ya lo usan.")
+
+    def _liberar_cuenta():
+        sel = estado.get("sel")
+        if not sel:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        try:
+            _tab.liberar(_base_tablero(), sel)
+        except Exception as e:
+            _decir(f"No se pudo liberar: {e}")
+            return
+        log(f"tablero: el dueño liberó la cuenta «{sel}» (vuelve a activa)")
+        _refrescar_tablero()
+        _decir(f"Cuenta «{sel}» liberada: vuelve a estar activa en el tablero.")
+
+    def _guardar_umbral():
+        try:
+            umb = int(var_umb.get())
+            _tab.guardar_config(_base_tablero(), umbral_cuarentena=umb)
+            reg = estado.get("reg") or {}
+            estimaciones = {c["id"]: _tablero_estimador(c["id"], "claude")
+                            for c in reg.get("cuentas", [])}
+            _tab.recalcular(_base_tablero(), estimaciones)
+        except Exception as e:
+            _decir(f"No se pudo guardar el umbral: {e}")
+            return
+        log(f"tablero: umbral de cuarentena guardado en {umb}%")
+        _refrescar_tablero()
+        _decir(f"Umbral de cuarentena: {umb}%. Los estados ya se recalcularon.")
+
     _refrescar()
     if cred_via() == "dpapi":
         _decir("Aviso: esta PC no ofrece almacén del sistema ahora mismo; los "
