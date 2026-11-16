@@ -89,6 +89,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+# ---- plataforma (Fase 0 multi-Muse): una sola fuente de verdad.
+# Antes cada guarda preguntaba por su cuenta (os.name, sys.platform...) y
+# era facil que una rama de Linux quedara sin escribir. Todo lo nuevo
+# pregunta aqui; lo viejo se va enrutando a estas constantes.
+ES_WINDOWS = os.name == "nt"
+ES_POSIX = not ES_WINDOWS
+ES_LINUX = sys.platform.startswith("linux")
+ES_MACOS = sys.platform == "darwin"
+
 VERSION = "0.1.0-alpha"
 # La version instalada es la del archivo VERSION de al lado (la que publica la
 # release). Con la constante sola, la raiz 0.2.0 se creia 0.1.0 y la
@@ -2067,7 +2076,7 @@ OCULTO_TXT = "CREATE_NO_WINDOW (0x08000000) + STARTUPINFO SW_HIDE"
 def _oculto(extra_flags=0):
     """kwargs de subprocess para lanzar sin ventana de consola."""
     kw = {"creationflags": _NO_WINDOW | extra_flags}
-    if os.name == "nt":
+    if ES_WINDOWS:
         si = subprocess.STARTUPINFO()
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         si.wShowWindow = SW_HIDE
@@ -2077,8 +2086,57 @@ def _oculto(extra_flags=0):
 
 def _lanzamiento(proc):
     """Lo que el resultado guarda del lanzamiento (evidencia del flag)."""
-    return {"oculto": True, "creationflags": hex(_NO_WINDOW), "sw_hide": os.name == "nt",
+    return {"oculto": True, "creationflags": hex(_NO_WINDOW), "sw_hide": ES_WINDOWS,
             "pid": proc.pid, "como": OCULTO_TXT}
+
+
+def _matar_arbol(pid):
+    """Mata el proceso y TODO su arbol (el taskkill /T /F de Windows).
+    En POSIX no se puede matar el grupo de procesos: los motores
+    comparten grupo con Growi y moriria tambien la app. Se baja el
+    arbol con psutil (ya es dependencia: la pestana Recursos), primero
+    con terminate y luego con kill para el que se resista."""
+    if ES_WINDOWS:
+        try:
+            r = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                               capture_output=True, timeout=20, **_oculto())
+            return r.returncode == 0
+        except Exception:
+            return False
+    try:
+        import psutil
+    except Exception:
+        try:
+            import signal
+            os.kill(int(pid), signal.SIGKILL)
+            return True
+        except Exception:
+            return False
+    try:
+        padre = psutil.Process(int(pid))
+        hijos = padre.children(recursive=True)
+    except Exception:
+        return False
+    for h in hijos:
+        try:
+            h.terminate()
+        except Exception:
+            pass
+    try:
+        padre.terminate()
+    except Exception:
+        pass
+    vivos = hijos + [padre]
+    try:
+        _gone, vivos = psutil.wait_procs(vivos, timeout=5)
+    except Exception:
+        pass
+    for pr in vivos:
+        try:
+            pr.kill()
+        except Exception:
+            pass
+    return True
 
 
 def valid_model_name(name):
@@ -2975,7 +3033,7 @@ def cred_via():
                 if err:
                     # La app elevada no puede (1312), pero un proceso SIN elevacion
                     # de la misma sesion si: el ayudante (lanzado por explorer).
-                    aerr = _ayudante_probar() if os.name == "nt" else "solo en Windows"
+                    aerr = _ayudante_probar() if ES_WINDOWS else "solo en Windows"
                     if aerr is None:
                         _CRED_VIA.update(via="ayudante", motivo="", detalle=(
                             f"keyring {ver}, WinVaultKeyring, a través de un ayudante sin elevación: la app corre "
@@ -5970,11 +6028,11 @@ def _srv_reiniciar(eng):
     except LocalCallError:
         pass
     log(f"motores: reinicio el router (pid {p.pid}) para que vea los .gguf nuevos de models\\")
-    try:
-        subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True, timeout=20,
-                       **_oculto())
-    except Exception:
-        p.kill()
+    if not _matar_arbol(p.pid):
+        try:
+            p.kill()
+        except Exception:
+            pass
     p.wait(timeout=20)
     _SRV["proc"] = None
     ok, _w = _llama_ensure(eng)
@@ -6308,13 +6366,8 @@ def srv_procesos(eng):
 
 
 def _srv_matar(pid):
-    """taskkill /T /F: el proceso y TODO su arbol (los hijos de modelo del router)."""
-    try:
-        r = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True,
-                           timeout=20, **_oculto())
-        return r.returncode == 0
-    except Exception:
-        return False
+    """El proceso y TODO su arbol (los hijos de modelo del router)."""
+    return _matar_arbol(pid)
 
 
 def _srv_vram():
@@ -6885,11 +6938,7 @@ def _base_result(task, motor_id):
 
 def _kill_tree(proc):
     """Mata el proceso y todos sus hijos (claude/codex lanzan node)."""
-    try:
-        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                       capture_output=True, timeout=15, **_oculto())
-    except Exception:
-        pass
+    _matar_arbol(proc.pid)
     try:
         if proc.poll() is None:
             proc.kill()
@@ -13933,6 +13982,18 @@ def _instancia_aislada():
 # ---- instancia unica
 def _pid_vivo(pid):
     """True si el pid es un proceso vivo de Python (contra pids reciclados)."""
+    if ES_POSIX:
+        try:
+            pid = int(pid)
+            if pid <= 0:
+                return False
+            os.kill(pid, 0)
+        except (OSError, ValueError):
+            return False
+        try:
+            return "python" in os.readlink(f"/proc/{pid}/exe").lower()
+        except OSError:
+            return True
     try:
         import ctypes
         from ctypes import wintypes
@@ -14014,6 +14075,19 @@ def instancia_unica():
             log(f"instancia unica: CreateMutexW fallo (error {err}); se mira el lockfile")
     except Exception as e:
         log(f"instancia unica: no se pudo comprobar el mutex ({e}); se mira el lockfile")
+    if ES_POSIX:
+        # Sin CreateMutexW: flock sobre un archivo companero, retenido
+        # todo el proceso (la variable global guarda el descriptor).
+        # Si otra copia lo tiene, no somos la unica instancia.
+        try:
+            import fcntl
+            global _instance_flock
+            _instance_flock = open(LOCK_FILE.with_suffix(".flock"), "a+")
+            fcntl.flock(_instance_flock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return False, "el candado de instancia (flock) lo tiene otra copia"
+        except Exception as e:
+            log(f"instancia unica: flock no disponible ({e}); se mira el lockfile")
     d = _lock_leer()
     if d and d.get("pid") != os.getpid() and _pid_vivo(d.get("pid") or 0):
         return False, f"{LOCK_FILE.name} dice que el pid {d.get('pid')} está vivo"
@@ -14044,7 +14118,7 @@ def _aviso_ya_corre(motivo):
 
 # ---- token del plano de control (fuera de la carpeta, cifrado con DPAPI)
 def _dpapi(data, proteger):
-    if os.name != "nt":
+    if ES_POSIX:
         # POSIX: no hay DPAPI. Identidad (la proteccion la dan los permisos
         # 0600 del archivo, que fija quien escribe). Interino de la Fase 0:
         # la boveda con Secret Service (keyring) llega en la Fase 1.
@@ -14070,13 +14144,13 @@ def _dpapi(data, proteger):
 def _token_dir():
     if os.environ.get("GROWI_BRIDGE_TOKEN_DIR") and _instancia_aislada():
         return Path(os.environ["GROWI_BRIDGE_TOKEN_DIR"])
-    if os.name != "nt":
+    if ES_POSIX:
         return Path(os.environ.get("XDG_DATA_HOME") or (HOME_DIR / ".local" / "share")) / "GrowiBridge"
     return Path(os.environ.get("LOCALAPPDATA") or (HOME_DIR / "AppData" / "Local")) / "GrowiBridge"
 
 
 def token_file():
-    return _token_dir() / f"plano-control-{LANE}.{'dpapi' if os.name == 'nt' else 'token'}"
+    return _token_dir() / f"plano-control-{LANE}.{'dpapi' if ES_WINDOWS else 'token'}"
 
 
 def gateway_token(crear=True):
@@ -14110,7 +14184,7 @@ def gateway_token(crear=True):
         tmp = f.with_suffix(".tmp")
         tmp.write_bytes(_dpapi(tok.encode("utf-8"), True))
         os.replace(tmp, f)
-        if os.name != "nt":
+        if ES_POSIX:
             try:
                 os.chmod(f.parent, 0o700)
                 os.chmod(f, 0o600)
@@ -18529,7 +18603,7 @@ def _tray_title():
     while len(lines) > 1 and len("\n".join(lines)) > 127:
         lines.pop()
     titulo = "\n".join(lines)[:127]
-    if os.name != "nt":
+    if ES_POSIX:
         # El backend Xorg de pystray fija el titulo como WM_NAME en latin-1:
         # un guion largo o unos puntos suspensivos lo tumban
         # (UnicodeEncodeError) y con el a la app. Se transcribe a ASCII.

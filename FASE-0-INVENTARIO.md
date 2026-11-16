@@ -53,7 +53,11 @@ Prueba real de instalación y arranque en Linux (Xvfb, Python 3.12.3, entorno vi
 - ⚠️ Degradaciones con gracia ya presentes en el código (no bloquean): AppUserModelID e `iconbitmap` (queda la pluma de Tk), mutex de instancia (cae al `gateway.lock`, que funcionó: detectó el pid y la instancia única).
 - ⚠️ Los perfiles `contable.md` y `guionista-summit.md` no cargan en Linux porque sus carpetas son rutas de Windows del PC del autor (`C:\Users\forte\...`): es el comportamiento correcto, pero el mensaje de validación está redactado pensando en Windows.
 - ⚠️ El almacén de credenciales de respaldo (el otro `_dpapi`, ~L3001) comparte la misma rama: en Linux también queda en claro con permisos; lo cubre la misma nota de la Fase 1.
-- ⏳ **Pendiente de escritorio real del dueño** (Xvfb no lo cubre): bandeja con AppIndicator en GNOME/KDE, mascota sobre el escritorio, Wayland y el arranque con sesión gráfica. Sigue siendo puerta de salida de la Fase 0 junto con «el modo servidor responde idéntico», pero el grueso (UI + puente + runner) ya está probado en Linux.
+- ✅ **Constante central de plataforma** (B12): creadas `ES_WINDOWS`/`ES_POSIX`/`ES_LINUX`/`ES_MACOS` tras los imports y enrutadas las guardas del arranque, el lanzamiento oculto, el ayudante de credenciales y todos los parches de esta fase.
+- ✅ **Equivalente Linux de `taskkill /T /F`** (B4): ayudante único `_matar_arbol(pid)` — en POSIX baja el árbol con `psutil` (matar el grupo de procesos mataría también a Growi, que comparte grupo con sus motores) — y los 3 sitios que usaban `taskkill` ahora pasan por él. Probado con un proceso padre+hijo reales: ambos muertos, la app intacta.
+- ✅ **Instancia única en Linux** (A6): `_pid_vivo` con rama POSIX (`kill(pid, 0)` + `/proc/<pid>/exe`) y candado `flock` retenido todo el proceso en `instancia_unica()`. Probado: la segunda copia se cierra sola en ~1 s diciendo que el candado lo tiene otra copia.
+- ✅ **El plano de control responde igual**: sin token → 401; con token (`X-Shared-Secret`) → pasa la autenticación (404 en la raíz, que no es una ruta). Es el mismo comportamiento que en Windows.
+- ⏳ **Pendiente de escritorio real del dueño** (Xvfb no lo cubre): bandeja con AppIndicator en GNOME/KDE, mascota sobre el escritorio, Wayland y el arranque con sesión gráfica. Checklist en la sección E.
 
 ## D. Conclusiones para la Fase 1
 
@@ -61,3 +65,12 @@ Prueba real de instalación y arranque en Linux (Xvfb, Python 3.12.3, entorno vi
 2. A7 (sesiones por cuenta) entra en la Fase 1 aunque no se use Claude Code como objetivo: la separación de sesiones es lo que evita que dos cuentas se pisen el contexto.
 3. Antes de tocar multi-cuenta hay que crear la constante central de plataforma (B12) y el equivalente Linux del mutex (A6) y de `taskkill /T` (B4): son la base de todo lo demás.
 4. Ninguna costura obliga a reescribir: todas son puntos concretos y contados. La más ancha es A10 (globales del proceso único), que se ataca con auditoría dirigida, no con reescritura.
+
+## E. Checklist para el escritorio real del dueño (en casa)
+
+1. Arrancar la app en su Linux (X11 y, si puede, también en sesión Wayland): la ventana abre y no sale el diálogo de «Hubo un error».
+2. Mirar la bandeja del sistema: ¿aparece el icono de Growi? ¿El menú del icono responde (Abrir, Salir)?
+3. Pestañas: Estado (puente/runner/proxy en verde), Recursos (se ven CPU/RAM/GPU), Ajustes y Registro sin errores rojos.
+4. La mascota: activarla en Estado y comprobar que se ve y se mueve sobre el escritorio.
+5. Cerrar la ventana: la app debe quedar en la bandeja, no cerrarse del todo; volver a abrirla desde el icono.
+6. Abrir una segunda copia con la primera en marcha: debe avisar de que ya está corriendo y cerrarse sola.
