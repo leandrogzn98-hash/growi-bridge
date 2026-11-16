@@ -14044,6 +14044,11 @@ def _aviso_ya_corre(motivo):
 
 # ---- token del plano de control (fuera de la carpeta, cifrado con DPAPI)
 def _dpapi(data, proteger):
+    if os.name != "nt":
+        # POSIX: no hay DPAPI. Identidad (la proteccion la dan los permisos
+        # 0600 del archivo, que fija quien escribe). Interino de la Fase 0:
+        # la boveda con Secret Service (keyring) llega en la Fase 1.
+        return data
     import ctypes
     from ctypes import wintypes
 
@@ -14065,11 +14070,13 @@ def _dpapi(data, proteger):
 def _token_dir():
     if os.environ.get("GROWI_BRIDGE_TOKEN_DIR") and _instancia_aislada():
         return Path(os.environ["GROWI_BRIDGE_TOKEN_DIR"])
+    if os.name != "nt":
+        return Path(os.environ.get("XDG_DATA_HOME") or (HOME_DIR / ".local" / "share")) / "GrowiBridge"
     return Path(os.environ.get("LOCALAPPDATA") or (HOME_DIR / "AppData" / "Local")) / "GrowiBridge"
 
 
 def token_file():
-    return _token_dir() / f"plano-control-{LANE}.dpapi"
+    return _token_dir() / f"plano-control-{LANE}.{'dpapi' if os.name == 'nt' else 'token'}"
 
 
 def gateway_token(crear=True):
@@ -14103,6 +14110,12 @@ def gateway_token(crear=True):
         tmp = f.with_suffix(".tmp")
         tmp.write_bytes(_dpapi(tok.encode("utf-8"), True))
         os.replace(tmp, f)
+        if os.name != "nt":
+            try:
+                os.chmod(f.parent, 0o700)
+                os.chmod(f, 0o600)
+            except OSError:
+                pass
         log(f"gateway: token del plano de control {origen} y guardado cifrado en {f}"
             + (" (secret.txt sigue en la carpeta: la app ya no lo lee, pero el servidor del navegador "
                "sí; no lo borres hasta que ese también lea el token)" if viejo else ""))
@@ -16035,7 +16048,13 @@ def build_tray():
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Salir", lambda: _root.after(0, quit_app)),
     )
-    icon = pystray.Icon("GrowiBridge" + ("B" if LANE == "b" else ""), image, _tray_title(), menu)
+    try:
+        icon = pystray.Icon("GrowiBridge" + ("B" if LANE == "b" else ""), image, _tray_title(), menu)
+    except Exception as e:
+        # La bandeja es un adorno: si el backend del sistema la rechaza,
+        # la app sigue sin ella en vez de caerse en el arranque.
+        log(f"bandeja: no se pudo crear el icono ({type(e).__name__}: {e}); sigo sin bandeja")
+        return None
     _patch_tray_clicks(icon)
     try:
         icon.run_detached()
@@ -18509,7 +18528,15 @@ def _tray_title():
     # media palabra), y como mucho se recorta la primera si sola no cabe.
     while len(lines) > 1 and len("\n".join(lines)) > 127:
         lines.pop()
-    return "\n".join(lines)[:127]
+    titulo = "\n".join(lines)[:127]
+    if os.name != "nt":
+        # El backend Xorg de pystray fija el titulo como WM_NAME en latin-1:
+        # un guion largo o unos puntos suspensivos lo tumban
+        # (UnicodeEncodeError) y con el a la app. Se transcribe a ASCII.
+        titulo = (titulo.replace("\u2014", "-").replace("\u2013", "-")
+                  .replace("\u2026", "..."))
+        titulo = titulo.encode("latin-1", "replace").decode("latin-1")
+    return titulo
 
 
 def _tray_espera_lines():

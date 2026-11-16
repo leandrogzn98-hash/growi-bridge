@@ -44,10 +44,16 @@ Objetivo: mapa de todo punto que hoy asume **un solo asistente / un solo secreto
 
 ## C. Verificación hecha en Linux (esta máquina, 2026-11-16)
 
+Prueba real de instalación y arranque en Linux (Xvfb, Python 3.12.3, entorno virtual con las dependencias del instalador de Windows: `pystray`, `pillow`, `psutil`, `keyring==25.7.0`, `customtkinter`, `tkinterdnd2`), con la app copiada a una carpeta de prueba y `HOME` aislado:
+
 - ✅ Los **17 archivos `.py` compilan** sin error con Python 3.12.3 en Linux.
-- ✅ `tkinter` 8.6 presente y funcional a nivel de import en Linux.
-- ⚠️ `keyring` no está instalado en esta máquina de trabajo: es dependencia a declarar en el instalador Linux (en Windows hoy lo trae el entorno de la app).
-- ⏳ **Pendiente de escritorio real** (no verificable en esta máquina sin pantalla): ventana principal y pestañas, bandeja/AppIndicator, mascota, paleta de comandos, temas CustomTkinter en X11 y Wayland, y el arranque con sesión gráfica. Esta checklist se verifica en la PC Linux del dueño y es **puerta de salida de la Fase 0** junto con «el modo servidor responde idéntico».
+- ✅ **La ventana principal se dibuja completa en Linux**: barra lateral (Estado, Carpetas, Skills, Pantalla, APIs, Modelos, Tareas, Recursos, Ajustes, Registro), páginas construidas con CustomTkinter y el asistente de bienvenida (onboarding de 4 pasos) funcionando; detectó incluso el Codex instalado en la máquina.
+- ❌→✅ **Bloqueo 1 (arreglado): la bandeja tumbaba la app.** `pystray` en su backend Xorg fija el título como `WM_NAME` en latin-1 y el título lleva «—»/«…» → `UnicodeEncodeError` en `build_tray()` y «error no controlado». Arreglo aplicado en esta rama: transcripción del título a ASCII en POSIX dentro de `_tray_title()` y red de seguridad en `build_tray()` (si el backend rechaza el icono, la app sigue sin bandeja).
+- ❌→✅ **Bloqueo 2 (arreglado): el puente no arrancaba sin DPAPI.** `gateway: no se pudo guardar el token protegido (module 'ctypes' has no attribute 'windll')` → `puente ERROR: falta el token del plano de control` y el puerto 8787 nunca escuchaba. Arreglo aplicado: rama POSIX de `_dpapi` (identidad + permisos `0600`/`0700`), carpeta del token en XDG (`~/.local/share/GrowiBridge`) y extensión `.token`. **Interino consciente:** en Linux el token queda en claro protegido solo por permisos; la bóveda con Secret Service de la Fase 1 lo sustituye. Tras el arreglo: `puente: escuchando en puerto 8787`, respuesta HTTP 401 sin token (correcto) y runner arrancado.
+- ⚠️ Degradaciones con gracia ya presentes en el código (no bloquean): AppUserModelID e `iconbitmap` (queda la pluma de Tk), mutex de instancia (cae al `gateway.lock`, que funcionó: detectó el pid y la instancia única).
+- ⚠️ Los perfiles `contable.md` y `guionista-summit.md` no cargan en Linux porque sus carpetas son rutas de Windows del PC del autor (`C:\Users\forte\...`): es el comportamiento correcto, pero el mensaje de validación está redactado pensando en Windows.
+- ⚠️ El almacén de credenciales de respaldo (el otro `_dpapi`, ~L3001) comparte la misma rama: en Linux también queda en claro con permisos; lo cubre la misma nota de la Fase 1.
+- ⏳ **Pendiente de escritorio real del dueño** (Xvfb no lo cubre): bandeja con AppIndicator en GNOME/KDE, mascota sobre el escritorio, Wayland y el arranque con sesión gráfica. Sigue siendo puerta de salida de la Fase 0 junto con «el modo servidor responde idéntico», pero el grueso (UI + puente + runner) ya está probado en Linux.
 
 ## D. Conclusiones para la Fase 1
 
