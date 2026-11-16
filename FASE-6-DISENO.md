@@ -1479,10 +1479,16 @@ bloqueantes tumbaron esa arquitectura:
   fail-hang, no un fail-closed; las plantillas de argv dejaban huecos
   (hueco en `argv[0]`, huecos pegados, caracteres no prohibidos).
 
-La reescritura del documento con la arquitectura corregida se dio
-por hecha en su momento pero **nunca llegó a escribirse en este
-archivo**; la implementación, en cambio, sí se hizo sobre la
-arquitectura corregida, que es la que sigue.
+La consolidación de la revisión llegó tarde y está en el §13 de
+este mismo documento: documenta los hallazgos contra la primera
+arquitectura y unas correcciones que apuntaban a un despachador
+que sella vales como root. Esa tampoco es la arquitectura final:
+la implementación tomó una ruta más simple que responde a los
+mismos bloqueantes sin ningún componente residente como root (no
+hay vale que forjar porque no hay vales; el ayudante no tiene
+privilegios; el factor humano es el circuito de aprobaciones más
+la orden de un solo uso). Cuando el §13 y este §12 difieran, **el
+§12 manda**: es lo que el código hace.
 
 ### 12.1 La arquitectura implementada
 
