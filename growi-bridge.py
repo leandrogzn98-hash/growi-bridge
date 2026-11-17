@@ -15322,6 +15322,125 @@ def _f5_servicio():
         time.sleep(3)
 
 
+# ---- Growi Private MQTT (P1): enlace MQTT del programa ----------------
+_FPM = {"enlace": None}
+
+
+def _fpm_config():
+    """Config del enlace desde settings + bóveda (la contraseña del
+    broker del programa vive en la bóveda como «mqtt:programa»).
+    None si aún no hay broker configurado: la UI llega en P2."""
+    try:
+        s = load_settings()
+        url = (s.get("mqtt_broker") or "").strip()
+        if not url:
+            return None
+        id_pc = (s.get("mqtt_id_pc") or "").strip()
+        if not id_pc:
+            id_pc = "pc-" + secrets.token_hex(4)
+            s["mqtt_id_pc"] = id_pc
+            save_settings(s)
+        return {"url": url,
+                "usuario": (s.get("mqtt_usuario") or "").strip(),
+                "contrasena": _sec_get("mqtt:programa") or "",
+                "raiz": "growi/" + id_pc}
+    except Exception:
+        return None
+
+
+def _fpm_hay_cuentas_mqtt():
+    try:
+        reg = _cuentas_reg()
+        return any(c.get("habilitada", True) and c.get("conexion") == "mqtt"
+                   for c in reg.get("cuentas", []))
+    except Exception:
+        return False
+
+
+def _fpm_escribir_estado():
+    try:
+        en = _FPM.get("enlace")
+        if en is None:
+            return
+        base = _token_dir()
+        ruta = base / "mqtt-estado.json"
+        tmp = base / "mqtt-estado.tmp"
+        tmp.write_text(json.dumps(en.estado(), ensure_ascii=False),
+                       encoding="utf-8")
+        os.replace(tmp, ruta)
+    except Exception:
+        pass
+
+
+def _fpm_al_recibir(sobre, tema):
+    """Puerta de entrada de lo que llega por MQTT: la clave Growi
+    dentro del sobre autentica (el broker es transporte, no
+    autoridad). Lo válido cae en la carpeta compartida
+    mqtt-resultados/ y la presencia alimenta mqtt-estado.json."""
+    try:
+        import hmac as _hm
+        tipo = sobre.get("tipo")
+        cuenta = sobre.get("cuenta") or ""
+        if tipo == "presencia":
+            _fpm_escribir_estado()
+            return
+        if tipo not in ("resultado", "aviso"):
+            return
+        esperada = _sec_get(cuentas.nombre_secreto(cuenta)) or ""
+        recibida = sobre.get("clave") or ""
+        if not esperada or not _hm.compare_digest(str(recibida),
+                                                  str(esperada)):
+            log(f"mqtt: {tipo} de «{cuenta}» descartado: "
+                "clave Growi no coincide")
+            return
+        base = _token_dir() / "mqtt-resultados"
+        base.mkdir(parents=True, exist_ok=True)
+        destino = base / (sobre["id"] + ".json")
+        tmp = base / (sobre["id"] + ".tmp")
+        tmp.write_text(json.dumps(sobre, ensure_ascii=False),
+                       encoding="utf-8")
+        os.replace(tmp, destino)
+        log(f"mqtt: {tipo} de «{cuenta}» recibido ({sobre['id']})")
+    except Exception as e:
+        log(f"mqtt: error al recibir: {e}")
+
+
+def _fpm_iniciar():
+    """Arranque del enlace MQTT (P1): solo si hay broker configurado
+    y al menos una cuenta en modo mqtt. Nunca tumba el arranque."""
+    try:
+        cfg = _fpm_config()
+        if not cfg or not _fpm_hay_cuentas_mqtt():
+            return
+        import mqtt_enlace as _me
+        enlace = _me.EnlaceMQTT(cfg["url"], cfg["usuario"],
+                                cfg["contrasena"], cfg["raiz"],
+                                _fpm_al_recibir)
+        enlace.conectar()
+        _FPM["enlace"] = enlace
+        _fpm_escribir_estado()
+        log(f"mqtt: enlace iniciado contra {cfg['url']} "
+            f"(raíz {cfg['raiz']})")
+    except Exception as e:
+        log(f"mqtt: el enlace no pudo arrancar: {e}")
+
+
+def _mqtt_enviar_tarea(cuenta_id, datos):
+    """Envía una tarea a una cuenta por MQTT, con su clave Growi
+    dentro de la carga. Devuelve el id del sobre o None."""
+    try:
+        en = _FPM.get("enlace")
+        if en is None:
+            return None
+        clave = _sec_get(cuentas.nombre_secreto(cuenta_id)) or ""
+        if not clave:
+            return None
+        return en.publicar_tarea(cuenta_id, datos, clave)
+    except Exception as e:
+        log(f"mqtt: no se pudo enviar la tarea a «{cuenta_id}»: {e}")
+        return None
+
+
 def _f5_iniciar_canales():
     """Arranque de la Fase 5: registra el destino «canal» en avisos.py
     (la config gana el destino sin perder lo que hubiera) y lanza el
@@ -37435,6 +37554,7 @@ def main():
     _iniciar_vigia_dual()
     _f4_iniciar_presencia()
     _f5_iniciar_canales()
+    _fpm_iniciar()
 
     def _uncaught(exc_type, exc_value, exc_tb):
         # Red de seguridad: si algo falla fuera del arranque (por ejemplo, en

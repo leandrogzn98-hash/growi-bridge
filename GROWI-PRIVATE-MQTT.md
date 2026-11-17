@@ -13,11 +13,7 @@ bifurcación las reemplaza. No se borra código probado.
 ## Fases
 
 - **P0 · Bifurcación y poda** — hecha (este documento).
-- **P1 · MQTT de verdad** — transporte del diseño verificado (WSS,
-  temas `growi/<id-pc>/<cuenta>/…`, QoS 1 + idempotencia por id,
-  presencia retenida + LWT, tope 64 KB, clave Growi dentro de la
-  carga; el broker es transporte, no autoridad) y modo de conexión
-  `mqtt` por cuenta.
+- **P1 · MQTT de verdad** — hecha (detalle abajo).
 - **P2 · Cuentas con broker** — entrada del broker en Cuentas
   (dirección, usuario, contraseña a la bóveda como `mqtt:<cuenta>`)
   y uso resumido por cuenta.
@@ -83,3 +79,52 @@ bifurcación las reemplaza. No se borra código probado.
   con `KeyError: 'cuentas'` porque su diccionario de alias no tenía
   las páginas Cuentas/Chat (nunca estuvieron en la paleta). Se
   agregaron los dos alias. Sin arranque real, este fallo no se ve.
+
+## P1 · Lo hecho
+
+- **`mqtt_enlace.py`** (módulo nuevo): el cliente MQTT del programa.
+  Temas `growi/<id-pc>/<cuenta>/…` (tareas, resultados, avisos,
+  presencia) y `programa/presencia` + `programa/tablero` retenidos;
+  QoS 1 con sesión persistente e **idempotencia por id** (los
+  duplicados de QoS 1 se descartan); **tope de 64 KB** por mensaje
+  sin trocear; **TLS obligatorio** (texto plano o no verificar el
+  certificado solo hacia hosts locales: el túnel CONNECT de los
+  espacios Muse); presencia con LWT. Sin paho-mqtt instalado, el
+  módulo carga igual y el enlace falla con motivo claro, sin tumbar
+  la app.
+- **`ayudante-mqtt.py`** (nuevo): el lado Muse, un solo archivo sin
+  dependencias del proyecto. Recibe un JSON con el paquete de 4
+  datos (broker, su credencial, raíz de temas, su clave Growi);
+  verifica la clave dentro de cada sobre antes de aceptarlo; deja
+  las tareas como archivos en `entrada/` y publica lo que la Muse
+  deje en `salida/`; presencia retenida + LWT. Si el entorno sale
+  por proxy CONNECT (los espacios Muse), levanta su propio túnel
+  local — el patrón verificado en la prueba de viabilidad.
+- **Modo `mqtt` por cuenta**: `cuentas.py` acepta la conexión
+  `mqtt` (la opción visible en el alta llega con la UI de P2). A
+  efectos del vigilante dual, una cuenta mqtt no arranca el modo
+  dual: es una pata única, como «servidor».
+- **Cableado en el monolito** (`_fpm_*`): al arrancar, si hay broker
+  configurado en ajustes (`mqtt_broker`, `mqtt_usuario`, contraseña
+  en la bóveda como `mqtt:programa`, id de PC persistente) y alguna
+  cuenta habilitada en modo mqtt, el enlace conecta. Lo que llega
+  se autentica con la clave Growi de la cuenta (comparación segura;
+  si no coincide, se descarta y se anota) y cae en la carpeta
+  compartida `mqtt-resultados/`; la presencia alimenta
+  `mqtt-estado.json`. `_mqtt_enviar_tarea(cuenta, datos)` es la
+  puerta de salida para las fases siguientes.
+
+### Verificación P1
+
+- **458 pruebas unitarias en verde** (443 de antes + 15 nuevas:
+  URL/TLS, sobres y tope, idempotencia, el enlace con un cliente
+  falso, y el modo mqtt en el registro de cuentas).
+- **Prueba en vivo contra el broker público de EMQX** (WSS, por el
+  proxy del entorno): el programa conecta; el ayudante conecta con
+  su propio túnel; la presencia de la cuenta se ve; una tarea llega
+  al ayudante como archivo; el resultado vuelve al programa con la
+  clave correcta dentro; al matar el ayudante sin despedirse, el
+  LWT anuncia «sin_conexion» solo. 6/6.
+- **Arranque real de la app** con el cableado: puente arriba y ni
+  una línea MQTT en el registro (sin broker configurado ni cuentas
+  mqtt, el enlace duerme, como debe ser).

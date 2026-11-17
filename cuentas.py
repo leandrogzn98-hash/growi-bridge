@@ -26,7 +26,7 @@ from pathlib import Path
 
 VERSION_ESQUEMA = 1
 ARCHIVO = "accounts.json"
-CONEXIONES = ("servidor", "local", "ambas")
+CONEXIONES = ("servidor", "local", "ambas", "mqtt")
 CARRILES = ("a", "b")
 # Id: 2-32 caracteres, empieza y termina en letra o dígito (sin guion en los
 # extremos), minúsculas, dígitos y guiones.
