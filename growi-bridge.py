@@ -17179,22 +17179,75 @@ def _build_multimuse_section(tab):
                      font=(FONT, 10)).pack(side="left")
             tk.Label(fila, text="%", font=(FONT, 9), bg=cbg,
                      fg=THEME["muted"]).pack(side="left")
+    tk.Label(card, text="Topes máximos con deslizadores "
+             "(opcionales): en 0 no hay tope y manda solo el %. Cuando "
+             "hay tope, el que salga más bajo entre el % y el "
+             "deslizador es el que se aplica.",
+             font=(FONT, 9), bg=cbg, fg=THEME["muted"], anchor="w",
+             justify="left", wraplength=S(640)).pack(
+                 fill="x", padx=16, pady=(4, 0))
     vars_abs = {}
+    sliders_abs = {}
+    lbl_abs = {}
+
+    def _maximos_abs():
+        mx = {"cpu_nucleos": float(os.cpu_count() or 8),
+              "ram_gb": 64.0, "gpu_gb": 24.0}
+        try:
+            import recursos as _rc4b
+            specs = _rc4b._cargar(_base_tablero()).get("specs") or {}
+            cpu = specs.get("cpu") or {}
+            if cpu.get("logicos"):
+                mx["cpu_nucleos"] = float(cpu["logicos"])
+            if specs.get("ram_total"):
+                mx["ram_gb"] = max(1.0, specs["ram_total"] / 1073741824)
+            gpu = specs.get("gpu") or {}
+            if gpu.get("vram_total"):
+                mx["gpu_gb"] = max(1.0, gpu["vram_total"] / 1073741824)
+        except Exception:
+            pass
+        return mx
+
+    def _slider_movido(modo, clave_abs, valor):
+        try:
+            v = float(valor)
+        except (TypeError, ValueError):
+            v = 0.0
+        vars_abs[(modo, clave_abs)].set("" if v <= 0 else f"{v:g}")
+        lbl_abs[(modo, clave_abs)].config(
+            text="sin tope" if v <= 0 else
+            (f"{v:g} núcleos" if clave_abs == "cpu_nucleos"
+             else f"{v:g} GB"))
+
     for modo in ("ausente", "presente"):
-        fila = tk.Frame(card, bg=cbg)
-        fila.pack(fill="x", padx=16, pady=2)
-        tk.Label(fila, text=f"{modo.capitalize()} (topes opcionales):",
-                 font=(FONT, 10), bg=cbg, fg=THEME["text"], width=29,
-                 anchor="w").pack(side="left")
-        for clave_abs, etiqueta in (("cpu_nucleos", "CPU máx. (núcleos, opcional)"),
-                                    ("ram_gb", "RAM máx. (GB, opcional)"),
-                                    ("gpu_gb", "GPU máx. (GB, opcional)")):
+        tk.Label(card, text=f"{modo.capitalize()} (topes):",
+                 font=(FONT, 10, "bold"), bg=cbg,
+                 fg=THEME["text"]).pack(anchor="w", padx=16,
+                                        pady=(4, 0))
+        for clave_abs, etiqueta, paso in (
+                ("cpu_nucleos", "CPU máx. (núcleos)", 1),
+                ("ram_gb", "RAM máx. (GB)", 0.5),
+                ("gpu_gb", "GPU máx. (GB)", 0.5)):
+            fila = tk.Frame(card, bg=cbg)
+            fila.pack(fill="x", padx=16, pady=1)
             tk.Label(fila, text=etiqueta, font=(FONT, 9), bg=cbg,
-                     fg=THEME["muted"]).pack(side="left", padx=(8, 2))
+                     fg=THEME["muted"], width=22, anchor="w").pack(
+                         side="left")
             v = tk.StringVar()
             vars_abs[(modo, clave_abs)] = v
-            tk.Entry(fila, textvariable=v, width=5,
-                     font=(FONT, 10)).pack(side="left")
+            sc = tk.Scale(fila, from_=0, to=8, resolution=paso,
+                          orient="horizontal", length=S(220),
+                          showvalue=False, bg=cbg,
+                          highlightthickness=0,
+                          command=lambda val, m=modo, k=clave_abs:
+                          _slider_movido(m, k, val))
+            sc.pack(side="left")
+            sliders_abs[(modo, clave_abs)] = sc
+            lv = tk.Label(fila, text="sin tope", font=(FONT, 9),
+                          bg=cbg, fg=THEME["text"], width=12,
+                          anchor="w")
+            lv.pack(side="left", padx=(6, 0))
+            lbl_abs[(modo, clave_abs)] = lv
 
     def _refrescar_mm():
         try:
@@ -17214,6 +17267,24 @@ def _build_multimuse_section(tab):
                     vars_abs[(modo, clave_abs)].set(
                         "" if val is None else
                         (f"{val:g}" if isinstance(val, float) else str(val)))
+            try:
+                mx = _maximos_abs()
+                for (m2, k2), sc in sliders_abs.items():
+                    if float(sc.cget("to")) != mx[k2]:
+                        sc.config(to=mx[k2])
+                    crudo = vars_abs[(m2, k2)].get().strip()
+                    try:
+                        num = (float(crudo.replace(",", "."))
+                               if crudo else 0.0)
+                    except ValueError:
+                        num = 0.0
+                    sc.set(num)
+                    lbl_abs[(m2, k2)].config(
+                        text="sin tope" if num <= 0 else
+                        (f"{num:g} núcleos" if k2 == "cpu_nucleos"
+                         else f"{num:g} GB"))
+            except Exception:
+                pass
             agreg = _rc4.agregado(_rc4.leer_estado(base))
             ult = est.get("ultima") or {}
             senales = ", ".join(
@@ -17284,7 +17355,7 @@ def _build_multimuse_section(tab):
 
     botones = tk.Frame(card, bg=cbg)
     botones.pack(fill="x", padx=16, pady=(4, 2))
-    ttk.Button(botones, text="Guardar porcentajes",
+    ttk.Button(botones, text="Guardar porcentajes y topes",
                command=_guardar).pack(side="left")
     ttk.Button(botones, text="Presencia automática",
                command=lambda: _override(None)).pack(side="left",
@@ -25296,6 +25367,129 @@ def _render_approvals(rows):
     tk.Frame(box, bg=THEME["card"], height=S(8)).pack()
 
 
+_TAREAS_CUENTAS_FP = [None]
+
+
+def _tareas_cuentas_lineas():
+    """La vista por cuenta Muse: sus encargos vivos con el avance
+    (del registro compartido) y lo que tiene en su cola en cada
+    carril (lectura de solo lectura de su cola.db)."""
+    import relevo as _rv6
+    base = _base_tablero()
+    reg = _cuentas_reg()
+    cuentas = [c for c in (reg.get("cuentas") or [])
+               if c.get("habilitada")]
+    nombres = {c["id"]: c.get("nombre") or c["id"] for c in cuentas}
+    lineas = []
+    try:
+        encargos = _rv6.listar(base)
+    except Exception:
+        encargos = {}
+    if not isinstance(encargos, dict):
+        encargos = {}
+    activos = []
+    for _rz, e in encargos.items():
+        if not isinstance(e, dict):
+            continue
+        if e.get("estado") in ("terminado", "terminado_con_fallos"):
+            continue
+        e = dict(e)
+        e.setdefault("raiz", _rz)
+        activos.append(e)
+    cola = {}
+    for carril in ("a", "b"):
+        try:
+            import sqlite3 as _sq6
+            ruta = _dir_carril(carril) / "cola.db"
+            if not ruta.exists():
+                continue
+            con = _sq6.connect(f"file:{ruta}?mode=ro", uri=True,
+                               timeout=1)
+            try:
+                for cuenta, estado, n in con.execute(
+                        "SELECT cuenta, estado, COUNT(*) FROM tareas "
+                        "WHERE estado IN ('en_cola', 'en_curso') "
+                        "GROUP BY cuenta, estado"):
+                    if cuenta:
+                        cola.setdefault(cuenta, {})[estado] = n
+            finally:
+                con.close()
+        except Exception:
+            pass
+    for c in cuentas:
+        cid = c["id"]
+        carril = c.get("carril")
+        lineas.append(f"{nombres[cid]} — carril "
+                      f"{carril.upper() if carril else '—'}")
+        suyos = [e for e in activos
+                 if any((s or {}).get("cuenta") == cid
+                        for s in (e.get("subtareas") or {}).values())]
+        for e in suyos[:3]:
+            subs = list((e.get("subtareas") or {}).values())
+            total = len(subs) or 1
+            hechas = sum(1 for s in subs
+                         if s.get("estado") in ("terminada",
+                                                "fallida"))
+            pct = round(hechas * 100 / total)
+            lineas.append(
+                f"  encargo {e.get('raiz')}: avance {hechas}/{total} "
+                f"({pct} %) · {e.get('estado')}")
+            for sid, s in (e.get("subtareas") or {}).items():
+                if s.get("cuenta") == cid and s.get("estado") not in (
+                        "terminada", "fallida"):
+                    lineas.append(
+                        f"    · {s.get('titulo') or sid}: "
+                        f"{s.get('estado')}")
+        cc = cola.get(cid) or {}
+        if cc:
+            lineas.append(
+                f"  en su cola: {cc.get('en_curso', 0)} en curso, "
+                f"{cc.get('en_cola', 0)} en espera")
+        if not suyos and not cc:
+            lineas.append("  sin trabajo ahora")
+    return lineas
+
+
+def _build_tareas_cuentas(tab):
+    card = tk.Frame(tab, bg=THEME["card"])
+    card.pack(fill="x", padx=20, pady=(0, 8))
+    tk.Label(card, text="Tareas por cuenta", font=SECTION_FONT,
+             bg=THEME["card"], fg=THEME["text"]).pack(
+                 anchor="w", padx=16, pady=(12, 2))
+    tk.Label(card, text="Lo que está haciendo cada cuenta Muse: "
+             "sus encargos vivos con el avance y lo que tiene en su "
+             "cola.", font=(FONT, 9), bg=THEME["card"],
+             fg=THEME["muted"], wraplength=S(600),
+             justify="left").pack(anchor="w", padx=16, pady=(0, 6))
+    lb = tk.Listbox(card, height=8, font=(FONT, 10),
+                    activestyle="none")
+    lb.pack(fill="x", padx=16, pady=(0, 12))
+    _widgets["tareas_cuentas_lb"] = lb
+    _tareas_cuentas_refrescar()
+
+
+def _tareas_cuentas_refrescar():
+    lb = _widgets.get("tareas_cuentas_lb")
+    if lb is None:
+        return
+    try:
+        base = _base_tablero()
+        rutas = [base / "encargos.json"]
+        for carril in ("a", "b"):
+            rutas.append(_dir_carril(carril) / "cola.db")
+        fp = tuple((str(r), r.stat().st_mtime_ns if r.exists() else 0)
+                   for r in rutas)
+        if fp == _TAREAS_CUENTAS_FP[0]:
+            return
+        _TAREAS_CUENTAS_FP[0] = fp
+        lineas = _tareas_cuentas_lineas()
+        lb.delete(0, "end")
+        for lin in lineas:
+            lb.insert("end", lin)
+    except Exception:
+        pass
+
+
 def _refresh_tasks_ui():
     """Pagina Tareas: estado, motor, ronda, costo acumulado y revision de
     cada tarea. Solo re-dibuja si algo cambio."""
@@ -25304,6 +25498,7 @@ def _refresh_tasks_ui():
     if tree is None:
         return
     _apr_ui_tick()  # la cuenta atras del vencimiento, aunque nada mas cambie
+    _tareas_cuentas_refrescar()
     try:
         RESULTS.mkdir(parents=True, exist_ok=True)
         files = list(RESULTS.glob("*.json"))
@@ -30666,10 +30861,16 @@ def _res_sample():
         time.sleep(0.05)
     # Sin respuesta todavia: "Leyendo la GPU…" (nunca "sin GPU" ni un numero).
     d["gpu"], d["gpu_why"] = _RES.get("gpu_last") or (None, None)
-    drive =(os.environ.get("SystemDrive") or "C:") + "\\"
+    if os.name == "nt":
+        drive = (os.environ.get("SystemDrive") or "C:") + "\\"
+        etiqueta = drive[:2]
+    else:
+        # En POSIX no hay «C:»: el disco del programa es el suyo.
+        drive = str(APP_DIR)
+        etiqueta = Path(drive).anchor or "/"
     try:
         du = shutil.disk_usage(drive)
-        d["disk"] = (drive[:2], du.free, du.total)
+        d["disk"] = (etiqueta, du.free, du.total)
     except OSError:
         d["disk"] = None
     d["procs"] = list(_res_classify(rows).values())
@@ -31043,6 +31244,8 @@ def _build_resources_page(tab):
         bar.pack(fill="x", padx=12, pady=(6, 12))
         _widgets[f"res_{key}_bar"] = bar
 
+    _build_multimuse_section(tab)
+
     # Mis procesos (Raycast: buscador arriba, lista limpia, barra de acciones
     # abajo con el elegido y su atajo).
     card = tk.Frame(tab, bg=cbg)
@@ -31167,7 +31370,6 @@ def _build_resources_page(tab):
                                     anchor="w", justify="left", wraplength=S(640))
     _widgets["res_tool"].pack(fill="x", padx=20, pady=(0, 16))
     _res_update_actions()
-    _build_multimuse_section(tab)
 
 
 def _res_sort(col):
@@ -38219,6 +38421,7 @@ def build_gui():
                                          bg=THEME["bg"], fg=THEME["text"])
     _widgets["tasks_summary"].pack(anchor="w", padx=20, pady=(0, 6))
     _build_spend_card(tabt)
+    _build_tareas_cuentas(tabt)
     _widgets["approvals_box"] = tk.Frame(tabt, bg=THEME["card"])
     tree = ttk.Treeview(tabt, columns=("tarea", "estado", "motor", "ronda", "tiempo", "tokens",
                                        "costo", "revision"),

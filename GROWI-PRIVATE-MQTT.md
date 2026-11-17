@@ -26,10 +26,7 @@ la base de P1 y el de equipo lo es de P3 y P4.
 - **P3 · La sala** — hecha (detalle abajo).
 - **P4 · Skills-plus** — hecha (detalle abajo).
 - **P5 · Modelos unificado** — hecha (detalle abajo).
-- **P6 · Recursos con sliders y Tareas vivas** — Recursos resumido
-  (consumo actual arriba, lectura de disco arreglada, sliders de
-  núcleos/GB RAM/GB GPU sobre los topes absolutos existentes) y
-  Tareas como lista real por cuenta con % de avance.
+- **P6 · Recursos con sliders y Tareas vivas** — hecha (detalle abajo).
 - **P7 · Pruebas físicas completas** — el programa en Rust pedido en
   la sala y probado en el PC vía MQTT midiendo consumo; el flujo
   «revisa las actualizaciones y actualiza» con el ayudante de root
@@ -357,3 +354,43 @@ la base de P1 y el de equipo lo es de P3 y P4.
   Modelos no se dejó desplazar por el robot del entorno (pesada en
   CustomTkinter), así que sus secciones nuevas se verificaron
   además en una ventana aislada con el mismo código.
+
+
+## P6 · Lo hecho
+
+- **La lectura de disco, arreglada**: la tarjeta «Disco libre» de
+  Recursos pedía la unidad de Windows (`C:\`) tal cual, así que en
+  Linux fallaba siempre y decía «No pude leer el disco.». Ahora en
+  POSIX lee el disco donde vive el programa y la tarjeta dice los
+  GB libres y «en /»; en Windows sigue como estaba.
+- **Recursos resumido y en el orden pedido**: arriba las cuatro
+  tarjetas de consumo (CPU, RAM, GPU y disco libre), debajo la
+  sección Multi-Muse con la presencia, los % por modo y los topes,
+  y «Mis procesos» baja al final de la página (sigue funcionando
+  igual: buscar, ver todos y cerrar procesos).
+- **Deslizadores para los topes**: los tres campos de texto de los
+  topes absolutos (núcleos de CPU, GB de RAM, GB de GPU) son ahora
+  deslizadores por modo (ausente y presente), con el máximo del
+  hardware detectado y la etiqueta al lado («sin tope» en 0, o el
+   valor). Escriben en las mismas variables que lee el botón
+  «Guardar porcentajes y topes», así que el guardado y la regla de
+  «manda el tope más bajo entre el % y el absoluto» no cambian.
+- **Tareas por cuenta**: tarjeta nueva en la página Tareas con una
+  lista por cuenta Muse — su carril, sus encargos vivos con el
+  avance hecho/total y el % (del registro compartido de encargos),
+  sus fases sin terminar y lo que tiene en su cola en cada carril
+  (su `cola.db` leída en solo lectura). Se refresca cuando cambia
+  cualquiera de esas fuentes; si una cola no se puede leer, esa
+  parte se salta y el resto se muestra.
+- **Pruebas**: 515 en verde (3 nuevas). Las unitarias cazaron un
+  fallo real antes de salir: la vista iteraba el registro de
+  encargos como lista cuando es un diccionario por raíz — en la
+  app habría quedado la tarjeta muda para siempre. Físicas con la
+  app real: la tarjeta de disco marca «148.5 GB libres de 150 GB
+  en /», el orden nuevo se ve tal cual, un deslizador se movió y
+  su etiqueta pasó a «0.5 GB», y la tarjeta de Tareas muestra las
+  dos cuentas con su carril y «sin trabajo ahora». Límite: el
+  botón Guardar de la página no se pudo pulsar con el robot del
+  entorno (el límite conocido de los botones sobre lienzo); el
+  guardado es el mismo código que ya funcionaba con los campos de
+  texto y los deslizadores solo escriben sus variables.
