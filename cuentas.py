@@ -20,6 +20,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -239,6 +240,43 @@ def cuenta_de_carril(reg, carril):
 
 def cuentas_habilitadas(reg):
     return [c for c in reg.get("cuentas", []) if c.get("habilitada", True)]
+
+
+def derivar_id(nombre, existentes):
+    """El identificador de una cuenta a partir del nombre que le pone el
+    dueño (Reforma de cuentas): minúsculas, sin acentos (NFKD), espacios
+    y caracteres no válidos a guiones, recortado al patrón de ids (2–32,
+    empieza y termina en letra o dígito). Si choca con un id existente
+    (la lista `existentes` debe traer los ids vivos Y las lápidas de
+    `borradas`: un id borrado no se reutiliza), sufijo «-2», «-3»… Si el
+    nombre no produce nada válido, la base es «cuenta»."""
+    base = unicodedata.normalize("NFKD", str(nombre or ""))
+    base = base.encode("ascii", "ignore").decode("ascii").lower()
+    base = re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:32].strip("-")
+    if len(base) < 2 or not _RX_ID.fullmatch(base):
+        base = "cuenta"
+    ocupados = set(existentes or [])
+    if base not in ocupados:
+        return base
+    n = 2
+    while True:
+        sufijo = f"-{n}"
+        candidato = base[:32 - len(sufijo)].strip("-") + sufijo
+        if candidato not in ocupados:
+            return candidato
+        n += 1
+
+
+def carril_libre(reg):
+    """El primer carril («a», luego «b») sin cuenta habilitada, o None
+    si los dos están ocupados. Una cuenta deshabilitada no ocupa su
+    carril (la validación del registro tampoco lo cuenta como ocupado)."""
+    ocupados = {c.get("carril") for c in reg.get("cuentas", [])
+                if c.get("habilitada", True) and c.get("carril")}
+    for carril in CARRILES:
+        if carril not in ocupados:
+            return carril
+    return None
 
 
 def secreto_de(reg, cuenta_id, sec_get):

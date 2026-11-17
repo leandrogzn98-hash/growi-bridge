@@ -14564,6 +14564,46 @@ def _cuentas_migrar_arranque():
         return {"migrado": False, "motivo": f"{type(e).__name__}: {e}"}
 
 
+# ---- Reforma de cuentas: bóveda compartida (secretos globales) ------------
+_BC_PL = [None]
+
+
+def _compartida_registrar_uso(etiqueta, cuenta):
+    """Asiento de auditoría de un uso de la bóveda compartida (nunca
+    lanza): va al audit-log de la cuenta que usa el secreto, por el
+    camino general de la capa de permisos (registrar con cuenta, el
+    mismo que alimenta el intermediario de root en la Fase 6). Se anota
+    la etiqueta; el valor, jamás."""
+    try:
+        if _BC_PL[0] is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "permission_layer", str(APP_DIR / "permission-layer.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _BC_PL[0] = mod
+        _BC_PL[0].registrar("boveda-compartida", f"compartido:{etiqueta}",
+                            "usado", accion="compartida:usar",
+                            cuenta=cuenta)
+    except Exception:
+        pass
+
+
+def _compartida_usar(etiqueta, cuenta=None):
+    """El valor de un secreto de la bóveda compartida, o None si no está.
+
+    Es el camino para que el código del programa tome un secreto
+    guardado una sola vez para las dos cuentas (diseño §3); cada uso
+    deja asiento de auditoría con la cuenta que lo usa (por defecto, la
+    de este carril). El valor solo se devuelve a quien lo pide: no se
+    anota en ningún registro ni log."""
+    valor = _sec_get(f"compartido:{etiqueta}")
+    if valor:
+        _compartida_registrar_uso(etiqueta,
+                                  cuenta or _cuenta_de_este_carril())
+    return valor
+
+
 _VIGIA_DUAL = {"vigia": None, "parar": None}
 
 
@@ -34932,29 +34972,36 @@ def _build_ajustes_ctk(tab_aj):
 
 
 def _build_cuentas(tab):
-    """Página «Cuentas» (Fase 1, Multi-Muse): las cuentas Muse del programa.
+    """Página «Cuentas» (Fase 1 + Reforma de cuentas): las cuentas Muse
+    del programa.
 
-    Cada cuenta tiene su propio secreto, que vive en la bóveda (nunca en
-    accounts.json ni en esta pantalla: el campo va siempre vacío y solo se
-    usa para escribir uno nuevo). El registro se lee y se guarda con el
-    módulo `cuentas`, que valida todo antes de escribir.
+    El alta solo pide el nombre: el identificador, el carril y el
+    asistente se asignan solos, y la clave de conexión la genera el
+    programa, la guarda en la bóveda (nunca en accounts.json) y la
+    muestra una sola vez para que el dueño se la pase a su Muse. El
+    registro se lee y se guarda con el módulo `cuentas`, que valida
+    todo antes de escribir. Debajo va la «Bóveda compartida»: los
+    secretos de trabajo, una sola vez para las dos cuentas.
     """
     import cuentas as _c
 
     tk.Label(tab, text="Cuentas", font=(FONT, 22, "bold"),
              bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(24, 2))
-    tk.Label(tab, text="Cada cuenta Muse es una Muse que trabaja dentro de Growi: tiene "
-                       "su secreto guardado en la bóveda, su asistente y su forma de "
-                       "conectarse (servidor, local o ambas).",
+    tk.Label(tab, text="Cada cuenta es una de tus Muses dentro del programa. "
+                       "Agregar una es así: le pones el nombre con el que la "
+                       "reconoces (o tu correo), el programa crea su clave de "
+                       "conexión y te la muestra una sola vez; la copias y se "
+                       "la pasas a esa Muse en su chat, en la app de Muse, y "
+                       "con esa clave ella se conecta a este programa. Al "
+                       "programa no le pasas ninguna clave tuya.",
              font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"], justify="left",
              wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 4))
-    tk.Label(tab, text="«Entrar» con una cuenta es guardar su secreto en la bóveda: se "
-                       "escribe una vez y no se vuelve a mostrar, como una contraseña "
-                       "guardada. La primera cuenta ya está (se creó sola con tu secreto). "
-                       "Para agregar la segunda: pulsa «Nueva cuenta», ponle nombre e "
-                       "identificador (p. ej. «segunda»), elige el carril de la otra copia "
-                       "del programa y su conexión, escribe su secreto abajo y pulsa "
-                       "«Agregar cuenta Muse».",
+    tk.Label(tab, text="La primera cuenta ya está (se creó sola). Para la segunda: "
+                       "escribe su nombre abajo, elige cómo se conecta y pulsa "
+                       "«Agregar cuenta Muse»; su clave se te mostrará una vez "
+                       "para que se la pases. Si pierdes una clave antes de "
+                       "pasarla, elige la cuenta en la lista y pulsa «Nueva "
+                       "clave»: la anterior deja de valer.",
              font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
              wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 12))
 
@@ -34965,43 +35012,6 @@ def _build_cuentas(tab):
                        selectforeground=THEME["text"])
     lista.pack(fill="x", padx=28, pady=(0, 12))
 
-    form = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
-    form.pack(fill="x", padx=28, pady=(0, 12))
-    vars_ = {k: tk.StringVar() for k in ("id", "nombre", "asistente", "carril", "conexion")}
-    vars_["carril"].set("sin asignar")
-    vars_["conexion"].set("servidor")
-    hab = tk.BooleanVar(value=True)
-
-    def campo(fila, etiqueta, var, opciones=None, secreto=False):
-        tk.Label(form, text=etiqueta, font=(FONT, 11), bg=THEME["card"],
-                 fg=THEME["text"], width=30, anchor="w").grid(
-                     row=fila, column=0, padx=(14, 6), pady=5, sticky="w")
-        if opciones:
-            w = tk.OptionMenu(form, var, *opciones)
-            w.config(font=(FONT, 11), bg=THEME["card"], bd=1, relief="solid",
-                     highlightthickness=0, anchor="w")
-        else:
-            w = tk.Entry(form, textvariable=var, font=(FONT, 11), bd=1,
-                         relief="solid", show="•" if secreto else "")
-        w.grid(row=fila, column=1, padx=(0, 14), pady=5, sticky="ew")
-        return w
-
-    campo(0, "Nombre de la cuenta", vars_["nombre"])
-    e_id = campo(1, "Identificador", vars_["id"])
-    campo(2, "Asistente (perfil)", vars_["asistente"])
-    campo(3, "Carril (copia del programa)", vars_["carril"], opciones=("a", "b", "sin asignar"))
-    campo(4, "Conexión", vars_["conexion"], opciones=("servidor", "local", "ambas"))
-    e_sec = campo(5, "Secreto de la cuenta", vars_["id"] and tk.StringVar(), secreto=True)
-    var_sec = e_sec.cget("textvariable")
-    tk.Label(form, text="Se guarda en la bóveda y no se vuelve a mostrar. Escríbelo "
-                        "solo para ponerlo o cambiarlo; vacío = dejar el que hay.",
-             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
-             anchor="w", wraplength=S(470)).grid(row=6, column=1, padx=(0, 14), pady=(0, 2), sticky="w")
-    tk.Checkbutton(form, text="Cuenta habilitada", variable=hab, font=(FONT, 11),
-                   bg=THEME["card"], fg=THEME["text"], activebackground=THEME["card"],
-                   selectcolor=THEME["card"]).grid(row=7, column=1, pady=4, sticky="w")
-    form.columnconfigure(1, weight=1)
-
     aviso = tk.Label(tab, text="", font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
                      justify="left", wraplength=S(640))
     aviso.pack(anchor="w", padx=28, pady=(0, 8))
@@ -35009,20 +35019,78 @@ def _build_cuentas(tab):
     def _decir(msg):
         aviso.config(text=msg)
 
-    def _limpiar():
-        estado["sel"] = None
-        for v in vars_.values():
-            v.set("")
-        vars_["carril"].set("sin asignar")
-        vars_["conexion"].set("servidor")
-        hab.set(True)
-        # El secreto se lee de su propio StringVar (no está en vars_).
+    def _guardar_clave(cid, clave):
+        """Guarda la clave de conexión de una cuenta: la bóveda y, si es
+        la principal, también secret.txt (regla B4 de la Fase 1, porque
+        browser-server.py lo sigue leyendo). True si entró; si no, el
+        motivo ya quedó dicho."""
         try:
-            e_sec.delete(0, "end")
-        except Exception:
-            pass
-        e_id.config(state="normal")
-        lista.selection_clear(0, "end")
+            _sec_set(_c.nombre_secreto(cid), clave)
+        except Exception as e:
+            _decir(f"La cuenta se guardó, pero su clave no entró en la "
+                   f"bóveda ({type(e).__name__}).")
+            return False
+        if cid == "principal":
+            try:
+                _tmp = APP_DIR / "secret.txt.tmp"
+                _tmp.write_text(clave, encoding="utf-8")
+                os.replace(_tmp, APP_DIR / "secret.txt")
+                if ES_POSIX:
+                    os.chmod(APP_DIR / "secret.txt", 0o600)
+            except Exception as e:
+                _decir(f"La cuenta se guardó, pero secret.txt no se "
+                       f"actualizó ({type(e).__name__}): el servidor del "
+                       "navegador usaría la clave anterior.")
+                return False
+        return True
+
+    def _mostrar_clave(nombre, clave):
+        """Muestra la clave UNA sola vez (al crear la cuenta o al
+        renovarla): es el flujo del Growi original, cuyo secret.txt era
+        legible por el dueño. Las claves ya guardadas no se vuelven a
+        enseñar en ninguna pantalla. La clave no se anota en ningún
+        log() ni queda en _widgets ni en variables persistentes: vive
+        solo en este diálogo hasta que se cierra."""
+        from tkinter import messagebox as _mbc
+        win = _acotar_ventana(tk.Toplevel(tab))
+        win.title(f"La clave de {nombre}")
+        win.configure(bg=THEME["bg"])
+        tk.Label(win, text=f"Esta es la clave de conexión de «{nombre}»:",
+                 font=(FONT, 12, "bold"), bg=THEME["bg"], fg=THEME["text"],
+                 justify="left",
+                 wraplength=S(560)).pack(anchor="w", padx=16, pady=(14, 4))
+        tk.Label(win, text="Pásasela a tu Muse en su chat, en la app de "
+                           "Muse: con ella se conecta a este programa. "
+                           "Solo se muestra esta vez; si la pierdes, crea "
+                           "otra con «Nueva clave» y la anterior dejará "
+                           "de valer.",
+                 font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"],
+                 justify="left",
+                 wraplength=S(560)).pack(anchor="w", padx=16, pady=(0, 8))
+        caja = tk.Entry(win, font=(FONT, 11), bd=1, relief="solid")
+        caja.pack(fill="x", padx=16, pady=(0, 8))
+        caja.insert(0, clave)
+        caja.configure(state="readonly")
+        fila = tk.Frame(win, bg=THEME["bg"])
+        fila.pack(anchor="e", padx=16, pady=(0, 14))
+
+        def _copiar():
+            try:
+                win.clipboard_clear()
+                win.clipboard_append(clave)
+                _mbc.showinfo("La clave de la cuenta",
+                              "Clave copiada. Ahora pégasela a tu Muse "
+                              "en su chat.", parent=win)
+            except Exception:
+                pass
+
+        tk.Button(fila, text="Copiar clave", font=(FONT, 11), command=_copiar,
+                  bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                  cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
+        tk.Button(fila, text="Ya la pasé", font=(FONT, 11, "bold"),
+                  command=win.destroy,
+                  bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                  cursor="hand2", padx=10, pady=3).pack(side="left")
 
     def _refrescar():
         try:
@@ -35037,11 +35105,16 @@ def _build_cuentas(tab):
                 tiene = bool(_sec_get(_c.nombre_secreto(c["id"])))
             except Exception:
                 tiene = False
-            carril = f"carril {c['carril'].upper()}" if c.get("carril") else "sin carril"
+            carril = (f"carril {c['carril'].upper()}" if c.get("carril")
+                      else "sin carril")
             lista.insert("end", f"{c['nombre']}  ·  {carril}  ·  {c['conexion']}  ·  "
-                                f"{'activa' if c.get('habilitada', True) else 'desactivada'}  ·  "
-                                f"secreto: {'en la bóveda' if tiene else 'SIN secreto'}")
+                                f"{'habilitada' if c.get('habilitada', True) else 'deshabilitada'}  ·  "
+                                f"clave: {'en la bóveda' if tiene else 'SIN clave'}")
         _CUENTAS_CACHE["clave"] = None  # que el monolito relea el registro
+        try:
+            _refrescar_compartida()
+        except Exception:
+            pass
         try:
             _refrescar_tablero()
         except Exception:
@@ -35059,85 +35132,332 @@ def _build_cuentas(tab):
         sel = lista.curselection()
         reg = estado.get("reg") or {}
         if not sel or sel[0] >= len(reg.get("cuentas", [])):
+            estado["sel"] = None
             return
-        c = reg["cuentas"][sel[0]]
-        estado["sel"] = c["id"]
-        vars_["id"].set(c["id"])
-        vars_["nombre"].set(c.get("nombre", ""))
-        vars_["asistente"].set(c.get("asistente") or "")
-        vars_["carril"].set(c.get("carril") or "sin asignar")
-        vars_["conexion"].set(c.get("conexion", "servidor"))
-        hab.set(bool(c.get("habilitada", True)))
-        e_sec.delete(0, "end")
-        e_id.config(state="disabled")  # el id no se cambia: es la clave de la bóveda
+        estado["sel"] = reg["cuentas"][sel[0]]["id"]
 
-    def _guardar():
-        reg = estado.get("reg") or _c.registro_compatibilidad(LANE)
-        cid = (estado["sel"] or vars_["id"].get()).strip()
-        nueva = {"id": cid,
-                 "nombre": vars_["nombre"].get().strip() or cid,
-                 "asistente": vars_["asistente"].get().strip() or None,
-                 "carril": None if vars_["carril"].get() == "sin asignar" else vars_["carril"].get(),
-                 "conexion": vars_["conexion"].get(),
-                 "habilitada": bool(hab.get()),
+    def _cuenta_sel():
+        cid = estado.get("sel")
+        for c in (estado.get("reg") or {}).get("cuentas", []):
+            if c.get("id") == cid:
+                return c
+        return None
+
+    def _salida_registro(reg, cuentas_lista):
+        return {"version": 1,
+                "migrado_secret_txt": bool(reg.get("migrado_secret_txt")),
+                "revision": reg.get("revision", 0),
+                "borradas": reg.get("borradas", []),
+                "cuentas": cuentas_lista}
+
+    form = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    form.pack(fill="x", padx=28, pady=(0, 12))
+    var_nombre = tk.StringVar()
+    var_conexion = tk.StringVar(value="servidor")
+    tk.Label(form, text="Nombre de la cuenta (o tu correo)", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=0, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(form, textvariable=var_nombre, font=(FONT, 11), bd=1,
+             relief="solid").grid(row=0, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(form, text="Cómo se conecta", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=1, column=0, padx=(14, 6), pady=5, sticky="w")
+    w_con = tk.OptionMenu(form, var_conexion, "servidor", "local", "ambas")
+    w_con.config(font=(FONT, 11), bg=THEME["card"], bd=1, relief="solid",
+                 highlightthickness=0, anchor="w")
+    w_con.grid(row=1, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(form, text="servidor = se conecta desde su espacio a este PC · "
+                        "local = trabaja solo dentro de este PC · "
+                        "ambas = las dos: si falla la red, sigue en local y "
+                        "al volver se reconcilia.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
+             anchor="w", wraplength=S(470)).grid(row=2, column=1, padx=(0, 14),
+                                                 pady=(0, 4), sticky="w")
+    form.columnconfigure(1, weight=1)
+
+    def _agregar():
+        nombre = var_nombre.get().strip()
+        if not nombre:
+            _decir("Ponle un nombre a la cuenta (o tu correo) para agregarla.")
+            return
+        reg = estado.get("reg") or _c.cargar(APP_DIR, carril=LANE)
+        existentes = [c["id"] for c in reg.get("cuentas", [])]
+        existentes += [b.get("id") for b in reg.get("borradas", [])
+                       if isinstance(b, dict) and b.get("id")]
+        cid = _c.derivar_id(nombre, existentes)
+        carril = _c.carril_libre(reg)
+        nueva = {"id": cid, "nombre": nombre, "asistente": None,
+                 "carril": carril, "conexion": var_conexion.get(),
+                 "habilitada": True,
                  "creada": datetime.now().astimezone().isoformat(timespec="seconds"),
                  "permisos": {"modo": "hereda", "clases_extra_denegadas": []}}
-        cuentas = [dict(c) for c in reg.get("cuentas", [])]
-        for i, c in enumerate(cuentas):
-            if c.get("id") == cid:
-                nueva["creada"] = c.get("creada") or nueva["creada"]
-                nueva["permisos"] = c.get("permisos") or nueva["permisos"]
-                cuentas[i] = nueva
-                break
-        else:
-            cuentas.append(nueva)
-        salida = {"version": 1, "migrado_secret_txt": bool(reg.get("migrado_secret_txt")),
-                  "revision": reg.get("revision", 0),
-                  "borradas": reg.get("borradas", []),
-                  "cuentas": cuentas}
+        cuentas_lista = [dict(c) for c in reg.get("cuentas", [])] + [nueva]
         try:
-            _c.guardar(APP_DIR, salida)
+            _c.guardar(APP_DIR, _salida_registro(reg, cuentas_lista))
         except _c.ErrorRegistro as e:
             _decir(f"No se guardó: {e}")
             return
-        secreto = e_sec.get().strip()
-        if secreto:
-            try:
-                _sec_set(_c.nombre_secreto(cid), secreto)
-            except Exception as e:
-                _decir(f"Cuenta guardada, pero el secreto no entró en la bóveda ({type(e).__name__}).")
-                _refrescar()
-                return
-            e_sec.delete(0, "end")
-            if cid == "principal":
-                # browser-server.py sigue leyendo secret.txt: si el secreto
-                # de la principal rota, el archivo se actualiza a la par
-                # (atómico) para que no queden dos verdades.
-                try:
-                    _tmp = APP_DIR / "secret.txt.tmp"
-                    _tmp.write_text(secreto, encoding="utf-8")
-                    os.replace(_tmp, APP_DIR / "secret.txt")
-                    if ES_POSIX:
-                        os.chmod(APP_DIR / "secret.txt", 0o600)
-                except Exception as e:
-                    _decir(f"Cuenta guardada, pero secret.txt no se actualizó ({type(e).__name__}): "
-                           "el servidor del navegador usaría el secreto anterior.")
-                    _refrescar()
-                    return
+        var_nombre.set("")
         estado["sel"] = cid
+        clave = secrets.token_urlsafe(32)
+        if not _guardar_clave(cid, clave):
+            _refrescar()
+            return
         _refrescar()
-        _decir(f"Cuenta «{cid}» guardada. El puente de su carril usará su secreto de la bóveda.")
+        log(f"cuentas: cuenta «{cid}» creada (carril "
+            f"{carril or 'sin asignar'}); su clave quedó en la bóveda")
+        if carril is None:
+            _decir(f"Cuenta «{nombre}» creada, pero los dos carriles están "
+                   "ocupados: quedó sin carril hasta que liberes uno "
+                   "(deshabilita o borra otra cuenta). Su clave se muestra "
+                   "una sola vez ahora.")
+        else:
+            _decir(f"Cuenta «{nombre}» creada en el carril "
+                   f"{carril.upper()}. Su clave se muestra una sola vez: "
+                   "cópiala y pásasela a esa Muse en su chat.")
+        _mostrar_clave(nombre, clave)
+
+    def _nueva_clave():
+        c = _cuenta_sel()
+        if not c:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        from tkinter import messagebox as _mbn
+        if not _mbn.askyesno(
+                "Cuentas",
+                f"¿Crear una clave nueva para «{c['nombre']}»? La "
+                "anterior deja de valer: tendrás que pasarle la nueva a "
+                "esa Muse en su chat."):
+            return
+        clave = secrets.token_urlsafe(32)
+        if not _guardar_clave(c["id"], clave):
+            _refrescar()
+            return
+        # La copia en memoria de la clave vieja deja de valer ya.
+        _CRED_MEM.pop(_c.nombre_secreto(c["id"]), None)
+        _refrescar()
+        log(f"cuentas: clave nueva para la cuenta «{c['id']}» (la "
+            "anterior dejó de valer)")
+        _decir(f"Clave nueva para «{c['nombre']}»: se muestra una sola vez.")
+        _mostrar_clave(c["nombre"], clave)
+
+    def _alternar_habilitada():
+        c = _cuenta_sel()
+        if not c:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        activar = not c.get("habilitada", True)
+        if not activar and c["id"] == "principal":
+            _decir("La cuenta principal no se puede deshabilitar.")
+            return
+        reg = estado.get("reg") or {}
+        cuentas_lista = []
+        for x in reg.get("cuentas", []):
+            x = dict(x)
+            if x.get("id") == c["id"]:
+                x["habilitada"] = activar
+            cuentas_lista.append(x)
+        try:
+            _c.guardar(APP_DIR, _salida_registro(reg, cuentas_lista))
+        except _c.ErrorRegistro as e:
+            _decir(f"No se guardó: {e}")
+            return
+        _refrescar()
+        _decir(f"Cuenta «{c['nombre']}» "
+               f"{'habilitada' if activar else 'deshabilitada'}.")
+
+    def _borrar_cuenta():
+        c = _cuenta_sel()
+        if not c:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        if c["id"] == "principal":
+            _decir("La cuenta principal no se puede borrar.")
+            return
+        from tkinter import messagebox as _mbb
+        if not _mbb.askyesno(
+                "Cuentas",
+                f"¿Borrar la cuenta «{c['nombre']}»? Su clave se borra "
+                "de la bóveda y su identificador no se podrá reutilizar."):
+            return
+        reg = estado.get("reg") or {}
+        cuentas_lista = [dict(x) for x in reg.get("cuentas", [])
+                         if x.get("id") != c["id"]]
+        salida = _salida_registro(reg, cuentas_lista)
+        salida["borradas"] = list(reg.get("borradas", [])) + [
+            {"id": c["id"],
+             "ts": datetime.now().astimezone().isoformat(timespec="seconds")}]
+        try:
+            _c.guardar(APP_DIR, salida)
+        except _c.ErrorRegistro as e:
+            _decir(f"No se borró: {e}")
+            return
+        try:
+            _sec_del(_c.nombre_secreto(c["id"]))
+        except Exception:
+            pass
+        estado["sel"] = None
+        _refrescar()
+        log(f"cuentas: cuenta «{c['id']}» borrada por el dueño")
+        _decir(f"Cuenta «{c['nombre']}» borrada.")
 
     botones = tk.Frame(tab, bg=THEME["bg"])
     botones.pack(anchor="w", padx=28, pady=(0, 20))
-    tk.Button(botones, text="Nueva cuenta", font=(FONT, 11), command=_limpiar,
+    tk.Button(botones, text="Agregar cuenta Muse", font=(FONT, 11, "bold"),
+              command=_agregar,
               bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
               cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
-    tk.Button(botones, text="Agregar cuenta Muse", font=(FONT, 11, "bold"), command=_guardar,
+    tk.Button(botones, text="Nueva clave", font=(FONT, 11), command=_nueva_clave,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
+    tk.Button(botones, text="Deshabilitar / Habilitar", font=(FONT, 11),
+              command=_alternar_habilitada,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
+    tk.Button(botones, text="Borrar", font=(FONT, 11), command=_borrar_cuenta,
               bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
               cursor="hand2", padx=10, pady=3).pack(side="left")
     lista.bind("<<ListboxSelect>>", _al_elegir)
     _widgets["cuentas_refrescar"] = _refrescar
+    # -- Bóveda compartida (Reforma de cuentas) ---------------------------
+    import compartida as _bc
+
+    tk.Label(tab, text="Bóveda compartida", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(4, 2))
+    tk.Label(tab, text="Los secretos de trabajo, una sola vez para las dos "
+                       "cuentas: guardas aquí las contraseñas y claves que "
+                       "las Muses pueden necesitar (tu GitHub, un servicio, "
+                       "lo que sea) y las dos cuentas pueden usarlas cuando "
+                       "una tarea lo necesite, dejando registrado qué cuenta "
+                       "usó qué. Viven en la bóveda y nunca se muestran: "
+                       "aquí solo se ven los nombres. La clave de conexión "
+                       "de cada cuenta NO va aquí: esa es la que distingue "
+                       "a una Muse de la otra.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    bc_lista = tk.Listbox(tab, font=(FONT, 11), height=4, activestyle="none",
+                          bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                          highlightthickness=0, selectbackground="#E8E8ED",
+                          selectforeground=THEME["text"])
+    bc_lista.pack(fill="x", padx=28, pady=(0, 8))
+    bc_form = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    bc_form.pack(fill="x", padx=28, pady=(0, 8))
+    var_bc_et = tk.StringVar()
+    var_bc_val = tk.StringVar()
+    var_bc_nota = tk.StringVar()
+    tk.Label(bc_form, text="Etiqueta", font=(FONT, 11), bg=THEME["card"],
+             fg=THEME["text"], width=30, anchor="w").grid(
+                 row=0, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(bc_form, textvariable=var_bc_et, font=(FONT, 11), bd=1,
+             relief="solid").grid(row=0, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(bc_form, text="Valor (la contraseña o clave)", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=1, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(bc_form, textvariable=var_bc_val, font=(FONT, 11), bd=1,
+             relief="solid", show="•").grid(row=1, column=1, padx=(0, 14),
+                                            pady=5, sticky="ew")
+    tk.Label(bc_form, text="Nota (para qué es)", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=2, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(bc_form, textvariable=var_bc_nota, font=(FONT, 11), bd=1,
+             relief="solid").grid(row=2, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(bc_form, text="La etiqueta es el nombre con el que se pide el "
+                           "secreto (minúsculas, dígitos y guiones: p. ej. "
+                           "«github»). El valor se escribe una vez y no se "
+                           "vuelve a mostrar.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
+             anchor="w", wraplength=S(470)).grid(row=3, column=1, padx=(0, 14),
+                                                 pady=(0, 4), sticky="w")
+    bc_form.columnconfigure(1, weight=1)
+    bc_estado = {"entradas": []}
+
+    def _refrescar_compartida():
+        bc_lista.delete(0, "end")
+        try:
+            entradas = _bc.listar(_token_dir())
+        except Exception:
+            entradas = []
+        bc_estado["entradas"] = entradas
+        if not entradas:
+            bc_lista.insert("end", "Todavía no hay secretos compartidos.")
+        for e in entradas:
+            linea = e["etiqueta"]
+            if e.get("nota"):
+                linea += f"  ·  {e['nota']}"
+            if e.get("creada"):
+                linea += f"  ·  desde {str(e['creada'])[:10]}"
+            bc_lista.insert("end", linea)
+
+    def _bc_guardar():
+        etiqueta = var_bc_et.get().strip().lower()
+        valor = var_bc_val.get()
+        if not etiqueta:
+            _decir("Escribe primero la etiqueta del secreto compartido.")
+            return
+        if not valor:
+            _decir("Escribe el valor (la contraseña o clave) del secreto "
+                   "compartido.")
+            return
+        try:
+            _bc.agregar(_token_dir(), etiqueta, var_bc_nota.get().strip())
+        except _bc.ErrorCompartida as e:
+            _decir(f"No se guardó en la bóveda compartida: {e}")
+            return
+        try:
+            _sec_set(_bc.nombre_valor(etiqueta), valor)
+        except Exception as e:
+            # El nombre quedó registrado sin valor: se deshace para no
+            # dejar una etiqueta fantasma que parezca un secreto.
+            try:
+                _bc.quitar(_token_dir(), etiqueta)
+            except Exception:
+                pass
+            _decir(f"El valor no entró en la bóveda ({type(e).__name__}); "
+                   "no se guardó nada.")
+            return
+        var_bc_et.set("")
+        var_bc_val.set("")
+        var_bc_nota.set("")
+        _refrescar_compartida()
+        log(f"bóveda compartida: secreto «{etiqueta}» guardado por el dueño")
+        _decir(f"Secreto compartido «{etiqueta}» guardado: las dos cuentas "
+               "pueden usarlo cuando una tarea lo necesite.")
+
+    def _bc_borrar():
+        sel = bc_lista.curselection()
+        if not sel or sel[0] >= len(bc_estado["entradas"]):
+            _decir("Elige primero un secreto compartido de la lista.")
+            return
+        etiqueta = bc_estado["entradas"][sel[0]]["etiqueta"]
+        from tkinter import messagebox as _mbbc
+        if not _mbbc.askyesno(
+                "Bóveda compartida",
+                f"¿Borrar el secreto compartido «{etiqueta}»? Se borra "
+                "el valor de la bóveda y ninguna cuenta podrá usarlo."):
+            return
+        try:
+            _bc.quitar(_token_dir(), etiqueta)
+        except _bc.ErrorCompartida as e:
+            _decir(f"No se borró: {e}")
+            return
+        try:
+            _sec_del(_bc.nombre_valor(etiqueta))
+        except Exception:
+            pass
+        _refrescar_compartida()
+        log(f"bóveda compartida: secreto «{etiqueta}» borrado por el dueño")
+        _decir(f"Secreto compartido «{etiqueta}» borrado.")
+
+    bc_botones = tk.Frame(tab, bg=THEME["bg"])
+    bc_botones.pack(anchor="w", padx=28, pady=(0, 20))
+    tk.Button(bc_botones, text="Guardar en la bóveda compartida",
+              font=(FONT, 11, "bold"), command=_bc_guardar,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
+    tk.Button(bc_botones, text="Borrar", font=(FONT, 11), command=_bc_borrar,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left")
+    _widgets["compartida_refrescar"] = _refrescar_compartida
     # -- Tablero compartido (Fase 2) --------------------------------------
     import tablero as _tab
 

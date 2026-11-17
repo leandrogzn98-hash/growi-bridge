@@ -129,3 +129,47 @@ derivado y su carril; «Nueva clave» cambia el valor de la bóveda; alta de
 la segunda cuenta → el otro carril; bóveda compartida: guardar un secreto
 de juguete y ver su etiqueta en la lista; el valor no aparece en ningún
 JSON del disco (grep centinela).
+
+## 6. Resultados de las pruebas físicas (2026-11-16)
+
+Suite completa tras la reforma: **443 pruebas en verde** (422 previas
+intactas + 21 nuevas: 12 de `derivar_id`/`carril_libre` y 9 de
+`compartida`, incluida la centinela). Monolito en CRLF íntegro
+(37.541 líneas, 0 LF solitarios) tras aplicar el parche en binario.
+
+Pruebas con la UI real (entorno Linux aislado, 1366×768):
+
+- Alta de «Rayo» con el formulario nuevo: el registro quedó con el id
+  derivado `rayo` y el carril B asignado solo (la principal ocupa el A);
+  el diálogo mostró la clave una sola vez con «Copiar clave» y la clave
+  quedó en la bóveda como `muse:rayo`.
+- **Fallo cazado por la prueba física:** la fila de la cuenta recién
+  creada decía «clave: SIN clave» aunque la clave sí estaba en la
+  bóveda. Causa: en `_agregar` la lista se refrescaba ANTES de guardar
+  la clave y nada volvía a refrescar. Arreglo: refrescar después de
+  `_guardar_clave` (el mismo orden que ya tenía `_nueva_clave`), con
+  refresco también en la ruta de error. Reprobado en vivo: el alta de
+  «lu» mostró «clave: en la bóveda» en su fila con el diálogo aún
+  abierto.
+- Alta sin carril libre: con los dos carriles ocupados, «lu» nació sin
+  carril y el aviso lo dice en lenguaje llano («quedó sin carril hasta
+  que liberes uno»); su clave se generó y guardó igual.
+- «Nueva clave»: confirmación, clave nueva mostrada una vez y el valor
+  guardado en la bóveda cambió (huella del blob distinta): la anterior
+  deja de valer. La protección de la principal también se vio en vivo
+  («La cuenta principal no se puede borrar»).
+- Bóveda compartida: secreto de juguete guardado desde la UI; la lista
+  muestra solo «github · prueba · desde 2026-11-16»; el registro
+  `boveda-compartida.json` contiene etiqueta/nota/fecha y NO el valor
+  (grep centinela: el valor no aparece en ningún JSON fuera del archivo
+  de la bóveda, donde vive como `compartido:github`). La misma etiqueta
+  se ve en la ventana del carril B: el registro de nombres vive en la
+  carpeta compartida por usuario.
+
+Nota de método (límite del robot, no de la app): los campos dentro del
+canvas con desplazamiento no reciben los clics sintéticos XTest cuando
+la página está desplazada (las ventanas embebidas de Tk quedan
+desalineadas del píxel dibujado sin gestor de ventanas). La ronda se
+completó agrandando la ventana (1366×1400) para que la página cupiera
+sin desplazar. Un usuario real no tiene este problema: la rueda en
+Linux quedó arreglada en la ronda de correcciones y re-verificada allí.
