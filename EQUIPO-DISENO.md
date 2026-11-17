@@ -312,6 +312,86 @@ nada de eso: lo pone a trabajar en equipo, a la vista.
   anuncia; la unificadora propone la salida y el dueño decide si hay
   choque de criterio.
 
+## 7 bis. Cómo se cachan los errores: tres fuentes, y el fallo cae en la sala
+
+Pregunta central del dueño (2026-11-16): cuando algo falla en su PC,
+¿cómo se enteran las Muses y cómo agarran el fallo para corregirlo?
+La captura **ya existe** — son tres fuentes, todas texto — ; lo nuevo
+de este diseño es el aterrizaje: **todo fallo cae en la sala con su
+extracto de diagnóstico**, listo para que la otra cuenta lo agarre.
+
+### Las tres fuentes (piezas ya construidas)
+
+1. **La salida del proceso.** Toda tarea que el runner ejecuta
+   devuelve código de salida y stdout/stderr. Si la compilación o la
+   prueba falla, ese detalle es la materia prima del diagnóstico: no
+   hay que adivinar qué pasó, el proceso lo dijo. La prueba de
+   consumo la miden `recursos.py` y `supervision.py` (Fase 4):
+   latidos, duración máxima, y matar solo árboles propios si algo se
+   cuelga o se pasa de su tope — con el aviso previo y la aprobación
+   que el modo presente exige para pruebas físicas, como ya quedó
+   implementado.
+2. **Los registros del sistema.** Linux deja escrito el fallo aunque
+   haya pasado antes: el journal de systemd y los registros de
+   apt/dpkg. Ante «revisen por qué falló la actualización», la Muse
+   corre por el runner comandos de diagnóstico **de solo lectura** y
+   lee la causa exacta en la salida.
+3. **El arreglo con root.** Reparar (terminar de configurar paquetes,
+   reinstalar lo roto) entra por el intermediario de la Fase 6:
+   lista blanca cerrada, aprobación del dueño, sin contraseña. Lo
+   que la lista tiene hoy es `apt-actualizar` y `apt-instalar` (y
+   los servicios de su lista); los comandos típicos de reparación de
+   una actualización rota (`dpkg --configure -a`,
+   `apt-get install -f`) **todavía no están en la lista**: agregar
+   una acción `apt-reparar` al registro cerrado —con la doble
+   validación app↔ayudante de siempre— queda nombrado aquí como
+   extensión concreta para cuando se implemente esta pieza, no como
+   algo que ya exista.
+
+### El aterrizaje en la sala (lo nuevo)
+
+- Cada fallo de una tarea de un encargo genera un mensaje `sistema`
+  de subtipo **`fallo`** con: el encargo y la fase, la cuenta que la
+  llevaba, el código de salida y un **extracto acotado** de la salida
+  (las últimas líneas relevantes, ya redactado por el único punto de
+  escritura de §3: ningún secreto entra en la sala). El resultado
+  completo queda en el sitio de siempre (runner-results); la sala
+  lleva el extracto y la referencia.
+- El fallo queda **asignable**: la planificadora puede convertirlo
+  en una fase nueva del mismo encargo («esto lo mira la otra») o la
+  otra cuenta puede **reclamarlo** en la sala con el mismo mecanismo
+  de §4 — y al agarrarlo recibe, por `consulta` o por la propia
+  tarea, el extracto y el resultado completo. Nadie rebusca en
+  carpetas: el fallo llega a la mesa con su detalle.
+- Si la cuenta que falló sigue en línea, el circuito corto es el de
+  siempre: la salida vuelve a su carril y ella misma corrige sobre
+  la marcha (el ciclo compilar→fallar→corregir del §3 bis de MQTT
+  cuando el canal es MQTT). La sala es el registro común y la vía
+  para pasar el fallo de mano, no un rodeo obligatorio.
+
+### Los dos ejemplos del dueño, caminados
+
+**El traductor imagen→texto, entre las dos.** El dueño lo pide en la
+sala → se crea el repositorio y se comparte → reparto conversado
+(§4): cada una escribe su parte **en su rama** → la unificadora
+(§7) descarga y une → **lo prueba en el PC midiendo cuánto consume**
+(`recursos.py`/`supervision.py`, con las reglas de presencia de la
+Fase 4) → si la prueba falla, el `fallo` cae en la sala con el
+extracto (qué proceso, qué salida, cuánto consumía cuando cayó) →
+la otra cuenta lo agarra, corrige en su rama y la unión se rehace.
+El dueño ve toda la película en la sala sin abrir una terminal.
+
+**La actualización de Linux que falla.** El dueño manda «revisen por
+qué falló» → una cuenta corre el diagnóstico de solo lectura
+(journal y registros de apt/dpkg) por el runner → la causa queda en
+la sala, en texto («tal paquete quedó a medias por tal motivo») →
+si el arreglo necesita root, se pide por el intermediario de la
+Fase 6 con la aprobación del dueño (con la extensión `apt-reparar`
+cuando exista en la lista; hoy, lo que la lista ya cubre) → el
+resultado del arreglo también cae en la sala. Arreglar «directamente»
+significa esto: diagnóstico y reparación sin que el dueño toque la
+terminal, pero **nunca sin su aprobación** para lo que lleva root.
+
 ## 8. Datos que cambian
 
 - `cuentas.py`: la cuenta gana tres campos **opcionales** —
