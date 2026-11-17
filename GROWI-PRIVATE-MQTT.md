@@ -14,9 +14,7 @@ bifurcación las reemplaza. No se borra código probado.
 
 - **P0 · Bifurcación y poda** — hecha (este documento).
 - **P1 · MQTT de verdad** — hecha (detalle abajo).
-- **P2 · Cuentas con broker** — entrada del broker en Cuentas
-  (dirección, usuario, contraseña a la bóveda como `mqtt:<cuenta>`)
-  y uso resumido por cuenta.
+- **P2 · Cuentas con broker** — hecha (detalle abajo).
 - **P3 · La sala** — el Chat pasa a chat general estilo globitos:
   dueño y cuentas en el mismo hilo, reparto conversado conectado al
   encargo real, notificaciones y fallos con su extracto.
@@ -128,3 +126,44 @@ bifurcación las reemplaza. No se borra código probado.
 - **Arranque real de la app** con el cableado: puente arriba y ni
   una línea MQTT en el registro (sin broker configurado ni cuentas
   mqtt, el enlace duerme, como debe ser).
+
+## P2 · Lo hecho
+
+- **El alta ofrece «mqtt»** en «Cómo se conecta», con su línea en
+  lenguaje llano: «por internet con punto de encuentro (un broker):
+  nadie entra a tu PC».
+- **Sección «Broker MQTT» en Cuentas**, tras el bloque de cuentas:
+  dirección del broker y usuario del programa (a ajustes), su
+  contraseña (a la bóveda como `mqtt:programa`, solo escritura);
+  credencial del broker por cuenta (usuario a ajustes, contraseña a
+  la bóveda como `mqtt:<cuenta>`); botón **«Paquete para su Muse»**
+  que muestra los datos a pasar (broker, usuario, raíz de temas y
+  cuenta, con la nota honesta de qué no se vuelve a mostrar y cómo
+  recuperarlo). Guardar el broker valida la dirección y reconecta
+  el enlace en caliente (`_fpm_reiniciar`).
+- **Uso resumido**: una línea por cuenta mqtt con su presencia
+  (del estado del enlace) y su % de tokens libres (del tablero):
+  nada de pared de datos.
+
+### Verificación P2
+
+- Suite completa en verde (458) y arranque real: la sección se ve
+  completa y la línea resumida de la cuenta mqtt aparece («Rayo:
+  sin datos · —% de tokens libres» en el entorno, sin enlace).
+- Con los ajustes que escribe esta pantalla, la app real intentó
+  el enlace al arrancar: sin paho instalado lo dijo tal cual en el
+  registro, y con paho llegó al saludo TLS (en esta VM falla la
+  verificación porque el extremo es el túnel local 127.0.0.1 y el
+  certificado es del broker — el camino vivo completo ya quedó
+  probado en P1; en un PC normal la dirección real del broker
+  verifica sin problema).
+- **Fallo real cazado y corregido**: la conexión MQTT corría en el
+  hilo de arranque y un broker lento podía dejar la app sin
+  arrancar (el puente no subió en una prueba). `_fpm_iniciar` ahora
+  conecta en su propio hilo: un broker caído o lento jamás bloquea
+  la app.
+- Límite de método: el robot de pruebas no logró teclear en el
+  campo del broker (la página va desplazada y el tecleo X11 del
+  entorno falla con ciertos caracteres); el guardado se verificó
+  por el formato exacto de ajustes que la pantalla escribe,
+  alimentado a mano en el arranque real de arriba.

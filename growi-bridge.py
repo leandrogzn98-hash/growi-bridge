@@ -15407,22 +15407,45 @@ def _fpm_al_recibir(sobre, tema):
 
 def _fpm_iniciar():
     """Arranque del enlace MQTT (P1): solo si hay broker configurado
-    y al menos una cuenta en modo mqtt. Nunca tumba el arranque."""
+    y al menos una cuenta en modo mqtt. La conexión va en su propio
+    hilo: un broker lento o caído jamás puede bloquear el arranque
+    de la app (cazado en la prueba física de P2: el saludo TLS a
+    través de un túnel lento dejó el puente sin arrancar)."""
     try:
         cfg = _fpm_config()
         if not cfg or not _fpm_hay_cuentas_mqtt():
             return
-        import mqtt_enlace as _me
-        enlace = _me.EnlaceMQTT(cfg["url"], cfg["usuario"],
-                                cfg["contrasena"], cfg["raiz"],
-                                _fpm_al_recibir)
-        enlace.conectar()
-        _FPM["enlace"] = enlace
-        _fpm_escribir_estado()
-        log(f"mqtt: enlace iniciado contra {cfg['url']} "
-            f"(raíz {cfg['raiz']})")
+
+        def _arrancar():
+            try:
+                import mqtt_enlace as _me
+                enlace = _me.EnlaceMQTT(cfg["url"], cfg["usuario"],
+                                        cfg["contrasena"], cfg["raiz"],
+                                        _fpm_al_recibir)
+                enlace.conectar()
+                _FPM["enlace"] = enlace
+                _fpm_escribir_estado()
+                log(f"mqtt: enlace iniciado contra {cfg['url']} "
+                    f"(raíz {cfg['raiz']})")
+            except Exception as e:
+                log(f"mqtt: el enlace no pudo arrancar: {e}")
+
+        threading.Thread(target=_arrancar, daemon=True).start()
     except Exception as e:
         log(f"mqtt: el enlace no pudo arrancar: {e}")
+
+
+def _fpm_reiniciar():
+    """Cierra el enlace MQTT y lo vuelve a arrancar con la config
+    actual (al guardar el broker en Cuentas, sin reiniciar la app)."""
+    try:
+        en = _FPM.get("enlace")
+        if en is not None:
+            en.cerrar()
+            _FPM["enlace"] = None
+    except Exception:
+        pass
+    _fpm_iniciar()
 
 
 def _mqtt_enviar_tarea(cuenta_id, datos):
@@ -35246,6 +35269,10 @@ def _build_cuentas(tab):
             _refrescar_f4()
         except Exception:
             pass
+        try:
+            _refrescar_broker()
+        except Exception:
+            pass
 
     def _al_elegir(_e=None):
         sel = lista.curselection()
@@ -35281,14 +35308,16 @@ def _build_cuentas(tab):
     tk.Label(form, text="Cómo se conecta", font=(FONT, 11),
              bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
                  row=1, column=0, padx=(14, 6), pady=5, sticky="w")
-    w_con = tk.OptionMenu(form, var_conexion, "servidor", "local", "ambas")
+    w_con = tk.OptionMenu(form, var_conexion, "servidor", "local", "ambas", "mqtt")
     w_con.config(font=(FONT, 11), bg=THEME["card"], bd=1, relief="solid",
                  highlightthickness=0, anchor="w")
     w_con.grid(row=1, column=1, padx=(0, 14), pady=5, sticky="ew")
     tk.Label(form, text="servidor = se conecta desde su espacio a este PC · "
                         "local = trabaja solo dentro de este PC · "
                         "ambas = las dos: si falla la red, sigue en local y "
-                        "al volver se reconcilia.",
+                        "al volver se reconcilia · "
+                        "mqtt = por internet con punto de encuentro (un "
+                        "broker): nadie entra a tu PC.",
              font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
              anchor="w", wraplength=S(470)).grid(row=2, column=1, padx=(0, 14),
                                                  pady=(0, 4), sticky="w")
@@ -35438,6 +35467,183 @@ def _build_cuentas(tab):
               cursor="hand2", padx=10, pady=3).pack(side="left")
     lista.bind("<<ListboxSelect>>", _al_elegir)
     _widgets["cuentas_refrescar"] = _refrescar
+    # -- Broker MQTT (Growi Private MQTT, P2) ------------------------------
+    tk.Label(tab, text="Broker MQTT", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(14, 2))
+    tk.Label(tab, text="El punto de encuentro en internet para las cuentas "
+                       "que se conectan por MQTT: el programa y cada Muse "
+                       "se conectan al broker, y nadie entra a tu PC. La "
+                       "dirección y los usuarios son los de tu broker (por "
+                       "ejemplo EMQX o HiveMQ); las contraseñas van a la "
+                       "bóveda y no se vuelven a mostrar.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    brk = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    brk.pack(fill="x", padx=28, pady=(0, 8))
+    _aj0 = load_settings()
+    var_broker = tk.StringVar(value=_aj0.get("mqtt_broker", ""))
+    var_busuario = tk.StringVar(value=_aj0.get("mqtt_usuario", ""))
+    var_bclave = tk.StringVar()
+    tk.Label(brk, text="Dirección del broker", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=0, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(brk, textvariable=var_broker, font=(FONT, 11), bd=1,
+             relief="solid").grid(row=0, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(brk, text="Usuario del programa en el broker", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=1, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(brk, textvariable=var_busuario, font=(FONT, 11), bd=1,
+             relief="solid").grid(row=1, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(brk, text="Contraseña del programa (a la bóveda)", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"], width=30, anchor="w").grid(
+                 row=2, column=0, padx=(14, 6), pady=5, sticky="w")
+    tk.Entry(brk, textvariable=var_bclave, font=(FONT, 11), bd=1, show="•",
+             relief="solid").grid(row=2, column=1, padx=(0, 14), pady=5, sticky="ew")
+    tk.Label(brk, text="La dirección se escribe como la da tu broker, por "
+                       "ejemplo wss://broker.emqx.io:8084/mqtt o la de tu "
+                       "clúster. La contraseña solo se escribe: queda en la "
+                       "bóveda y no se vuelve a mostrar.",
+             font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
+             anchor="w", wraplength=S(470)).grid(row=3, column=1, padx=(0, 14),
+                                                 pady=(0, 4), sticky="w")
+    brk.columnconfigure(1, weight=1)
+    lbl_bestado = tk.Label(tab, text="", font=(FONT, 10), bg=THEME["bg"],
+                           fg=THEME["muted"], justify="left", anchor="w",
+                           wraplength=S(640))
+    lbl_bestado.pack(anchor="w", padx=28, pady=(0, 4))
+    fila_bcuenta = tk.Frame(tab, bg=THEME["bg"])
+    fila_bcuenta.pack(fill="x", padx=28, pady=(0, 4))
+    var_bcta_usuario = tk.StringVar()
+    var_bcta_clave = tk.StringVar()
+    tk.Label(fila_bcuenta, text="Broker de la cuenta elegida:", font=(FONT, 10),
+             bg=THEME["bg"], fg=THEME["text"]).pack(side="left")
+    tk.Entry(fila_bcuenta, textvariable=var_bcta_usuario, font=(FONT, 10), bd=1,
+             relief="solid", width=16).pack(side="left", padx=(6, 4))
+    tk.Entry(fila_bcuenta, textvariable=var_bcta_clave, font=(FONT, 10), bd=1,
+             show="•", relief="solid", width=16).pack(side="left", padx=(0, 4))
+
+    def _refrescar_broker():
+        lineas = []
+        try:
+            ruta_est = _token_dir() / "mqtt-estado.json"
+            est = (json.loads(ruta_est.read_text(encoding="utf-8"))
+                   if ruta_est.exists() else {})
+        except Exception:
+            est = {}
+        if est.get("conectado"):
+            lineas.append(f"Enlace MQTT: conectado a {est.get('broker', '')} "
+                          f"(temas {est.get('raiz', '')}/…).")
+        elif var_broker.get().strip():
+            lineas.append("Enlace MQTT: sin conexión ahora (se conecta al "
+                          "guardar el broker o al reabrir la app).")
+        else:
+            lineas.append("Enlace MQTT: falta escribir la dirección del broker.")
+        pres = est.get("presencia_cuentas") or {}
+        try:
+            import tablero as _tbp2
+            vista = _tbp2.vista(_token_dir())
+        except Exception:
+            vista = {}
+        for c in (estado.get("reg") or {}).get("cuentas", []):
+            if c.get("conexion") != "mqtt":
+                continue
+            p = (pres.get(c["id"]) or {}).get("estado") or "sin datos"
+            pct = (vista.get(c["id"]) or {}).get("pct_efectivo")
+            lineas.append(f"{c['nombre']}: {p} · "
+                          f"{pct if pct is not None else '—'}% de tokens libres")
+            if not var_bcta_usuario.get():
+                var_bcta_usuario.set(
+                    load_settings().get(f"mqtt_usuario_{c['id']}") or c["id"])
+        lbl_bestado.config(text="\n".join(lineas))
+
+    def _guardar_broker():
+        url = var_broker.get().strip()
+        if url:
+            try:
+                import mqtt_enlace as _mep2
+                _mep2.parse_broker_url(url)
+            except Exception as e:
+                _decir(f"Esa dirección de broker no vale: {e}")
+                return
+        s = load_settings()
+        s["mqtt_broker"] = url
+        s["mqtt_usuario"] = var_busuario.get().strip()
+        save_settings(s)
+        if var_bclave.get():
+            _sec_set("mqtt:programa", var_bclave.get())
+            var_bclave.set("")
+        _decir("Broker guardado: el enlace se (re)conecta ahora.")
+        threading.Thread(target=_fpm_reiniciar, daemon=True).start()
+        tab.after(2500, _refrescar_broker)
+
+    def _guardar_cred_cuenta():
+        c = _cuenta_sel()
+        if c is None:
+            _decir("Elige primero una cuenta en la lista.")
+            return
+        if c.get("conexion") != "mqtt":
+            _decir(f"«{c['nombre']}» no se conecta por MQTT: su credencial "
+                   "de broker no hace falta.")
+            return
+        usuario = var_bcta_usuario.get().strip() or c["id"]
+        s = load_settings()
+        s[f"mqtt_usuario_{c['id']}"] = usuario
+        save_settings(s)
+        if var_bcta_clave.get():
+            _sec_set(f"mqtt:{c['id']}", var_bcta_clave.get())
+            var_bcta_clave.set("")
+        _decir(f"Credencial del broker de «{c['nombre']}» guardada "
+               f"(usuario {usuario}; la contraseña quedó en la bóveda).")
+
+    def _paquete_cuenta():
+        c = _cuenta_sel()
+        if c is None:
+            _decir("Elige primero una cuenta en la lista.")
+            return
+        if c.get("conexion") != "mqtt":
+            _decir(f"«{c['nombre']}» no se conecta por MQTT.")
+            return
+        s = load_settings()
+        id_pc = s.get("mqtt_id_pc") or "(se crea al conectar el programa)"
+        usuario = s.get(f"mqtt_usuario_{c['id']}") or c["id"]
+        win = _acotar_ventana(tk.Toplevel(tab))
+        win.title(f"Paquete de conexión de {c['nombre']}")
+        win.configure(bg=THEME["bg"])
+        tk.Label(win, text="Pásale estos datos a tu Muse en su chat, "
+                           "junto con el archivo ayudante-mqtt.py: con eso "
+                           "ella se conecta al mismo broker.",
+                 font=(FONT, 11, "bold"), bg=THEME["bg"], fg=THEME["text"],
+                 justify="left", wraplength=S(560)).pack(
+                     anchor="w", padx=16, pady=(14, 6))
+        texto = (f"Broker: {s.get('mqtt_broker') or '(falta la dirección)'}\n"
+                 f"Usuario del broker: {usuario}\n"
+                 f"Raíz de temas: growi/{id_pc}\n"
+                 f"Cuenta: {c['id']}\n"
+                 "Contraseña del broker: la que creaste para esta cuenta "
+                 "en tu broker (está en la bóveda del programa y no se "
+                 "vuelve a mostrar; si la pierdes, crea otra en el broker "
+                 "y guárdala aquí).\n"
+                 "Clave Growi: la que viste una sola vez al crear la "
+                 "cuenta (si la perdiste, «Nueva clave» en esta página).")
+        caja = tk.Text(win, font=(FONT, 10), height=9, bd=1, relief="solid",
+                       wrap="word")
+        caja.pack(fill="x", padx=16, pady=(0, 10))
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
+        tk.Button(win, text="Cerrar", font=(FONT, 11), command=win.destroy,
+                  bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                  cursor="hand2", padx=10, pady=3).pack(anchor="e", padx=16,
+                                                       pady=(0, 14))
+
+    fila_bbot = tk.Frame(tab, bg=THEME["bg"])
+    fila_bbot.pack(fill="x", padx=28, pady=(0, 10))
+    for txt, cmd in (("Guardar broker", _guardar_broker),
+                     ("Guardar credencial de la cuenta", _guardar_cred_cuenta),
+                     ("Paquete para su Muse", _paquete_cuenta)):
+        tk.Button(fila_bbot, text=txt, font=(FONT, 10), command=cmd,
+                  bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+                  cursor="hand2", padx=8, pady=3).pack(side="left", padx=(0, 8))
+
     # -- Bóveda compartida (Reforma de cuentas) ---------------------------
     import compartida as _bc
 
