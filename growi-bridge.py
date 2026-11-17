@@ -15393,6 +15393,10 @@ def _fpm_al_recibir(sobre, tema):
             log(f"mqtt: {tipo} de «{cuenta}» descartado: "
                 "clave Growi no coincide")
             return
+        datos = sobre.get("datos")
+        if isinstance(datos, dict) and (datos.get("sala")
+                                        or datos.get("encargo")):
+            _fpm_sala_ruta(sobre, cuenta, datos)
         base = _token_dir() / "mqtt-resultados"
         base.mkdir(parents=True, exist_ok=True)
         destino = base / (sobre["id"] + ".json")
@@ -15433,6 +15437,106 @@ def _fpm_iniciar():
         threading.Thread(target=_arrancar, daemon=True).start()
     except Exception as e:
         log(f"mqtt: el enlace no pudo arrancar: {e}")
+
+
+def _sala_valores():
+    """Valores de la bóveda que la redacción de la sala debe tapar
+    (claves de conexión de las cuentas y contraseñas de broker)."""
+    valores = []
+    try:
+        reg = _cuentas_reg()
+        for c in reg.get("cuentas", []):
+            cid = c.get("id")
+            if not cid:
+                continue
+            for nombre in (cuentas.nombre_secreto(cid), f"mqtt:{cid}"):
+                try:
+                    v = _sec_get(nombre)
+                except Exception:
+                    v = None
+                if v:
+                    valores.append(v)
+        v = _sec_get("mqtt:programa")
+        if v:
+            valores.append(v)
+    except Exception:
+        pass
+    return valores
+
+
+def _sala_escribir(tipo, autor, texto, **kw):
+    """Escribe en la sala común (sala.py es el único punto de
+    escritura; aquí se le pasan los valores a redactar). Nunca lanza."""
+    try:
+        import sala as _sl
+        return _sl.escribir(_token_dir(), tipo, autor, texto,
+                            valores=_sala_valores(), **kw)
+    except Exception as e:
+        log(f"sala: no se pudo escribir ({tipo} de {autor}): {e}")
+        return None
+
+
+def _fpm_sala_ruta(sobre, cuenta, datos):
+    """Lo que una cuenta manda por MQTT con destino a la sala (P3):
+    aceptaciones y reclamos del reparto, resultados de subtareas de
+    un encargo (al buzón del relevo, la autoridad del cierre) y
+    mensajes suyos para la sala. `cuenta` la pone el programa desde
+    el sobre autenticado, nunca el texto de la Muse."""
+    try:
+        import relevo as _rl
+        import sala as _sl
+        base = _token_dir()
+        marca = datos.get("sala") if isinstance(datos.get("sala"),
+                                                dict) else {}
+        raiz = datos.get("encargo") or marca.get("encargo")
+        sid = marca.get("fase") or datos.get("fase")
+        tipo_marca = marca.get("tipo")
+        if tipo_marca in ("aceptacion", "reclamo") and raiz and sid:
+            if tipo_marca == "aceptacion":
+                ok = _sl.reparto_aceptar(base, raiz, sid, cuenta)
+                texto = (f"Acepto la fase {sid}." if ok else
+                         f"Quise aceptar la fase {sid}, pero no está "
+                         "a mi nombre en el reparto.")
+                _sala_escribir("aceptacion", cuenta, texto,
+                               encargo=raiz, fase=sid)
+            else:
+                peso = marca.get("peso")
+                _sl.reparto_reclamar(base, raiz, sid, cuenta, peso=peso)
+                _sala_escribir(
+                    "reclamo", cuenta,
+                    f"Me quedo yo con la fase {sid}"
+                    + (f" (peso {peso})." if peso is not None else "."),
+                    encargo=raiz, fase=sid)
+            rep = _sl.reparto_obtener(base, raiz)
+            if rep and rep.get("estado") == "propuesto" and \
+                    _sl.reparto_todo_aceptado(rep):
+                _sl.reparto_estado(base, raiz, "resuelto")
+                _sala_escribir("resolucion", "growi",
+                               "Reparto aceptado por todas: listo "
+                               "para empezar.", encargo=raiz)
+            return
+        if raiz and sid and ("status" in datos or "output" in datos
+                             or "texto" in datos):
+            estado_res = datos.get("status") or "ok"
+            salida = datos.get("output") or datos.get("texto") or ""
+            _rl.escribir_en_buzon(base, {"id": sid, "raiz": raiz,
+                                         "status": estado_res,
+                                         "output": salida})
+            if estado_res != "ok":
+                extracto = str(datos.get("error") or salida)[-600:]
+                _sala_escribir("sistema", "growi",
+                               f"Fallo en la fase {sid} de {cuenta}: "
+                               f"{extracto}", encargo=raiz, fase=sid,
+                               subtipo="fallo")
+            elif salida:
+                _sala_escribir("cuenta", cuenta, str(salida)[:1200],
+                               encargo=raiz, fase=sid)
+            return
+        if datos.get("texto"):
+            _sala_escribir("cuenta", cuenta, str(datos["texto"]),
+                           encargo=raiz)
+    except Exception as e:
+        log(f"mqtt: error al derivar a la sala: {e}")
 
 
 def _fpm_reiniciar():
@@ -15943,14 +16047,36 @@ def _f4_encargo_hilo(task_file, data, cid):
                   f"(plan {tipo_plan})",
                   cuenta=receptora, raiz=raiz, tarea=tid)
         ent = _rl4.obtener(base, raiz) or {}
-        for sid, sub in (ent.get("subtareas") or {}).items():
-            if sub.get("estado") == "asignada" and not \
-                    (sub.get("spec") or {}).get("depende_de"):
-                _rl4.entregar(
-                    base, raiz, sid,
-                    _dir_carril(sub.get("carril"), "share", "inbox",
-                                "runner-tasks"),
-                    _dir_carril(sub.get("carril")))
+        if data.get("sala"):
+            # Encargo nacido en la sala (P3): la división se propone
+            # en la sala y nada se entrega hasta que el reparto se
+            # arranque desde ahí (o llegue «empezar ya» del dueño).
+            try:
+                import sala as _sl4
+                fases = [{"sid": sid,
+                          "titulo": str((sub.get("spec") or {}).get(
+                              "prompt") or sid)[:80],
+                          "cuenta": sub.get("cuenta")}
+                         for sid, sub in
+                         (ent.get("subtareas") or {}).items()]
+                _sl4.reparto_crear(base, raiz, receptora, fases)
+                lineas = ["Reparto propuesto:"]
+                for f in fases:
+                    lineas.append(f"· {f['titulo']} → "
+                                  f"{f['cuenta'] or 'sin asignar'}")
+                _sala_escribir("propuesta", receptora,
+                               "\n".join(lineas), encargo=raiz)
+            except Exception as e:
+                log(f"sala: no se pudo crear el reparto de {raiz}: {e}")
+        else:
+            for sid, sub in (ent.get("subtareas") or {}).items():
+                if sub.get("estado") == "asignada" and not \
+                        (sub.get("spec") or {}).get("depende_de"):
+                    _rl4.entregar(
+                        base, raiz, sid,
+                        _dir_carril(sub.get("carril"), "share", "inbox",
+                                    "runner-tasks"),
+                        _dir_carril(sub.get("carril")))
         res = {"id": tid, "raiz": raiz, "status": "ok",
                "output": f"Encargo dividido en {len(plan)} subtarea(s) "
                          f"(plan {tipo_plan}); el resumen del cierre "
@@ -15979,6 +16105,9 @@ def _f4_encargo_hilo(task_file, data, cid):
         _F4_ENCARGOS_EN_CURSO.discard(tid)
 
 
+_SALA_FALLOS = set()
+
+
 def _f4_resultado_a_buzon(result):
     """Al escribir un resultado: si es de una subtarea de encargo, va
     también al buzón compartido del relevo (la autoridad del cierre);
@@ -16004,6 +16133,30 @@ def _f4_resultado_a_buzon(result):
             import relevo as _rl4
             _rl4.escribir_en_buzon(_base_tablero(),
                                    dict(result, raiz=raiz))
+            if result.get("status") != "ok":
+                extracto = str(result.get("error")
+                               or result.get("reporte")
+                               or result.get("output") or "")[-600:]
+                if tid == raiz:
+                    # El resultado del propio encargo: es su cierre,
+                    # no el fallo de una fase.
+                    _sala_escribir(
+                        "sistema", "growi",
+                        f"Cierre del encargo {raiz}: {extracto}",
+                        encargo=raiz, subtipo="cierre")
+                else:
+                    # El mismo resultado puede escribirse dos veces
+                    # por caminos distintos del runner: la sala no
+                    # repite el mismo fallo.
+                    clave_fallo = (raiz, tid, extracto)
+                    if clave_fallo not in _SALA_FALLOS:
+                        if len(_SALA_FALLOS) > 500:
+                            _SALA_FALLOS.clear()
+                        _SALA_FALLOS.add(clave_fallo)
+                        _sala_escribir(
+                            "sistema", "growi",
+                            f"Fallo en la fase {tid}: {extracto}",
+                            encargo=raiz, fase=tid, subtipo="fallo")
     except Exception:
         pass
 
@@ -36512,6 +36665,305 @@ def _build_cuentas(tab):
         _decir("\n".join(_avisos_arranque))
 
 
+def _build_sala(tab):
+    """Página «Sala» (P3 de Growi Private MQTT): la mesa común.
+
+    Aquí hablan el dueño y todas sus cuentas en el mismo hilo
+    (estilo globitos: el dueño a la derecha, las cuentas a la
+    izquierda, el sistema en el centro). Lo que el dueño escribe
+    llega a todas; si el mensaje es un encargo, la cuenta principal
+    propone la división en esta misma sala y nada se entrega hasta
+    que el reparto se arranca desde aquí. Las notificaciones y los
+    fallos con su extracto también caen aquí (sala.jsonl, escrito
+    solo por sala.py). La antigua página de chat 1:1 queda en el
+    código, dormida, como el resto de la poda de la bifurcación."""
+    import cuentas as _c
+    import json as _json
+    import re as _re
+    import time as _time
+    import uuid as _uuid
+
+    tk.Label(tab, text="Sala", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(24, 2))
+    tk.Label(tab, text="La mesa común: aquí habláis tú y todas tus cuentas. Lo que "
+                       "escribas llega a todas. Si marcas «Crear encargo», la cuenta "
+                       "principal propone la división aquí mismo y el trabajo no "
+                       "arranca hasta que el reparto se acepta y le das a empezar.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(680)).pack(anchor="w", padx=28, pady=(0, 12))
+
+    estado = {"pintados": set(), "rep": None, "rep_firma": ""}
+
+    conv_holder = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    conv_holder.pack(fill="both", expand=True, padx=28, pady=(0, 8))
+    conv = tk.Text(conv_holder, font=(FONT, 11), wrap="word", state="disabled",
+                   bg=THEME["card"], fg=THEME["text"], bd=0, highlightthickness=0)
+    barra = ttk.Scrollbar(conv_holder, orient="vertical", command=conv.yview)
+    conv.configure(yscrollcommand=barra.set)
+    conv.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=8)
+    barra.pack(side="right", fill="y")
+    conv.tag_config("dueno", justify="right")
+    conv.tag_config("sistema", justify="center", foreground=THEME["muted"])
+    conv.tag_config("propuesta", foreground=THEME["blue"])
+    conv.tag_config("nombre", font=(FONT, 11, "bold"))
+
+    panel = tk.Frame(tab, bg=THEME["bg"])
+    panel.pack(fill="x", padx=28, pady=(0, 8))
+    lbl_rep = tk.Label(panel, text="", font=(FONT, 11, "bold"), bg=THEME["bg"],
+                       fg=THEME["text"], justify="left", wraplength=S(680))
+    lbl_rep.pack(anchor="w")
+    lst_fases = tk.Listbox(panel, font=(FONT, 10), height=4, bd=1,
+                           relief="solid", bg=THEME["card"], fg=THEME["text"])
+    lst_fases.pack(fill="x", pady=(4, 6))
+    fila_rep = tk.Frame(panel, bg=THEME["bg"])
+    fila_rep.pack(fill="x")
+    btn_empezar = tk.Button(fila_rep, text="Empezar el trabajo", font=(FONT, 10))
+    btn_empezar.pack(side="left")
+    btn_reasignar = tk.Button(fila_rep, text="Reasignar la fase elegida a la otra cuenta",
+                              font=(FONT, 10))
+    btn_reasignar.pack(side="left", padx=(8, 0))
+    btn_aceptar = tk.Button(fila_rep, text="Marcar aceptada por su cuenta",
+                            font=(FONT, 10))
+    btn_aceptar.pack(side="left", padx=(8, 0))
+
+    fila_in = tk.Frame(tab, bg=THEME["bg"])
+    fila_in.pack(fill="x", padx=28, pady=(0, 6))
+    entrada = tk.Entry(fila_in, font=(FONT, 11), bd=1, relief="solid")
+    entrada.pack(side="left", fill="x", expand=True)
+    var_encargo = tk.BooleanVar(value=True)
+    chk = tk.Checkbutton(fila_in, text="Crear encargo", variable=var_encargo,
+                         font=(FONT, 10), bg=THEME["bg"], fg=THEME["text"],
+                         activebackground=THEME["bg"], selectcolor=THEME["card"])
+    chk.pack(side="left", padx=(8, 0))
+    btn_enviar = tk.Button(fila_in, text="Enviar", font=(FONT, 11))
+    btn_enviar.pack(side="left", padx=(8, 0))
+    tk.Label(tab, text="La respuesta de cada cuenta y el resumen del encargo "
+                       "aparecen en esta misma sala.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(680)).pack(anchor="w", padx=28, pady=(0, 16))
+
+    def _nombres():
+        try:
+            reg = _cuentas_reg()
+            return {c["id"]: (c.get("nombre") or c["id"])
+                    for c in reg.get("cuentas", [])}
+        except Exception:
+            return {}
+
+    def _pintar(msg):
+        nombres = _nombres()
+        tipo = msg.get("tipo") or "cuenta"
+        autor = msg.get("autor") or ""
+        if tipo == "dueno":
+            quien = "Tú"
+        elif tipo == "sistema" or autor == "growi":
+            quien = "Growi"
+        else:
+            quien = nombres.get(autor, autor)
+        try:
+            conv.config(state="normal")
+            ini = conv.index("end")
+            conv.insert("end", f"{quien}: ", "nombre")
+            conv.insert("end", f"{msg.get('texto') or ''}\n\n")
+            fin = conv.index("end")
+            conv.tag_add(tipo if tipo in ("dueno", "sistema", "propuesta")
+                         else "cuenta", ini, fin)
+            conv.see("end")
+            conv.config(state="disabled")
+        except Exception:
+            pass
+
+    def _panel(rep):
+        estado["rep"] = rep
+        lst_fases.delete(0, "end")
+        if not rep:
+            lbl_rep.config(text="Sin reparto en curso. Escribe un encargo abajo "
+                                "y la cuenta principal propondrá la división aquí.")
+            return
+        nombres = _nombres()
+        lbl_rep.config(text=f"Reparto del encargo {rep.get('raiz')} · "
+                            f"estado: {rep.get('estado')}")
+        for sid, f in (rep.get("fases") or {}).items():
+            cuenta = f.get("cuenta")
+            lbl_rep_txt = (f"{f.get('titulo')} → "
+                           f"{nombres.get(cuenta, cuenta) or 'sin asignar'} · "
+                           + ("aceptada" if f.get("aceptada") else "pendiente"))
+            lst_fases.insert("end", lbl_rep_txt)
+
+    def _refrescar():
+        try:
+            import sala as _sl
+            base = _token_dir()
+            for msg in _sl.leer(base, 300):
+                if msg["id"] not in estado["pintados"]:
+                    estado["pintados"].add(msg["id"])
+                    _pintar(msg)
+            rep = _sl.reparto_obtener(base)
+            firma = _json.dumps(rep, sort_keys=True) if rep else ""
+            if firma != estado["rep_firma"]:
+                estado["rep_firma"] = firma
+                _panel(rep)
+        except Exception:
+            pass
+        try:
+            tab.after(2000, _refrescar)
+        except Exception:
+            pass
+
+    def _fase_elegida():
+        rep = estado.get("rep")
+        sel = lst_fases.curselection()
+        if not rep or not sel:
+            return None, None
+        sids = list((rep.get("fases") or {}).keys())
+        if sel[0] >= len(sids):
+            return None, None
+        return rep, sids[sel[0]]
+
+    def _empezar():
+        import relevo as _rl
+        import sala as _sl
+        base = _token_dir()
+        rep = _sl.reparto_obtener(base)
+        if not rep or rep.get("estado") == "arrancado":
+            return
+        raiz = rep.get("raiz")
+        ent = _rl.obtener(base, raiz) or {}
+        reg = _cuentas_reg()
+        por_id = {c["id"]: c for c in reg.get("cuentas", [])}
+        entregadas = 0
+        for sid, sub in (ent.get("subtareas") or {}).items():
+            if sub.get("estado") != "asignada" or \
+                    (sub.get("spec") or {}).get("depende_de"):
+                continue
+            cta = por_id.get(sub.get("cuenta")) or {}
+            if cta.get("conexion") == "mqtt":
+                mid = _mqtt_enviar_tarea(
+                    sub["cuenta"],
+                    {"encargo": raiz, "fase": sid,
+                     "prompt": (sub.get("spec") or {}).get("prompt") or ""})
+                if mid and _rl.marcar_subtarea(base, raiz, sid,
+                                               estado="entregada",
+                                               entregada_ts=_time.time()):
+                    entregadas += 1
+            else:
+                r = _rl.entregar(base, raiz, sid,
+                                 _dir_carril(sub.get("carril"), "share",
+                                             "inbox", "runner-tasks"),
+                                 _dir_carril(sub.get("carril")))
+                if r.get("ok"):
+                    entregadas += 1
+        _sl.reparto_estado(base, raiz, "arrancado")
+        _sala_escribir("sistema", "growi",
+                       f"Orden de empezar el encargo {raiz}: "
+                       f"{entregadas} fase(s) en marcha.", encargo=raiz)
+        estado["rep_firma"] = ""
+        _refrescar()
+
+    def _reasignar():
+        import relevo as _rl
+        import sala as _sl
+        rep, sid = _fase_elegida()
+        if not rep or not sid:
+            return
+        base = _token_dir()
+        actual = (rep.get("fases") or {}).get(sid, {}).get("cuenta")
+        reg = _cuentas_reg()
+        otras = [c for c in reg.get("cuentas", [])
+                 if c.get("habilitada", True) and c["id"] != actual
+                 and (c.get("carril") or c.get("conexion") == "mqtt")]
+        if not otras:
+            return
+        otra = otras[0]
+        _rl.marcar_subtarea(base, rep["raiz"], sid, cuenta=otra["id"],
+                            carril=otra.get("carril"))
+        _sl.reparto_reasignar(base, rep["raiz"], sid, otra["id"])
+        _sala_escribir("resolucion", "dueño",
+                       f"La fase {sid} pasa a "
+                       f"{otra.get('nombre') or otra['id']}.",
+                       encargo=rep["raiz"], fase=sid)
+        estado["rep_firma"] = ""
+        _refrescar()
+
+    def _aceptar():
+        import sala as _sl
+        rep, sid = _fase_elegida()
+        if not rep or not sid:
+            return
+        base = _token_dir()
+        cuenta = (rep.get("fases") or {}).get(sid, {}).get("cuenta")
+        if cuenta and _sl.reparto_aceptar(base, rep["raiz"], sid, cuenta):
+            _sala_escribir("aceptacion", cuenta,
+                           f"Acepto la fase {sid} (marcado en la app "
+                           "por el dueño).", encargo=rep["raiz"], fase=sid)
+            rep2 = _sl.reparto_obtener(base, rep["raiz"])
+            if rep2 and rep2.get("estado") == "propuesto" and \
+                    _sl.reparto_todo_aceptado(rep2):
+                _sl.reparto_estado(base, rep["raiz"], "resuelto")
+                _sala_escribir("resolucion", "growi",
+                               "Reparto aceptado por todas: listo "
+                               "para empezar.", encargo=rep["raiz"])
+        estado["rep_firma"] = ""
+        _refrescar()
+
+    def _enviar():
+        msg = entrada.get().strip()
+        if not msg:
+            return
+        entrada.delete(0, "end")
+        _sala_escribir("dueno", "dueño", msg)
+        if not var_encargo.get():
+            return
+        reg = _cuentas_reg()
+        plan = next((c for c in reg.get("cuentas", [])
+                     if c["id"] == "principal" and c.get("habilitada", True)
+                     and c.get("carril")), None)
+        if plan is None:
+            plan = next((c for c in reg.get("cuentas", [])
+                         if c.get("habilitada", True) and c.get("carril")),
+                        None)
+        if plan is None:
+            _sala_escribir("sistema", "growi",
+                           "No hay ninguna cuenta con carril para "
+                           "recibir el encargo: agrega una en Cuentas.")
+            return
+        base_carril = _dir_carril(plan["carril"])
+        carpeta = base_carril / "share" / "inbox" / "runner-tasks"
+        if not carpeta.is_dir():
+            _sala_escribir("sistema", "growi",
+                           f"El carril de {plan.get('nombre') or plan['id']} "
+                           "no está instalado en este PC: el encargo "
+                           "no se pudo entregar.")
+            return
+        prompt = msg
+        m = _re.search(r"https?://github\.com/[\w.\-]+/[\w.\-]+", msg)
+        if m:
+            prompt = f"{msg}\nRepositorio: {m.group(0)}"
+        tid = f"sala-{_uuid.uuid4().hex[:8]}"
+        # El cwd del encargo lo heredan las subtareas: tiene que ser
+        # una carpeta permitida (la casa del usuario lo es; la carpeta
+        # del programa NO, y las subtareas serían rechazadas).
+        tarea = {"id": tid, "tipo": "encargo", "prompt": prompt,
+                 "sala": True, "canal": "sala", "cwd": str(HOME_DIR),
+                 "archivos": [str(base_carril / "encargos" / f"{tid}.md")]}
+        try:
+            tmp = carpeta / f"{tid}.task.json.tmp"
+            tmp.write_text(_json.dumps(tarea, ensure_ascii=False),
+                           encoding="utf-8")
+            tmp.replace(carpeta / f"{tid}.task.json")
+        except OSError as e:
+            _sala_escribir("sistema", "growi",
+                           f"No se pudo entregar el encargo: {e}")
+
+    btn_enviar.config(command=_enviar)
+    btn_empezar.config(command=_empezar)
+    btn_reasignar.config(command=_reasignar)
+    btn_aceptar.config(command=_aceptar)
+    entrada.bind("<Return>", lambda e: _enviar())
+    _widgets["chat_refrescar"] = _refrescar
+    _refrescar()
+
+
 def _build_chat(tab):
     """Página «Chat» (corrección de la primera prueba real): hablar con
     una cuenta Muse desde la propia app.
@@ -36833,7 +37285,7 @@ def build_gui():
     # Growi Private MQTT 0.1: sin Estado ni Pantalla en el menu (las paginas
     # quedan construidas pero inalcanzables); Carpetas baja; Registro solo
     # si el ajuste mostrar_registro esta activo (reactivable desde la paleta).
-    _nav_paginas = [("cuentas", "Cuentas"), ("chat", "Chat"), ("modelos", "Modelos"),
+    _nav_paginas = [("cuentas", "Cuentas"), ("chat", "Sala"), ("modelos", "Modelos"),
                     ("apis", "APIs"), ("skills", "Skills"), ("tareas", "Tareas"),
                     ("recursos", "Recursos"), ("ajustes", "Ajustes"),
                     ("carpetas", "Carpetas")]
@@ -37200,7 +37652,7 @@ def build_gui():
 
     # ================= pagina Tareas
     _build_cuentas(pages["cuentas"])
-    _build_chat(pages["chat"])
+    _build_sala(pages["chat"])
 
     tabt = pages["tareas"]
     tk.Label(tabt, text="Tareas", font=(FONT, 22, "bold"),
@@ -37373,7 +37825,7 @@ def build_gui():
         "chat": "chat sala conversacion mensajes globitos",
         "recursos": "recursos cpu ram gpu vram disco memoria procesos monitor cerrar matar",
     }
-    _pal_paginas = [("cuentas", "Cuentas"), ("chat", "Chat"), ("modelos", "Modelos"),
+    _pal_paginas = [("cuentas", "Cuentas"), ("chat", "Sala"), ("modelos", "Modelos"),
                     ("apis", "APIs"), ("skills", "Skills"), ("tareas", "Tareas"),
                     ("ajustes", "Ajustes"), ("carpetas", "Carpetas")]
     if load_settings().get("mostrar_registro"):

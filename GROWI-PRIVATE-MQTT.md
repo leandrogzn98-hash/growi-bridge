@@ -23,9 +23,7 @@ la base de P1 y el de equipo lo es de P3 y P4.
 - **P0 · Bifurcación y poda** — hecha (este documento).
 - **P1 · MQTT de verdad** — hecha (detalle abajo).
 - **P2 · Cuentas con broker** — hecha (detalle abajo).
-- **P3 · La sala** — el Chat pasa a chat general estilo globitos:
-  dueño y cuentas en el mismo hilo, reparto conversado conectado al
-  encargo real, notificaciones y fallos con su extracto.
+- **P3 · La sala** — hecha (detalle abajo).
 - **P4 · Skills-plus** — skills por cuenta, compartibles y conocidas
   por ambas, como criterio vivo del reparto.
 - **P5 · Modelos unificado** — Modelos absorbe APIs (añadir/reemplazar
@@ -175,3 +173,54 @@ la base de P1 y el de equipo lo es de P3 y P4.
   entorno falla con ciertos caracteres); el guardado se verificó
   por el formato exacto de ajustes que la pantalla escribe,
   alimentado a mano en el arranque real de arriba.
+
+## P3 · Lo hecho
+
+- **`sala.py`** (nuevo): el registro de la sala (`sala.jsonl`) con
+  un solo punto de escritura y **redacción obligatoria** (patrones
+  de secreto + los valores de la bóveda que el monolito le pasa:
+  ningún secreto entra en la sala), y el estado del reparto
+  conversado (`sala-reparto.json`: fases, asignada, aceptada, peso).
+  La autoridad del encargo sigue en `encargos.json` (relevo.py);
+  esto es su cara conversada.
+- **La página Chat es ahora la Sala**: globitos (el dueño a la
+  derecha, las cuentas a la izquierda, el sistema en el centro),
+  panel del reparto en curso con sus fases y botones (Empezar,
+  Reasignar a la otra, Marcar aceptada), y entrada con «Crear
+  encargo». La página de chat 1:1 queda en el código, dormida.
+- **El reparto conversado manda**: un encargo nacido en la sala
+  (`"sala": true`) se divide como siempre, pero **no se entrega
+  nada** hasta que el reparto se arranca desde la sala. Al dividir,
+  la propuesta cae en la sala con cada fase y su asignada.
+- **Los fallos caen en la sala** con su extracto acotado y
+  redactado (gancho en `_f4_resultado_a_buzon`), y el cierre del
+  encargo también, con su resumen. Por MQTT, una cuenta puede
+  aceptar o reclamar una fase y mandar el resultado de su subtarea
+  al buzón del relevo (`_fpm_sala_ruta`): el autor lo pone el
+  programa desde el sobre autenticado, nunca el texto de la Muse.
+
+### Verificación P3
+
+- Suite completa en verde (469: 458 + 11 de la sala).
+- Ciclo físico completo con la app real (dos carriles): encargo de
+  sala → división propuesta en la sala → subtarea **retenida** →
+  arranque → ejecución → **fallo en la sala con su extracto** →
+  resultado en el buzón → encargo cerrado y **cierre en la sala**.
+  La página pinta la conversación y el panel del reparto en vivo.
+- Fallos reales cazados y corregidos: una clave de tema inexistente
+  tumbaba la ventana al arrancar; **el cwd de las subtareas de la
+  sala salía rechazado** (la carpeta del programa no es carpeta
+  permitida: el encargo de la sala ahora nace con cwd en la casa del
+  usuario, que sí lo es); el mismo fallo se escribía dos veces en
+  la sala (deduplicado) y el cierre del encargo se etiquetaba como
+  fallo de fase (ahora va como cierre).
+- Límites honestos: el robot del entorno no logra pulsar los
+  botones de las páginas con scroll (le pasa igual en P2; los
+  clics reales del dueño en su PC sí funcionan, probados por él en
+  rondas anteriores) — el flujo se verificó entregando el encargo
+  con el formato exacto que escribe el botón y llamando a las
+  mismas funciones que llama «Empezar». La ruta MQTT→sala queda
+  probada por piezas (transporte en P1, módulos aquí) y su prueba
+  viva completa es parte de P7. El reparto con varias fases reales
+  depende del planificador con motor real; con el plan de reserva
+  es una sola fase.
