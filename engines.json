@@ -1483,6 +1483,132 @@
         "sesion": "agy models (sin gastar)",
         "iniciar_sesion": "iniciar-sesion-agy.bat (doble clic, sin Administrador)"
       }
+    },
+    "deepseek": {
+      "id": "deepseek",
+      "nombre": "DeepSeek (API, solo texto)",
+      "tipo": "api_sincrona",
+      "descripcion": "API de DeepSeek, compatible con OpenAI. SOLO TEXTO: planifica, responde en la sala y revisa, pero no ejecuta fases de código (no toca archivos ni compila). La clave: la general del proveedor deepseek en Modelos → Claves de API, o la propia de la cuenta si tiene una guardada.",
+      "url": "https://api.deepseek.com/v1/chat/completions",
+      "base_url": "https://api.deepseek.com/v1",
+      "cuerpo": {
+        "messages": "{mensajes}",
+        "stream": false
+      },
+      "modelo": {
+        "campo": "model",
+        "por_defecto": "deepseek-chat"
+      },
+      "sesion": {
+        "tipo": "historial_local"
+      },
+      "salida": {
+        "texto": "choices.0.message.content",
+        "turnos": 1,
+        "uso_in": [
+          "usage.prompt_tokens"
+        ],
+        "uso_out": [
+          "usage.completion_tokens"
+        ]
+      },
+      "timeout_min": 15,
+      "entorno": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
+      "credencial_ref": {
+        "proveedor": "deepseek",
+        "etiqueta": "deepseek-personal"
+      },
+      "credencial_como": {
+        "cabecera": "Authorization",
+        "formato": "Bearer {clave}"
+      },
+      "capacidades": {
+        "streaming": false,
+        "reanudar": true,
+        "costo": false,
+        "herramientas": false,
+        "habilidades_growi": false
+      },
+      "puede": [
+        "texto: planificar encargos, responder en la sala y revisar",
+        "ser el motor propio de una cuenta, con su clave por cuenta"
+      ],
+      "no_puede": [
+        "ejecutar fases de código: no toca archivos, no compila, no corre pruebas",
+        "sin clave guardada no está disponible"
+      ],
+      "en_selector": false,
+      "carril_b": true,
+      "ubicacion": "nube",
+      "solo_texto": true,
+      "verificado_en_vivo": false,
+      "nota_verificacion": "Ficha de Growi Private MQTT (P5, 2026-11-17): sin verificar en vivo; hace falta la clave del dueño. El runner la trata como API en internet: la llamada sale con su cabecera Authorization y la clave nunca se anota en ningún registro."
+    },
+    "kimi": {
+      "id": "kimi",
+      "nombre": "Kimi (API, solo texto)",
+      "tipo": "api_sincrona",
+      "descripcion": "API de Kimi (Moonshot), compatible con OpenAI. SOLO TEXTO: planifica, responde en la sala y revisa, pero no ejecuta fases de código (no toca archivos ni compila). La clave: la general del proveedor kimi en Modelos → Claves de API, o la propia de la cuenta si tiene una guardada.",
+      "url": "https://api.moonshot.ai/v1/chat/completions",
+      "base_url": "https://api.moonshot.ai/v1",
+      "cuerpo": {
+        "messages": "{mensajes}",
+        "stream": false
+      },
+      "modelo": {
+        "campo": "model",
+        "por_defecto": "moonshot-v1-8k"
+      },
+      "sesion": {
+        "tipo": "historial_local"
+      },
+      "salida": {
+        "texto": "choices.0.message.content",
+        "turnos": 1,
+        "uso_in": [
+          "usage.prompt_tokens"
+        ],
+        "uso_out": [
+          "usage.completion_tokens"
+        ]
+      },
+      "timeout_min": 15,
+      "entorno": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
+      "credencial_ref": {
+        "proveedor": "kimi",
+        "etiqueta": "kimi-personal"
+      },
+      "credencial_como": {
+        "cabecera": "Authorization",
+        "formato": "Bearer {clave}"
+      },
+      "capacidades": {
+        "streaming": false,
+        "reanudar": true,
+        "costo": false,
+        "herramientas": false,
+        "habilidades_growi": false
+      },
+      "puede": [
+        "texto: planificar encargos, responder en la sala y revisar",
+        "ser el motor propio de una cuenta, con su clave por cuenta"
+      ],
+      "no_puede": [
+        "ejecutar fases de código: no toca archivos, no compila, no corre pruebas",
+        "sin clave guardada no está disponible"
+      ],
+      "en_selector": false,
+      "carril_b": true,
+      "ubicacion": "nube",
+      "solo_texto": true,
+      "verificado_en_vivo": false,
+      "nota_verificacion": "Ficha de Growi Private MQTT (P5, 2026-11-17): sin verificar en vivo; hace falta la clave del dueño. El runner la trata como API en internet: la llamada sale con su cabecera Authorization y la clave nunca se anota en ningún registro."
     }
   },
   "precios": {

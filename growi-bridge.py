@@ -3607,7 +3607,7 @@ def cred_puede_usar(cuenta):
                           f"(lleva ${g:.2f} este mes)"), "sin_tope"
     if g >= tope:
         return False, (f"tope mensual alcanzado: {quien} lleva ${g:.2f} de ${tope:.2f}. Súbele el tope en "
-                       "Ajustes → Claves o activa otra clave de ese proveedor"), None, 100
+                       "Modelos → Claves de API o activa otra clave de ese proveedor"), None, 100
     pct = g / tope if tope else 1.0
     nivel = 90 if pct >= 0.9 else 75 if pct >= 0.75 else 0
     return True, "", (f"{quien} va por el {int(pct * 100)} % de su tope (${g:.2f} de ${tope:.2f})"
@@ -3911,7 +3911,7 @@ def tripo_leer_saldo(manual=False):
     lec = {"at": _now_iso(), "ok": False, "en_vivo": False}
     c = cred_activa("tripo")
     if c is None:
-        lec.update(motivo="sin_clave", texto="saldo no disponible — falta guardar la clave en Ajustes → APIs")
+        lec.update(motivo="sin_clave", texto="saldo no disponible — falta guardar la clave en Modelos → Claves de API")
         _TRIPO["lectura"] = lec
         return lec
     lec.update(cuenta=c["cuenta"], etiqueta=c["etiqueta"], ultimos4=c["ultimos4"], base_url=c["base_url"])
@@ -3923,13 +3923,13 @@ def tripo_leer_saldo(manual=False):
         lec.update(motivo="invalida", http=rech.get("http"),
                    texto=f"clave inválida o revocada ({rech.get('http') or 401}, visto el "
                          f"{_tripo_fecha(rech.get('at'))}): no se vuelve a intentar sola. Cámbiala en "
-                         "Ajustes → APIs o pulsa «Volver a leer».")
+                         "Modelos → Claves de API o pulsa «Volver a leer».")
         _TRIPO["lectura"] = lec
         return lec
     key = cred_clave(c["cuenta"])
     if not key:
         lec.update(motivo="sin_clave", texto=f"saldo no disponible — la clave {quien} está en la lista pero no "
-                                             f"en el almacén ({cred_via()}): vuelve a guardarla en Ajustes → APIs")
+                                             f"en el almacén ({cred_via()}): vuelve a guardarla en Modelos → Claves de API")
         _TRIPO["lectura"] = lec
         return lec
     log(f"tripo: leyendo el saldo de {quien} -> GET {host}/v3/account/balance (solo lectura, no gasta)")
@@ -3959,7 +3959,7 @@ def tripo_leer_saldo(manual=False):
     elif r.get("http") == 401 or r.get("codigo") in (1000, 1001):
         lec.update(motivo="invalida", http=r.get("http") or 401,
                    texto=f"clave inválida o revocada ({r.get('http') or 401}): no se vuelve a intentar sola. "
-                         "Cámbiala en Ajustes → APIs o pulsa «Volver a leer».")
+                         "Cámbiala en Modelos → Claves de API o pulsa «Volver a leer».")
         s["tripo_clave_rechazada"] = {"cuenta": c["cuenta"], "ultimos4": c["ultimos4"], "at": lec["at"],
                                       "http": r.get("http") or 401}
         save_settings(s)
@@ -3999,7 +3999,7 @@ def tripo_estado():
         st["problema"] = lec.get("texto")
         st["motivo"] = lec.get("motivo")
     elif c is None:
-        st["problema"] = "saldo no disponible — falta guardar la clave en Ajustes → APIs"
+        st["problema"] = "saldo no disponible — falta guardar la clave en Modelos → Claves de API"
         st["motivo"] = "sin_clave"
     refs = s.get("tripo_saldo_ref") if isinstance(s.get("tripo_saldo_ref"), dict) else {}
     ref = refs.get(c["cuenta"]) if c and isinstance(refs.get(c["cuenta"]), dict) else None
@@ -4123,7 +4123,7 @@ def test_api(provider):
         return False, "proveedor desconocido"
     c = cred_activa(provider)
     if c is None:
-        return False, "falta la clave (ninguna activa en Ajustes → Claves)"
+        return False, "falta la clave (ninguna activa en Modelos → Claves de API)"
     return cred_probar(c["cuenta"])
 
 
@@ -4145,7 +4145,7 @@ def _run_api(task):
     key, cred = api_cred(provider)
     puede = cred_puede_usar(cred["cuenta"]) if cred and key else None
     if cred is None:
-        result["error"] = f"no hay ninguna clave activa de {info['label']} (Ajustes → Claves)"
+        result["error"] = f"no hay ninguna clave activa de {info['label']} (Modelos → Claves de API)"
     elif not key:
         result["error"] = (f"la clave activa «{cred['etiqueta']}» de {info['label']} no está en el "
                            f"almacén ({cred_via()})")
@@ -4479,8 +4479,10 @@ def validate_task(data, f3=None):
         liberar_vram = "despues"
     if liberar_vram not in (None, False, "antes", "despues"):
         return None, 'liberar_vram debe ser true, "antes" o "despues"'
+    motor_asis = None
     if motor is None and model is None and asis is not None:
         motor = asis_motor_tarea(asis)  # el modelo por defecto del asistente (None: el de siempre)
+        motor_asis = motor
     if motor == AUTO or (motor is None and model is None and global_auto()):
         # Modo Automatico: reglas de engines.json -> router ($0, sin modelo).
         crit0 = data.get("criterios")
@@ -4496,6 +4498,13 @@ def validate_task(data, f3=None):
         # Ronda o fase de una tarea Automatica: hereda la eleccion, no se re-enruta.
         e = data["enrutado"]
         enrutado = {"elegido": str(e["elegido"])[:40], "motivo": str(e.get("motivo") or "")[:400]}
+    if enrutado is None and (motor is None or motor == motor_asis):
+        # El motor propio de la cuenta (P5) manda sobre el del
+        # asistente y sobre el del programa; no sobre el de la
+        # tarea ni sobre el router Automático.
+        _motor_cuenta = _motor_de_cuenta_tarea(data)
+        if _motor_cuenta:
+            motor = _motor_cuenta
     if motor is None:
         # Forma vieja: "model": "<motor>:<modelo>" (p. ej. "ollama:default")
         # -> ese motor; "api:..." -> APIs; sin nada -> el de por defecto.
@@ -4505,7 +4514,7 @@ def validate_task(data, f3=None):
         elif pref and pref in engine_ids():
             motor, model = pref, model.split(":", 1)[1]
         else:
-            motor = default_motor()
+            motor = _motor_o_defecto(data)
     if not isinstance(motor, str) or not _safe_id(motor):
         return None, f"motor invalido: {motor}"
     eng = get_engine(motor)
@@ -5518,10 +5527,10 @@ def resolver_credencial(ref):
             return secret, c["base_url"], "guardada"
         if not any(p == ref["proveedor"] for p, _e in credenciales_guardadas()):
             return None, None, (f"sin credencial: no hay ninguna clave de {ref['proveedor']} guardada "
-                                "(Ajustes → Claves)")
+                                "(Modelos → Claves de API)")
         if any(c["proveedor"] == ref["proveedor"] for c in cred_lista()):
             return None, None, (f"sin credencial: ninguna clave de {ref['proveedor']} está activa "
-                                "(Ajustes → Claves → «Usar esta»)")
+                                "(Modelos → Claves de API → «Usar esta»)")
     fn = _CRED_BACKEND.get("leer") or _wincred_read
     etq = credencial_activa(ref)
     secret, extra = fn(_cred_target(ref["proveedor"], etq))
@@ -5685,6 +5694,129 @@ def sesion_cli_caducada(eng, motivo):
         _SESION_CLI[mid] = {"t": time.time(), "ok": False, "motivo": motivo}
 
 
+def _clave_motor_cuenta(eng):
+    """La clave PROPIA de la cuenta en curso para este motor, si la
+    tiene: bóveda «motor:<cuenta>:<motor>» (P5). La cuenta sale de
+    _ENV_TAREA (la fila de la cola, nunca del payload). None si no
+    hay cuenta en curso o no tiene clave propia."""
+    try:
+        cid = _ENV_TAREA.get("GROWI_CUENTA_ID")
+        mid = (eng or {}).get("id")
+        if not cid or not mid:
+            return None
+        v = _sec_get(f"motor:{cid}:{mid}")
+        return v.strip() if v else None
+    except Exception:
+        return None
+
+
+def resolver_credencial_motor(eng):
+    """(clave, base_url, motivo) de un motor en la tarea en curso:
+    primero la clave propia de la cuenta (motor:<cuenta>:<motor>);
+    si no tiene, la credencial general del motor, como siempre."""
+    propia = _clave_motor_cuenta(eng)
+    if propia:
+        return propia, (eng or {}).get("base_url"), "clave propia de la cuenta"
+    cr = (eng or {}).get("credencial_ref")
+    if not cr:
+        return None, None, ""
+    return resolver_credencial(cr)
+
+
+def _motor_de_cuenta_tarea(data):
+    """El motor propio de la cuenta declarada en la tarea (P5), solo
+    si esa cuenta es la de ESTE carril — la misma regla que cierra
+    las tareas de otra cuenta —; None en cualquier otro caso."""
+    try:
+        cid = (data or {}).get("cuenta")
+        if cid and cid == _cuenta_de_este_carril():
+            import cuentas as _cm5c
+            propio = _cm5c.motor_de(_cuentas_reg(), cid)
+            if propio and get_engine(propio) is not None:
+                return propio
+    except Exception:
+        pass
+    return None
+
+
+def _motor_o_defecto(data):
+    """El motor cuando la tarea no pide ninguno (último resorte de
+    validate_task): el de su cuenta si lo tiene; si no, el del
+    programa."""
+    return _motor_de_cuenta_tarea(data) or default_motor()
+
+
+def _motor_para_tarea(task):
+    """El motor de una tarea: el que pida la tarea; si no, el motor
+    propio de la cuenta en curso (P5); si no, el del programa."""
+    m = task.get("motor")
+    if m:
+        return m
+    try:
+        cid = _ENV_TAREA.get("GROWI_CUENTA_ID") or task.get("cuenta")
+        if cid:
+            import cuentas as _cm5
+            propio = _cm5.motor_de(_cuentas_reg(), cid)
+            if propio and get_engine(propio) is not None:
+                return propio
+    except Exception:
+        pass
+    return default_motor()
+
+
+def _f5_motor_de_cuenta(cid):
+    """El motor propio de una cuenta, para el reparto (P5)."""
+    try:
+        import cuentas as _cm5b
+        return _cm5b.motor_de(_cuentas_reg(), cid)
+    except Exception:
+        return None
+
+
+def _f5_motores_texto():
+    """Los ids de motor marcados «solo_texto» en engines.json (P5)."""
+    try:
+        motores = load_engines()[0].get("motores") or {}
+        return {mid for mid, f in motores.items()
+                if isinstance(f, dict) and f.get("solo_texto")}
+    except Exception:
+        return set()
+
+
+def _mcp_detectados():
+    """Nombres de servidores MCP configurados en este PC (P5): se
+    miran los archivos habituales (Claude Code: ~/.claude.json, las
+    claves «mcpServers» de la raíz y de cada proyecto; y un
+    mcp_servers.json junto a la app). SOLO se leen los nombres: esos
+    archivos pueden guardar claves dentro de la configuración de
+    cada servidor y eso no se toca."""
+    nombres = set()
+    try:
+        cj = Path.home() / ".claude.json"
+        if cj.is_file():
+            d = json.loads(cj.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                ms = d.get("mcpServers")
+                if isinstance(ms, dict):
+                    nombres.update(ms.keys())
+                for proy in (d.get("projects") or {}).values():
+                    if isinstance(proy, dict) and \
+                            isinstance(proy.get("mcpServers"), dict):
+                        nombres.update(proy["mcpServers"].keys())
+    except Exception:
+        pass
+    try:
+        msf = APP_DIR / "mcp_servers.json"
+        if msf.is_file():
+            d = json.loads(msf.read_text(encoding="utf-8"))
+            ms = (d or {}).get("mcpServers") if isinstance(d, dict) else None
+            if isinstance(ms, dict):
+                nombres.update(ms.keys())
+    except Exception:
+        pass
+    return sorted(n for n in nombres if isinstance(n, str) and n)
+
+
 def acceso_motor(eng, fresca=False):
     """Como entra este motor: {"modo": "sesion_cli" | "clave" | None,
     "ok": bool, "motivo": str}. Sin autenticacion en el descriptor: la clave
@@ -5695,7 +5827,7 @@ def acceso_motor(eng, fresca=False):
     if not au.get("sesion_cli"):
         if not cr:
             return {"modo": None, "ok": True, "motivo": ""}
-        key, _b, why = resolver_credencial(cr)
+        key, _b, why = resolver_credencial_motor(eng)
         return {"modo": "clave", "ok": bool(key), "motivo": "clave guardada" if key else why}
     orden = au.get("preferencia") or ["sesion_cli", "clave"]
     motivos = []
@@ -5706,7 +5838,7 @@ def acceso_motor(eng, fresca=False):
                 return {"modo": "sesion_cli", "ok": True, "motivo": why}
             motivos.append(why)
         elif modo == "clave" and cr:
-            key, _b, why = resolver_credencial(cr)
+            key, _b, why = resolver_credencial_motor(eng)
             if key:
                 return {"modo": "clave", "ok": True, "motivo": f"clave {cred_texto(cr)} guardada"}
             motivos.append(why)
@@ -5732,7 +5864,7 @@ def _engine_env(eng):
             if var:
                 env.pop(str(var), None)
     elif como.get("entorno") and eng.get("credencial_ref"):
-        key, _b, _m = resolver_credencial(eng["credencial_ref"])
+        key, _b, _m = resolver_credencial_motor(eng)
         if key:
             env[str(como["entorno"])] = key
     # Fase 3 (§6.2 paso 0): el entorno de TODO motor sale sin credenciales
@@ -6782,6 +6914,10 @@ def engine_status_rt(eng, autostart=False):
         extra = f"; {acc['motivo']}" if acc and acc["modo"] == "sesion_cli" else ""
         return True, f"binario: {b[-1]}{extra}"
     if tipo == "api_sincrona":
+        if eng.get("credencial_ref") and not eng.get("servidor"):
+            # API en internet (P5: DeepSeek/Kimi): no hay servidor
+            # local que comprobar; la credencial ya se validó arriba.
+            return True, "clave guardada"
         if eng.get("servidor"):
             if autostart:
                 return _llama_ensure(eng)
@@ -6819,7 +6955,7 @@ def engine_status_rt(eng, autostart=False):
             return True, "clave guardada"
         if eng.get("clave_api"):  # forma v1
             return (True, "clave guardada") if _named_api_key(eng.get("clave_api")) else (
-                False, f"falta la clave en APIs (ponle de nombre '{eng.get('clave_api')}')")
+                False, f"falta la clave en Modelos → Claves de API (ponle de nombre '{eng.get('clave_api')}')")
         return False, "falta credencial_ref en el descriptor"
     return False, f"tipo de motor desconocido en engines.json: {tipo}"
 
@@ -7565,6 +7701,27 @@ def _local_model(eng, task):
     return m
 
 
+def _http_api_remota(eng, body, timeout):
+    """POST a una API en internet (P5: DeepSeek/Kimi): la clave sale
+    de resolver_credencial_motor (la propia de la cuenta si la hay;
+    si no, la general) y viaja en la cabecera que diga la ficha; si
+    la clave activa trae otra base_url, la llamada va a esa base.
+    Los errores llegan con la clave tapada (_http_inet la limpia)."""
+    key, base, why = resolver_credencial_motor(eng)
+    if not key:
+        raise LocalCallError(why or "sin credencial")
+    como = eng.get("credencial_como") if isinstance(eng.get("credencial_como"), dict) else {}
+    hdr = {"Content-Type": "application/json", "User-Agent": "GrowiBridge"}
+    hdr[str(como.get("cabecera") or "Authorization")] = str(
+        como.get("formato") or "Bearer {clave}").replace("{clave}", key)
+    url = str(eng.get("url") or "")
+    ficha_base = str(eng.get("base_url") or "").rstrip("/")
+    if base and ficha_base and url.startswith(ficha_base) and \
+            base.rstrip("/") != ficha_base:
+        url = base.rstrip("/") + url[len(ficha_base):]
+    return _http_inet("POST", url, body, hdr, timeout, key)
+
+
 def _run_http_engine(task, motor_id, eng, result, prompt, for_review=False):
     """Motor HTTP local (llama-server, Ollama): un POST con stream:false. La
     sesion es un historial guardado en sesiones/<session_id>.json."""
@@ -7623,7 +7780,10 @@ def _run_http_engine(task, motor_id, eng, result, prompt, for_review=False):
                 log(f"runner [{task['id']}]: {name} no contestó en streaming ({e}); lo repito sin streaming")
                 live_set(rol, nota="el motor no contestó en streaming; tokens al cerrar")
         if fuente is None:
-            data = _http_local("POST", eng["url"], body, timeout=timeout, track=True)
+            if eng.get("credencial_ref"):
+                data = _http_api_remota(eng, body, timeout)
+            else:
+                data = _http_local("POST", eng["url"], body, timeout=timeout, track=True)
             text = _get_path(data, sal.get("texto"))
             tin, tout = _first_num(data, sal.get("uso_in")), _first_num(data, sal.get("uso_out"))
             fuente = "al cerrar"
@@ -7695,7 +7855,7 @@ def _run_async_engine(task, motor_id, eng, result, prompt):
     else:  # forma v1
         key = _named_api_key(eng.get("clave_api"))
         if not key:
-            result["error"] = (f"motor {motor_id} no disponible: falta la clave en APIs "
+            result["error"] = (f"motor {motor_id} no disponible: falta la clave en Modelos → Claves de API "
                                f"(ponle de nombre '{eng.get('clave_api')}')")
             return
     hdr = {"Content-Type": "application/json", "User-Agent": "GrowiBridge"}
@@ -7758,7 +7918,7 @@ def run_engine(task, prompt=None, eng=None):
     """Corre una tarea con su motor, leyendo SOLO su descriptor (eng: un
     descriptor ya traducido que aun no esta en engines.json, para la prueba
     de «Nuevo motor»)."""
-    motor_id = task.get("motor") or default_motor()
+    motor_id = _motor_para_tarea(task)
     result = _base_result(task, motor_id)
     result.update(_auto_fields(task.get("enrutado")))
     t0 = time.time()
@@ -7798,7 +7958,7 @@ def run_engine(task, prompt=None, eng=None):
         # La clave solo vive en el entorno del proceso: si el motor la repite
         # en su salida, aqui se tapa (quedan los 4 ultimos).
         try:
-            key = resolver_credencial(eng["credencial_ref"])[0]
+            key = resolver_credencial_motor(eng)[0]
         except Exception:
             key = None
         for k in ("result", "stderr", "error"):
@@ -8096,7 +8256,7 @@ def tripo_generar(tipo, calidad, prompt="", fotos=None, timeout_min=30, cada_s=5
     que Leandro vio el costo y pulso «Generar» en el dialogo de confirmacion."""
     c = cred_activa("tripo")
     if c is None:
-        return {"estado": "no_lanzada", "error": "falta guardar la clave en Ajustes → APIs"}
+        return {"estado": "no_lanzada", "error": "falta guardar la clave en Modelos → Claves de API"}
     antes = tripo_leer_saldo()
     if antes.get("motivo") in ("invalida", "sin_clave"):
         return {"estado": "no_lanzada", "error": antes.get("texto")}
@@ -8399,7 +8559,7 @@ def ficha_motor(motor_id, vivo=False):
         s_ok, s_why = _sesion_cli(eng)
         rows.append(("Acceso", ("por " + (sc.get("nombre") or "la sesión del programa") + ", sin clave"
                                 if acc["modo"] == "sesion_cli" else
-                                f"por clave {cred_texto(cr)} (Ajustes → Claves)" if acc["modo"] == "clave"
+                                f"por clave {cred_texto(cr)} (Modelos → Claves de API)" if acc["modo"] == "clave"
                                 else "ninguno: sin sesión del programa ni clave guardada"),
                      "ok" if acc["ok"] else "mal"))
         det = sesion_cli_detalle(eng)
@@ -8409,7 +8569,7 @@ def ficha_motor(motor_id, vivo=False):
         if cr:
             key, _b, cwhy = resolver_credencial(cr)
             rows.append(("Clave (alternativa)", f"{cred_texto(cr)}: " + (
-                "guardada (la activa de Ajustes → Claves)" if key else "sin clave guardada (no hace falta "
+                "guardada (la activa de Modelos → Claves de API)" if key else "sin clave guardada (no hace falta "
                 "si la sesión del programa está iniciada)"), "ok" if key else None))
     elif cr:
         key, _b, cwhy = resolver_credencial(cr)
@@ -16136,7 +16296,9 @@ def _f4_encargo_hilo(task_file, data, cid):
         # La asignación queda escrita ANTES de entregar nada (§3.4).
         _rl4.asignar(base, raiz, plan, _tablero_vista(), _cuentas_reg(),
                      _f4_activas_por_cuenta(), plan_tipo=tipo_plan,
-                     fuertes_fn=_f4_fuertes_fn())
+                     fuertes_fn=_f4_fuertes_fn(),
+                     motor_fn=_f5_motor_de_cuenta,
+                     motores_texto=_f5_motores_texto())
         _f4_aviso("division_hecha",
                   f"Encargo {raiz} dividido en {len(plan)} subtarea(s) "
                   f"(plan {tipo_plan})",
@@ -22670,7 +22832,7 @@ def _avail_action(rid, act):
     elif act == "descargar" and show:
         show("modelos")
     elif act == "clave" and show:
-        show("apis")
+        show("modelos")
     elif act == "avanzado":
         _toggle_px_advanced(True)
     elif act == "porque":
@@ -22694,8 +22856,8 @@ def _use_engine_for(rid):
         if fila.get("motor") and engine_status(fila["motor"])[0]:
             s["default_engine"] = f"motor:{fila['motor']}"
         elif not api_key_for(prov):
-            messagebox.showinfo("Falta tu clave", "Pon tu clave en APIs y vuelve a pulsar Usar.")
-            _widgets["show_page"]("apis")
+            messagebox.showinfo("Falta tu clave", "Pon tu clave en Modelos → Claves de API y vuelve a pulsar Usar.")
+            _widgets["show_page"]("modelos")
             return
         else:
             s["default_engine"] = f"api:{prov}:{api_model_for(prov)}"
@@ -23501,7 +23663,7 @@ def _ob_run_checks():
                 ok, why = test_api(prov)
                 txt = "Tu clave funciona." if ok else f"La clave no funcionó: {why}"
             else:
-                ok, txt = False, "Falta tu clave: ponla en APIs (no bloquea nada)."
+                ok, txt = False, "Falta tu clave: ponla en Modelos → Claves de API (no bloquea nada)."
         else:
             which = "codex" if model == "motor:codex" else "claude"
             v = _cli_version(which)
@@ -29168,6 +29330,60 @@ def _nm_done(mid, res, ok, msg):
             pass
 
 
+def _build_modelos_extra(tab):
+    """La parte unificada de Modelos (P5): las claves de API (la
+    vieja página «APIs», que ya no existe como página), el estado
+    del CLI de Gemini y los servidores MCP detectados. Se dibuja
+    tras _build_models_page, en la misma página."""
+    tk.Label(tab, text="Claves de API", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    tk.Label(tab, text="Tus claves de API: varias por proveedor, cada una con su URL base y una "
+                       "activa por proveedor. Se guardan cifradas en este PC, nunca en texto "
+                       "plano. Añadir o reemplazar una clave es solo esto; antes vivía en la "
+                       "página «APIs».",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+    _build_claves(tab, "modelos")
+    tk.Label(tab, text="CLI de Gemini", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    tk.Label(tab, text="El programa de Gemini para este PC (Antigravity, «agy»): el motor "
+                       "Gemini lo usa para responder. Aquí ves si está instalado y si puede "
+                       "entrar; la comprobación no gasta nada.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 6))
+    lbl_gem = tk.Label(tab, text="", font=(FONT, 11), bg=THEME["bg"],
+                       fg=THEME["text"], justify="left", wraplength=S(600))
+    lbl_gem.pack(anchor="w", padx=20, pady=(0, 4))
+
+    def _refrescar_gemini():
+        try:
+            ok, why = engine_status("gemini")
+            lbl_gem.config(text=f"Gemini (Antigravity CLI): "
+                                f"{'disponible' if ok else 'no disponible'} — {why}")
+        except Exception as e:
+            lbl_gem.config(text=f"Gemini (Antigravity CLI): no se pudo "
+                                f"comprobar ({type(e).__name__})")
+
+    tk.Button(tab, text="Comprobar el CLI de Gemini", font=(FONT, 11),
+              command=_refrescar_gemini,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(anchor="w", padx=20, pady=(0, 8))
+    _refrescar_gemini()
+    tk.Label(tab, text="MCP", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
+    tk.Label(tab, text="Los servidores MCP (herramientas que se enchufan a programas como "
+                       "Claude Code o el CLI de Gemini) no los guarda Growi: cada programa "
+                       "guarda los suyos en su propia configuración. Aquí ves los que se "
+                       "detectan en este PC, solo los nombres (nunca sus claves).",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
+             wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 6))
+    nombres = _mcp_detectados()
+    tk.Label(tab, text=("Servidores MCP detectados: " + ", ".join(nombres)) if nombres
+             else "No se detecta ningún servidor MCP en este PC.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["text"],
+             justify="left", wraplength=S(600)).pack(anchor="w", padx=20, pady=(0, 12))
+
+
 def _build_models_page(tab):
     bg, cbg = THEME["bg"], THEME["card"]
     tk.Label(tab, text="Modelos", font=(FONT, 22, "bold"), bg=bg,
@@ -29605,7 +29821,7 @@ def _build_tripo_con(k):
     W = _widgets
     _TRIPO["kit"] = k
     card = k.section("Saldo Tripo",
-                     "Créditos de Tripo (el motor 3D) de tu clave activa en Ajustes → APIs. Leer el saldo no "
+                     "Créditos de Tripo (el motor 3D) de tu clave activa en Modelos → Claves de API. Leer el saldo no "
                      "gasta nada: es una consulta de solo lectura. 1 crédito = $0,01.")
     r = k.row(card, pady=(6, 2))
     W["tp_creditos"] = k.title(r, "—")
@@ -29876,7 +30092,7 @@ def _tripo_dlg_pintar():
     c = st["clave"]
     puede, motivo = True, ""
     if c is None or st.get("motivo") in ("sin_clave", "invalida"):
-        puede, motivo = False, st.get("problema") or "saldo no disponible — falta guardar la clave en Ajustes → APIs"
+        puede, motivo = False, st.get("problema") or "saldo no disponible — falta guardar la clave en Modelos → Claves de API"
     elif quedan < 0 and st["en_vivo"]:
         puede, motivo = False, (f"No alcanza: tienes {_tripo_num(st['creditos'])} créditos y esta generación "
                                 f"cuesta ~{_tripo_num(est['creditos'])}. Recarga en Tripo (ronda {TRIPO_RECARGA_TXT}).")
@@ -31016,7 +31232,7 @@ _ATAJO_SISTEMA = {
 }
 # Las fijas de dentro de Bridge (no se cambian desde Atajos).
 _ATAJO_FIJOS = {**{f"Ctrl + {i}": f"Ir a {p}" for i, p in enumerate(
-    ("Recursos", "Cuentas", "Chat", "Modelos", "APIs", "Skills", "Tareas", "Ajustes",
+    ("Recursos", "Cuentas", "Chat", "Modelos", "Skills", "Tareas", "Ajustes",
      "Carpetas"))},
     **{f"Alt + {i}": f"elegir la fila {i} de la paleta" for i in range(1, 10)},
     "Ctrl + C": "copiar", "Ctrl + V": "pegar", "Ctrl + X": "cortar",
@@ -32239,7 +32455,7 @@ def cmdia_validar(d, donde="el comando"):
     for tipo, rx in _SECRETO_RES:
         if rx.search(prompt) or rx.search(titulo):
             return None, (f"«{titulo.strip()}» lleva algo que parece una clave ({tipo}). Las claves no van en "
-                          "los comandos (viven en Ajustes → Claves): este comando no se carga.")
+                          "los comandos (viven en Modelos → Claves de API): este comando no se carga.")
     icono = d.get("icono") or "texto"
     if icono not in [k for k, _g, _n in CMDIA_ICONOS]:
         return None, (f"«{titulo.strip()}»: el icono «{icono}» no existe. Vale uno de: "
@@ -33698,7 +33914,7 @@ def asis_validar(meta, cuerpo, aid):
         prob.append("no tiene instrucciones: van debajo del segundo «---», en palabras normales")
     hall = skill_escanear_secretos((cuerpo or "") + "\n" + "\n".join(str(v) for v in meta.values()), aid)
     if hall:
-        prob.append(f"lleva algo que parece una clave ({hall[0]['tipo']}): las claves viven en Ajustes → Claves, "
+        prob.append(f"lleva algo que parece una clave ({hall[0]['tipo']}): las claves viven en Modelos → Claves de API, "
                     "nunca en un perfil")
     if prob:
         return None, prob, av
@@ -35542,6 +35758,10 @@ def _build_cuentas(tab):
             _refrescar_fuertes()
         except Exception:
             pass
+        try:
+            _refrescar_motores()
+        except Exception:
+            pass
 
     def _al_elegir(_e=None):
         sel = lista.curselection()
@@ -35841,6 +36061,130 @@ def _build_cuentas(tab):
               cursor="hand2", padx=10, pady=3).pack(side="left")
     lista.bind("<<ListboxSelect>>",
                lambda _e=None: _refrescar_fuertes(), add="+")
+    # -- Motor de cada cuenta (Growi Private MQTT, P5) --------------------
+    tk.Label(tab, text="Motor de cada cuenta", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(14, 2))
+    tk.Label(tab, text="Cada cuenta puede tener su propio motor (el programa "
+                       "que la responde): por ejemplo, una con Claude y otra "
+                       "con DeepSeek o Kimi. Si una cuenta no tiene motor "
+                       "propio, usa el del programa. Los motores de API como "
+                       "DeepSeek y Kimi son SOLO de texto: sirven para "
+                       "planificar, responder y revisar, pero no ejecutan "
+                       "fases de código (el reparto lo sabe y no se las da). "
+                       "Cada cuenta puede tener además SU clave para su "
+                       "motor, guardada en la bóveda: si la tiene, se usa la "
+                       "suya; si no, la clave general del proveedor.",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    lbl_motores = tk.Label(tab, text="", font=(FONT, 10), bg=THEME["bg"],
+                           fg=THEME["text"], justify="left",
+                           wraplength=S(640))
+    lbl_motores.pack(anchor="w", padx=28, pady=(0, 8))
+    fmo = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    fmo.pack(fill="x", padx=28, pady=(0, 8))
+    var_motor = tk.StringVar(value="(el del programa)")
+    var_clave_motor = tk.StringVar()
+    tk.Label(fmo, text="Motor de la cuenta elegida", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"]).grid(
+                 row=0, column=0, padx=(14, 6), pady=(8, 4), sticky="w")
+    _motores_menu = tk.OptionMenu(fmo, var_motor, "(el del programa)",
+                                  *engine_ids())
+    _motores_menu.config(font=(FONT, 11), bg=THEME["card"], bd=1,
+                         relief="solid", highlightthickness=0, anchor="w")
+    _motores_menu.grid(row=0, column=1, padx=(0, 14), pady=(8, 4), sticky="ew")
+    tk.Label(fmo, text="Su clave para ese motor (a la bóveda, no se "
+                       "vuelve a mostrar)", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"]).grid(
+                 row=1, column=0, padx=(14, 6), pady=(0, 4), sticky="w")
+    tk.Entry(fmo, textvariable=var_clave_motor, font=(FONT, 11), bd=1,
+             relief="solid", show="•").grid(
+                 row=1, column=1, padx=(0, 14), pady=(0, 8), sticky="ew")
+    fmo.columnconfigure(1, weight=1)
+
+    def _refrescar_motores():
+        reg = estado.get("reg") or {}
+        lineas = []
+        for c in reg.get("cuentas", []):
+            m = _c.motor_de(reg, c["id"])
+            extra = ""
+            if m:
+                try:
+                    extra = (" · clave propia: sí"
+                             if _sec_get(f"motor:{c['id']}:{m}")
+                             else " · clave propia: no (usa la general)")
+                except Exception:
+                    extra = ""
+            lineas.append(f"{c['nombre']}: {m or 'el del programa'}{extra}")
+        lbl_motores.config(text="\n".join(lineas))
+        c = _cuenta_sel()
+        if c:
+            var_motor.set(_c.motor_de(reg, c["id"]) or "(el del programa)")
+
+    def _guardar_motor():
+        c = _cuenta_sel()
+        if not c:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        elegido = var_motor.get()
+        motor = None if elegido == "(el del programa)" else elegido
+        if motor is not None and motor not in engine_ids():
+            _decir(f"Ese motor no existe: {motor}.")
+            return
+        reg = _c.cargar(APP_DIR, carril=LANE)
+        cuentas_lista = []
+        for x in reg.get("cuentas", []):
+            x = dict(x)
+            if x.get("id") == c["id"]:
+                if motor:
+                    x["motor"] = motor
+                else:
+                    x.pop("motor", None)
+            cuentas_lista.append(x)
+        try:
+            _c.guardar(APP_DIR, _salida_registro(reg, cuentas_lista))
+        except _c.ErrorRegistro as e:
+            _decir(f"No se guardó: {e}")
+            return
+        _refrescar()
+        _decir(f"Motor de «{c['nombre']}»: "
+               f"{motor or 'el del programa'}.")
+
+    def _guardar_clave_motor():
+        c = _cuenta_sel()
+        if not c:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        motor = _c.motor_de(estado.get("reg") or {}, c["id"])
+        if not motor:
+            _decir("Esa cuenta no tiene motor propio: elige primero su "
+                   "motor y pulsa «Guardar motor».")
+            return
+        valor = var_clave_motor.get().strip()
+        if not valor:
+            _decir("Escribe primero la clave de su motor.")
+            return
+        try:
+            _sec_set(f"motor:{c['id']}:{motor}", valor)
+        except Exception as e:
+            _decir(f"La clave no entró en la bóveda ({type(e).__name__}).")
+            return
+        var_clave_motor.set("")
+        _refrescar()
+        _decir(f"Clave del motor {motor} de «{c['nombre']}» guardada en "
+               "la bóveda. No se vuelve a mostrar.")
+
+    fila_mo = tk.Frame(tab, bg=THEME["bg"])
+    fila_mo.pack(anchor="w", padx=28, pady=(0, 8))
+    tk.Button(fila_mo, text="Guardar motor", font=(FONT, 11),
+              command=_guardar_motor,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
+    tk.Button(fila_mo, text="Guardar la clave de su motor", font=(FONT, 11),
+              command=_guardar_clave_motor,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left")
+    lista.bind("<<ListboxSelect>>",
+               lambda _e=None: _refrescar_motores(), add="+")
 
     # -- Broker MQTT (Growi Private MQTT, P2) ------------------------------
     tk.Label(tab, text="Broker MQTT", font=(FONT, 16, "bold"),
@@ -37478,7 +37822,7 @@ def build_gui():
                 btn._bar.config(bg=THEME["sidebar"])
         if name == "modelos":
             _on_models_open()
-        if name in ("ajustes", "apis"):
+        if name in ("ajustes", "apis", "modelos"):
             _claves_abrir(name)
         if name == "ajustes":
             tema_al_abrir_ajustes()
@@ -37508,7 +37852,7 @@ def build_gui():
     # quedan construidas pero inalcanzables); Carpetas baja; Registro solo
     # si el ajuste mostrar_registro esta activo (reactivable desde la paleta).
     _nav_paginas = [("cuentas", "Cuentas"), ("chat", "Sala"), ("modelos", "Modelos"),
-                    ("apis", "APIs"), ("skills", "Skills"), ("tareas", "Tareas"),
+                    ("skills", "Skills"), ("tareas", "Tareas"),
                     ("recursos", "Recursos"), ("ajustes", "Ajustes"),
                     ("carpetas", "Carpetas")]
     if load_settings().get("mostrar_registro"):
@@ -37854,23 +38198,11 @@ def build_gui():
     ttk.Button(tab4, text="Abrir carpeta de sesiones",
                command=lambda: open_folder(SCREENS)).pack(anchor="w", padx=20, pady=2)
 
-    # ================= pagina APIs
-    # La pantalla vieja (una fila por servicio, apis.json) queda sustituida por
-    # el modelo por clave: es la misma superficie que Ajustes -> Claves y se
-    # dibuja la primera vez que se abre la pagina (no suma al arranque).
-    tab5 = pages["apis"]
-    tk.Label(tab5, text="APIs", font=(FONT, 22, "bold"),
-             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=20, pady=(18, 2))
-    tk.Label(tab5, text="Tus claves de API: varias por proveedor, cada una con su URL base y una "
-             "activa por proveedor. Se guardan cifradas en este PC (Administrador de credenciales de "
-             "Windows o, si no se puede, un archivo cifrado con DPAPI), nunca en texto plano. Es lo "
-             "mismo que Ajustes → Claves.",
-             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"],
-             wraplength=S(600), justify="left").pack(anchor="w", padx=20, pady=(0, 10))
-    _build_claves(tab5, "apis")
-
-    # ================= pagina Modelos
+    # ================= pagina Modelos (unificada en P5: los modelos,
+    # las claves de API — la vieja pagina «APIs» ya no existe —, el CLI
+    # de Gemini y el MCP detectado, todo en esta pagina)
     _build_models_page(pages["modelos"])
+    _build_modelos_extra(pages["modelos"])
 
     # ================= pagina Tareas
     _build_cuentas(pages["cuentas"])
@@ -38048,7 +38380,7 @@ def build_gui():
         "recursos": "recursos cpu ram gpu vram disco memoria procesos monitor cerrar matar",
     }
     _pal_paginas = [("cuentas", "Cuentas"), ("chat", "Sala"), ("modelos", "Modelos"),
-                    ("apis", "APIs"), ("skills", "Skills"), ("tareas", "Tareas"),
+                    ("skills", "Skills"), ("tareas", "Tareas"),
                     ("ajustes", "Ajustes"), ("carpetas", "Carpetas")]
     if load_settings().get("mostrar_registro"):
         _pal_paginas.append(("registro", "Registro"))
@@ -38421,7 +38753,7 @@ def main():
         n = migrar_apis_json()
         if n:
             log(f"claves: {n} clave(s) de apis.json pasadas al almacén ({cred_via()}); apis.json sigue ahí "
-                "hasta que lo borres en Ajustes → Claves")
+                "hasta que lo borres en Modelos → Claves de API")
     except Exception as e:
         log(f"claves: la migración de apis.json falló ({type(e).__name__}); apis.json no se tocó")
     # Fase 1 (Multi-Muse): secret.txt -> bóveda como cuenta «principal» y

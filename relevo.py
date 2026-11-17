@@ -448,8 +448,33 @@ def _elegir_por_puntos(vista_d, registro, activas_sim, spec, fuertes_fn,
     return cid, fuerte, skill, puntos
 
 
+def _es_fase_codigo(spec):
+    """La subtarea produce código: trae bloque git o archivos."""
+    return bool(spec.get("git")) or bool(spec.get("archivos"))
+
+
+def _excluidas_texto(spec, registro, motor_fn, motores_texto):
+    """Cuentas vetadas para ESTA subtarea (P5): su motor efectivo — el
+    de la subtarea o el propio de la cuenta, vía ``motor_fn`` — es solo
+    de texto y la fase es de código. Un motor de chat planifica,
+    responde y revisa, pero no ejecuta fases que producen código
+    (diseño de equipo, B5: sin un runner agéntico nombrado, fail-closed)."""
+    if not motores_texto or not _es_fase_codigo(spec):
+        return set()
+    out = set()
+    for c in (registro or {}).get("cuentas") or []:
+        if not isinstance(c, dict):
+            continue
+        efectivo = spec.get("motor") or (motor_fn(c.get("id"))
+                                          if motor_fn else None)
+        if efectivo and efectivo in motores_texto:
+            out.add(c.get("id"))
+    return out
+
+
 def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
-            plan_tipo=None, margen_fn=None, reloj=None, fuertes_fn=None):
+            plan_tipo=None, margen_fn=None, reloj=None, fuertes_fn=None,
+            motor_fn=None, motores_texto=None):
     """Asigna cada subtarea a una cuenta y lo deja escrito ANTES de que se
     entregue nada. Devuelve {sid: cuenta o None}.
 
@@ -460,7 +485,12 @@ def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
     Con ``fuertes_fn`` (P4) la elección usa la fórmula de puntos de
     ``_elegir_por_puntos`` y cada subtarea guarda `fuerte`,
     `skill_fuerte` y `puntos` para que el reparto sea explicable; sin
-    ella, la elección es la de siempre (tablero.elegir_cuenta)."""
+    ella, la elección es la de siempre (tablero.elegir_cuenta).
+
+    Con ``motor_fn`` + ``motores_texto`` (P5), las cuentas cuyo motor
+    efectivo es solo de texto quedan vetadas para las fases de código
+    (ver ``_excluidas_texto``); si el veto deja la fase sin nadie, el
+    motivo lo dice tal cual."""
     ahora = (reloj or time.time)()
     with _bloqueo(base_dir):
         datos = _cargar(base_dir)
@@ -483,29 +513,37 @@ def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
         for i, spec in enumerate(subtareas):
             sid = f"{raiz}-s{i + 1}"
             info_puntos = {}
+            vetadas = _excluidas_texto(spec, registro, motor_fn,
+                                       motores_texto)
             if fuertes_fn is not None:
                 elegida, f_, sk_, pt_ = _elegir_por_puntos(
-                    vista_sim, registro, sim, spec, fuertes_fn)
+                    vista_sim, registro, sim, spec, fuertes_fn,
+                    excluir=vetadas)
                 if elegida:
                     info_puntos = {"fuerte": f_, "skill_fuerte": sk_,
                                    "puntos": pt_}
             else:
-                elegida = _elegir(vista_sim, registro, sim)
+                elegida = _elegir(vista_sim, registro, sim,
+                                  excluir=vetadas)
             motivo = None
+            if elegida is None and vetadas and \
+                    _elegir(vista_sim, registro, sim):
+                motivo = ("la fase es de código y las cuentas "
+                          "candidatas tienen un motor solo de texto")
             if elegida and margen_fn is not None and spec.get("motor"):
                 margen = margen_fn(elegida, spec["motor"])
                 if margen is False:
                     if fuertes_fn is not None:
                         otra, f_, sk_, pt_ = _elegir_por_puntos(
                             vista_sim, registro, sim, spec, fuertes_fn,
-                            excluir={elegida})
+                            excluir={elegida} | vetadas)
                         if otra:
                             info_puntos = {"fuerte": f_,
                                            "skill_fuerte": sk_,
                                            "puntos": pt_}
                     else:
                         otra = _elegir(vista_sim, registro, sim,
-                                       excluir={elegida})
+                                       excluir={elegida} | vetadas)
                     if otra:
                         elegida = otra
                     else:

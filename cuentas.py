@@ -43,6 +43,11 @@ _RX_CLASE = re.compile(r"[a-z][a-z0-9_]{1,40}")
 # aquí (el registro no conoce el catálogo): lo valida la app al guardar
 # y, si un fuerte deja de existir, al repartir simplemente cuenta 0.
 _RX_FUERTE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+# Id de motor propio de una cuenta (P5): la forma de los ids de
+# engines.json. Que el motor EXISTA tampoco se valida aquí: lo valida
+# la app al guardar y, si deja de existir, la cuenta vuelve al motor
+# del programa.
+_RX_MOTOR = re.compile(r"[a-z0-9][a-z0-9_-]{0,40}")
 
 CUENTA_COMPAT = {
     "id": "principal",
@@ -53,6 +58,7 @@ CUENTA_COMPAT = {
     "habilitada": True,
     "creada": None,
     "fuertes": [],
+    "motor": None,
     "permisos": {"modo": "hereda", "clases_extra_denegadas": []},
 }
 
@@ -141,6 +147,10 @@ def validar(reg):
                 for f in fuertes:
                     if not isinstance(f, str) or not _RX_FUERTE.fullmatch(f):
                         errores.append(f"{cid}: fuerte inválido: {f!r}")
+        motor = c.get("motor")
+        if motor is not None and (not isinstance(motor, str)
+                                  or not _RX_MOTOR.fullmatch(motor)):
+            errores.append(f"{cid}: motor inválido: {motor!r}")
     return errores
 
 
@@ -270,6 +280,17 @@ def fuertes_de(reg, cuenta_id):
         if isinstance(f, str) and f and f not in out:
             out.append(f)
     return out
+
+
+def motor_de(reg, cuenta_id):
+    """El motor propio de una cuenta (P5): el id de engines.json que
+    usa cuando una tarea suya no pide otro. Campo opcional: sin campo
+    (o cuenta ausente) devuelve None = el motor del programa."""
+    c = cuenta(reg, cuenta_id)
+    if not c:
+        return None
+    m = c.get("motor")
+    return m if isinstance(m, str) and m else None
 
 
 def derivar_id(nombre, existentes):

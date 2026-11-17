@@ -25,10 +25,7 @@ la base de P1 y el de equipo lo es de P3 y P4.
 - **P2 · Cuentas con broker** — hecha (detalle abajo).
 - **P3 · La sala** — hecha (detalle abajo).
 - **P4 · Skills-plus** — hecha (detalle abajo).
-- **P5 · Modelos unificado** — Modelos absorbe APIs (añadir/reemplazar
-  clave), el CLI de Gemini, el MCP y la Librería de modelos locales.
-  Las APIs de Claude/ChatGPT/Llama las usa cada Muse directo en su
-  espacio; Growi solo guarda claves de modelos cuando aplica.
+- **P5 · Modelos unificado** — hecha (detalle abajo).
 - **P6 · Recursos con sliders y Tareas vivas** — Recursos resumido
   (consumo actual arriba, lectura de disco arreglada, sliders de
   núcleos/GB RAM/GB GPU sobre los topes absolutos existentes) y
@@ -288,3 +285,75 @@ la base de P1 y el de equipo lo es de P3 y P4.
   desplazamiento); el guardado queda probado por la misma vía de
   registro que usan los demás botones de la página y por las
   pruebas del módulo.
+
+## P5 · Lo hecho
+
+- **La página «APIs» ya no existe**: fuera del menú, de la paleta y
+  de los atajos (la lista de páginas y sus alias quedan consistentes,
+  que fue el fallo de la P0). Su contenido — las claves — se dibuja
+  ahora dentro de **Modelos** («Claves de API», la misma superficie
+  de siempre con su dibujo al abrir la página), y todos los textos
+  que mandaban a «Ajustes → Claves» o «Ajustes → APIs» dicen ahora
+  «Modelos → Claves de API». Los saltos internos que abrían la
+  página APIs (disponibilidad, «Usar» un motor) abren Modelos.
+- **CLI de Gemini en Modelos**: sección con el estado real del
+  programa de Gemini del PC (Antigravity, `agy`) — instalado o no y
+  si puede entrar — comprobado sin gastar con `engine_status`, y
+  botón para recomprobar. La Librería de modelos locales ya vivía
+  en Modelos y se queda donde estaba.
+- **MCP en Modelos, honesto**: Growi no guarda servidores MCP (cada
+  programa — Claude Code, el CLI de Gemini — guarda los suyos); la
+  sección lo dice en llano y muestra los detectados en el PC
+  leyendo SOLO los nombres de `~/.claude.json` (raíz y proyectos) y
+  de un `mcp_servers.json` junto a la app (`_mcp_detectados`: esos
+  archivos pueden guardar claves dentro de cada servidor y no se
+  tocan).
+- **Motor por cuenta** (lo que la P4 dejó aquí del diseño de
+  equipo §5): campo opcional `motor` en `cuentas.py` (forma
+  validada; la existencia la valida la app al guardar) y sección
+  «Motor de cada cuenta» en Cuentas: la línea de cada cuenta con su
+  motor y si tiene clave propia, el selector de la cuenta elegida
+  y su clave a la bóveda como `motor:<cuenta>:<motor>`.
+- **Orden de motores al validar una tarea**: el de la tarea > el
+  router Automático > **el propio de la cuenta** > el del asistente
+  > el del programa. La cuenta solo manda si la tarea declara esa
+  cuenta y es la de este carril (la misma regla que cierra las
+  tareas de otra cuenta).
+- **Fichas nuevas en `engines.json`: DeepSeek y Kimi**, APIs
+  compatibles con OpenAI marcadas `solo_texto: true`. El ejecutor
+  HTTP aprendió el camino de internet (`_http_api_remota`): con
+  `credencial_ref`, la llamada sale con su cabecera `Authorization`
+  y la base de la clave activa si trae otra; los motores locales
+  siguen por `_http_local` sin tocar. `engine_status` acepta la
+  API remota con la credencial válida como disponibilidad.
+- **Clave por cuenta de verdad**: `resolver_credencial_motor` —
+  primero la clave propia de la cuenta en curso
+  (`motor:<cuenta>:<motor>`, con la cuenta de `_ENV_TAREA`, nunca
+  del payload); si no hay, la general de siempre. Lo usan
+  `acceso_motor`, el entorno del motor y el limpiado de resultados
+  (una clave propia que el motor repita en su salida también se
+  tapa).
+- **Veto en el reparto**: `relevo.asignar` acepta `motor_fn` y
+  `motores_texto`; una fase de código (con git o archivos) nunca va
+  a una cuenta cuyo motor efectivo sea solo de texto — ni por
+  puntos ni por la vía clásica — y si el veto deja la fase sin
+  nadie, el motivo lo dice tal cual.
+- **Dos fallos reales cazados por las pruebas físicas** (la
+  primera versión pasaba las unitarias y fallaba en vivo):
+  `validate_task` siempre estampa un motor concreto, así que el de
+  la cuenta no llegaba nunca; y el motor del asistente activo se
+  imponía también. Corregidos con el orden de arriba y pruebas de
+  regresión sobre `validate_task`.
+- **Pruebas**: 512 en verde (22 nuevas). Físicas con la app real:
+  el menú ya no trae «APIs»; Modelos se ve con sus secciones (las
+  claves dibujadas dentro, el CLI de Gemini con su estado honesto
+  «no instalado» en el entorno); Cuentas muestra «Segunda:
+  deepseek · clave propia: no (usa la general)»; y una tarea real
+  de la segunda cuenta corrió con SU motor y se cerró sin clave
+  con el motivo nuevo: «motor deepseek no disponible: sin
+  credencial: no hay ninguna clave de deepseek guardada (Modelos →
+  Claves de API)». Límites: DeepSeek/Kimi no se verifican en vivo
+  (hace falta la clave del dueño, como Telegram); la página
+  Modelos no se dejó desplazar por el robot del entorno (pesada en
+  CustomTkinter), así que sus secciones nuevas se verificaron
+  además en una ventana aislada con el mismo código.
