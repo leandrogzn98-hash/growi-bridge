@@ -15579,6 +15579,7 @@ def _fpm_al_recibir(sobre, tema):
     autoridad). Lo válido cae en la carpeta compartida
     mqtt-resultados/ y la presencia alimenta mqtt-estado.json."""
     try:
+        import cuentas as _cfpm
         import hmac as _hm
         tipo = sobre.get("tipo")
         cuenta = sobre.get("cuenta") or ""
@@ -15587,7 +15588,7 @@ def _fpm_al_recibir(sobre, tema):
             return
         if tipo not in ("resultado", "aviso"):
             return
-        esperada = _sec_get(cuentas.nombre_secreto(cuenta)) or ""
+        esperada = _sec_get(_cfpm.nombre_secreto(cuenta)) or ""
         recibida = sobre.get("clave") or ""
         if not esperada or not _hm.compare_digest(str(recibida),
                                                   str(esperada)):
@@ -15645,12 +15646,13 @@ def _sala_valores():
     (claves de conexión de las cuentas y contraseñas de broker)."""
     valores = []
     try:
+        import cuentas as _csala
         reg = _cuentas_reg()
         for c in reg.get("cuentas", []):
             cid = c.get("id")
             if not cid:
                 continue
-            for nombre in (cuentas.nombre_secreto(cid), f"mqtt:{cid}"):
+            for nombre in (_csala.nombre_secreto(cid), f"mqtt:{cid}"):
                 try:
                     v = _sec_get(nombre)
                 except Exception:
@@ -15757,10 +15759,11 @@ def _mqtt_enviar_tarea(cuenta_id, datos):
     """Envía una tarea a una cuenta por MQTT, con su clave Growi
     dentro de la carga. Devuelve el id del sobre o None."""
     try:
+        import cuentas as _cenv
         en = _FPM.get("enlace")
         if en is None:
             return None
-        clave = _sec_get(cuentas.nombre_secreto(cuenta_id)) or ""
+        clave = _sec_get(_cenv.nombre_secreto(cuenta_id)) or ""
         if not clave:
             return None
         return en.publicar_tarea(cuenta_id, datos, clave)

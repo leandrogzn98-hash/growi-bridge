@@ -112,6 +112,16 @@ REGISTRO = {
         ["/usr/bin/apt-get", "install", "-y", "{paquete}"],
         {"paquete": {"tipo": "paquete"}}, "R2", "paquetes",
         "Instalar el paquete «{paquete}»", 600),
+    "dpkg-reparar": _spec(
+        ["/usr/bin/dpkg", "--configure", "-a"],
+        {}, "R2", "paquetes",
+        "Terminar de configurar los paquetes que quedaron a medias "
+        "(dpkg --configure -a)", 600),
+    "apt-reparar": _spec(
+        ["/usr/bin/apt-get", "install", "-f", "-y"],
+        {}, "R2", "paquetes",
+        "Reparar las dependencias rotas de una actualización a "
+        "medias (apt-get install -f)", 600),
 }
 
 

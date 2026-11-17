@@ -27,11 +27,7 @@ la base de P1 y el de equipo lo es de P3 y P4.
 - **P4 · Skills-plus** — hecha (detalle abajo).
 - **P5 · Modelos unificado** — hecha (detalle abajo).
 - **P6 · Recursos con sliders y Tareas vivas** — hecha (detalle abajo).
-- **P7 · Pruebas físicas completas** — el programa en Rust pedido en
-  la sala y probado en el PC vía MQTT midiendo consumo; el flujo
-  «revisa las actualizaciones y actualiza» con el ayudante de root
-  de la Fase 6 (la contraseña de root no se guarda en ningún sitio);
-  reparto en la sala entre dos cuentas reales de prueba.
+- **P7 · Pruebas físicas completas** — hecha (detalle abajo). Con ella la bifurcación queda completa.
 
 ## P0 · Lo hecho
 
@@ -394,3 +390,68 @@ la base de P1 y el de equipo lo es de P3 y P4.
   entorno (el límite conocido de los botones sobre lienzo); el
   guardado es el mismo código que ya funcionaba con los campos de
   texto y los deslizadores solo escriben sus variables.
+
+
+## P7 · Lo hecho
+
+Las dos pruebas del dueño, de punta a punta, contra un broker
+MQTT local (amqtt en la VM; la pierna WSS con broker público ya se
+probó en la P1) y con la app real corriendo:
+
+- **El reparto en la sala entre dos cuentas (ejemplo c)**: el
+  encargo «programa en Rust: conversor de temperaturas» entró en
+  la sala, la principal lo dividió en dos fases y el reparto las
+  asignó por los fuertes (la de escribir a segunda, por
+  `ahorro-tokens`; la de revisar y compilar a la principal, por
+  `revision-profunda`). Segunda aceptó su fase **por MQTT** con su
+  ayudante y la principal aceptó la suya también por MQTT; el
+  reparto quedó «resuelto» y la sala lo anunció. Al empezar, la
+  fase de segunda viajó por MQTT hasta su espacio y su resultado
+  (el código, como texto) volvió por MQTT al buzón del relevo y a
+  la sala.
+- **El programa en Rust (ejemplo a)**: el código que mandó
+  segunda se compiló en el PC con rustc 1.100 y se probó midiendo
+  el consumo: compilación en 1,6 s con pico de 130,9 MB de RAM y
+  0,28 s de CPU; las 4 pruebas del conversor correctas (100 c →
+  212.0, 32 f → 0.0, 25 c → 77.0, −40 c → −40.0) corriendo con
+  1–2 MB. El encargo se cerró solo: «2 de 2 subtareas
+  terminadas», con su resumen entregado.
+- **Las actualizaciones con root (ejemplo b)**: diagnóstico de
+  solo lectura primero (`dpkg --audit` limpio, simulación de
+  actualización en 0 cambios) y el aviso quedó en la sala. Para
+  el arreglo se estrenó la extensión pedida del registro de la
+  Fase 6: **`dpkg-reparar`** (`dpkg --configure -a`) y
+  **`apt-reparar`** (`apt-get install -f`), R2, con la doble
+  validación de siempre (app y ayudante espejo, verificada por
+  las pruebas). La tarea de sistema se aparcó en una aprobación
+  R2; aprobada por el dueño, el ayudante ejecutó las dos acciones
+  (rc 0; apt confirmó «0 actualizados, 0 instalados») y quedaron
+  en su registro encadenado por hashes. **La contraseña de root
+  no se guardó en ningún sitio**: la regla de sudoers autoriza
+  solo la ruta exacta del ayudante.
+- **Tres fallos reales cazados por la prueba en vivo** (la razón
+  de ser de esta fase): el cableado MQTT usaba `cuentas.` sin
+  importar el módulo en tres funciones — la recepción
+  **descartaba todo resultado/aviso que llegaba por MQTT**
+  («name 'cuentas' is not defined»), el envío de tareas a cuentas
+  MQTT **nunca podía salir**, y la redacción de la sala quedaba
+  sin los valores de la bóveda en silencio. Corregidos con la
+  importación local que usa el resto del monolito y con 4 pruebas
+  de regresión nuevas. **519 pruebas en verde.**
+- **Límites honestos**: en este entorno las fases se ejecutaron
+  con los papeles de las Muse jugados a mano sobre la maquinaria
+  real (el ayudante MQTT de segunda es el programa de verdad; la
+  compilación la corrió el operador porque aquí no hay un motor
+  local conectado, el mismo límite de todas las fases), el
+  broker fue local y sin credenciales (la ACL por cuenta y el
+  broker real del dueño quedan para su PC), el botón «Empezar el
+  trabajo» se sustituyó por las mismas llamadas que hace (el
+  robot del entorno no puede pulsar botones sobre el lienzo) y
+  las listas de paquetes de esta VM están recortadas, así que la
+  actualización fue de confirmación, sin paquetes nuevos.
+- La regla de sudoers, el ayudante instalado y el enlace de la
+  carpeta compartida se retiraron de la VM al terminar, como en
+  la Fase 6.
+
+**Con la P7, la bifurcación «Growi Private MQTT 0.1» queda
+completa (P0–P7).**

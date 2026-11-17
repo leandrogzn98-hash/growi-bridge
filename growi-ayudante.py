@@ -86,6 +86,12 @@ REGISTRO = {
     "apt-instalar": {
         "argv": ["/usr/bin/apt-get", "install", "-y", "{paquete}"],
         "params": {"paquete": "paquete"}, "timeout_s": 600},
+    "dpkg-reparar": {
+        "argv": ["/usr/bin/dpkg", "--configure", "-a"],
+        "params": {}, "timeout_s": 600},
+    "apt-reparar": {
+        "argv": ["/usr/bin/apt-get", "install", "-f", "-y"],
+        "params": {}, "timeout_s": 600},
 }
 
 
