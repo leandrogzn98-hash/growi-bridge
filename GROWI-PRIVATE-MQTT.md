@@ -1,10 +1,15 @@
-# Growi Private MQTT 0.1 — bifurcación solo MQTT
+# Growi Private MQTT 0.1 — la versión solo MQTT
 
-Rama `growi-private-mqtt`, nacida de la punta de `reforma-cuentas`
-(Fases 0–6 + correcciones + reforma de cuentas). Es el mismo programa
-con otra identidad y otra conexión: **solo MQTT con brokers** para
-hablar con las cuentas Muse. El harness y todo lo nuevo de esta
-bifurcación es para esa conexión.
+Se trabaja **en la misma rama `reforma-cuentas`** (Fase 6 +
+correcciones + reforma de cuentas): corrección 2 del dueño el
+2026-11-17 — tampoco hay rama nueva; «Growi Private MQTT 0.1» es la
+identidad y la versión de la app, no una bifurcación de código. (Las
+fases P0–P2 se hicieron primero en una rama `growi-private-mqtt` y
+sus commits se pasaron tal cual a `reforma-cuentas`, que es donde
+vive y sigue todo el trabajo.) Es el mismo programa con otra
+identidad y otra conexión: **solo MQTT con brokers** para hablar
+con las cuentas Muse. El harness y todo lo nuevo de esta etapa es
+para esa conexión.
 
 Las ramas de diseño de la tarde (`diseno-mqtt` y `diseno-equipo`)
 **se quedan como referencia** — corrección del dueño el 2026-11-17:
