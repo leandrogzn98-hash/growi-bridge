@@ -24,8 +24,7 @@ la base de P1 y el de equipo lo es de P3 y P4.
 - **P1 · MQTT de verdad** — hecha (detalle abajo).
 - **P2 · Cuentas con broker** — hecha (detalle abajo).
 - **P3 · La sala** — hecha (detalle abajo).
-- **P4 · Skills-plus** — skills por cuenta, compartibles y conocidas
-  por ambas, como criterio vivo del reparto.
+- **P4 · Skills-plus** — hecha (detalle abajo).
 - **P5 · Modelos unificado** — Modelos absorbe APIs (añadir/reemplazar
   clave), el CLI de Gemini, el MCP y la Librería de modelos locales.
   Las APIs de Claude/ChatGPT/Llama las usa cada Muse directo en su
@@ -224,3 +223,68 @@ la base de P1 y el de equipo lo es de P3 y P4.
   viva completa es parte de P7. El reparto con varias fases reales
   depende del planificador con motor real; con el plan de reserva
   es una sola fase.
+
+## P4 · Lo hecho
+
+- **Campo `fuertes` por cuenta** (`cuentas.py`): lista opcional de
+  nombres de skill en `accounts.json`; los registros sin el campo
+  (v1) cargan igual. Aquí solo se valida la forma del nombre; que el
+  skill exista lo valida la app al guardar (el registro no conoce el
+  catálogo) y, si un fuerte deja de existir, al repartir cuenta 0 y
+  la fila de la cuenta lo marca «(ya no existe)». Ayudante
+  `cuentas.fuertes_de()` (sin duplicados, en orden declarado).
+- **Editor en Cuentas**: sección «Skills fuertes» con la explicación
+  en llano, la línea de fuertes de TODAS las cuentas (compartidos y
+  conocidos por ambas: también van en la fila de cada cuenta de la
+  lista), el campo de la cuenta elegida con la lista de skills que
+  existen y «Guardar fuertes», que rechaza con el motivo en llano
+  cualquier nombre que no esté en el catálogo.
+- **El reparto por puntos** (`relevo._elegir_por_puntos`): cuando
+  alguna cuenta tiene fuertes válidos, `relevo.asignar` elige con la
+  fórmula del diseño de equipo — 0,4·fuerte + 0,3·peso + 0,2·tokens
+  libres + 0,1·(1 − carga) — sobre las mismas candidatas de siempre
+  (habilitada, con carril, activa). El factor fuerte lo calcula el
+  monolito (`_f4_fuertes_fn`) cruzando la descripción de cada skill
+  fuerte con el texto de la subtarea con el tokenizado de siempre
+  (≥2 palabras en común = 1,0; 1 = 0,5). El peso declarado de la
+  subtarea (`spec["pesos"]`) entra topado por el propio factor
+  fuerte — nadie se autoasigna más peso del que su fuerte justifica
+  — y sin peso declarado el factor hace de peso. Cada subtarea
+  guarda `fuerte`, `skill_fuerte` y `puntos`: el reparto es
+  explicable, y la propuesta de la sala lo dice («→ segunda
+  (fuerte: ahorro-tokens)»). Sin fuertes declarados, `fuertes_fn`
+  es None y el reparto es exactamente el de antes.
+- **Prioridad al ejecutar** (`_skills_con_fuertes`): al montar el
+  prompt de una tarea, los skills fuertes de SU cuenta entran como
+  candidatas prioritarias si encajan con el texto (≥1 palabra en
+  común con su descripción; la selección normal pide ≥2). La
+  elección sigue siendo por descripción — un fuerte sin relación
+  con la tarea no entra — y el tope de candidatas no cambia.
+- **Fallo real cazado por la prueba física**: la primera versión
+  leía la cuenta del dict de la tarea, pero `validate_task` la
+  descarta a propósito (la autoridad es la fila de la cola, §12.4
+  de la Fase 4) y la cuenta vive en `_ENV_TAREA`, que compone
+  `_f4_fijar_entorno_tarea` antes de ejecutar. Corregido: la cuenta
+  sale de `_ENV_TAREA` (con el dict y el entorno como respaldo) y
+  hay prueba de regresión.
+- **El motor por cuenta del diseño de equipo (§5: fichas de
+  DeepSeek/Kimi como motores de texto con su clave por cuenta) pasa
+  a P5**, que es la fase de Modelos: ahí se toca `engines.json` y
+  las claves, y encaja mejor que aquí.
+- **Pruebas**: 490 en verde (21 nuevas: forma y carga de `fuertes`,
+  la fórmula — el fuerte gana al %, el peso se topa, las cuentas no
+  activas no entran, sin `fuertes_fn` nada cambia — y el monolito
+  contra un catálogo real de juguete). Pruebas físicas con la app
+  real y dos skills de juguete (`revision-profunda` para principal,
+  `ahorro-tokens` para segunda): el encargo de sala «ahorra tokens
+  en cada tarea y revisa el consumo» se lo quedó segunda con
+  fuerte 1,0 y la propuesta de la sala lo anotó; una tarea de
+  principal con una sola palabra en común («revisa este archivo»)
+  activó su skill fuerte, cosa que la selección normal no hace; la
+  sección de Cuentas se ve entera con los fuertes de las dos
+  cuentas y la lista de skills existentes. Límite de método: el
+  botón «Guardar fuertes» no se pudo pulsar con el robot del
+  entorno (el límite ya conocido de los botones en páginas con
+  desplazamiento); el guardado queda probado por la misma vía de
+  registro que usan los demás botones de la página y por las
+  pruebas del módulo.

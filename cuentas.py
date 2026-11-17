@@ -37,6 +37,12 @@ _RX_ASISTENTE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}")
 # restan clases conocidas; el formato se valida aquí y la pertenencia la
 # impone el clasificador al cruzarlas con las clases reales).
 _RX_CLASE = re.compile(r"[a-z][a-z0-9_]{1,40}")
+# Nombre de skill declarada como «fuerte» de una cuenta (P4): el mismo
+# alfabeto que los nombres de skill del catálogo (letras, números, - _ .),
+# sin espacios ni rutas. Que el skill EXISTA en el catálogo no se valida
+# aquí (el registro no conoce el catálogo): lo valida la app al guardar
+# y, si un fuerte deja de existir, al repartir simplemente cuenta 0.
+_RX_FUERTE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 CUENTA_COMPAT = {
     "id": "principal",
@@ -46,6 +52,7 @@ CUENTA_COMPAT = {
     "conexion": "servidor",
     "habilitada": True,
     "creada": None,
+    "fuertes": [],
     "permisos": {"modo": "hereda", "clases_extra_denegadas": []},
 }
 
@@ -125,6 +132,15 @@ def validar(reg):
         for clase in per.get("clases_extra_denegadas") or []:
             if not isinstance(clase, str) or not _RX_CLASE.fullmatch(clase):
                 errores.append(f"{cid}: clase denegada inválida: {clase!r}")
+        fuertes = c.get("fuertes")
+        if fuertes is not None:
+            if not isinstance(fuertes, list):
+                errores.append(f"{cid}: fuertes debe ser una lista de "
+                               "nombres de skill")
+            else:
+                for f in fuertes:
+                    if not isinstance(f, str) or not _RX_FUERTE.fullmatch(f):
+                        errores.append(f"{cid}: fuerte inválido: {f!r}")
     return errores
 
 
@@ -240,6 +256,20 @@ def cuenta_de_carril(reg, carril):
 
 def cuentas_habilitadas(reg):
     return [c for c in reg.get("cuentas", []) if c.get("habilitada", True)]
+
+
+def fuertes_de(reg, cuenta_id):
+    """Los skills declarados como fuertes de una cuenta (P4), sin
+    duplicados y en el orden declarado. Campo opcional: un registro sin
+    `fuertes` (o con la cuenta ausente) devuelve []. Nunca lanza."""
+    c = cuenta(reg, cuenta_id)
+    if not c:
+        return []
+    out = []
+    for f in c.get("fuertes") or []:
+        if isinstance(f, str) and f and f not in out:
+            out.append(f)
+    return out
 
 
 def derivar_id(nombre, existentes):

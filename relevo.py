@@ -377,14 +377,90 @@ def _elegir(vista_d, registro, activas_sim, excluir=()):
     return _tb.elegir_cuenta(vista_d, activas_sim, filtrado)
 
 
+# Pesos de la fórmula de reparto con fuertes (P4, del diseño de equipo):
+# el fuerte manda, luego el peso declarado (topado por el propio fuerte),
+# luego los tokens libres y por último la carga. Son constantes a la
+# vista: la resolución deja los puntos guardados en cada subtarea.
+PESO_FUERTE = 0.4
+PESO_PESO = 0.3
+PESO_TOKENS = 0.2
+PESO_CARGA = 0.1
+
+
+def _elegir_por_puntos(vista_d, registro, activas_sim, spec, fuertes_fn,
+                       excluir=()):
+    """Elige por la fórmula de puntos cuando hay fuertes declarados.
+
+    Candidatas: las mismas de ``tablero.elegir_cuenta`` (habilitada, con
+    carril, estado activa en la vista). ``fuertes_fn(cuenta, spec)``
+    devuelve (factor 0..1, nombre del skill o None). El peso declarado
+    de la subtarea (``spec["pesos"][cuenta]``, 0-100) entra topado por
+    el propio factor fuerte — nadie se autoasigna más peso del que su
+    fuerte justifica — y sin peso declarado el factor hace de peso.
+    Devuelve (cuenta, fuerte, skill, puntos) o (None, 0.0, None, None).
+    Determinista: desempate por fuerte, % conocido, % mayor, menos
+    activas e id ascendente."""
+    candidatas = []
+    for c in (registro or {}).get("cuentas") or []:
+        if not isinstance(c, dict):
+            continue
+        if not c.get("habilitada", True) or not c.get("carril"):
+            continue
+        if c["id"] in excluir:
+            continue
+        v = vista_d.get(c["id"]) or {}
+        if v.get("estado", "activa") != "activa":
+            continue
+        candidatas.append(c["id"])
+    if not candidatas:
+        return None, 0.0, None, None
+    max_carga = max([activas_sim.get(cid, 0) for cid in candidatas] + [0])
+    pesos = spec.get("pesos") if isinstance(spec, dict) else None
+    filas = []
+    for cid in candidatas:
+        try:
+            fuerte, skill = fuertes_fn(cid, spec)
+            fuerte = max(0.0, min(1.0, float(fuerte)))
+        except Exception:
+            fuerte, skill = 0.0, None
+        declarado = None
+        if isinstance(pesos, dict):
+            try:
+                declarado = max(0.0, min(100.0, float(pesos.get(cid))))
+            except (TypeError, ValueError):
+                declarado = None
+        peso_ef = (min(declarado / 100.0, fuerte) if declarado is not None
+                   else fuerte)
+        v = vista_d.get(cid) or {}
+        pct = v.get("pct_puerta", v.get("pct_efectivo"))
+        conocido = isinstance(pct, (int, float)) and not isinstance(pct, bool)
+        pct_n = max(0.0, min(100.0, float(pct))) if conocido else 0.0
+        carga = activas_sim.get(cid, 0)
+        carga_norm = (carga / max_carga) if max_carga else 0.0
+        puntos = (PESO_FUERTE * fuerte + PESO_PESO * peso_ef
+                  + PESO_TOKENS * (pct_n / 100.0)
+                  + PESO_CARGA * (1.0 - carga_norm))
+        filas.append((cid, fuerte, skill, round(puntos, 4), conocido,
+                      pct_n, carga))
+    filas.sort(key=lambda f: (-f[3], -f[1], 0 if f[4] else 1, -f[5],
+                              f[6], f[0]))
+    cid, fuerte, skill, puntos = filas[0][:4]
+    return cid, fuerte, skill, puntos
+
+
 def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
-            plan_tipo=None, margen_fn=None, reloj=None):
+            plan_tipo=None, margen_fn=None, reloj=None, fuertes_fn=None):
     """Asigna cada subtarea a una cuenta y lo deja escrito ANTES de que se
     entregue nada. Devuelve {sid: cuenta o None}.
 
     El contador de activas es simulado y crece dentro de la división. Si
     una subtarea trae motor y la elegida no tiene margen para ese
-    (motor, cuenta) según ``margen_fn``, se reintenta excluyéndola."""
+    (motor, cuenta) según ``margen_fn``, se reintenta excluyéndola.
+
+    Con ``fuertes_fn`` (P4) la elección usa la fórmula de puntos de
+    ``_elegir_por_puntos`` y cada subtarea guarda `fuerte`,
+    `skill_fuerte` y `puntos` para que el reparto sea explicable; sin
+    ella, la elección es la de siempre (tablero.elegir_cuenta)."""
     ahora = (reloj or time.time)()
     with _bloqueo(base_dir):
         datos = _cargar(base_dir)
@@ -406,12 +482,30 @@ def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
         resultado = {}
         for i, spec in enumerate(subtareas):
             sid = f"{raiz}-s{i + 1}"
-            elegida = _elegir(vista_sim, registro, sim)
+            info_puntos = {}
+            if fuertes_fn is not None:
+                elegida, f_, sk_, pt_ = _elegir_por_puntos(
+                    vista_sim, registro, sim, spec, fuertes_fn)
+                if elegida:
+                    info_puntos = {"fuerte": f_, "skill_fuerte": sk_,
+                                   "puntos": pt_}
+            else:
+                elegida = _elegir(vista_sim, registro, sim)
             motivo = None
             if elegida and margen_fn is not None and spec.get("motor"):
                 margen = margen_fn(elegida, spec["motor"])
                 if margen is False:
-                    otra = _elegir(vista_sim, registro, sim, excluir={elegida})
+                    if fuertes_fn is not None:
+                        otra, f_, sk_, pt_ = _elegir_por_puntos(
+                            vista_sim, registro, sim, spec, fuertes_fn,
+                            excluir={elegida})
+                        if otra:
+                            info_puntos = {"fuerte": f_,
+                                           "skill_fuerte": sk_,
+                                           "puntos": pt_}
+                    else:
+                        otra = _elegir(vista_sim, registro, sim,
+                                       excluir={elegida})
                     if otra:
                         elegida = otra
                     else:
@@ -419,6 +513,7 @@ def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
                                   f"{spec['motor']} en ninguna cuenta "
                                   "activa")
                         elegida = None
+                        info_puntos = {}
             if elegida:
                 sim[elegida] = sim.get(elegida, 0) + 1
                 v_sim = vista_sim.get(elegida) or {}
@@ -440,6 +535,7 @@ def asignar(base_dir, raiz, subtareas, vista_d, registro, activas,
                     "terminada_ts": None,
                     "resultado": None,
                     "pasadas_sin_archivo": 0,
+                    **info_puntos,
                 }
             else:
                 ent["subtareas"][sid] = {

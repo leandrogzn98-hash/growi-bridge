@@ -1230,6 +1230,45 @@ def _skill_cuerpo(sk):
     return cuerpo.strip(), None
 
 
+def _skills_con_fuertes(task, cands):
+    """Los fuertes de la cuenta dueña de la tarea, como candidatas
+    prioritarias (P4): si un skill declarado fuerte de esa cuenta
+    encaja con el texto de la tarea (al menos una palabra en común con
+    su descripción) y no salió ya elegido, entra delante. La elección
+    sigue siendo por descripción — un fuerte sin relación con la tarea
+    no entra — y no se supera el número de candidatas que ya traía la
+    selección (el tope de 3, salvo las del perfil del asistente)."""
+    try:
+        cid = (task.get("cuenta") or _ENV_TAREA.get("GROWI_CUENTA_ID")
+               or os.environ.get("GROWI_CUENTA_ID"))
+        if not cid:
+            return cands
+        import cuentas as _cf5
+        fuertes = _cf5.fuertes_de(_cuentas_reg(), cid)
+        if not fuertes:
+            return cands
+        por_nombre = {sk["name"]: sk
+                      for sk in skills_indice().get("skills") or []}
+        q = _skill_tokens(task.get("prompt") or "")
+        if not q:
+            return cands
+        ya = {c0["name"] for c0, _p, _cm in cands}
+        extra = []
+        for n in fuertes:
+            sk = por_nombre.get(n)
+            if sk is None or n in ya:
+                continue
+            comun = q & (sk.get("_tok") or set())
+            if not comun:
+                continue
+            extra.append((sk, float(len(comun)), sorted(comun)))
+        if not extra:
+            return cands
+        return (extra + list(cands))[:max(3, len(cands))]
+    except Exception:
+        return cands
+
+
 def skills_bloque_prompt(task):
     """(texto_para_el_principio_del_prompt, registro). El motor recibe la skill
     por el hueco {prompt} de su descriptor (engines.json esquema 2 no tiene un
@@ -1253,7 +1292,9 @@ def skills_bloque_prompt(task):
     if task.get("skills") is False:
         reg["desactivadas_por_la_tarea"] = True
     else:
-        for sk, punt, comun in asis_skills_cands(task, skills_para_texto(task.get("prompt") or "")):
+        for sk, punt, comun in _skills_con_fuertes(
+                task, asis_skills_cands(
+                    task, skills_para_texto(task.get("prompt") or ""))):
             cuerpo, err = _skill_cuerpo(sk)
             if cuerpo is None:
                 reg["descartadas"].append({"nombre": sk["name"], "motivo": err})
@@ -16001,6 +16042,59 @@ def _f4_procesar_encargo(task_file, data):
                      daemon=True, name=f"encargo-{tid}").start()
 
 
+def _f4_fuertes_fn():
+    """La función de fuertes del reparto (P4): cierra sobre el catálogo
+    de skills y el registro de cuentas y devuelve, para cada cuenta y
+    subtarea, (factor 0..1, skill) según cuánto encaja la descripción
+    de sus skills fuertes con el texto de la subtarea (el mismo
+    tokenizado que la activación de skills: 2 o más palabras en común
+    = encaje pleno, 1 = parcial). Devuelve None si ninguna cuenta
+    habilitada tiene un fuerte que exista en el catálogo: el reparto
+    sigue como siempre."""
+    try:
+        por_nombre = {sk["name"]: sk
+                      for sk in skills_indice().get("skills") or []}
+    except Exception:
+        return None
+    if not por_nombre:
+        return None
+    try:
+        import cuentas as _cf4
+        reg = _cuentas_reg()
+        fuertes = {}
+        for c in reg.get("cuentas", []):
+            if not c.get("habilitada", True):
+                continue
+            lista = [n for n in _cf4.fuertes_de(reg, c["id"])
+                     if n in por_nombre]
+            if lista:
+                fuertes[c["id"]] = lista
+    except Exception:
+        return None
+    if not fuertes:
+        return None
+
+    def _fn(cid, spec):
+        lista = fuertes.get(cid)
+        if not lista:
+            return 0.0, None
+        texto = ""
+        if isinstance(spec, dict):
+            texto = str(spec.get("prompt") or spec.get("titulo") or "")
+        q = _skill_tokens(texto)
+        if not q:
+            return 0.0, None
+        mejor, nombre = 0.0, None
+        for n in lista:
+            comun = q & (por_nombre[n].get("_tok") or set())
+            f = 1.0 if len(comun) >= 2 else (0.5 if comun else 0.0)
+            if f > mejor:
+                mejor, nombre = f, n
+        return mejor, (nombre if mejor > 0 else None)
+
+    return _fn
+
+
 def _f4_encargo_hilo(task_file, data, cid):
     tid = _f4_id_de(task_file, data)
     try:
@@ -16041,7 +16135,8 @@ def _f4_encargo_hilo(task_file, data, cid):
             tipo_plan = "reserva"
         # La asignación queda escrita ANTES de entregar nada (§3.4).
         _rl4.asignar(base, raiz, plan, _tablero_vista(), _cuentas_reg(),
-                     _f4_activas_por_cuenta(), plan_tipo=tipo_plan)
+                     _f4_activas_por_cuenta(), plan_tipo=tipo_plan,
+                     fuertes_fn=_f4_fuertes_fn())
         _f4_aviso("division_hecha",
                   f"Encargo {raiz} dividido en {len(plan)} subtarea(s) "
                   f"(plan {tipo_plan})",
@@ -16056,14 +16151,17 @@ def _f4_encargo_hilo(task_file, data, cid):
                 fases = [{"sid": sid,
                           "titulo": str((sub.get("spec") or {}).get(
                               "prompt") or sid)[:80],
-                          "cuenta": sub.get("cuenta")}
+                          "cuenta": sub.get("cuenta"),
+                          "skill": sub.get("skill_fuerte")}
                          for sid, sub in
                          (ent.get("subtareas") or {}).items()]
                 _sl4.reparto_crear(base, raiz, receptora, fases)
                 lineas = ["Reparto propuesto:"]
                 for f in fases:
+                    _suf = (f" (fuerte: {f['skill']})"
+                            if f.get("skill") else "")
                     lineas.append(f"· {f['titulo']} → "
-                                  f"{f['cuenta'] or 'sin asignar'}")
+                                  f"{f['cuenta'] or 'sin asignar'}{_suf}")
                 _sala_escribir("propuesta", receptora,
                                "\n".join(lineas), encargo=raiz)
             except Exception as e:
@@ -35395,6 +35493,11 @@ def _build_cuentas(tab):
             return
         estado["reg"] = reg
         lista.delete(0, "end")
+        try:
+            _cat_fuertes = {sk["name"] for sk in
+                            skills_indice().get("skills") or []}
+        except Exception:
+            _cat_fuertes = None
         for c in reg.get("cuentas", []):
             try:
                 tiene = bool(_sec_get(_c.nombre_secreto(c["id"])))
@@ -35402,9 +35505,18 @@ def _build_cuentas(tab):
                 tiene = False
             carril = (f"carril {c['carril'].upper()}" if c.get("carril")
                       else "sin carril")
+            _fs = _c.fuertes_de(reg, c["id"])
+            _txt_f = ""
+            if _fs:
+                if _cat_fuertes is None:
+                    _txt_f = "  ·  fuertes: " + ", ".join(_fs)
+                else:
+                    _txt_f = "  ·  fuertes: " + ", ".join(
+                        f if f in _cat_fuertes
+                        else f"{f} (ya no existe)" for f in _fs)
             lista.insert("end", f"{c['nombre']}  ·  {carril}  ·  {c['conexion']}  ·  "
                                 f"{'habilitada' if c.get('habilitada', True) else 'deshabilitada'}  ·  "
-                                f"clave: {'en la bóveda' if tiene else 'SIN clave'}")
+                                f"clave: {'en la bóveda' if tiene else 'SIN clave'}{_txt_f}")
         _CUENTAS_CACHE["clave"] = None  # que el monolito relea el registro
         try:
             _refrescar_compartida()
@@ -35424,6 +35536,10 @@ def _build_cuentas(tab):
             pass
         try:
             _refrescar_broker()
+        except Exception:
+            pass
+        try:
+            _refrescar_fuertes()
         except Exception:
             pass
 
@@ -35620,6 +35736,112 @@ def _build_cuentas(tab):
               cursor="hand2", padx=10, pady=3).pack(side="left")
     lista.bind("<<ListboxSelect>>", _al_elegir)
     _widgets["cuentas_refrescar"] = _refrescar
+    # -- Skills fuertes por cuenta (Growi Private MQTT, P4) ---------------
+    tk.Label(tab, text="Skills fuertes", font=(FONT, 16, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(14, 2))
+    tk.Label(tab, text="Un skill fuerte es lo que una cuenta hace mejor "
+                       "(por ejemplo, revisar el código o ahorrar tokens). "
+                       "Al repartir un encargo, una fase que encaja con el "
+                       "fuerte de una cuenta tiende a ir a esa cuenta; y "
+                       "cuando esa cuenta trabaja, su skill fuerte entra "
+                       "con prioridad si la tarea lo pide. Los fuertes son "
+                       "compartidos: cada cuenta conoce los de la otra (se "
+                       "ven en la lista de arriba y aquí debajo).",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 8))
+    lbl_fuertes = tk.Label(tab, text="", font=(FONT, 10), bg=THEME["bg"],
+                           fg=THEME["text"], justify="left",
+                           wraplength=S(640))
+    lbl_fuertes.pack(anchor="w", padx=28, pady=(0, 8))
+    ffu = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    ffu.pack(fill="x", padx=28, pady=(0, 8))
+    var_fuertes = tk.StringVar()
+    tk.Label(ffu, text="Fuertes de la cuenta elegida (nombres de skill, "
+                       "separados por comas)", font=(FONT, 11),
+             bg=THEME["card"], fg=THEME["text"]).grid(
+                 row=0, column=0, padx=(14, 6), pady=(8, 2), sticky="w")
+    tk.Entry(ffu, textvariable=var_fuertes, font=(FONT, 11), bd=1,
+             relief="solid").grid(row=1, column=0, padx=(14, 14),
+                                  pady=(0, 4), sticky="ew")
+    lbl_catalogo = tk.Label(ffu, text="", font=(FONT, 9), bg=THEME["card"],
+                            fg=THEME["muted"], justify="left",
+                            wraplength=S(600))
+    lbl_catalogo.grid(row=2, column=0, padx=(14, 14), pady=(0, 8), sticky="w")
+    ffu.columnconfigure(0, weight=1)
+
+    def _catalogo_skills():
+        try:
+            return sorted(sk["name"] for sk in
+                          skills_indice().get("skills") or [])
+        except Exception:
+            return []
+
+    def _refrescar_fuertes():
+        reg = estado.get("reg") or {}
+        lineas = []
+        for c in reg.get("cuentas", []):
+            fs = _c.fuertes_de(reg, c["id"])
+            lineas.append(f"{c['nombre']}: "
+                          f"{', '.join(fs) if fs else 'sin fuertes declarados'}")
+        lbl_fuertes.config(text="\n".join(lineas))
+        cat = _catalogo_skills()
+        if cat:
+            lbl_catalogo.config(
+                text="Skills que existen: " + ", ".join(cat[:14])
+                     + ("…" if len(cat) > 14 else ""))
+        else:
+            lbl_catalogo.config(
+                text="Todavía no hay skills en el catálogo (página Skills).")
+        c = _cuenta_sel()
+        if c:
+            var_fuertes.set(", ".join(_c.fuertes_de(reg, c["id"])))
+
+    def _guardar_fuertes():
+        c = _cuenta_sel()
+        if not c:
+            _decir("Elige primero una cuenta de la lista.")
+            return
+        nombres = []
+        for trozo in var_fuertes.get().split(","):
+            n = trozo.strip()
+            if n and n not in nombres:
+                nombres.append(n)
+        cat = set(_catalogo_skills())
+        malos = [n for n in nombres if n not in cat]
+        if malos:
+            _decir("Esos skills no existen en el catálogo: "
+                   + ", ".join(malos)
+                   + ". Solo se pueden declarar fuertes los skills de "
+                     "la página Skills.")
+            return
+        reg = _c.cargar(APP_DIR, carril=LANE)
+        cuentas_lista = []
+        for x in reg.get("cuentas", []):
+            x = dict(x)
+            if x.get("id") == c["id"]:
+                if nombres:
+                    x["fuertes"] = nombres
+                else:
+                    x.pop("fuertes", None)
+            cuentas_lista.append(x)
+        try:
+            _c.guardar(APP_DIR, _salida_registro(reg, cuentas_lista))
+        except _c.ErrorRegistro as e:
+            _decir(f"No se guardó: {e}")
+            return
+        _refrescar()
+        _decir(f"Fuertes de «{c['nombre']}» guardados: "
+               f"{', '.join(nombres) if nombres else 'ninguno'}.")
+
+    fila_fu = tk.Frame(tab, bg=THEME["bg"])
+    fila_fu.pack(anchor="w", padx=28, pady=(0, 8))
+    tk.Button(fila_fu, text="Guardar fuertes", font=(FONT, 11),
+              command=_guardar_fuertes,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=10, pady=3).pack(side="left")
+    lista.bind("<<ListboxSelect>>",
+               lambda _e=None: _refrescar_fuertes(), add="+")
+
     # -- Broker MQTT (Growi Private MQTT, P2) ------------------------------
     tk.Label(tab, text="Broker MQTT", font=(FONT, 16, "bold"),
              bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(14, 2))
