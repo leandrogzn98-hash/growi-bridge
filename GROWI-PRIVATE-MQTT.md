@@ -6,9 +6,12 @@ con otra identidad y otra conexión: **solo MQTT con brokers** para
 hablar con las cuentas Muse. El harness y todo lo nuevo de esta
 bifurcación es para esa conexión.
 
-Las ramas de solo diseño de la tarde (`diseno-mqtt`, `diseno-equipo`)
-quedan descartadas por decisión del dueño: su dictado de esta
-bifurcación las reemplaza. No se borra código probado.
+Las ramas de diseño de la tarde (`diseno-mqtt` y `diseno-equipo`)
+**se quedan como referencia** — corrección del dueño el 2026-11-17:
+«olvídate lo de borrar», no se borra nada; con «borrar» se refería a
+los ajustes del principio, que no sirvieron por no tener conexión.
+De hecho los dos diseños alimentan esta bifurcación: el de MQTT es
+la base de P1 y el de equipo lo es de P3 y P4.
 
 ## Fases
 
