@@ -4387,27 +4387,28 @@ def validate_task(data, f3=None):
         return None, f"cwd invalido: {cwd_raw}"
     if not cwd.is_dir():
         return None, f"cwd no existe o no es carpeta: {cwd}"
-    if not _inside_any(cwd, load_folders()):
-        # Entregas derivadas por el propio programa (la consulta de la
-        # Fase 2 y la subtarea del relevo de la Fase 4 en el carril B):
-        # el cwd es la carpeta del carril y los archivos viven en sus
-        # subcarpetas encargos/ o consultas/. Es la carpeta de trabajo
-        # interna del programa, derivada mecánicamente al entregar; no
-        # puede depender de que el dueño la haya añadido a mano a sus
-        # carpetas permitidas.
-        _derivada = False
-        if LANE == "b" and cwd == Path(APP_DIR).resolve():
-            _archs = data.get("archivos")
-            if isinstance(_archs, list) and _archs and all(
-                    isinstance(a, str) and a.strip() for a in _archs):
-                _base = Path(APP_DIR).resolve()
-                _subs = [str(_base / "encargos"), str(_base / "consultas")]
-                _derivada = all(
-                    _inside_any(Path(a).expanduser().resolve(), _subs)
-                    for a in _archs)
-        if not _derivada:
-            return None, f"cwd fuera de las carpetas permitidas: {cwd}"
-    if asis is not None and not _inside_any(cwd, asis_raices(asis)):
+    # Entregas derivadas por el propio programa (la consulta de la Fase 2,
+    # la subtarea del relevo de la Fase 4 y el mensaje del chat local): el
+    # cwd es la carpeta de ESTE carril y los archivos viven en sus
+    # subcarpetas encargos/, consultas/ o chats/. Es la carpeta de trabajo
+    # interna del programa, derivada mecánicamente al entregar; no puede
+    # depender de que el dueño la haya añadido a mano a sus carpetas
+    # permitidas. Vale en los dos carriles (la corrección del chat lo
+    # cazó: con LANE == "b" el chat del carril A rebotaba).
+    _derivada = False
+    if cwd == Path(APP_DIR).resolve():
+        _archs = data.get("archivos")
+        if isinstance(_archs, list) and _archs and all(
+                isinstance(a, str) and a.strip() for a in _archs):
+            _base = Path(APP_DIR).resolve()
+            _subs = [str(_base / "encargos"), str(_base / "consultas"),
+                     str(_base / "chats")]
+            _derivada = all(
+                _inside_any(Path(a).expanduser().resolve(), _subs)
+                for a in _archs)
+    if not _derivada and not _inside_any(cwd, load_folders()):
+        return None, f"cwd fuera de las carpetas permitidas: {cwd}"
+    if not _derivada and asis is not None and not _inside_any(cwd, asis_raices(asis)):
         return None, asis_fuera_txt(asis, cwd)  # las carpetas que ve el asistente
     # Motor: el campo "motor" (engines.json). Sin el, como antes: model
     # "ollama:<m>" -> motor ollama, "api:..." -> APIs, lo demas -> claude.
@@ -11402,7 +11403,7 @@ def _mem_confirmar_ui(r):
     if _root is None or not r:
         return
     try:
-        win = tk.Toplevel(_root)
+        win = _acotar_ventana(tk.Toplevel(_root))
         win.title("Memoria")
         win.configure(bg=THEME["bg"])
         win.attributes("-topmost", True)
@@ -12190,7 +12191,7 @@ def export_guia_ui():
             return
     except Exception:
         pass
-    top = tk.Toplevel(_root)
+    top = _acotar_ventana(tk.Toplevel(_root))
     top.title("Exportar mis conversaciones")
     top.configure(bg=THEME["bg"])
     top.transient(_root)
@@ -14532,6 +14533,23 @@ def _cuenta_carril_deshabilitada():
     return None
 
 
+def _cuentas_aviso_una_cuenta():
+    """El texto del aviso de arranque cuando solo hay una cuenta Muse
+    habilitada (la que se creó sola al migrar el secreto): con una sola
+    no hay trabajo entre dos. None si ya hay dos o más. Nunca lanza."""
+    try:
+        import cuentas as _c
+        reg = _c.cargar(APP_DIR, carril=LANE)
+        hab = [c for c in (reg or {}).get("cuentas", [])
+               if c.get("habilitada", True)]
+        if len(hab) >= 2:
+            return None
+        return ("Solo tienes una cuenta Muse configurada. Agrega la "
+                "segunda en la página Cuentas para que trabajen las dos.")
+    except Exception:
+        return None
+
+
 def _cuentas_migrar_arranque():
     """Migración de arranque (Fase 1): secret.txt -> bóveda como cuenta
     «principal» y creación de accounts.json. Idempotente y reversible
@@ -15435,12 +15453,15 @@ def _f4_dual_asegurar():
 
 
 def _f4_dual_aplica(data):
-    if data.get("tipo") in ("consulta", "encargo", "sistema"):
+    if data.get("tipo") in ("consulta", "encargo", "sistema", "chat"):
         # Tareas de control y de ESTA máquina: se procesan en local
         # siempre. Las de «sistema» (Fase 6) actúan sobre el root de
         # este PC: enviarlas a la sesión del servidor las dejaría
         # por_confirmar para siempre (cazado en las pruebas físicas
-        # de la Fase 6).
+        # de la Fase 6). Las de «chat» son la conversación del dueño
+        # con la cuenta dentro del programa: la respuesta vuelve por
+        # el runner-results de este carril, así que tampoco pueden
+        # viajar a la sesión del servidor.
         return False
     cuenta = _cuenta_de_este_carril()
     if not cuenta or data.get("cuenta") not in (None, cuenta):
@@ -16110,6 +16131,8 @@ def _f4_envolver_cmd(cmd, task):
         specs = _f4_specs()
         asig = _rc4.asignacion_de(_base_tablero())
         am = asig.get(_f4_modo()) or asig["ausente"]
+        am = dict(am, absolutos=_rc4.absolutos_de(_base_tablero()).get(
+            _f4_modo()) or {})
         lim = _rc4.limites(specs, am, 1)
         props = ["-p", f"CPUQuota={lim['cpu']['cpuquota_pct']}%"]
         if lim["ram"]["bytes_por_tarea"]:
@@ -16182,6 +16205,7 @@ def _f4_gobernador_tick(cuenta):
     asig = _rc4.asignacion_de(base)
     modo = _f4_modo()
     am = asig.get(modo) or asig["ausente"]
+    am = dict(am, absolutos=_rc4.absolutos_de(base).get(modo) or {})
     tareas = {}
     cur = state.get("current")
     info_pid = _F4_PIDS.get(cur) if cur else None
@@ -16251,6 +16275,8 @@ def _f4_admision_bloqueo(data):
         specs = _f4_specs()
         asig = _rc4.asignacion_de(base)
         am = asig.get(_f4_modo()) or asig["ausente"]
+        am = dict(am, absolutos=_rc4.absolutos_de(base).get(_f4_modo())
+                  or {})
         agreg = _rc4.agregado(_rc4.leer_estado(base))
         sobre = _rc4.sobre_presupuesto(agreg, specs, am)
         if _F4["muestras_ram"] >= 3 and sobre["ram"]:
@@ -16558,6 +16584,22 @@ def _build_multimuse_section(tab):
                      font=(FONT, 10)).pack(side="left")
             tk.Label(fila, text="%", font=(FONT, 9), bg=cbg,
                      fg=THEME["muted"]).pack(side="left")
+    vars_abs = {}
+    for modo in ("ausente", "presente"):
+        fila = tk.Frame(card, bg=cbg)
+        fila.pack(fill="x", padx=16, pady=2)
+        tk.Label(fila, text=f"{modo.capitalize()} (topes opcionales):",
+                 font=(FONT, 10), bg=cbg, fg=THEME["text"], width=29,
+                 anchor="w").pack(side="left")
+        for clave_abs, etiqueta in (("cpu_nucleos", "CPU máx. (núcleos, opcional)"),
+                                    ("ram_gb", "RAM máx. (GB, opcional)"),
+                                    ("gpu_gb", "GPU máx. (GB, opcional)")):
+            tk.Label(fila, text=etiqueta, font=(FONT, 9), bg=cbg,
+                     fg=THEME["muted"]).pack(side="left", padx=(8, 2))
+            v = tk.StringVar()
+            vars_abs[(modo, clave_abs)] = v
+            tk.Entry(fila, textvariable=v, width=5,
+                     font=(FONT, 10)).pack(side="left")
 
     def _refrescar_mm():
         try:
@@ -16570,6 +16612,13 @@ def _build_multimuse_section(tab):
             for modo in ("ausente", "presente"):
                 for clave in ("cpu", "ram", "gpu"):
                     vars_pct[(modo, clave)].set(str(asig[modo][clave]))
+            abs_todos = _rc4.absolutos_de(base)
+            for modo in ("ausente", "presente"):
+                for clave_abs in ("cpu_nucleos", "ram_gb", "gpu_gb"):
+                    val = (abs_todos.get(modo) or {}).get(clave_abs)
+                    vars_abs[(modo, clave_abs)].set(
+                        "" if val is None else
+                        (f"{val:g}" if isinstance(val, float) else str(val)))
             agreg = _rc4.agregado(_rc4.leer_estado(base))
             ult = est.get("ultima") or {}
             senales = ", ".join(
@@ -16581,6 +16630,11 @@ def _build_multimuse_section(tab):
                     LANE) or {}
                 mec = "; ".join(f"{k}: {v}" for k, v in
                                 (propia.get("mecanismos") or {}).items())
+                topes = (propia.get("limites") or {}).get("topes") or {}
+                if topes:
+                    mec += (" · Tope que manda: " + ", ".join(
+                        f"{k} {v}" for k, v in topes.items() if v)
+                        + " («absoluto» = tu tope manual; «pct» = el %)")
             except Exception:
                 mec = ""
             info.config(text=(
@@ -16604,13 +16658,24 @@ def _build_multimuse_section(tab):
     def _guardar():
         try:
             import recursos as _rc4
-            asig = {modo: {clave: int(vars_pct[(modo, clave)].get())
-                           for clave in ("cpu", "ram", "gpu")}
-                    for modo in ("ausente", "presente")}
+
+            def _abs(modo, clave_abs):
+                crudo = vars_abs[(modo, clave_abs)].get().strip()
+                if not crudo:
+                    return None
+                return float(crudo.replace(",", "."))
+
+            asig = {}
+            for modo in ("ausente", "presente"):
+                asig[modo] = {clave: int(vars_pct[(modo, clave)].get())
+                              for clave in ("cpu", "ram", "gpu")}
+                asig[modo]["absolutos"] = {
+                    clave_abs: _abs(modo, clave_abs)
+                    for clave_abs in ("cpu_nucleos", "ram_gb", "gpu_gb")}
             _rc4.guardar_asignacion(_base_tablero(), asig)
             _refrescar_mm()
-            info.config(text="Porcentajes guardados. Aplican a las "
-                             "tareas siguientes, no a las vivas.")
+            info.config(text="Porcentajes y topes guardados. Aplican a "
+                             "las tareas siguientes, no a las vivas.")
         except Exception as e:
             info.config(text=f"No se pudo guardar: {e}")
 
@@ -16929,6 +16994,8 @@ def _f6_asegurar_contenedor(task_file, data, ent, prep):
         try:
             asig = _rc6.asignacion_de(base)
             am = asig.get(_f4_modo()) or asig["ausente"]
+            am = dict(am, absolutos=_rc6.absolutos_de(base).get(
+                _f4_modo()) or {})
             lim = _rc6.limites(_f4_specs(), am, 1)
         except Exception:
             lim = None
@@ -18597,7 +18664,7 @@ def refresh_ui():
         fg=THEME["green_text"] if state["power"] else THEME["muted"])
     w["sync_text"].config(text=_sync_text())
     w["admin_text"].config(
-        text=f"Versión {VERSION}\n"
+        text=f"Versión {VERSION} · Multi-Muse\n"
         + ("Con permisos de administrador" if state["admin"] else "Sin permisos de administrador"))
     if state["update_available"]:
         w["update_label"].config(
@@ -19050,7 +19117,7 @@ def _big_file_dialog(name, size_mb):
     Devuelve True si se copia, False si se cancela. El boton "No mostrar
     durante 30 min" silencia el aviso media hora (se guarda en settings)."""
     result = {"ok": False}
-    box = tk.Toplevel(_root)
+    box = _acotar_ventana(tk.Toplevel(_root))
     box.title("Archivo grande")
     box.attributes("-topmost", True)
     box.configure(bg=THEME["bg"])
@@ -19200,7 +19267,7 @@ def open_prompt_box():
     win = _mascot["win"]
     if win is None:
         return
-    box = tk.Toplevel(_root)
+    box = _acotar_ventana(tk.Toplevel(_root))
     box.title("Escríbeme")
     box.attributes("-topmost", True)
     box.configure(bg=THEME["bg"])
@@ -19409,7 +19476,7 @@ def _ask_close_mode():
     """Primera vez que se pulsa la X: pregunta que hacer y (si se deja
     marcado) lo recuerda. Devuelve 'minimize', 'quit' o None (cancelar)."""
     res = {"mode": None}
-    box = tk.Toplevel(_root)
+    box = _acotar_ventana(tk.Toplevel(_root))
     box.title("Cerrar Growi Bridge")
     box.configure(bg=THEME["bg"])
     box.resizable(False, False)
@@ -23057,21 +23124,55 @@ def _scrollable(parent):
     # Un solo manejador para todas las paginas: mueve la que se esta viendo
     # (antes cada pagina pisaba al anterior y solo la ultima hacia scroll).
     _scroll_canvases.append(canvas)
-
-    def _on_wheel(e):
-        for c in _scroll_canvases:
-            try:
-                if c.winfo_ismapped():
-                    c.yview_scroll(-1 if e.delta > 0 else 1, "units")
-                    break
-            except Exception:
-                pass
-
-    canvas.bind_all("<MouseWheel>", _on_wheel)
+    _enlazar_rueda(canvas)
     return inner
 
 
 _scroll_canvases = []
+_RUEDA_ENLAZADA = [False]
+
+
+def _rueda_pagina(e, direccion=0):
+    """La rueda sobre la página visible. En Windows y macOS el evento es
+    <MouseWheel> y trae delta; en Linux/X11 la rueda llega como
+    <Button-4>/<Button-5>, sin delta: sin esos dos enlaces la rueda no
+    bajaba ninguna página en Linux (la barra sí se podía arrastrar, y
+    por eso el fallo se notaba sobre todo ahí)."""
+    if direccion:
+        pasos = direccion
+    else:
+        pasos = -1 if (getattr(e, "delta", 0) or 0) > 0 else 1
+    for c in _scroll_canvases:
+        try:
+            if c.winfo_ismapped():
+                c.yview_scroll(pasos, "units")
+                break
+        except Exception:
+            pass
+
+
+def _enlazar_rueda(canvas):
+    """Enlaza la rueda una sola vez (bind_all es de la ventana entera)."""
+    if _RUEDA_ENLAZADA[0]:
+        return
+    _RUEDA_ENLAZADA[0] = True
+    try:
+        canvas.bind_all("<MouseWheel>", _rueda_pagina)
+        canvas.bind_all("<Button-4>", lambda e: _rueda_pagina(e, -1))
+        canvas.bind_all("<Button-5>", lambda e: _rueda_pagina(e, 1))
+    except Exception:
+        pass
+
+
+def _acotar_ventana(win):
+    """Acota una ventana secundaria a la pantalla: ninguna crece más que
+    lo que cabe (ancho y alto de la pantalla menos un margen)."""
+    try:
+        win.maxsize(max(240, win.winfo_screenwidth() - 40),
+                    max(240, win.winfo_screenheight() - 80))
+    except Exception:
+        pass
+    return win
 
 
 def _lerp_color(c1, c2, t):
@@ -23508,7 +23609,7 @@ def _open_palette():
     except Exception:
         pass
     _palette["origen"] = cmdia_captura_seleccion()  # lo seleccionado, antes de llevarse el foco
-    pal = tk.Toplevel(_root)
+    pal = _acotar_ventana(tk.Toplevel(_root))
     _palette["win"] = pal
     pal.title("Buscar acciones")
     pal.attributes("-topmost", True)
@@ -23738,6 +23839,8 @@ def _open_palette():
     entry.bind("<Return>", _run)
     pal.bind("<Escape>", _esc)
     pal.bind("<MouseWheel>", _wheel)
+    pal.bind("<Button-4>", lambda _e: canvas.yview_scroll(-1, "units"))
+    pal.bind("<Button-5>", lambda _e: canvas.yview_scroll(1, "units"))
     pal.bind("<Destroy>", _gone)
     for _n in range(1, 10):
         pal.bind(f"<Alt-Key-{_n}>", lambda _e, n=_n: _alt(n))
@@ -25012,7 +25115,7 @@ def _espera_popup(n):
                 return
         except Exception:
             pass
-    top = tk.Toplevel(_root)
+    top = _acotar_ventana(tk.Toplevel(_root))
     top.withdraw()
     top.title("Growi Bridge")
     top.configure(bg=THEME["bg"])
@@ -29272,7 +29375,7 @@ def tripo_confirmar_ui():
         _TRIPO["kit"].set_label(W["tp_gen_estado"], err)
         return
     _tripo_dlg_cerrar()
-    top = tk.Toplevel(_root)
+    top = _acotar_ventana(tk.Toplevel(_root))
     top.title("Generar con Tripo")
     top.configure(bg=THEME["bg"])
     top.transient(_root)
@@ -32171,6 +32274,9 @@ def _cmdia_mostrar(top, ancho=600):
     def _rueda(e):
         canvas.yview_scroll(-1 if e.delta > 0 else 1, "units")
     top.bind("<MouseWheel>", _rueda)
+    # Linux/X11: la rueda llega como Button-4/5, no como MouseWheel.
+    top.bind("<Button-4>", lambda _e: canvas.yview_scroll(-1, "units"))
+    top.bind("<Button-5>", lambda _e: canvas.yview_scroll(1, "units"))
 
 
 def _cmdia_guardrail_txt():
@@ -32495,7 +32601,7 @@ def _cmdia_deshacer(kit, st):
 def cmdia_confirmar(st, original, nuevo, nivel_txt, si, no):
     """Confirmacion del guardrail con el texto COMPLETO (no bloquea el hilo de
     la ventana: devuelve el estado y llama a si() o a no())."""
-    top = tk.Toplevel(st["top"])
+    top = _acotar_ventana(tk.Toplevel(st["top"]))
     top.withdraw()
     top.title("¿Reemplazar el texto?")
     top.configure(bg=THEME["bg"])
@@ -34801,7 +34907,7 @@ def _build_ajustes_ctk(tab_aj):
     # ---- Carpetas y version
     up = section("Carpetas y actualizaciones")
     r = row(up)
-    text_block(r, None, f"Versión {VERSION}.")
+    text_block(r, None, f"Versión {VERSION} · Multi-Muse.")
     brow = ctk.CTkFrame(r, fg_color="transparent")
     brow.pack(anchor="w", pady=(10, 0))
     for i, (txt, cmd) in enumerate((("Abrir Inbox", lambda: open_folder(INBOX)),
@@ -34837,9 +34943,19 @@ def _build_cuentas(tab):
 
     tk.Label(tab, text="Cuentas", font=(FONT, 22, "bold"),
              bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(24, 2))
-    tk.Label(tab, text="Cada cuenta es una Muse con su secreto en la bóveda, su asistente "
-                       "y su forma de conectarse (servidor, local o ambas).",
+    tk.Label(tab, text="Cada cuenta Muse es una Muse que trabaja dentro de Growi: tiene "
+                       "su secreto guardado en la bóveda, su asistente y su forma de "
+                       "conectarse (servidor, local o ambas).",
              font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 4))
+    tk.Label(tab, text="«Entrar» con una cuenta es guardar su secreto en la bóveda: se "
+                       "escribe una vez y no se vuelve a mostrar, como una contraseña "
+                       "guardada. La primera cuenta ya está (se creó sola con tu secreto). "
+                       "Para agregar la segunda: pulsa «Nueva cuenta», ponle nombre e "
+                       "identificador (p. ej. «segunda»), elige el carril de la otra copia "
+                       "del programa y su conexión, escribe su secreto abajo y pulsa "
+                       "«Agregar cuenta Muse».",
+             font=(FONT, 10), bg=THEME["bg"], fg=THEME["muted"], justify="left",
              wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 12))
 
     estado = {"sel": None, "reg": None}
@@ -34858,7 +34974,7 @@ def _build_cuentas(tab):
 
     def campo(fila, etiqueta, var, opciones=None, secreto=False):
         tk.Label(form, text=etiqueta, font=(FONT, 11), bg=THEME["card"],
-                 fg=THEME["text"], width=16, anchor="w").grid(
+                 fg=THEME["text"], width=30, anchor="w").grid(
                      row=fila, column=0, padx=(14, 6), pady=5, sticky="w")
         if opciones:
             w = tk.OptionMenu(form, var, *opciones)
@@ -34870,14 +34986,14 @@ def _build_cuentas(tab):
         w.grid(row=fila, column=1, padx=(0, 14), pady=5, sticky="ew")
         return w
 
-    campo(0, "Nombre", vars_["nombre"])
+    campo(0, "Nombre de la cuenta", vars_["nombre"])
     e_id = campo(1, "Identificador", vars_["id"])
-    campo(2, "Asistente", vars_["asistente"])
-    campo(3, "Carril", vars_["carril"], opciones=("a", "b", "sin asignar"))
+    campo(2, "Asistente (perfil)", vars_["asistente"])
+    campo(3, "Carril (copia del programa)", vars_["carril"], opciones=("a", "b", "sin asignar"))
     campo(4, "Conexión", vars_["conexion"], opciones=("servidor", "local", "ambas"))
-    e_sec = campo(5, "Secreto (nuevo)", vars_["id"] and tk.StringVar(), secreto=True)
+    e_sec = campo(5, "Secreto de la cuenta", vars_["id"] and tk.StringVar(), secreto=True)
     var_sec = e_sec.cget("textvariable")
-    tk.Label(form, text="El secreto nunca se muestra: vive en la bóveda. Escribe uno "
+    tk.Label(form, text="Se guarda en la bóveda y no se vuelve a mostrar. Escríbelo "
                         "solo para ponerlo o cambiarlo; vacío = dejar el que hay.",
              font=(FONT, 9), bg=THEME["card"], fg=THEME["muted"], justify="left",
              anchor="w", wraplength=S(470)).grid(row=6, column=1, padx=(0, 14), pady=(0, 2), sticky="w")
@@ -35017,7 +35133,7 @@ def _build_cuentas(tab):
     tk.Button(botones, text="Nueva cuenta", font=(FONT, 11), command=_limpiar,
               bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
               cursor="hand2", padx=10, pady=3).pack(side="left", padx=(0, 8))
-    tk.Button(botones, text="Guardar cuenta", font=(FONT, 11, "bold"), command=_guardar,
+    tk.Button(botones, text="Agregar cuenta Muse", font=(FONT, 11, "bold"), command=_guardar,
               bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
               cursor="hand2", padx=10, pady=3).pack(side="left")
     lista.bind("<<ListboxSelect>>", _al_elegir)
@@ -35647,7 +35763,7 @@ def _build_cuentas(tab):
             _decir(f"No se compusieron las reglas: {e}")
             return
         from tkinter import scrolledtext as _st6
-        win = tk.Toplevel(tab)
+        win = _acotar_ventana(tk.Toplevel(tab))
         win.title("Reglas del intermediario (instálalas tú)")
         win.configure(bg=THEME["bg"])
         tk.Label(win, text="Esto es TODO lo que se autoriza. La app "
@@ -35738,10 +35854,165 @@ def _build_cuentas(tab):
     _refrescar_f6()
     _refrescar_canal()
     _refrescar()
+    _avisos_arranque = []
+    _una_cuenta = _cuentas_aviso_una_cuenta()
+    if _una_cuenta:
+        _avisos_arranque.append(_una_cuenta)
     if cred_via() == "dpapi":
-        _decir("Aviso: esta PC no ofrece almacén del sistema ahora mismo; los "
-               "secretos van en un archivo local protegido (0600). Con GNOME "
-               "Keyring o KWallet en marcha se usa el almacén del sistema.")
+        _avisos_arranque.append(
+            "Aviso: esta PC no ofrece almacén del sistema ahora mismo; los "
+            "secretos van en un archivo local protegido (0600). Con GNOME "
+            "Keyring o KWallet en marcha se usa el almacén del sistema.")
+    if _avisos_arranque:
+        _decir("\n".join(_avisos_arranque))
+
+
+def _build_chat(tab):
+    """Página «Chat» (corrección de la primera prueba real): hablar con
+    una cuenta Muse desde la propia app.
+
+    Enviar un mensaje escribe una tarea NORMAL en el runner-tasks del
+    carril de la cuenta elegida, con la forma derivada del propio
+    programa (cwd = la carpeta del carril destino, archivos =
+    [<carpeta>/chats/<tid>.md]): la misma idea que encargos/ (Fase 4) y
+    consultas/ (Fase 2), y validate_task acepta esa forma exacta. Sin
+    atajos: la tarea pasa por la cola, el runner, la capa de permisos y
+    la presencia como cualquier otra. La página vigila el
+    runner-results de ese carril y pinta la respuesta del motor — o el
+    motivo del fallo — cuando el resultado llega."""
+    import cuentas as _c
+    import uuid as _uuid
+
+    tk.Label(tab, text="Chat", font=(FONT, 22, "bold"),
+             bg=THEME["bg"], fg=THEME["text"]).pack(anchor="w", padx=28, pady=(24, 2))
+    tk.Label(tab, text="Habla con una de tus cuentas Muse dentro del programa. Cada "
+                       "mensaje es una tarea normal para esa cuenta: la trabaja su "
+                       "carril y la respuesta aparece aquí.",
+             font=(FONT, 11), bg=THEME["bg"], fg=THEME["muted"], justify="left",
+             wraplength=S(640)).pack(anchor="w", padx=28, pady=(0, 12))
+
+    estado = {"cuentas": {}, "pendientes": {}}
+
+    fila_sel = tk.Frame(tab, bg=THEME["bg"])
+    fila_sel.pack(fill="x", padx=28, pady=(0, 8))
+    tk.Label(fila_sel, text="Cuenta:", font=(FONT, 11), bg=THEME["bg"],
+             fg=THEME["text"]).pack(side="left")
+    var_cuenta = tk.StringVar()
+    combo = ttk.Combobox(fila_sel, textvariable=var_cuenta, state="readonly", width=38)
+    combo.pack(side="left", padx=(6, 0))
+
+    conv_holder = tk.Frame(tab, bg=THEME["card"], bd=1, relief="solid")
+    conv_holder.pack(fill="both", expand=True, padx=28, pady=(0, 8))
+    conv = tk.Text(conv_holder, font=(FONT, 11), wrap="word", state="disabled",
+                   bg=THEME["card"], fg=THEME["text"], bd=0, highlightthickness=0)
+    barra = ttk.Scrollbar(conv_holder, orient="vertical", command=conv.yview)
+    conv.configure(yscrollcommand=barra.set)
+    conv.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=8)
+    barra.pack(side="right", fill="y")
+
+    fila_in = tk.Frame(tab, bg=THEME["bg"])
+    fila_in.pack(fill="x", padx=28, pady=(0, 20))
+    entrada = tk.Entry(fila_in, font=(FONT, 11), bd=1, relief="solid")
+    entrada.pack(side="left", fill="x", expand=True)
+
+    def _pintar(quien, texto_):
+        try:
+            conv.config(state="normal")
+            conv.insert("end", f"{quien}: {texto_}\n\n")
+            conv.see("end")
+            conv.config(state="disabled")
+        except Exception:
+            pass
+
+    def _refrescar_cuentas():
+        try:
+            reg = _c.cargar(APP_DIR, carril=LANE)
+        except Exception:
+            reg = {}
+        estado["cuentas"] = {}
+        nombres = []
+        for c in (reg or {}).get("cuentas", []):
+            if c.get("habilitada", True) and c.get("carril"):
+                etq = f"{c.get('nombre') or c['id']} · carril {c['carril'].upper()}"
+                estado["cuentas"][etq] = c
+                nombres.append(etq)
+        combo["values"] = nombres
+        if var_cuenta.get() not in estado["cuentas"]:
+            propia = _cuenta_de_este_carril()
+            defecto = next((e for e, c in estado["cuentas"].items()
+                            if c.get("id") == propia), "")
+            var_cuenta.set(defecto or (nombres[0] if nombres else ""))
+
+    def _enviar():
+        msg = entrada.get().strip()
+        if not msg:
+            return
+        c = estado["cuentas"].get(var_cuenta.get())
+        if not c:
+            _pintar("Growi", "No hay cuenta elegida: agrega una cuenta Muse con "
+                             "carril en la página Cuentas.")
+            return
+        carril = c["carril"]
+        base = _dir_carril(carril)
+        tid = f"chat-{_uuid.uuid4().hex[:10]}"
+        task = {"id": tid, "tipo": "chat", "lane": carril,
+                "cuenta": c["id"], "prompt": msg, "cwd": str(base),
+                "archivos": [str(base / "chats" / f"{tid}.md")]}
+        dest = base / "share" / "inbox" / "runner-tasks"
+        if not dest.is_dir():
+            _pintar("Growi", f"No se envió: el carril {carril.upper()} no está "
+                             f"instalado en esta PC (no existe {dest}).")
+            return
+        try:
+            tmp = dest / f".{tid}.tmp"
+            tmp.write_text(json.dumps(task, indent=2, ensure_ascii=False),
+                           encoding="utf-8")
+            os.replace(tmp, dest / f"{tid}.task.json")
+        except OSError as e:
+            _pintar("Growi", f"No se pudo enviar el mensaje: {e}")
+            return
+        entrada.delete(0, "end")
+        estado["pendientes"][tid] = c
+        _pintar("Tú", msg)
+        _pintar("Growi", f"Enviado a {c.get('nombre') or c['id']}: está "
+                         "trabajando en ello…")
+
+    def _vigilar():
+        try:
+            if not tab.winfo_exists():
+                return
+        except Exception:
+            return
+        for tid, c in list(estado["pendientes"].items()):
+            rf = (_dir_carril(c["carril"]) / "share" / "outbox" /
+                  "runner-results" / f"{tid}.result.json")
+            if not rf.is_file():
+                continue
+            try:
+                res = json.loads(rf.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            estado["pendientes"].pop(tid, None)
+            nombre = c.get("nombre") or c["id"]
+            if res.get("status") == "ok":
+                _pintar(nombre, (res.get("result") or "").strip()
+                        or "(la tarea terminó sin texto de respuesta)")
+            else:
+                motivo = (res.get("error") or res.get("reporte")
+                          or res.get("motivo") or "sin motivo registrado")
+                _pintar(nombre, f"La tarea no se completó: {motivo}")
+        try:
+            tab.after(2000, _vigilar)
+        except Exception:
+            pass
+
+    tk.Button(fila_in, text="Enviar", font=(FONT, 11, "bold"), command=_enviar,
+              bg=THEME["card"], fg=THEME["text"], bd=1, relief="solid",
+              cursor="hand2", padx=12, pady=3).pack(side="left", padx=(8, 0))
+    entrada.bind("<Return>", lambda _e: (_enviar(), "break")[1])
+    _widgets["chat_refrescar"] = _refrescar_cuentas
+    _refrescar_cuentas()
+    _vigilar()
 
 
 def build_gui():
@@ -35767,7 +36038,7 @@ def build_gui():
             "la barra de tareas mostrara la pluma de Tk")
     _dpi_scaling(root)
     _set_taskbar_props(root)
-    root.title("Growi Bridge" + (" — carril B" if LANE == "b" else ""))
+    root.title(f"Growi Bridge {VERSION} · Multi-Muse" + (" — carril B" if LANE == "b" else ""))
     # Tamano a 100 % por SCALE, sin pasarse de la pantalla (a 150 % en un
     # portatil de 1080 px la ventana entera no cabria).
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
@@ -35867,8 +36138,8 @@ def build_gui():
         side="right", padx=12)
     _widgets["cloud_banner"] = cloud
     pages = {}
-    for name in ("estado", "carpetas", "skills", "pantalla", "apis", "cuentas", "modelos",
-                 "tareas", "recursos", "ajustes", "registro"):
+    for name in ("estado", "carpetas", "skills", "pantalla", "apis", "cuentas", "chat",
+                 "modelos", "tareas", "recursos", "ajustes", "registro"):
         holder = tk.Frame(content, bg=THEME["bg"])
         pages[name] = _scrollable(holder)
         holder._inner = pages[name]
@@ -35899,6 +36170,10 @@ def build_gui():
             _rc = _widgets.get("cuentas_refrescar")
             if _rc:
                 _rc()
+        if name == "chat":
+            _rch = _widgets.get("chat_refrescar")
+            if _rch:
+                _rch()
         # Recursos: la lectura corre solo con la pestana abierta.
         if name == "recursos":
             _res_open()
@@ -35912,7 +36187,7 @@ def build_gui():
     nav.pack(fill="x", padx=8, pady=8)
     for name, label in (("estado", "Estado"), ("carpetas", "Carpetas"),
                         ("skills", "Skills"), ("pantalla", "Pantalla"),
-                        ("apis", "APIs"), ("cuentas", "Cuentas"), ("modelos", "Modelos"), ("tareas", "Tareas"),
+                        ("apis", "APIs"), ("cuentas", "Cuentas"), ("chat", "Chat"), ("modelos", "Modelos"), ("tareas", "Tareas"),
                         ("recursos", "Recursos"), ("ajustes", "Ajustes"),
                         ("registro", "Registro")):
         row = tk.Frame(nav, bg=THEME["sidebar"])
@@ -36275,6 +36550,7 @@ def build_gui():
 
     # ================= pagina Tareas
     _build_cuentas(pages["cuentas"])
+    _build_chat(pages["chat"])
 
     tabt = pages["tareas"]
     tk.Label(tabt, text="Tareas", font=(FONT, 22, "bold"),

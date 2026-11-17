@@ -199,5 +199,91 @@ class TestSonda(unittest.TestCase):
         self.assertFalse(recursos.sonda_systemd(ejecutar=roto))
 
 
+class TestAbsolutos(unittest.TestCase):
+    """Topes absolutos opcionales por modo (corrección de la prueba
+    real): el tope efectivo es el MENOR entre el de % y el absoluto, y
+    «topes» declara cuál mandó en cada recurso."""
+
+    def test_sin_absolutos_manda_el_pct(self):
+        lim = recursos.limites(XEON, {"cpu": 50, "ram": 50, "gpu": 50}, 1)
+        self.assertEqual(lim["topes"],
+                         {"cpu": "pct", "ram": "pct", "gpu": "pct"})
+        self.assertEqual(lim["cpu"]["cpuquota_pct"], 1400)
+
+    def test_absoluto_menor_acota(self):
+        asig = {"cpu": 100, "ram": 100, "gpu": 100,
+                "absolutos": {"cpu_nucleos": 4, "ram_gb": 5, "gpu_gb": 2}}
+        lim = recursos.limites(XEON, asig, 1)
+        self.assertEqual(lim["cpu"]["cpuquota_pct"], 400)   # 4 núcleos
+        self.assertEqual(lim["cpu"]["cpu_rate_job"], 1429)  # 4/28 del total
+        self.assertEqual(lim["ram"]["bytes_por_tarea"], 5 * GIB)
+        self.assertEqual(lim["gpu"]["vram_presupuesto"], 2 * GIB)
+        self.assertEqual(lim["topes"], {"cpu": "absoluto",
+                                        "ram": "absoluto",
+                                        "gpu": "absoluto"})
+
+    def test_absoluto_mayor_no_acota(self):
+        asig = {"cpu": 50, "ram": 50, "gpu": 50,
+                "absolutos": {"cpu_nucleos": 28, "ram_gb": 64,
+                              "gpu_gb": 16}}
+        lim = recursos.limites(XEON, asig, 1)
+        self.assertEqual(lim["cpu"]["cpuquota_pct"], 1400)
+        self.assertEqual(lim["ram"]["bytes_por_tarea"], 16 * GIB)
+        self.assertEqual(lim["gpu"]["vram_presupuesto"], 4 * GIB)
+        self.assertEqual(lim["topes"],
+                         {"cpu": "pct", "ram": "pct", "gpu": "pct"})
+
+    def test_absolutos_se_reparten_entre_tareas(self):
+        asig = {"cpu": 100, "ram": 100, "gpu": 100,
+                "absolutos": {"cpu_nucleos": 4, "ram_gb": 8}}
+        lim = recursos.limites(XEON, asig, 2)
+        self.assertEqual(lim["cpu"]["cpuquota_pct"], 200)  # 4/2 núcleos
+        self.assertEqual(lim["ram"]["bytes_por_tarea"], 4 * GIB)
+
+    def test_absoluto_parcial_solo_acota_su_recurso(self):
+        asig = {"cpu": 100, "ram": 100, "gpu": 100,
+                "absolutos": {"ram_gb": 3}}
+        lim = recursos.limites(XEON, asig, 1)
+        self.assertEqual(lim["ram"]["bytes_por_tarea"], 3 * GIB)
+        self.assertEqual(lim["topes"]["ram"], "absoluto")
+        self.assertEqual(lim["topes"]["cpu"], "pct")
+        self.assertEqual(lim["topes"]["gpu"], "pct")
+
+    def test_guardar_y_releer_absolutos(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            recursos.guardar_asignacion(base, {"presente": {
+                "absolutos": {"cpu_nucleos": 4, "ram_gb": 5,
+                              "gpu_gb": None}}})
+            self.assertEqual(recursos.absolutos_de(base)["presente"],
+                             {"cpu_nucleos": 4, "ram_gb": 5,
+                              "gpu_gb": None})
+            self.assertEqual(recursos.absolutos_de(base)["ausente"],
+                             {"cpu_nucleos": None, "ram_gb": None,
+                              "gpu_gb": None})
+            # Guardar solo absolutos no toca los %.
+            self.assertEqual(
+                recursos.asignacion_de(base)["presente"]["ram"], 50)
+
+    def test_absoluto_invalido_rechazado(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for malo in ({"cpu_nucleos": 0}, {"ram_gb": -1},
+                         {"gpu_gb": "2"}, {"ram_gb": True},
+                         {"disco_gb": 3}):
+                with self.assertRaises(recursos.ErrorRecursos):
+                    recursos.guardar_asignacion(
+                        base, {"presente": {"absolutos": malo}})
+
+    def test_admision_gpu_acotada_por_el_absoluto(self):
+        asig = {"cpu": 100, "ram": 100, "gpu": 100,
+                "absolutos": {"gpu_gb": 2}}
+        # Al 100 % cabría (8 GiB); con el tope de 2 GiB, 1+2 GiB no cabe.
+        self.assertFalse(
+            recursos.hay_margen_gpu(XEON, asig, 1024, 2048)["ok"])
+        self.assertTrue(
+            recursos.hay_margen_gpu(XEON, asig, 0, 1024)["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()

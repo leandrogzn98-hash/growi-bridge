@@ -3,7 +3,8 @@
 
 Los límites no son cifras fijas: el programa detecta el hardware de la PC
 donde se instala y el dueño asigna PORCENTAJES por modo de presencia
-(ausente / presente). El presupuesto es del programa entero: las dos
+(ausente / presente). Además puede poner topes ABSOLUTOS opcionales por
+modo (núcleos de CPU, GB de RAM, GB de GPU): manda el menor de los dos. El presupuesto es del programa entero: las dos
 cuentas Muse lo comparten y se reparte a partes iguales entre las tareas
 vivas de AMBOS carriles (el estado compartido lleva una sección por
 carril y el reparto se calcula sobre la suma).
@@ -55,6 +56,10 @@ ASIGNACION_DEF = {
 
 MODOS = ("ausente", "presente")
 CLAVES = ("cpu", "ram", "gpu")
+# Topes absolutos opcionales por modo (corrección de la prueba real):
+# viven en la asignación de cada modo como un bloque «absolutos» y el
+# tope efectivo de cada recurso es el MENOR entre el de % y el absoluto.
+CLAVES_ABS = ("cpu_nucleos", "ram_gb", "gpu_gb")
 
 _LOCKS = {}
 _LOCKS_MU = threading.Lock()
@@ -321,9 +326,32 @@ def asignacion_de(base_dir):
     return salida
 
 
+def _absolutos_validos(bloque):
+    """El bloque «absolutos» saneado: cada tope es un número > 0 o None
+    (sin tope absoluto en ese recurso). Lo inválido se lee como ausente:
+    leer la configuración nunca rompe el arranque."""
+    salida = {k: None for k in CLAVES_ABS}
+    if isinstance(bloque, dict):
+        for k in CLAVES_ABS:
+            v = bloque.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool) \
+                    and v > 0:
+                salida[k] = v
+    return salida
+
+
+def absolutos_de(base_dir):
+    """Los topes absolutos por modo, saneados (None = sin tope)."""
+    datos = _cargar(base_dir)
+    asig = datos.get("asignacion") or {}
+    return {modo: _absolutos_validos((asig.get(modo) or {}).get("absolutos"))
+            for modo in MODOS}
+
+
 def validar_asignacion(asignacion):
     """Valida una asignación (completa o parcial por modo): % enteros de
-    1 a 100. Lanza ErrorRecursos con el motivo."""
+    1 a 100 y, si viene, el bloque «absolutos» con números > 0 o null.
+    Lanza ErrorRecursos con el motivo."""
     if not isinstance(asignacion, dict):
         raise ErrorRecursos("la asignación debe ser un objeto por modo")
     for modo, valores in asignacion.items():
@@ -332,6 +360,22 @@ def validar_asignacion(asignacion):
         if not isinstance(valores, dict):
             raise ErrorRecursos(f"la asignación de {modo} debe ser un objeto")
         for clave, valor in valores.items():
+            if clave == "absolutos":
+                if not isinstance(valor, dict):
+                    raise ErrorRecursos(
+                        f"{modo}.absolutos debe ser un objeto")
+                for k2, v2 in valor.items():
+                    if k2 not in CLAVES_ABS:
+                        raise ErrorRecursos(
+                            f"tope absoluto desconocido: {k2!r}")
+                    if v2 is None:
+                        continue
+                    if isinstance(v2, bool) \
+                            or not isinstance(v2, (int, float)) or v2 <= 0:
+                        raise ErrorRecursos(
+                            f"{modo}.absolutos.{k2} debe ser un número "
+                            f"> 0 o null (recibido {v2!r})")
+                continue
             if clave not in CLAVES:
                 raise ErrorRecursos(f"recurso desconocido: {clave!r}")
             if isinstance(valor, bool) or not isinstance(valor, int):
@@ -370,12 +414,27 @@ def limites(specs, asig_modo, n_tareas):
     - cpu_rate_job: para Job Objects de Windows, en centésimas de punto
       porcentual del total (100 % = 10000).
     - ram_bytes: RAM total × % / n, con suelo de cordura por tarea.
-    - gpu: presupuesto de admisión (no se divide: es un fondo común)."""
+    - gpu: presupuesto de admisión (no se divide: es un fondo común).
+
+    Si ``asig_modo`` trae el bloque «absolutos» (ver absolutos_de), el
+    tope efectivo de cada recurso es el MENOR entre el de % y el
+    absoluto (los absolutos de CPU y RAM también se reparten entre las
+    tareas vivas; el de GPU es el fondo común, como su %). La clave
+    «topes» declara por recurso qué tope mandó: "pct" o "absoluto"
+    (None si el hardware de ese recurso no se conoce)."""
     n = max(1, int(n_tareas or 1))
     cpu = specs.get("cpu") or {}
     logicos = max(1, int(cpu.get("logicos") or 1))
+    abs_ = asig_modo.get("absolutos") or {}
     pct_cpu = asig_modo["cpu"]
     nucleos = pct_cpu / 100.0 * logicos / n
+    topes = {"cpu": "pct", "ram": None, "gpu": None}
+    abs_cpu = abs_.get("cpu_nucleos")
+    if isinstance(abs_cpu, (int, float)) and abs_cpu > 0:
+        por_tarea = float(abs_cpu) / n
+        if por_tarea < nucleos:
+            nucleos = por_tarea
+            topes["cpu"] = "absoluto"
     suelos = []
     if nucleos < 0.05:
         nucleos = 0.05
@@ -383,27 +442,44 @@ def limites(specs, asig_modo, n_tareas):
     ram_total = specs.get("ram_total")
     ram_bytes = None
     if ram_total:
+        topes["ram"] = "pct"
         ram_bytes = int(ram_total * asig_modo["ram"] / 100.0 / n)
+        abs_ram = abs_.get("ram_gb")
+        if isinstance(abs_ram, (int, float)) and abs_ram > 0:
+            abs_bytes = int(float(abs_ram) * 1024 ** 3 / n)
+            if abs_bytes < ram_bytes:
+                ram_bytes = abs_bytes
+                topes["ram"] = "absoluto"
         if ram_bytes < SUELO_RAM_BYTES:
             ram_bytes = SUELO_RAM_BYTES
             suelos.append("ram: suelo de 256 MB por tarea")
     gpu = specs.get("gpu") or {}
     vram_total = gpu.get("vram_total")
+    vram_pres = None
+    if vram_total:
+        topes["gpu"] = "pct"
+        vram_pres = int(vram_total * asig_modo["gpu"] / 100.0)
+        abs_gpu = abs_.get("gpu_gb")
+        if isinstance(abs_gpu, (int, float)) and abs_gpu > 0:
+            abs_vram = int(float(abs_gpu) * 1024 ** 3)
+            if abs_vram < vram_pres:
+                vram_pres = abs_vram
+                topes["gpu"] = "absoluto"
     return {
         "n_tareas": n,
         "cpu": {
-            "pct_maquina": pct_cpu / n,
+            "pct_maquina": nucleos / logicos * 100,
             "nucleos_equiv": nucleos,
             "cpuquota_pct": round(nucleos * 100),
-            "cpu_rate_job": int(round(pct_cpu / n * 100)),
+            "cpu_rate_job": int(round(nucleos / logicos * 10000)),
         },
         "ram": {"bytes_por_tarea": ram_bytes, "pct": asig_modo["ram"]},
         "gpu": {
             "pct": asig_modo["gpu"],
-            "vram_presupuesto": (int(vram_total * asig_modo["gpu"] / 100.0)
-                                 if vram_total else None),
+            "vram_presupuesto": vram_pres,
             "vram_total": vram_total,
         },
+        "topes": topes,
         "suelos": suelos,
     }
 
@@ -421,6 +497,10 @@ def hay_margen_gpu(specs, asig_modo, comprometida_mib, necesaria_mib=None):
                 "motivo": "sin GPU detectada: la GPU no se gobierna"}
     total_mib = total / (1024 * 1024)
     presupuesto = total_mib * asig_modo["gpu"] / 100.0
+    abs_gpu = (asig_modo.get("absolutos") or {}).get("gpu_gb")
+    if isinstance(abs_gpu, (int, float)) and abs_gpu > 0:
+        # El tope absoluto de VRAM acota la admisión, como en limites().
+        presupuesto = min(presupuesto, float(abs_gpu) * 1024.0)
     comprometida = float(comprometida_mib or 0)
     supuesta = necesaria_mib is None
     if supuesta:

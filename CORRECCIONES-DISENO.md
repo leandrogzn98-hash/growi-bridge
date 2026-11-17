@@ -107,3 +107,36 @@ entiendan, 4 chat local, y DESPUÉS 5 límites absolutos.
   alta de la segunda cuenta completada desde la UI; chat con mensaje a cada
   carril de prueba y respuesta (o motivo) visible en la página.
 - El monolito conserva su CRLF al 100 % tras los parches.
+
+## Correcciones de las pruebas físicas (1366×768, UI real)
+
+Las pruebas físicas de la ronda cazaron dos defectos que las unitarias no
+vieron; ambos quedaron corregidos y reprobados en vivo:
+
+1. **Los dos avisos de arranque de Cuentas se pisaban.** `_decir` escribe
+   UNA etiqueta: el aviso de «solo una cuenta» se mostraba y el de la
+   bóveda degradada lo sobrescribía en el mismo arranque. Ahora ambos se
+   juntan y se muestran a la vez (verificado en pantalla: salen los dos).
+2. **El chat con la cuenta del carril A rebotaba.** La forma derivada de
+   `validate_task` exigía `LANE == "b"` (venía del relevo de la Fase 4), y
+   el chat de la cuenta del propio carril A moría con «cwd fuera de las
+   carpetas permitidas». La forma derivada (cwd = el APP_DIR de este
+   proceso y archivos solo en encargos/, consultas/ o chats/) ahora se
+   calcula una vez y vale en los dos carriles, también frente a la
+   comprobación de raíces del asistente. Reprobado: el chat llegó al motor
+   en los dos carriles (en el entorno de prueba el motor `claude` no está
+   instalado y ese motivo es el que la conversación muestra).
+
+Verificado además en vivo a 1366×768: la rueda (Button-4/5 de X11) mueve
+por fin las páginas — la causa raíz del punto 2 del dueño era que la rueda
+solo escuchaba el evento de Windows —; la página Cuentas se recorre entera
+hasta Seguridad avanzada; el alta de la segunda cuenta se completó desde
+la UI tras el aviso de arranque; el título y la barra lateral dicen
+«0.5.0 · Multi-Muse»; y la sección Multi-Muse de Recursos muestra los %
+y los campos absolutos opcionales con su línea de «Tope que manda».
+
+Límite honesto de la prueba: el selector de cuenta del chat se probó en
+cada ventana con su cuenta por defecto (la del propio carril en los dos
+carriles); el cruce desde una ventana a la cuenta del otro carril usa la
+misma entrega por archivos probada desde la Fase 2, pero el robot de
+pruebas no logró operar ese desplegable concreto (sí los de Cuentas).
