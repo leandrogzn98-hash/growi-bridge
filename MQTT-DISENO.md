@@ -18,10 +18,15 @@ en su PC. La propuesta le da la vuelta:
 - A cada Muse se le pasa **un solo paquete de datos** (§9) y con eso
   queda conectada: sin IPs, sin abrir puertos, sin tocar el router.
 - **Solo texto.** Tareas, resultados, tablero, presencia y decisiones
-  viajan por MQTT. Los archivos y el código siguen viajando por GitHub
+  viajan por MQTT. Los archivos grandes siguen viajando por GitHub
   (worktrees y push, Fase 3), como hasta ahora. Las imágenes *podrían*
   viajar, pero comen el cupo de datos del broker: quedan fuera por
   decisión del dueño.
+- **MQTT es solo el canal de control; la ejecución sigue en el PC**
+  (§3 bis). El broker mueve las órdenes y las respuestas en texto; el
+  trabajo pesado —compilar, ejecutar, usar la CPU/RAM/GPU del PC— lo
+  hace Growi en el PC, como hoy. El espacio de cada Muse solo piensa
+  y redacta.
 
 ## 2. Viabilidad verificada (2026-11-16, desde el espacio de Lu)
 
@@ -82,6 +87,50 @@ Hallazgos que el diseño tiene que respetar:
   Muses no podrían llegar a él sin abrir el PC a internet, que es lo
   que se quiere evitar). El broker vive fuera: servicio en la nube o
   autoalojado (§8).
+
+## 3 bis. Canal de control, ejecución en el PC (aclaración del dueño)
+
+Aclaración pedida por el dueño el 2026-11-16, para que no quede
+ninguna duda: **conectarse por MQTT no mueve el trabajo fuera de su
+PC.** Growi tiene dos brazos —el acceso total a su PC y la visión de
+su pantalla— y los dos siguen viviendo en el PC; MQTT solo cambia
+*por dónde llegan las órdenes*.
+
+El ciclo de un trabajo de programación por MQTT (su ejemplo: un
+traductor de imagen a texto **en Rust, hecho en su computadora**):
+
+1. La Muse **redacta el código como texto**. El código es texto:
+   viaja en los mensajes de tarea y resultado, dentro del tope por
+   mensaje de §5 (64 KB). Un archivo que no cabe no se trocea: va por
+   la ruta de GitHub de siempre.
+2. Growi lo recibe y **lo escribe en el proyecto/worktree de esa
+   cuenta, en el PC** (el mismo sitio donde hoy caen las tareas).
+3. Growi **compila y ejecuta con la CPU, la RAM y la GPU del PC**,
+   dentro de los límites por % y absolutos y de los modos de
+   presencia ya implementados (Fase 4 y correcciones): si el dueño
+   está usando la PC, rigen sus límites y su silencio; si no está,
+   el trabajo usa la máquina hasta su tope configurado.
+4. La salida del compilador, los errores y el resultado de las
+   pruebas —todo texto— **vuelven por MQTT**, y la Muse corrige
+   sobre eso y manda la siguiente versión. Así, vuelta a vuelta,
+   hasta terminar.
+5. El acceso total al PC (archivos, runner, motores locales) lo
+   ejerce Growi en el PC como hoy: la tarea que llega por MQTT entra
+   por la misma cola, la misma validación y la misma capa de
+   permisos que una tarea de cualquier otro origen. Cambia el canal,
+   no la ejecución ni las reglas.
+
+El espacio de cada Muse, por tanto, no necesita potencia: piensa,
+redacta y corrige. El trabajo pesado nunca sale del PC — que es lo
+que el dueño ya había fijado como requisito del proyecto.
+
+**La excepción pesada: la pantalla.** La visión del PC (capturas y
+compartir pantalla) no fluye por MQTT como flujo normal: son muchos
+datos y se comerían el cupo del broker. Queda para el camino directo
+(misma red o Tailscale, como hoy) o, si un día hace falta, una
+captura suelta reducida, contando su coste contra el cupo. Para
+programar —el ejemplo del dueño y el grueso del trabajo— el canal de
+texto basta: el compilador habla en texto.
 
 ## 4. Temas
 
