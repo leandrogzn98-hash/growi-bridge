@@ -18704,7 +18704,7 @@ def refresh_ui():
         fg=THEME["green_text"] if state["power"] else THEME["muted"])
     w["sync_text"].config(text=_sync_text())
     w["admin_text"].config(
-        text=f"Versión {VERSION} · Multi-Muse\n"
+        text=f"Growi Private MQTT · Versión {VERSION}\n"
         + ("Con permisos de administrador" if state["admin"] else "Sin permisos de administrador"))
     if state["update_available"]:
         w["update_label"].config(
@@ -30623,8 +30623,8 @@ _ATAJO_SISTEMA = {
 }
 # Las fijas de dentro de Bridge (no se cambian desde Atajos).
 _ATAJO_FIJOS = {**{f"Ctrl + {i}": f"Ir a {p}" for i, p in enumerate(
-    ("Recursos", "Estado", "Carpetas", "Skills", "Pantalla", "APIs", "Modelos", "Tareas",
-     "Ajustes", "Registro"))},
+    ("Recursos", "Cuentas", "Chat", "Modelos", "APIs", "Skills", "Tareas", "Ajustes",
+     "Carpetas"))},
     **{f"Alt + {i}": f"elegir la fila {i} de la paleta" for i in range(1, 10)},
     "Ctrl + C": "copiar", "Ctrl + V": "pegar", "Ctrl + X": "cortar",
     "Ctrl + A": "seleccionar todo", "Ctrl + Z": "deshacer", "Ctrl + Y": "rehacer"}
@@ -34947,7 +34947,7 @@ def _build_ajustes_ctk(tab_aj):
     # ---- Carpetas y version
     up = section("Carpetas y actualizaciones")
     r = row(up)
-    text_block(r, None, f"Versión {VERSION} · Multi-Muse.")
+    text_block(r, None, f"Growi Private MQTT · Versión {VERSION}.")
     brow = ctk.CTkFrame(r, fg_color="transparent")
     brow.pack(anchor="w", pady=(10, 0))
     for i, (txt, cmd) in enumerate((("Abrir Inbox", lambda: open_folder(INBOX)),
@@ -36358,7 +36358,7 @@ def build_gui():
             "la barra de tareas mostrara la pluma de Tk")
     _dpi_scaling(root)
     _set_taskbar_props(root)
-    root.title(f"Growi Bridge {VERSION} · Multi-Muse" + (" — carril B" if LANE == "b" else ""))
+    root.title(f"Growi Private MQTT {VERSION}" + (" — carril B" if LANE == "b" else ""))
     # Tamano a 100 % por SCALE, sin pasarse de la pantalla (a 150 % en un
     # portatil de 1080 px la ventana entera no cabria).
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
@@ -36419,7 +36419,7 @@ def build_gui():
             head.image = photo
         except Exception as e:
             log(f"encabezado: {type(e).__name__}: {e}")
-    tk.Label(head, text="Growi Bridge", font=(FONT, 15, "bold"),
+    tk.Label(head, text="Growi Private MQTT", font=(FONT, 15, "bold"),
              bg=THEME["sidebar"], fg=THEME["text"]).pack(anchor="w", pady=(8, 0))
     _widgets["admin_text"] = tk.Label(head, text="", font=(FONT, 9), justify="left",
                                       bg=THEME["sidebar"], fg=THEME["muted"])
@@ -36428,7 +36428,7 @@ def build_gui():
                                      bg=THEME["sidebar"], fg=_conn_color(), cursor="hand2",
                                      anchor="w", justify="left", wraplength=S(190))
     _widgets["conn_chip"].pack(anchor="w", pady=(6, 0))
-    _widgets["conn_chip"].bind("<Button-1>", lambda _e: _widgets["show_page"]("estado"))
+    _widgets["conn_chip"].bind("<Button-1>", lambda _e: _widgets["show_page"]("cuentas"))
 
     # ---------------- contenido (una pagina por seccion, con scroll)
     content = tk.Frame(root, bg=THEME["bg"])
@@ -36454,7 +36454,7 @@ def build_gui():
                                             bg=THEME["card"], fg=THEME["text"], anchor="w",
                                             justify="left", wraplength=S(520))
     _widgets["cloud_banner_txt"].pack(side="left", fill="x", expand=True, padx=12, pady=8)
-    ttk.Button(cloud, text="Ver el mapa", command=lambda: _widgets["show_page"]("estado")).pack(
+    ttk.Button(cloud, text="Ir a Cuentas", command=lambda: _widgets["show_page"]("cuentas")).pack(
         side="right", padx=12)
     _widgets["cloud_banner"] = cloud
     pages = {}
@@ -36505,11 +36505,16 @@ def build_gui():
     _nav_btns = {}
     nav = tk.Frame(sidebar, bg=THEME["sidebar"])
     nav.pack(fill="x", padx=8, pady=8)
-    for name, label in (("estado", "Estado"), ("carpetas", "Carpetas"),
-                        ("skills", "Skills"), ("pantalla", "Pantalla"),
-                        ("apis", "APIs"), ("cuentas", "Cuentas"), ("chat", "Chat"), ("modelos", "Modelos"), ("tareas", "Tareas"),
-                        ("recursos", "Recursos"), ("ajustes", "Ajustes"),
-                        ("registro", "Registro")):
+    # Growi Private MQTT 0.1: sin Estado ni Pantalla en el menu (las paginas
+    # quedan construidas pero inalcanzables); Carpetas baja; Registro solo
+    # si el ajuste mostrar_registro esta activo (reactivable desde la paleta).
+    _nav_paginas = [("cuentas", "Cuentas"), ("chat", "Chat"), ("modelos", "Modelos"),
+                    ("apis", "APIs"), ("skills", "Skills"), ("tareas", "Tareas"),
+                    ("recursos", "Recursos"), ("ajustes", "Ajustes"),
+                    ("carpetas", "Carpetas")]
+    if load_settings().get("mostrar_registro"):
+        _nav_paginas.append(("registro", "Registro"))
+    for name, label in _nav_paginas:
         row = tk.Frame(nav, bg=THEME["sidebar"])
         row.pack(fill="x", pady=1)
         bar = tk.Frame(row, bg=THEME["sidebar"], width=S(3))
@@ -36970,7 +36975,8 @@ def build_gui():
 
     # ================= pagina Ajustes (piloto CustomTkinter; si no, la clasica)
     _build_ajustes(pages["ajustes"])
-    _build_claves(pages["ajustes"], "ajustes")
+    # Growi Private MQTT 0.1: las claves viven solo en la pagina APIs
+    # (Ajustes ya no las duplica; P5 las unifica dentro de Modelos).
 
 
     # ================= pagina Registro
@@ -37038,13 +37044,16 @@ def build_gui():
         "tareas": "tareas cola trabajos encargos pedidos",
         "ajustes": "ajustes configuracion opciones preferencias",
         "registro": "registro log historial actividad",
+        "cuentas": "cuentas muse rayo lu clave conexion broker",
+        "chat": "chat sala conversacion mensajes globitos",
         "recursos": "recursos cpu ram gpu vram disco memoria procesos monitor cerrar matar",
     }
-    for _i, (_n, _l) in enumerate((("estado", "Estado"), ("carpetas", "Carpetas"),
-                                   ("skills", "Skills"), ("pantalla", "Pantalla"),
-                                   ("apis", "APIs"), ("modelos", "Modelos"),
-                                   ("tareas", "Tareas"), ("ajustes", "Ajustes"),
-                                   ("registro", "Registro")), start=1):
+    _pal_paginas = [("cuentas", "Cuentas"), ("chat", "Chat"), ("modelos", "Modelos"),
+                    ("apis", "APIs"), ("skills", "Skills"), ("tareas", "Tareas"),
+                    ("ajustes", "Ajustes"), ("carpetas", "Carpetas")]
+    if load_settings().get("mostrar_registro"):
+        _pal_paginas.append(("registro", "Registro"))
+    for _i, (_n, _l) in enumerate(_pal_paginas, start=1):
         _PALETTE_CMDS.append(C(f"ir_{_n}", f"Ir a {_l}", "ir pagina " + _page_alias[_n],
                                lambda n=_n: (show_window(), _show_page(n)),
                                chip=f"Ctrl+{_i}"))
@@ -37053,6 +37062,14 @@ def build_gui():
     _PALETTE_CMDS.append(C("ir_recursos", "Ir a Recursos", "ir pagina " + _page_alias["recursos"],
                            lambda: (show_window(), _show_page("recursos")), chip="Ctrl+0"))
     root.bind_all("<Control-Key-0>", lambda _e: _show_page("recursos"))
+    def _toggle_registro():
+        s = load_settings()
+        s["mostrar_registro"] = not s.get("mostrar_registro")
+        save_settings(s)
+        messagebox.showinfo("Growi Private MQTT",
+                            "El Registro se " + ("mostrara" if s["mostrar_registro"] else "ocultara")
+                            + " en el menu al reabrir la app.")
+
     _PALETTE_CMDS += [
         # Sin «.md», «diaria» ni «diferencia» en textos y claves: «md» tiene que
         # seguir encontrando Modelos primero (lo promete la pista de la paleta).
@@ -37081,8 +37098,7 @@ def build_gui():
           lambda: _sw_click("runner_sw"),
           more=[("Encender el runner", start_runner), ("Apagar el runner", stop_runner, True)]),
         C("proxy", "Encender o apagar el proxy", "proxy red internet salida",
-          lambda: _sw_click("proxy_sw"),
-          more=[("Ir a la configuración del proxy", lambda: _show_page("estado"))]),
+          lambda: _sw_click("proxy_sw")),
         C("mascota", "Mostrar u ocultar la mascota", "mascota growi personaje", toggle_mascot,
           more=[("Escribirle a Growi", open_prompt_box)]),
         C("aprobar", "Ver tareas que esperan tu aprobación", "aprobar aprobacion permisos plan",
@@ -37104,6 +37120,8 @@ def build_gui():
           toggle_window, chip="Ctrl+Alt+G"),
         C("cerrar_modo", "Elegir qué hace la X al cerrar", "cerrar x minimizar bandeja salir ajuste",
           lambda: _show_page("ajustes")),
+        C("mostrar_registro", "Mostrar u ocultar el Registro", "registro mostrar ocultar reactivar historial",
+          _toggle_registro),
         C("parar", "Parar la tarea en curso", "parar detener stop tarea motor matar",
           _on_stop_click, danger=True),
         C("apagar_pc", "Apagar el PC", "apagar pc shutdown equipo ordenador",
@@ -37114,16 +37132,10 @@ def build_gui():
           more=[("Cancelar un reinicio pendiente", pc_abort)]),
         C("salir", "Salir de Growi Bridge", "salir cerrar quitar terminar exit",
           _confirm_quit, danger=True),
-        C("disponibilidad", "Volver a comprobar la disponibilidad",
-          "mapa disponibilidad claude chatgpt gemini ollama internet comprobar venezuela",
-          lambda: (show_window(), _show_page("estado"), _recheck_ui())),
-        C("probar_proxy", "Probar el proxy", "proxy probar conectar vps eeuu salida",
-          lambda: (show_window(), _show_page("estado"),
-                   proxy_test_ui(_widgets["px_test_btn"], _widgets["px_result"]))),
         C("gasto", "Ver el gasto", "gasto dinero costo cuota max equivalente local",
           lambda: _open_ctx(("gasto",))),
         C("exportar", "Exportar mis conversaciones", "exportar respaldo copia conversaciones chats baneo",
-          lambda: (show_window(), _show_page("estado"), export_guia_ui())),
+          lambda: (show_window(), export_guia_ui())),
         C("exportar_local", "Copia local de Claude Code en un .zip", "exportar zip local copia claude code",
           export_conversations),
         C("copia_claude", "Copiar el historial de Claude Code a la VM", "copia historial claude code vm jsonl",
@@ -37143,7 +37155,7 @@ def build_gui():
     root.bind_all("<Alt-KeyPress>", _atajo_tecla_tk, add="+")
 
     _refresh_engine_widgets()
-    _show_page("estado")
+    _show_page("cuentas")
     # Alto minimo = lo que pide la barra lateral entera (cabecera, las 10
     # secciones, Buscar acciones y el pie): con 560 fijo, Registro y Buscar
     # acciones quedaban tapados al achicar la ventana.
